@@ -1,13 +1,46 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { useRequireAuth } from '@/lib/auth-context';
-import { getAdminDashboardStats, getDailyAttendance, getReplacements } from '@/lib/api-services';
+import {
+  getAdminDashboardStats,
+  getDailyAttendance,
+  getReplacements,
+} from '@/lib/api-services';
 import { AdminDashboardStats, DailyAttendance, Replacement } from '@/lib/types';
 import { KPICard } from '@/components/kpi-card';
-import { Card } from '@/components/ui/card';
+import { PageHeader } from '@/components/enterprise/page-header';
+import { GlassCard } from '@/components/enterprise/glass-card';
+import { PageSkeleton } from '@/components/enterprise/page-skeleton';
 import { Button } from '@/components/ui/button';
-import Link from 'next/link';
+import {
+  Users,
+  GraduationCap,
+  UserX,
+  Clock,
+  ArrowRight,
+  AlertTriangle,
+} from 'lucide-react';
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  AreaChart,
+  Area,
+} from 'recharts';
+
+const workloadData = [
+  { day: 'Mon', load: 82 },
+  { day: 'Tue', load: 76 },
+  { day: 'Wed', load: 91 },
+  { day: 'Thu', load: 68 },
+  { day: 'Fri', load: 74 },
+];
 
 export default function AdminDashboard() {
   useRequireAuth('admin');
@@ -26,7 +59,6 @@ export default function AdminDashboard() {
           getDailyAttendance(today),
           getReplacements({ date: today }),
         ]);
-
         setStats(statsData);
         setAttendance(attendanceData);
         setReplacements(replacementData);
@@ -36,169 +68,198 @@ export default function AdminDashboard() {
         setLoading(false);
       }
     };
-
     loadData();
   }, []);
 
-  if (loading) {
-    return (
-      <div className='min-h-screen bg-background flex items-center justify-center'>
-        <p className='text-muted-foreground'>Loading dashboard...</p>
-      </div>
-    );
-  }
+  if (loading) return <PageSkeleton />;
 
   return (
-    <div className='min-h-screen bg-background'>
-      <div className='max-w-7xl mx-auto p-6'>
-        {/* Header */}
-        <div className='mb-8'>
-          <h1 className='text-4xl font-bold text-foreground mb-2'>
-            Admin Dashboard
-          </h1>
-          <p className='text-muted-foreground'>
-            School Timetable, Attendance & Replacement Management
-          </p>
-        </div>
-
-        {/* KPI Section */}
-        <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8'>
-          <KPICard
-            label='Total Teachers'
-            value={stats?.totalTeachers || 0}
-            subtext='Active in system'
-          />
-          <KPICard
-            label='Total Classes'
-            value={stats?.totalClasses || 0}
-            subtext='Classes managed'
-          />
-          <KPICard
-            label='Today&apos;s Absences'
-            value={stats?.todayAbsent || 0}
-            variant='danger'
-            subtext='Teachers absent today'
-          />
-          <KPICard
-            label='Pending Replacements'
-            value={stats?.pendingReplacements || 0}
-            variant='warning'
-            subtext='Awaiting confirmation'
-          />
-        </div>
-
-        {/* Quick Actions */}
-        <div className='mb-8'>
-          <h2 className='text-xl font-semibold text-foreground mb-4'>
-            Quick Actions
-          </h2>
-          <div className='grid grid-cols-1 md:grid-cols-3 gap-4'>
-            <Link href='/admin/masters/teachers'>
-              <Button className='w-full bg-primary hover:bg-primary/90'>
-                Manage Teachers
-              </Button>
-            </Link>
-            <Link href='/admin/timetable'>
-              <Button className='w-full bg-primary hover:bg-primary/90'>
-                Manage Timetable
-              </Button>
-            </Link>
+    <div className='max-w-7xl mx-auto'>
+      <PageHeader
+        title='Operations Dashboard'
+        description='Live campus metrics, attendance, and substitution pipeline'
+        breadcrumbs={[
+          { label: 'Admin', href: '/admin/dashboard' },
+          { label: 'Dashboard' },
+        ]}
+        actions={
+          <Button asChild className='rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600'>
             <Link href='/admin/daily-desk'>
-              <Button className='w-full bg-primary hover:bg-primary/90'>
-                Daily Operations
-              </Button>
+              Open Daily Desk
+              <ArrowRight className='ml-2 h-4 w-4' />
             </Link>
+          </Button>
+        }
+      />
+
+      {(stats?.pendingReplacements ?? 0) > 0 && (
+        <GlassCard className='mb-6 p-4 border-amber-500/30 bg-amber-500/5 flex items-center gap-3'>
+          <AlertTriangle className='h-5 w-5 text-amber-500 shrink-0' />
+          <p className='text-sm'>
+            <span className='font-semibold'>{stats?.pendingReplacements}</span> substitution
+            assignments awaiting confirmation.
+          </p>
+          <Button size='sm' variant='outline' className='ml-auto rounded-xl' asChild>
+            <Link href='/admin/daily-desk'>Review</Link>
+          </Button>
+        </GlassCard>
+      )}
+
+      <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8'>
+        <KPICard
+          label='Total Teachers'
+          value={stats?.totalTeachers || 0}
+          subtext='Active in system'
+          index={0}
+        />
+        <KPICard
+          label='Total Classes'
+          value={stats?.totalClasses || 0}
+          subtext='Classes managed'
+          index={1}
+        />
+        <KPICard
+          label="Today's Absences"
+          value={stats?.todayAbsent || 0}
+          variant='danger'
+          subtext='Teachers absent today'
+          index={2}
+        />
+        <KPICard
+          label='Pending Replacements'
+          value={stats?.pendingReplacements || 0}
+          variant='warning'
+          subtext='Awaiting confirmation'
+          index={3}
+        />
+      </div>
+
+      <div className='grid lg:grid-cols-3 gap-6 mb-8'>
+        <GlassCard className='lg:col-span-2 p-6'>
+          <h3 className='font-semibold mb-4'>Weekly workload index</h3>
+          <div className='h-56'>
+            <ResponsiveContainer width='100%' height='100%'>
+              <AreaChart data={workloadData}>
+                <defs>
+                  <linearGradient id='loadGrad' x1='0' y1='0' x2='0' y2='1'>
+                    <stop offset='0%' stopColor='oklch(0.55 0.15 265)' stopOpacity={0.4} />
+                    <stop offset='100%' stopColor='oklch(0.55 0.15 265)' stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray='3 3' className='stroke-border/50' />
+                <XAxis dataKey='day' className='text-xs' />
+                <YAxis className='text-xs' />
+                <Tooltip />
+                <Area
+                  type='monotone'
+                  dataKey='load'
+                  stroke='oklch(0.55 0.15 265)'
+                  fill='url(#loadGrad)'
+                />
+              </AreaChart>
+            </ResponsiveContainer>
           </div>
-        </div>
+        </GlassCard>
+        <GlassCard className='p-6'>
+          <h3 className='font-semibold mb-4'>Quick actions</h3>
+          <div className='space-y-2'>
+            {[
+              { href: '/admin/masters/teachers', label: 'Manage Teachers', icon: Users },
+              { href: '/admin/timetable', label: 'Weekly Timetable', icon: GraduationCap },
+              { href: '/admin/daily-desk', label: 'Daily Desk', icon: Clock },
+            ].map((action) => (
+              <Button
+                key={action.href}
+                variant='outline'
+                className='w-full justify-start rounded-xl h-11'
+                asChild
+              >
+                <Link href={action.href}>
+                  <action.icon className='h-4 w-4 mr-2 text-indigo-500' />
+                  {action.label}
+                </Link>
+              </Button>
+            ))}
+          </div>
+        </GlassCard>
+      </div>
 
-        {/* Today's Attendance & Replacements */}
-        <div className='grid grid-cols-1 lg:grid-cols-2 gap-6'>
-          {/* Attendance Summary */}
-          <Card className='p-6 border-border'>
-            <h3 className='text-lg font-semibold text-foreground mb-4'>
-              Today&apos;s Attendance
-            </h3>
-            {attendance.length > 0 ? (
-              <div className='space-y-3'>
-                {attendance.map((record) => (
-                  <div
-                    key={record.id}
-                    className='flex items-center justify-between p-3 bg-card/50 rounded-lg border border-border/50'
-                  >
-                    <div>
-                      <p className='text-sm font-medium text-foreground'>
-                        Period {record.periodId}
-                      </p>
-                      <p className='text-xs text-muted-foreground'>
-                        Class {record.classId}
-                      </p>
-                    </div>
-                    <div>
-                      {record.isAbsent ? (
-                        <span className='px-3 py-1 bg-destructive/20 text-destructive text-xs rounded-full font-medium'>
-                          Absent
-                        </span>
-                      ) : (
-                        <span className='px-3 py-1 bg-green-500/20 text-green-600 dark:text-green-400 text-xs rounded-full font-medium'>
-                          Present
-                        </span>
-                      )}
-                    </div>
+      <div className='grid grid-cols-1 lg:grid-cols-2 gap-6'>
+        <GlassCard className='p-6'>
+          <div className='flex items-center gap-2 mb-4'>
+            <UserX className='h-5 w-5 text-rose-500' />
+            <h3 className='font-semibold'>Today&apos;s Attendance</h3>
+          </div>
+          {attendance.length > 0 ? (
+            <div className='space-y-2 max-h-64 overflow-y-auto'>
+              {attendance.map((record) => (
+                <div
+                  key={record.id}
+                  className='flex items-center justify-between p-3 rounded-xl bg-muted/30 border border-border/40'
+                >
+                  <div>
+                    <p className='text-sm font-medium'>Teacher {record.teacherId.slice(0, 8)}…</p>
+                    <p className='text-xs text-muted-foreground'>{record.date}</p>
                   </div>
-                ))}
-              </div>
-            ) : (
-              <p className='text-sm text-muted-foreground'>
-                No attendance records yet
-              </p>
-            )}
-          </Card>
+                  <span
+                    className={
+                      record.isAbsent
+                        ? 'px-2.5 py-1 rounded-full text-xs font-medium bg-rose-500/15 text-rose-600'
+                        : 'px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-500/15 text-emerald-600'
+                    }
+                  >
+                    {record.isAbsent ? 'Absent' : 'Present'}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className='text-sm text-muted-foreground'>No attendance records yet</p>
+          )}
+        </GlassCard>
 
-          {/* Replacements Summary */}
-          <Card className='p-6 border-border'>
-            <h3 className='text-lg font-semibold text-foreground mb-4'>
-              Today&apos;s Replacements
-            </h3>
-            {replacements.length > 0 ? (
-              <div className='space-y-3'>
-                {replacements.map((record) => (
-                  <div
-                    key={record.id}
-                    className='flex items-center justify-between p-3 bg-card/50 rounded-lg border border-border/50'
+        <GlassCard className='p-6'>
+          <h3 className='font-semibold mb-4'>Substitution pipeline</h3>
+          <div className='h-40 mb-4'>
+            <ResponsiveContainer width='100%' height='100%'>
+              <BarChart
+                data={[
+                  { name: 'Pending', count: stats?.pendingReplacements || 0 },
+                  { name: 'Today', count: stats?.todayReplacements || 0 },
+                ]}
+              >
+                <CartesianGrid strokeDasharray='3 3' className='stroke-border/50' />
+                <XAxis dataKey='name' />
+                <YAxis allowDecimals={false} />
+                <Tooltip />
+                <Bar dataKey='count' fill='oklch(0.55 0.15 265)' radius={[6, 6, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+          {replacements.length > 0 ? (
+            <div className='space-y-2'>
+              {replacements.slice(0, 4).map((record) => (
+                <div
+                  key={record.id}
+                  className='flex items-center justify-between p-3 rounded-xl bg-muted/30 text-sm'
+                >
+                  <span>Period {record.periodId.slice(0, 6)}…</span>
+                  <span
+                    className={
+                      record.status === 'pending'
+                        ? 'text-amber-600 text-xs font-medium'
+                        : 'text-emerald-600 text-xs font-medium'
+                    }
                   >
-                    <div>
-                      <p className='text-sm font-medium text-foreground'>
-                        Period {record.periodId}
-                      </p>
-                      <p className='text-xs text-muted-foreground'>
-                        Class {record.classId}
-                      </p>
-                    </div>
-                    <div>
-                      {record.status === 'pending' ? (
-                        <span className='px-3 py-1 bg-yellow-500/20 text-yellow-600 dark:text-yellow-400 text-xs rounded-full font-medium'>
-                          Pending
-                        </span>
-                      ) : record.status === 'confirmed' ? (
-                        <span className='px-3 py-1 bg-green-500/20 text-green-600 dark:text-green-400 text-xs rounded-full font-medium'>
-                          Confirmed
-                        </span>
-                      ) : (
-                        <span className='px-3 py-1 bg-muted text-muted-foreground text-xs rounded-full font-medium'>
-                          {record.status}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className='text-sm text-muted-foreground'>
-                No replacements scheduled today
-              </p>
-            )}
-          </Card>
-        </div>
+                    {record.status}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className='text-sm text-muted-foreground'>No replacements scheduled today</p>
+          )}
+        </GlassCard>
       </div>
     </div>
   );

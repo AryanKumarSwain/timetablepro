@@ -120,6 +120,59 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased;
+  }
+}
+
+@layer utilities {
+  .mesh-gradient {
+    background-image:
+      radial-gradient(at 0% 0%, oklch(0.55 0.15 265 / 0.12) 0px, transparent 50%),
+      radial-gradient(at 100% 0%, oklch(0.6 0.12 195 / 0.08) 0px, transparent 50%),
+      radial-gradient(at 50% 100%, oklch(0.5 0.1 300 / 0.06) 0px, transparent 50%);
+  }
+
+  .glass-panel {
+    @apply bg-card/70 backdrop-blur-xl border border-border/60 shadow-xl;
+  }
+
+  .gradient-text {
+    @apply bg-gradient-to-r from-indigo-600 via-violet-600 to-indigo-500 bg-clip-text text-transparent dark:from-indigo-400 dark:via-violet-400 dark:to-indigo-300;
+  }
+
+  .pulse-absent {
+    animation: pulse-absent 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
+  @keyframes pulse-absent {
+    0%,
+    100% {
+      box-shadow: 0 0 0 0 oklch(0.55 0.2 20 / 0.35);
+      border-color: oklch(0.55 0.2 20 / 0.5);
+    }
+    50% {
+      box-shadow: 0 0 0 6px oklch(0.55 0.2 20 / 0);
+      border-color: oklch(0.55 0.2 20 / 0.85);
+    }
+  }
+
+  .shimmer {
+    background: linear-gradient(
+      90deg,
+      transparent,
+      oklch(0.95 0 0 / 0.08),
+      transparent
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+  }
+
+  @keyframes shimmer {
+    0% {
+      background-position: -200% 0;
+    }
+    100% {
+      background-position: 200% 0;
+    }
   }
 }

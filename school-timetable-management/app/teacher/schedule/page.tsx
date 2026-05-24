@@ -4,7 +4,12 @@ import { useState, useEffect } from 'react';
 import { useAuth, useRequireAuth } from '@/lib/auth-context';
 import { getTodayScheduleForTeacher, getReplacements } from '@/lib/api-services';
 import { TodayScheduleItem, Replacement } from '@/lib/types';
-import { Card } from '@/components/ui/card';
+import { PageHeader } from '@/components/enterprise/page-header';
+import { GlassCard } from '@/components/enterprise/glass-card';
+import { PageSkeleton } from '@/components/enterprise/page-skeleton';
+import { Progress } from '@/components/ui/progress';
+import { cn } from '@/lib/utils';
+import { Clock, Flame } from 'lucide-react';
 
 export default function TeacherSchedulePage() {
   const auth = useRequireAuth('teacher');
@@ -26,7 +31,6 @@ export default function TeacherSchedulePage() {
         getTodayScheduleForTeacher(auth.user?.teacherId || ''),
         getReplacements({ date: today }),
       ]);
-
       setSchedule(scheduleData);
       setReplacements(replacementData);
     } catch (error) {
@@ -43,8 +47,7 @@ export default function TeacherSchedulePage() {
   };
 
   const getTodayDate = () => {
-    const today = new Date();
-    return today.toLocaleDateString('en-US', {
+    return new Date().toLocaleDateString('en-US', {
       weekday: 'long',
       year: 'numeric',
       month: 'long',
@@ -52,125 +55,140 @@ export default function TeacherSchedulePage() {
     });
   };
 
+  const burnoutScore = Math.min(100, schedule.length * 12 + replacements.length * 8);
+
   if (loading) {
     return (
-      <div className='min-h-screen bg-background flex items-center justify-center'>
-        <p className='text-muted-foreground'>Loading your schedule...</p>
+      <div className='max-w-3xl mx-auto'>
+        <PageSkeleton rows={3} />
       </div>
     );
   }
 
   return (
-    <div className='max-w-4xl mx-auto p-6'>
-      <div className='mb-8'>
-        <h1 className='text-3xl font-bold text-foreground mb-1'>
-          Today&apos;s Schedule
-        </h1>
-        <p className='text-muted-foreground'>{getTodayDate()}</p>
+    <div className='max-w-3xl mx-auto'>
+      <PageHeader
+        title="Today's Timeline"
+        description={getTodayDate()}
+        breadcrumbs={[
+          { label: 'Teacher', href: '/teacher/schedule' },
+          { label: 'Today' },
+        ]}
+      />
+
+      <div className='grid sm:grid-cols-2 gap-4 mb-8'>
+        <GlassCard className='p-5'>
+          <div className='flex items-center gap-2 mb-3'>
+            <Flame className='h-4 w-4 text-amber-500' />
+            <p className='text-sm font-medium'>Burnout meter</p>
+          </div>
+          <Progress value={burnoutScore} className='h-2' />
+          <p className='text-xs text-muted-foreground mt-2'>
+            Weekly load index · {burnoutScore}% —{' '}
+            {burnoutScore > 70 ? 'High' : burnoutScore > 40 ? 'Moderate' : 'Healthy'}
+          </p>
+        </GlassCard>
+        <GlassCard className='p-5'>
+          <p className='text-xs text-muted-foreground mb-1'>Sessions today</p>
+          <p className='text-3xl font-bold'>{schedule.length}</p>
+          <p className='text-xs text-muted-foreground mt-1'>
+            {replacements.length} cover events
+          </p>
+        </GlassCard>
       </div>
 
       {schedule.length === 0 ? (
-        <Card className='p-12 border-border text-center'>
-          <p className='text-muted-foreground'>
-            No classes scheduled for today
-          </p>
-        </Card>
+        <GlassCard className='p-12 text-center'>
+          <p className='text-muted-foreground'>No classes scheduled for today</p>
+        </GlassCard>
       ) : (
-        <div className='space-y-4'>
-          {schedule.map((item) => {
+        <div className='relative space-y-0'>
+          <div className='absolute left-[19px] top-4 bottom-4 w-px bg-border/80' />
+          {schedule.map((item, index) => {
             const replacement = getReplacementForPeriod(item.periodId);
 
             return (
-              <Card
-                key={item.periodId}
-                className={`p-6 border ${
-                  replacement?.status === 'confirmed'
-                    ? 'border-accent/50 bg-accent/5'
-                    : item.isAbsent
-                    ? 'border-destructive/50 bg-destructive/5'
-                    : 'border-border bg-card/50'
-                }`}
-              >
-                <div className='flex items-start justify-between mb-4'>
-                  <div>
-                    <h3 className='text-lg font-semibold text-foreground'>
-                      {item.className}
-                    </h3>
-                    <p className='text-sm text-muted-foreground'>
-                      {item.subjectName}
-                    </p>
-                  </div>
-                  <div className='text-right'>
-                    <p className='font-mono text-lg font-semibold text-foreground'>
-                      {item.startTime} - {item.endTime}
-                    </p>
-                    <p className='text-xs text-muted-foreground'>
-                      ({item.periodNumber} of 7)
-                    </p>
-                  </div>
-                </div>
-
-                <div className='flex items-center gap-4 flex-wrap'>
-                  {item.isAbsent && (
-                    <span className='px-4 py-2 bg-destructive/20 text-destructive text-sm font-medium rounded-lg'>
-                      Marked Absent
-                    </span>
+              <div key={item.periodId} className='relative pl-12 pb-6'>
+                <div
+                  className={cn(
+                    'absolute left-3 top-5 h-3 w-3 rounded-full ring-4 ring-background',
+                    replacement?.status === 'confirmed'
+                      ? 'bg-indigo-500'
+                      : item.isAbsent
+                        ? 'bg-rose-500'
+                        : 'bg-emerald-500'
                   )}
+                />
+                <GlassCard
+                  className={cn(
+                    'p-5 transition-all hover:shadow-lg',
+                    replacement?.status === 'confirmed' && 'border-indigo-500/30',
+                    item.isAbsent && 'border-rose-500/30 bg-rose-500/5'
+                  )}
+                >
+                  <div className='flex flex-col sm:flex-row sm:items-start justify-between gap-3'>
+                    <div>
+                      <p className='text-xs text-muted-foreground flex items-center gap-1'>
+                        <Clock className='h-3 w-3' />
+                        {item.startTime} – {item.endTime}
+                      </p>
+                      <h3 className='text-lg font-semibold mt-1'>{item.className}</h3>
+                      <p className='text-sm text-muted-foreground'>{item.subjectName}</p>
+                    </div>
+                    <span className='text-xs font-medium px-2.5 py-1 rounded-full bg-muted'>
+                      Period {item.periodNumber}
+                    </span>
+                  </div>
 
-                  {replacement ? (
-                    <>
-                      <div className='flex-1'>
-                        <p className='text-xs text-muted-foreground mb-1'>
-                          Replacement Info
-                        </p>
-                        <p className='text-sm font-medium text-foreground'>
-                          Covered by: Replacement Teacher
-                        </p>
-                        <p className='text-xs text-muted-foreground'>
+                  <div className='flex flex-wrap gap-2 mt-4'>
+                    {item.isAbsent && (
+                      <span className='px-3 py-1 rounded-full text-xs font-medium bg-rose-500/15 text-rose-600'>
+                        Marked absent
+                      </span>
+                    )}
+                    {replacement ? (
+                      <>
+                        <span className='px-3 py-1 rounded-full text-xs bg-muted'>
                           Reason: {replacement.reason}
-                        </p>
-                      </div>
-                      {replacement.status === 'pending' && (
-                        <span className='px-3 py-2 bg-yellow-500/20 text-yellow-600 dark:text-yellow-400 text-xs font-medium rounded-lg'>
-                          Pending Confirmation
                         </span>
-                      )}
-                      {replacement.status === 'confirmed' && (
-                        <span className='px-3 py-2 bg-green-500/20 text-green-600 dark:text-green-400 text-xs font-medium rounded-lg'>
-                          Replacement Confirmed
+                        <span
+                          className={cn(
+                            'px-3 py-1 rounded-full text-xs font-medium',
+                            replacement.status === 'pending'
+                              ? 'bg-amber-500/15 text-amber-600'
+                              : 'bg-emerald-500/15 text-emerald-600'
+                          )}
+                        >
+                          {replacement.status}
                         </span>
-                      )}
-                    </>
-                  ) : (
-                    <span className='px-4 py-2 bg-green-500/20 text-green-600 dark:text-green-400 text-sm font-medium rounded-lg'>
-                      Class as Scheduled
-                    </span>
-                  )}
-                </div>
-              </Card>
+                      </>
+                    ) : (
+                      <span className='px-3 py-1 rounded-full text-xs font-medium bg-emerald-500/15 text-emerald-600'>
+                        Scheduled
+                      </span>
+                    )}
+                  </div>
+                </GlassCard>
+                {index < schedule.length - 1 && (
+                  <div className='h-2' aria-hidden />
+                )}
+              </div>
             );
           })}
         </div>
       )}
 
-      {/* Summary Stats */}
-      <div className='mt-8 grid grid-cols-1 md:grid-cols-3 gap-4'>
-        <Card className='p-4 border-border'>
-          <p className='text-xs text-muted-foreground mb-1'>Total Classes</p>
-          <p className='text-2xl font-bold text-foreground'>{schedule.length}</p>
-        </Card>
-        <Card className='p-4 border-border'>
-          <p className='text-xs text-muted-foreground mb-1'>With Replacements</p>
-          <p className='text-2xl font-bold text-accent'>
-            {replacements.length}
-          </p>
-        </Card>
-        <Card className='p-4 border-border'>
-          <p className='text-xs text-muted-foreground mb-1'>Marked Absent</p>
-          <p className='text-2xl font-bold text-destructive'>
-            {schedule.filter((s) => s.isAbsent).length}
-          </p>
-        </Card>
+      <div className='mt-8 grid grid-cols-3 gap-3'>
+        {[
+          { label: 'Classes', value: schedule.length },
+          { label: 'Covers', value: replacements.length },
+          { label: 'Absent', value: schedule.filter((s) => s.isAbsent).length },
+        ].map((s) => (
+          <GlassCard key={s.label} className='p-4 text-center'>
+            <p className='text-xs text-muted-foreground'>{s.label}</p>
+            <p className='text-xl font-bold mt-1'>{s.value}</p>
+          </GlassCard>
+        ))}
       </div>
     </div>
   );

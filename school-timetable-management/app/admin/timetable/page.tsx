@@ -20,6 +20,10 @@ import {
 } from '@/lib/types';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { PageHeader } from '@/components/enterprise/page-header';
+import { GlassCard } from '@/components/enterprise/glass-card';
+import { PageSkeleton } from '@/components/enterprise/page-skeleton';
+import { cn } from '@/lib/utils';
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
 const DAY_INDICES = [1, 2, 3, 4, 5];
@@ -135,8 +139,8 @@ export default function TimetablePage() {
 
   if (loading) {
     return (
-      <div className='p-6'>
-        <p className='text-muted-foreground'>Loading timetable builder...</p>
+      <div className='max-w-7xl mx-auto'>
+        <PageSkeleton />
       </div>
     );
   }
@@ -144,42 +148,44 @@ export default function TimetablePage() {
   const lunchPeriodId = 'P005';
 
   return (
-    <div className='max-w-7xl mx-auto p-6'>
-      <div className='mb-6'>
-        <h1 className='text-3xl font-bold text-foreground mb-4'>
-          Weekly Timetable Builder
-        </h1>
+    <div className='max-w-[1400px] mx-auto'>
+      <PageHeader
+        title='Weekly Timetable'
+        description='Build and manage the class schedule matrix'
+        breadcrumbs={[
+          { label: 'Admin', href: '/admin/dashboard' },
+          { label: 'Timetable' },
+        ]}
+      />
 
-        <div className='mb-6'>
-          <label className='block text-sm font-medium text-foreground mb-2'>
-            Select Class
-          </label>
-          <select
-            value={selectedClass}
-            onChange={(e) => setSelectedClass(e.target.value)}
-            className='px-4 py-2 bg-input border border-border rounded-md text-foreground'
-          >
-            {classes.map((cls) => (
-              <option key={cls.id} value={cls.id}>
-                {cls.name}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
+      <GlassCard className='p-4 mb-6'>
+        <label className='block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2'>
+          Class section
+        </label>
+        <select
+          value={selectedClass}
+          onChange={(e) => setSelectedClass(e.target.value)}
+          className='w-full sm:w-72 px-4 py-2.5 bg-muted/30 border border-border/60 rounded-xl'
+        >
+          {classes.map((cls) => (
+            <option key={cls.id} value={cls.id}>
+              {cls.name}
+            </option>
+          ))}
+        </select>
+      </GlassCard>
 
-      {/* Timetable Grid */}
-      <div className='overflow-x-auto bg-card border border-border rounded-lg'>
-        <table className='w-full'>
-          <thead>
-            <tr className='border-b border-border bg-card'>
-              <th className='p-3 text-left font-semibold text-foreground'>
+      <div className='overflow-x-auto rounded-2xl border border-border/60 bg-card/50 backdrop-blur-sm shadow-lg'>
+        <table className='w-full min-w-[800px]'>
+          <thead className='sticky top-14 z-20 bg-muted/90 backdrop-blur-md'>
+            <tr className='border-b border-border'>
+              <th className='p-4 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground'>
                 Period
               </th>
               {DAYS.map((day) => (
                 <th
                   key={day}
-                  className='p-3 text-center font-semibold text-foreground border-l border-border'
+                  className='p-4 text-center text-xs font-semibold uppercase tracking-wider border-l border-border/50'
                 >
                   {day}
                 </th>
@@ -190,8 +196,11 @@ export default function TimetablePage() {
             {periods
               .filter((p) => p.id !== lunchPeriodId)
               .map((period) => (
-                <tr key={period.id} className='border-b border-border'>
-                  <td className='p-3 font-medium text-foreground border-r border-border whitespace-nowrap'>
+                <tr
+                  key={period.id}
+                  className='border-b border-border/50 hover:bg-muted/20 transition-colors'
+                >
+                  <td className='p-4 font-medium border-r border-border/50 whitespace-nowrap bg-muted/20'>
                     <div className='text-sm'>{period.label}</div>
                     <div className='text-xs text-muted-foreground'>
                       {period.startTime} - {period.endTime}
@@ -203,12 +212,18 @@ export default function TimetablePage() {
                     return (
                       <td
                         key={`${dayIndex}-${period.id}`}
-                        className='p-2 border-l border-border'
+                        className='p-2 border-l border-border/50 align-top'
                         data-day={dayIndex}
                         data-period={period.id}
                       >
                         {entry ? (
-                          <Card className='p-2 border-border bg-primary/10'>
+                          <Card
+                            className={cn(
+                              'p-3 rounded-xl border-indigo-500/20',
+                              'bg-gradient-to-br from-indigo-500/10 to-violet-500/5',
+                              'hover:shadow-md transition-shadow'
+                            )}
+                          >
                             <div className='text-xs font-semibold text-foreground mb-1'>
                               {getSubjectName(entry.subjectId)}
                             </div>

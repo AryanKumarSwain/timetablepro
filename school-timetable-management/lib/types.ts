@@ -2,9 +2,8 @@
 // Type Definitions for School Timetable, Attendance & Replacement Management
 // ============================================================================
 
-/**
- * Core Master Data Types
- */
+export type UserRole = 'super-admin' | 'admin' | 'teacher';
+
 export interface Teacher {
   id: string;
   name: string;
@@ -14,6 +13,8 @@ export interface Teacher {
   subjects: string[];
   active: boolean;
   joinDate: string;
+  maxPeriodsPerWeek?: number;
+  subjectSpecialtyId?: string;
 }
 
 export interface Subject {
@@ -27,27 +28,26 @@ export interface Subject {
 export interface Class {
   id: string;
   name: string;
-  classLevel: number; // e.g., 1-12
-  section: string; // A, B, C, etc.
+  classLevel: number;
+  section: string;
   strength: number;
-  classTeacher: string; // Teacher ID
+  classTeacher: string;
+  grade?: string;
+  roomNumber?: string;
 }
 
 export interface Period {
   id: string;
   periodNumber: number;
-  startTime: string; // HH:mm format
+  startTime: string;
   endTime: string;
-  label: string; // "Period 1", "Lunch", etc.
+  label: string;
 }
 
-/**
- * Timetable Types
- */
 export interface WeeklyTimetableEntry {
   id: string;
   classId: string;
-  dayOfWeek: number; // 0-6 (Mon-Sun)
+  dayOfWeek: number;
   periodId: string;
   teacherId: string;
   subjectId: string;
@@ -58,7 +58,7 @@ export interface WeeklyTimetableEntry {
 export interface DailyAttendance {
   id: string;
   classId: string;
-  date: string; // YYYY-MM-DD
+  date: string;
   periodId: string;
   teacherId: string;
   subjectId: string;
@@ -70,38 +70,31 @@ export interface DailyAttendance {
 export interface Replacement {
   id: string;
   classId: string;
-  date: string; // YYYY-MM-DD
+  date: string;
   periodId: string;
   originalTeacherId: string;
   replacementTeacherId: string;
   subjectId: string;
-  reason: string; // "Leave", "Medical", "Other"
-  status: "pending" | "confirmed" | "completed" | "cancelled";
+  reason: string;
+  status: 'pending' | 'confirmed' | 'completed' | 'cancelled';
   createdAt: string;
   confirmedAt?: string;
 }
 
-/**
- * Session/Auth Types
- */
 export interface User {
   id: string;
   email: string;
   name: string;
-  role: "admin" | "teacher";
-  teacherId?: string; // populated if role is teacher
+  role: UserRole;
+  schoolId?: string | null;
+  teacherId?: string;
   active: boolean;
 }
 
 export interface AuthSession {
   user: User;
-  token: string;
-  expiresAt: string;
 }
 
-/**
- * Composite/View Types
- */
 export interface TodayScheduleItem {
   periodId: string;
   periodNumber: number;
@@ -122,4 +115,13 @@ export interface AdminDashboardStats {
   todayAbsent: number;
   todayReplacements: number;
   pendingReplacements: number;
+}
+
+export interface SubstituteCandidate {
+  teacherId: string;
+  name: string;
+  email: string;
+  priority: 1 | 2 | 3;
+  substitutionCountToday: number;
+  warnings: string[];
 }

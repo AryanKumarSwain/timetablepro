@@ -12,6 +12,16 @@ import { Teacher } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { PageHeader } from '@/components/enterprise/page-header';
+import {
+  DataGrid,
+  DataGridTable,
+  DataGridHead,
+  DataGridRow,
+  DataGridTh,
+  DataGridTd,
+} from '@/components/enterprise/data-grid';
+import { PageSkeleton } from '@/components/enterprise/page-skeleton';
 
 export default function TeachersPage() {
   useRequireAuth('admin');
@@ -102,30 +112,33 @@ export default function TeachersPage() {
 
   if (loading) {
     return (
-      <div className='p-6'>
-        <p className='text-muted-foreground'>Loading teachers...</p>
+      <div className='max-w-7xl mx-auto'>
+        <PageSkeleton />
       </div>
     );
   }
 
   return (
-    <div className='max-w-7xl mx-auto p-6'>
-      <div className='mb-6 flex items-center justify-between'>
-        <div>
-          <h1 className='text-3xl font-bold text-foreground mb-1'>
-            Teachers
-          </h1>
-          <p className='text-muted-foreground'>Manage school teachers</p>
-        </div>
-        {!showForm && (
-          <Button
-            onClick={() => setShowForm(true)}
-            className='bg-primary hover:bg-primary/90'
-          >
-            Add Teacher
-          </Button>
-        )}
-      </div>
+    <div className='max-w-7xl mx-auto'>
+      <PageHeader
+        title='Teachers'
+        description='Manage faculty profiles and specialties'
+        breadcrumbs={[
+          { label: 'Admin', href: '/admin/dashboard' },
+          { label: 'Masters' },
+          { label: 'Teachers' },
+        ]}
+        actions={
+          !showForm ? (
+            <Button
+              onClick={() => setShowForm(true)}
+              className='rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600'
+            >
+              Add Teacher
+            </Button>
+          ) : undefined
+        }
+      />
 
       {showForm && (
         <Card className='p-6 mb-6 border-border'>
@@ -206,44 +219,30 @@ export default function TeachersPage() {
         </Card>
       )}
 
-      {/* Teachers List */}
-      <div className='overflow-x-auto'>
-        <table className='w-full'>
-          <thead>
-            <tr className='border-b border-border'>
-              <th className='text-left py-3 px-4 font-semibold text-foreground'>
-                Name
-              </th>
-              <th className='text-left py-3 px-4 font-semibold text-foreground'>
-                Email
-              </th>
-              <th className='text-left py-3 px-4 font-semibold text-foreground'>
-                Phone
-              </th>
-              <th className='text-left py-3 px-4 font-semibold text-foreground'>
-                Status
-              </th>
-              <th className='text-left py-3 px-4 font-semibold text-foreground'>
-                Actions
-              </th>
+      <DataGrid title='Faculty directory' empty={teachers.length === 0}>
+        <DataGridTable>
+          <DataGridHead>
+            <tr>
+              <DataGridTh>Name</DataGridTh>
+              <DataGridTh>Email</DataGridTh>
+              <DataGridTh>Phone</DataGridTh>
+              <DataGridTh>Status</DataGridTh>
+              <DataGridTh>Actions</DataGridTh>
             </tr>
-          </thead>
+          </DataGridHead>
           <tbody>
             {teachers.map((teacher) => (
-              <tr
-                key={teacher.id}
-                className='border-b border-border hover:bg-card/50 transition'
-              >
-                <td className='py-3 px-4 text-foreground'>{teacher.name}</td>
-                <td className='py-3 px-4 text-muted-foreground'>
+              <DataGridRow key={teacher.id}>
+                <DataGridTd className='font-medium'>{teacher.name}</DataGridTd>
+                <DataGridTd className='text-muted-foreground'>
                   {teacher.email}
-                </td>
-                <td className='py-3 px-4 text-muted-foreground'>
+                </DataGridTd>
+                <DataGridTd className='text-muted-foreground'>
                   {teacher.phone}
-                </td>
-                <td className='py-3 px-4'>
+                </DataGridTd>
+                <DataGridTd>
                   {teacher.active ? (
-                    <span className='px-2 py-1 bg-green-500/20 text-green-600 dark:text-green-400 text-xs rounded-full'>
+                    <span className='px-2 py-1 bg-emerald-500/15 text-emerald-600 text-xs rounded-full font-medium'>
                       Active
                     </span>
                   ) : (
@@ -251,14 +250,14 @@ export default function TeachersPage() {
                       Inactive
                     </span>
                   )}
-                </td>
-                <td className='py-3 px-4'>
+                </DataGridTd>
+                <DataGridTd>
                   <div className='flex gap-2'>
                     <Button
                       onClick={() => handleEdit(teacher)}
                       size='sm'
                       variant='outline'
-                      className='border-border hover:bg-card'
+                      className='rounded-lg'
                     >
                       Edit
                     </Button>
@@ -266,17 +265,17 @@ export default function TeachersPage() {
                       onClick={() => handleDelete(teacher.id)}
                       size='sm'
                       variant='outline'
-                      className='border-destructive/30 text-destructive hover:bg-destructive/10'
+                      className='rounded-lg border-rose-500/30 text-rose-600'
                     >
                       Delete
                     </Button>
                   </div>
-                </td>
-              </tr>
+                </DataGridTd>
+              </DataGridRow>
             ))}
           </tbody>
-        </table>
-      </div>
+        </DataGridTable>
+      </DataGrid>
     </div>
   );
 }

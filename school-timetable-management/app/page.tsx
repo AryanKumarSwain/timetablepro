@@ -3,30 +3,36 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
+import { LandingPage } from '@/components/landing/landing-page';
+import { PageSkeleton } from '@/components/enterprise/page-skeleton';
 
 export default function Page() {
   const router = useRouter();
   const { session, loading } = useAuth();
 
   useEffect(() => {
-    if (!loading) {
-      if (session) {
-        // Redirect based on role
-        if (session.user.role === 'admin') {
-          router.push('/admin/dashboard');
-        } else if (session.user.role === 'teacher') {
-          router.push('/teacher/schedule');
-        }
-      } else {
-        // Redirect to login if not authenticated
-        router.push('/login');
-      }
-    }
+    if (loading || !session) return;
+    const role = session.user.role;
+    if (role === 'super-admin') router.replace('/super-admin/dashboard');
+    else if (role === 'admin') router.replace('/admin/dashboard');
+    else if (role === 'teacher') router.replace('/teacher/schedule');
   }, [session, loading, router]);
 
-  return (
-    <div className='min-h-screen bg-background flex items-center justify-center'>
-      <p className='text-muted-foreground'>Redirecting...</p>
-    </div>
-  );
+  if (loading) {
+    return (
+      <div className='min-h-screen p-8 max-w-6xl mx-auto'>
+        <PageSkeleton />
+      </div>
+    );
+  }
+
+  if (session) {
+    return (
+      <div className='min-h-screen flex items-center justify-center'>
+        <p className='text-muted-foreground animate-pulse'>Redirecting to dashboard…</p>
+      </div>
+    );
+  }
+
+  return <LandingPage />;
 }

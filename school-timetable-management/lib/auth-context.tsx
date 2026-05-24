@@ -1,18 +1,25 @@
 'use client';
 
-import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
-import { User, AuthSession } from './types';
-import { loginUser } from './api-services';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useCallback,
+  useEffect,
+} from 'react';
+import { User, AuthSession, UserRole } from './types';
+import { loginUser, fetchCurrentUser, logoutUser } from './api-services';
 
 interface AuthContextType {
   session: AuthSession | null;
   user: User | null;
   loading: boolean;
   error: string | null;
-  login: (email: string, password: string) => Promise<void>;
-  logout: () => void;
+  login: (email: string, password: string) => Promise<string>;
+  logout: () => Promise<void>;
   isAdmin: boolean;
   isTeacher: boolean;
+  isSuperAdmin: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -22,23 +29,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Initialize session from localStorage on mount
   useEffect(() => {
-    const savedSession = localStorage.getItem('auth-session');
-    if (savedSession) {
-      try {
-        const parsed = JSON.parse(savedSession);
-        // Check if token is still valid
-        if (new Date(parsed.expiresAt) > new Date()) {
-          setSession(parsed);
-        } else {
-          localStorage.removeItem('auth-session');
-        }
-      } catch (err) {
-        localStorage.removeItem('auth-session');
-      }
-    }
-    setLoading(false);
+    fetchCurrentUser()
+      .then((user) => {
+        if (user) setSession({ user });
+      })
+      .finally(() => setLoading(false));
   }, []);
 
   const login = useCallback(async (email: string, password: string) => {
@@ -46,13 +42,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setError(null);
 
     try {
-      const newSession = await loginUser(email, password);
-      if (!newSession) {
-        throw new Error('Invalid email or password');
-      }
-
-      setSession(newSession);
-      localStorage.setItem('auth-session', JSON.stringify(newSession));
+      const result = await loginUser(email, password);
+      setSession({ user: result.user });
+      return result.redirectTo;
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Login failed';
       setError(message);
@@ -62,21 +54,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const logout = useCallback(() => {
+  const logout = useCallback(async () => {
+    await logoutUser();
     setSession(null);
     setError(null);
-    localStorage.removeItem('auth-session');
   }, []);
+
+  const role = session?.user?.role;
 
   const value: AuthContextType = {
     session,
-    user: session?.user || null,
+    user: session?.user ?? null,
     loading,
     error,
     login,
     logout,
-    isAdmin: session?.user?.role === 'admin' ?? false,
-    isTeacher: session?.user?.role === 'teacher' ?? false,
+    isAdmin: role === 'admin',
+    isTeacher: role === 'teacher',
+    isSuperAdmin: role === 'super-admin',
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
@@ -90,24 +85,41 @@ export function useAuth(): AuthContextType {
   return context;
 }
 
-export function useRequireAuth(requiredRole?: 'admin' | 'teacher') {
+export function useRequireAuth(requiredRole?: UserRole | 'admin' | 'teacher') {
   const auth = useAuth();
 
   useEffect(() => {
     if (!auth.loading && !auth.session) {
-      // Would redirect to login in a real app
       window.location.href = '/login';
+      return;
     }
 
     if (requiredRole && auth.session) {
-      if (requiredRole === 'admin' && !auth.isAdmin) {
+      const normalized =
+        requiredRole === 'admin'
+          ? 'admin'
+          : requiredRole === 'teacher'
+            ? 'teacher'
+            : requiredRole;
+
+      if (normalized === 'admin' && !auth.isAdmin) {
         window.location.href = '/unauthorized';
       }
-      if (requiredRole === 'teacher' && !auth.isTeacher) {
+      if (normalized === 'teacher' && !auth.isTeacher) {
+        window.location.href = '/unauthorized';
+      }
+      if (normalized === 'super-admin' && !auth.isSuperAdmin) {
         window.location.href = '/unauthorized';
       }
     }
-  }, [auth.session, auth.loading, requiredRole, auth.isAdmin, auth.isTeacher]);
+  }, [
+    auth.session,
+    auth.loading,
+    requiredRole,
+    auth.isAdmin,
+    auth.isTeacher,
+    auth.isSuperAdmin,
+  ]);
 
   return auth;
 }
