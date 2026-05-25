@@ -10,7 +10,6 @@ import type {
   User,
   AuthSession,
   TodayScheduleItem,
-  AdminDashboardStats,
   SubstituteCandidate,
 } from './types';
 
@@ -31,9 +30,9 @@ export async function loginUser(
   if (!res.ok) {
     throw new Error(
       data.error ??
-        (res.status >= 500
-          ? 'Server error — check database connection and run npm run db:seed'
-          : 'Invalid email or password')
+      (res.status >= 500
+        ? 'Server error — check database connection and run npm run db:seed'
+        : 'Invalid email or password')
     );
   }
   return { user: data.user, redirectTo: data.redirectTo };
@@ -295,6 +294,16 @@ export async function cloneOperationalDayToTomorrow(
 // ============================================================================
 // Dashboard
 // ============================================================================
+
+export type AdminDashboardStats = {
+  totalTeachers: number;
+  totalClasses: number;
+  totalSubjects: number;
+  totalPeriods: number;
+  todayAttendance: number;
+  pendingReplacements: number;
+};
+
 export async function getAdminDashboardStats(): Promise<AdminDashboardStats> {
   return apiFetch('/api/dashboard/stats');
 }

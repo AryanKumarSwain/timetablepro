@@ -35,21 +35,43 @@ export async function PATCH(request: NextRequest, { params }: Params) {
   }
 }
 
-export async function DELETE(_request: NextRequest, { params }: Params) {
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
   try {
-    const { schoolId } = await requireSchoolContext();
-    const { id } = await params;
+    const id = params.id;
 
-    const existing = await prisma.teacher.findFirst({
-      where: { id, ...schoolWhere(schoolId) },
+    await prisma.weeklyTimetable.deleteMany({
+      where: { teacherId: id },
     });
-    if (!existing) {
-      return NextResponse.json({ error: 'Not found' }, { status: 404 });
-    }
 
-    await prisma.teacher.delete({ where: { id } });
-    return NextResponse.json({ ok: true });
+    await prisma.attendance.deleteMany({
+      where: { teacherId: id },
+    });
+
+    await prisma.replacement.deleteMany({
+      where: {
+        OR: [
+          { originalTeacherId: id },
+          { replacementTeacherId: id },
+        ],
+      },
+    });
+
+    await prisma.teacher.delete({
+      where: { id },
+    });
+
+    return NextResponse.json({
+      success: true,
+    });
   } catch (error) {
-    return handleApiError(error);
+    console.error(error);
+
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
   }
 }

@@ -4,6 +4,10 @@
 
 export type UserRole = 'super-admin' | 'admin' | 'teacher';
 
+// ============================================================================
+// Teacher
+// ============================================================================
+
 export interface Teacher {
   id: string;
   name: string;
@@ -17,6 +21,10 @@ export interface Teacher {
   subjectSpecialtyId?: string;
 }
 
+// ============================================================================
+// Subject
+// ============================================================================
+
 export interface Subject {
   id: string;
   name: string;
@@ -24,6 +32,10 @@ export interface Subject {
   credits: number;
   description?: string;
 }
+
+// ============================================================================
+// Class
+// ============================================================================
 
 export interface Class {
   id: string;
@@ -36,6 +48,10 @@ export interface Class {
   roomNumber?: string;
 }
 
+// ============================================================================
+// Period
+// ============================================================================
+
 export interface Period {
   id: string;
   periodNumber: number;
@@ -43,6 +59,10 @@ export interface Period {
   endTime: string;
   label: string;
 }
+
+// ============================================================================
+// Weekly Timetable
+// ============================================================================
 
 export interface WeeklyTimetableEntry {
   id: string;
@@ -55,6 +75,10 @@ export interface WeeklyTimetableEntry {
   updatedAt: string;
 }
 
+// ============================================================================
+// Attendance
+// ============================================================================
+
 export interface DailyAttendance {
   id: string;
   classId: string;
@@ -66,6 +90,10 @@ export interface DailyAttendance {
   reason?: string;
   markedAt: string;
 }
+
+// ============================================================================
+// Replacement
+// ============================================================================
 
 export interface Replacement {
   id: string;
@@ -81,6 +109,10 @@ export interface Replacement {
   confirmedAt?: string;
 }
 
+// ============================================================================
+// User & Auth
+// ============================================================================
+
 export interface User {
   id: string;
   email: string;
@@ -94,6 +126,10 @@ export interface User {
 export interface AuthSession {
   user: User;
 }
+
+// ============================================================================
+// Teacher Schedule
+// ============================================================================
 
 export interface TodayScheduleItem {
   periodId: string;
@@ -109,13 +145,23 @@ export interface TodayScheduleItem {
   attendance?: DailyAttendance;
 }
 
+// ============================================================================
+// Dashboard
+// ============================================================================
+
 export interface AdminDashboardStats {
   totalTeachers: number;
   totalClasses: number;
+  totalSubjects: number;
+  totalPeriods: number;
   todayAbsent: number;
   todayReplacements: number;
   pendingReplacements: number;
 }
+
+// ============================================================================
+// Substitute Candidate
+// ============================================================================
 
 export interface SubstituteCandidate {
   teacherId: string;
