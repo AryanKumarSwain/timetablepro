@@ -352,15 +352,6 @@ export default function DailyDeskPage() {
         </select>
       </GlassCard>
 
-      <div className='mb-4'>
-        <Button
-          type='button'
-          onClick={handleAddCustomPeriod}
-          className='bg-accent hover:bg-accent/90 text-accent-foreground font-semibold'
-        >
-          + Add Custom Period
-        </Button>
-      </div>
 
       <div className='grid grid-cols-1 lg:grid-cols-3 gap-6'>
         <div className='lg:col-span-2'>
@@ -382,7 +373,7 @@ export default function DailyDeskPage() {
                     className={cn(
                       'sticky top-0 z-10 bg-card/90 backdrop-blur border-b border-l border-border/50 p-3 text-center text-xs font-semibold uppercase',
                       dayIndexMatchesToday(index + 1) &&
-                        'ring-2 ring-inset ring-indigo-500/40 text-indigo-600 dark:text-indigo-400'
+                      'ring-2 ring-inset ring-indigo-500/40 text-indigo-600 dark:text-indigo-400'
                     )}
                   >
                     {day}
@@ -502,7 +493,7 @@ export default function DailyDeskPage() {
                                       className={cn(
                                         'h-6 text-[10px] px-1',
                                         attendanceRecord?.isAbsent === false &&
-                                          'bg-green-500/20 border-green-500/30'
+                                        'bg-green-500/20 border-green-500/30'
                                       )}
                                       onClick={() =>
                                         void handleMarkAttendance(
@@ -521,7 +512,7 @@ export default function DailyDeskPage() {
                                       className={cn(
                                         'h-6 text-[10px] px-1',
                                         isAbsent &&
-                                          'bg-red-500/20 border-red-500/30'
+                                        'bg-red-500/20 border-red-500/30'
                                       )}
                                       onClick={() =>
                                         void handleMarkAttendance(
@@ -548,6 +539,15 @@ export default function DailyDeskPage() {
                 })}
               </div>
             </div>
+             <div className='mt-4 flex justify-start'>
+            <Button
+              type='button'
+              onClick={handleAddCustomPeriod}
+              className='bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl'
+            >
+              + Add Custom Period
+            </Button>
+          </div>
           </GlassCard>
         </div>
 
@@ -708,14 +708,21 @@ export default function DailyDeskPage() {
                       >
                         Confirm Assignment
                       </Button>
+
                     )}
                   </Card>
                 ))}
               </div>
-            )}
+            )} 
+           
+
+
+
           </GlassCard>
+         
         </div>
       </div>
     </div>
+    
   );
 }

@@ -7,7 +7,7 @@ import {
   TrendingUp,
   Users,
   Server,
-  ShieldCheck, 
+  ShieldCheck,
   Activity,
 } from 'lucide-react';
 
@@ -180,8 +180,9 @@ export default function SuperAdminDashboardPage() {
     setActivePanel(null);
   };
 
-  const statusBadgeClass = (status: string) => {
-    const normalized = status.toLowerCase();
+  const statusBadgeClass = (status: string | undefined | null) => {
+    // Safe check: handle undefined or null statuses cleanly
+    const normalized = status?.toLowerCase() || '';
 
     if (normalized === 'active') {
       return 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20';
@@ -191,6 +192,7 @@ export default function SuperAdminDashboardPage() {
       return 'bg-amber-500/10 text-amber-500 border border-amber-500/20';
     }
 
+    // Your default fallback (previously triggered by any non-active/non-trial value)
     return 'bg-rose-500/10 text-rose-500 border border-rose-500/20';
   };
 
@@ -223,8 +225,8 @@ export default function SuperAdminDashboardPage() {
           subtext={
             summary
               ? `$${summary.monthlyRecurringRevenueRaw.toFixed(
-                  2
-                )} active MRR`
+                2
+              )} active MRR`
               : 'Loading...'
           }
           variant='primary'
@@ -471,20 +473,20 @@ export default function SuperAdminDashboardPage() {
                           className={cn(
                             'px-2 py-1 rounded-full text-xs font-medium',
                             statusBadgeClass(
-                              school.status
+                              school.licenseStatus
                             )
                           )}
                         >
-                          {school.status}
+                          {school.licenseStatus}
                         </span>
                       </td>
 
                       <td className='p-3'>
-                        {school.createdAt
-                          ? new Date(
-                              school.createdAt
-                            ).toLocaleDateString()
-                          : '—'}
+                        {school.licenseDate ? ( // Changed from school.createdAt
+                          new Date(school.licenseDate).toLocaleDateString() // Changed from school.createdAt
+                        ) : (
+                          '-'
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -608,24 +610,33 @@ export default function SuperAdminDashboardPage() {
                   </thead>
 
                   <tbody>
-                    {revenueDetail.breakdown.map(
+                    {revenueDetail?.tierContributions?.map(
                       (item, index) => (
                         <tr
                           key={`revenue-breakdown-${index}`}
                           className='border-t border-border/30'
                         >
                           <td className='p-3'>
-                            {item.tierName}
+                            {item?.planName || 'Unknown Tier'}
                           </td>
 
                           <td className='p-3'>
                             $
-                            {item.mrrValue.toFixed(
-                              2
-                            )}
+                            {typeof item?.subtotal === 'number' && Number.isFinite(item.subtotal)
+                              ? item.subtotal.toFixed(2)
+                              : '0.00'}
                           </td>
                         </tr>
                       )
+                    )}
+
+                    {/* Optional: Show a placeholder row if the array is empty or missing */}
+                    {(!revenueDetail?.tierContributions || revenueDetail.tierContributions.length === 0) && (
+                      <tr>
+                        <td colSpan={2} className='p-3 text-center text-muted-foreground text-sm'>
+                          No breakdown data available.
+                        </td>
+                      </tr>
                     )}
                   </tbody>
                 </table>
@@ -670,13 +681,13 @@ export default function SuperAdminDashboardPage() {
               <div className='space-y-3'>
                 {healthProbes.map((probe, index) => (
                   <div
-                    key={`probe-${probe.regionCode}-${index}`}
+                    key={`probe-${probe.regionId}-${index}`}
                     className='rounded-xl border border-border/40 bg-muted/20 p-4'
                   >
                     <div className='flex items-center justify-between'>
                       <div>
                         <p className='font-medium'>
-                          {probe.regionCode}
+                          {probe.regionId}
                         </p>
 
                         <p className='text-xs text-muted-foreground'>

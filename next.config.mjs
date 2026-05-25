@@ -15,10 +15,13 @@ const nextConfig = {
   // Turns off the static on-screen route indicator completely
   devIndicators: false, 
   
-  // FIXED FOR NEXT.JS 15/16: Securely pins the Turbopack engine to this exact project folder
+  // Securely pins the Turbopack engine to this exact project folder
   turbopack: {
     root: __dirname,
   },
+
+  // FIXED FOR NEWER NEXT.JS: Moved to a top-level key to pass configuration schema validation
+  allowedDevOrigins: ['10.219.166.35', 'localhost:3000'],
 }
 
 export default nextConfig;
