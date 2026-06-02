@@ -13,6 +13,8 @@ import { Class, Teacher } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { BulkCsvImportModal } from '@/components/enterprise/bulk-csv-import-modal';
+import { Upload } from 'lucide-react';
 
 export default function ClassesPage() {
   useRequireAuth('admin');
@@ -22,6 +24,7 @@ export default function ClassesPage() {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
   const [formData, setFormData] = useState<Omit<Class, 'id'>>({
     name: '',
     classLevel: 9,
@@ -116,12 +119,21 @@ export default function ClassesPage() {
           <p className='text-muted-foreground'>Manage school classes</p>
         </div>
         {!showForm && (
-          <Button
-            onClick={() => setShowForm(true)}
-            className='bg-primary hover:bg-primary/90'
-          >
-            Add Class
-          </Button>
+          <div className='flex gap-2'>
+            <Button
+              variant='outline'
+              onClick={() => setImportOpen(true)}
+            >
+              <Upload className='h-4 w-4 mr-1.5' />
+              Import CSV
+            </Button>
+            <Button
+              onClick={() => setShowForm(true)}
+              className='bg-primary hover:bg-primary/90'
+            >
+              Add Class
+            </Button>
+          </div>
         )}
       </div>
 
@@ -237,6 +249,13 @@ export default function ClassesPage() {
           </form>
         </Card>
       )}
+
+      <BulkCsvImportModal
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        entity='classes'
+        onSuccess={() => void loadData()}
+      />
 
       {/* Classes List */}
       <div className='overflow-x-auto'>

@@ -19,8 +19,10 @@ export async function GET(request: NextRequest) {
       },
       orderBy: { date: 'desc' },
     });
+
     return NextResponse.json(rows.map(mapReplacement));
   } catch (error) {
+    console.error('[GET /api/replacements]', error);
     return handleApiError(error);
   }
 }
@@ -43,8 +45,10 @@ export async function POST(request: NextRequest) {
         status: 'PENDING',
       },
     });
+
     return NextResponse.json(mapReplacement(row), { status: 201 });
   } catch (error) {
+    console.error('[POST /api/replacements]', error);
     return handleApiError(error);
   }
 }

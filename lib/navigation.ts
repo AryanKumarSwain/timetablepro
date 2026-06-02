@@ -12,6 +12,9 @@ import {
   School,
   UserCircle,
   CalendarRange,
+  FileText,
+  History,
+  Table2,
 } from 'lucide-react';
 
 export type AppRole = 'super-admin' | 'admin' | 'teacher';
@@ -35,13 +38,17 @@ export const ADMIN_NAV: NavItem[] = [
   { label: 'Teachers', href: '/admin/masters/teachers', icon: Users },
   { label: 'Classes', href: '/admin/masters/classes', icon: GraduationCap },
   { label: 'Subjects', href: '/admin/masters/subjects', icon: BookOpen },
+  { label: 'Timetables', href: '/admin/timetables', icon: Table2 },
   { label: 'Weekly Timetable', href: '/admin/timetable', icon: CalendarDays },
   { label: 'Daily Desk', href: '/admin/daily-desk', icon: ClipboardList },
+  { label: 'Reports', href: '/admin/reports', icon: FileText },
 ];
 
 export const TEACHER_NAV: NavItem[] = [
   { label: 'Today', href: '/teacher/schedule', icon: LayoutDashboard },
   { label: 'Weekly Routine', href: '/teacher/weekly-schedule', icon: CalendarRange },
+  { label: "Today's Report", href: '/teacher/report/today', icon: FileText },
+  { label: 'Report History', href: '/teacher/report/history', icon: History },
   { label: 'Profile', href: '/teacher/schedule', icon: UserCircle },
 ];
 

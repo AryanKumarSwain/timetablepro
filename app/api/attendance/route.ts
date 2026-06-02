@@ -37,6 +37,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(rows.map((r) => mapTeacherAttendance(r)));
   } catch (error) {
+    console.error('[GET /api/attendance]', error);
     return handleApiError(error);
   }
 }
@@ -80,6 +81,7 @@ export async function POST(request: NextRequest) {
       mapTeacherAttendance(row, { classId, periodId, subjectId })
     );
   } catch (error) {
+    console.error('[POST /api/attendance]', error);
     return handleApiError(error);
   }
 }

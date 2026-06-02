@@ -43,7 +43,7 @@ const workloadData = [
 ];
 
 export default function AdminDashboard() {
-  useRequireAuth('admin');
+  const auth = useRequireAuth('admin');
 
   const [stats, setStats] = useState<AdminDashboardStats | null>(null);
   const [attendance, setAttendance] = useState<DailyAttendance[]>([]);
@@ -51,6 +51,18 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (auth.loading) {
+      setLoading(true);
+      return;
+    }
+
+    if (!auth.session) {
+      setLoading(false);
+      return;
+    }
+
+    let isMounted = true;
+
     const loadData = async () => {
       try {
         const today = new Date().toISOString().split('T')[0];
@@ -59,19 +71,29 @@ export default function AdminDashboard() {
           getDailyAttendance(today),
           getReplacements({ date: today }),
         ]);
+
+        if (!isMounted) return;
+
         setStats(statsData);
         setAttendance(attendanceData);
         setReplacements(replacementData);
       } catch (error) {
         console.error('Failed to load dashboard data:', error);
       } finally {
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     };
-    loadData();
-  }, []);
 
-  if (loading) return <PageSkeleton />;
+    loadData();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [auth.loading, auth.session]);
+
+  if (auth.loading || loading) return <PageSkeleton />;
 
   return (
     <div className='max-w-7xl mx-auto'>

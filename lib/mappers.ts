@@ -17,18 +17,26 @@ import type {
   Replacement,
 } from '@/lib/types';
 
+function normalizeStringArray(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.filter((item): item is string => typeof item === 'string');
+  }
+
+  return [];
+}
+
 export function mapTeacher(t: DbTeacher): Teacher {
   return {
     id: t.id,
     name: t.name,
     email: t.email,
     phone: t.phone,
-    qualifications: [],
-    subjects: [t.subjectSpecialtyId],
-    active: true,
-    joinDate: '',
+    qualifications: normalizeStringArray(t.qualifications),
+    subjects: normalizeStringArray(t.subjects),
+    active: t.active,
+    joinDate: t.joinDate,
     maxPeriodsPerWeek: t.maxPeriodsPerWeek,
-    subjectSpecialtyId: t.subjectSpecialtyId,
+    subjectSpecialtyId: t.subjectSpecialtyId ?? undefined,
   };
 }
 

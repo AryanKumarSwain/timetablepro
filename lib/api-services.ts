@@ -12,6 +12,7 @@ import type {
   TodayScheduleItem,
   SubstituteCandidate,
 } from './types';
+import type { CsvImportEntity, CsvImportResult, ParsedCsvRow } from './csv-import/types';
 
 // ============================================================================
 // Authentication
@@ -64,7 +65,7 @@ export async function getTeacher(id: string): Promise<Teacher | null> {
 }
 
 export async function createTeacher(data: Omit<Teacher, 'id'>): Promise<Teacher> {
-  return apiFetch('/api/teachers', {
+  return apiFetch('/api/admin/teachers/create', {
     method: 'POST',
     body: JSON.stringify(data),
   });
@@ -151,6 +152,19 @@ export async function updateClass(
 export async function deleteClass(id: string): Promise<boolean> {
   await apiFetch(`/api/classes/${id}`, { method: 'DELETE' });
   return true;
+}
+
+// ============================================================================
+// Bulk CSV import
+// ============================================================================
+export async function bulkImportCsv(
+  entity: CsvImportEntity,
+  rows: ParsedCsvRow[]
+): Promise<CsvImportResult> {
+  return apiFetch('/api/admin/bulk-import', {
+    method: 'POST',
+    body: JSON.stringify({ entity, rows }),
+  });
 }
 
 // ============================================================================
@@ -391,4 +405,231 @@ export async function getTodayScheduleForTeacher(
 ): Promise<TodayScheduleItem[]> {
   const qs = teacherId ? `?teacherId=${encodeURIComponent(teacherId)}` : '';
   return apiFetch(`/api/teacher/schedule${qs}`);
+}
+
+// ============================================================================
+// Timetables (builder)
+// ============================================================================
+
+export type TimetableSummary = {
+  id: string;
+  name: string;
+  status: 'DRAFT' | 'PUBLISHED';
+  slotCount: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type TimetableDetail = TimetableSummary & {
+  periods: Period[];
+  classes: { id: string; name: string; grade: string; section: string; roomNumber: string }[];
+  subjects: { id: string; name: string; code: string; color: string }[];
+  teachers: { id: string; name: string; email: string }[];
+  slots: {
+    id: string;
+    dayOfWeek: number;
+    periodId: string;
+    classId: string;
+    subjectId: string;
+    teacherId: string;
+    periodNumber: number;
+    className: string;
+    subjectName: string;
+    teacherName: string;
+  }[];
+};
+
+export type WorkloadData = {
+  classWorkload: {
+    classId: string;
+    name: string;
+    assigned: number;
+    total: number;
+    remaining: number;
+    utilization: number;
+  }[];
+  teacherWorkload: {
+    teacherId: string;
+    name: string;
+    assigned: number;
+    total: number;
+    remaining: number;
+    utilization: number;
+  }[];
+};
+
+export async function getTimetables(): Promise<TimetableSummary[]> {
+  return apiFetch('/api/admin/timetables');
+}
+
+export async function createTimetable(name: string): Promise<TimetableSummary> {
+  return apiFetch('/api/admin/timetables', {
+    method: 'POST',
+    body: JSON.stringify({ name }),
+  });
+}
+
+export async function updateTimetable(
+  id: string,
+  data: { name?: string; status?: 'DRAFT' | 'PUBLISHED' }
+): Promise<TimetableSummary> {
+  return apiFetch(`/api/admin/timetables/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteTimetable(id: string): Promise<void> {
+  await apiFetch(`/api/admin/timetables/${id}`, { method: 'DELETE' });
+}
+
+export async function getTimetableDetail(id: string): Promise<TimetableDetail> {
+  return apiFetch(`/api/admin/timetables/${id}`);
+}
+
+export async function upsertTimetableSlot(
+  timetableId: string,
+  data: {
+    dayOfWeek: number;
+    periodId: string;
+    classId: string;
+    subjectId: string;
+    teacherId: string;
+  }
+) {
+  return apiFetch(`/api/admin/timetables/${timetableId}/slots`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteTimetableSlot(
+  timetableId: string,
+  slotId: string
+): Promise<void> {
+  await apiFetch(`/api/admin/timetables/${timetableId}/slots/${slotId}`, {
+    method: 'DELETE',
+  });
+}
+
+export async function getTimetableWorkload(
+  timetableId: string
+): Promise<WorkloadData> {
+  return apiFetch(`/api/admin/timetables/${timetableId}/workload`);
+}
+
+export type DailyDeskGrid = {
+  date: string;
+  dayOfWeek: number;
+  classes: { id: string; name: string }[];
+  periods: Period[];
+  grid: {
+    periodId: string;
+    periodNumber: number;
+    label: string;
+    startTime: string;
+    endTime: string;
+    cells: Array<
+      | { classId: string; className: string; empty: true }
+      | {
+          classId: string;
+          className: string;
+          empty: false;
+          slotId: string;
+          subjectId: string;
+          subjectName: string;
+          teacherId: string;
+          teacherName: string;
+          isAbsent: boolean;
+          replacement: {
+            id: string;
+            replacementTeacherId: string;
+            replacementTeacherName: string;
+            status: string;
+          } | null;
+        }
+    >;
+  }[];
+  attendance: DailyAttendance[];
+  replacements: Replacement[];
+};
+
+export async function getDailyDeskGrid(date?: string): Promise<DailyDeskGrid> {
+  const qs = date ? `?date=${encodeURIComponent(date)}` : '';
+  return apiFetch(`/api/admin/daily-desk${qs}`);
+}
+
+// ============================================================================
+// Daily Reports
+// ============================================================================
+
+export type DailyReportData = {
+  id: string;
+  teacherId: string;
+  teacherName: string;
+  teacherEmail: string;
+  reportDate: string;
+  status: 'DRAFT' | 'SUBMITTED';
+  submittedAt: string | null;
+  entries: {
+    id: string;
+    classId: string;
+    className: string;
+    subjectId: string;
+    subjectName: string;
+    description: string;
+    isCompleted: boolean;
+  }[];
+  scheduleSlots?: {
+    periodId: string;
+    periodNumber: number;
+    startTime: string;
+    endTime: string;
+    classId: string;
+    className: string;
+    subjectId: string;
+    subjectName: string;
+    entryId?: string;
+  }[];
+  entryCount?: number;
+};
+
+export async function getTeacherReport(date = 'today'): Promise<DailyReportData> {
+  return apiFetch(`/api/teacher/reports?date=${encodeURIComponent(date)}`);
+}
+
+export async function getTeacherReportHistory(): Promise<DailyReportData[]> {
+  return apiFetch('/api/teacher/reports?history=true');
+}
+
+export async function updateTeacherReport(
+  id: string,
+  data: {
+    status?: 'DRAFT' | 'SUBMITTED';
+    entries?: { id: string; description?: string; isCompleted?: boolean }[];
+  }
+): Promise<DailyReportData> {
+  return apiFetch(`/api/teacher/reports/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function getAdminReports(filters?: {
+  teacherName?: string;
+  date?: string;
+  classId?: string;
+  subjectId?: string;
+}): Promise<DailyReportData[]> {
+  const params = new URLSearchParams();
+  if (filters?.teacherName) params.set('teacherName', filters.teacherName);
+  if (filters?.date) params.set('date', filters.date);
+  if (filters?.classId) params.set('classId', filters.classId);
+  if (filters?.subjectId) params.set('subjectId', filters.subjectId);
+  const qs = params.toString();
+  return apiFetch(`/api/admin/reports${qs ? `?${qs}` : ''}`);
+}
+
+export async function getAdminReport(id: string): Promise<DailyReportData> {
+  return apiFetch(`/api/admin/reports/${id}`);
 }

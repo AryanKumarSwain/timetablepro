@@ -22,6 +22,20 @@ import {
   DataGridTd,
 } from '@/components/enterprise/data-grid';
 import { PageSkeleton } from '@/components/enterprise/page-skeleton';
+import { BulkCsvImportModal } from '@/components/enterprise/bulk-csv-import-modal';
+import { Upload } from 'lucide-react';
+
+type TeacherFormState = Omit<Teacher, 'id'>;
+
+const createEmptyTeacherForm = (): TeacherFormState => ({
+  name: '',
+  email: '',
+  phone: '',
+  qualifications: [],
+  subjects: [],
+  active: true,
+  joinDate: new Date().toISOString().split('T')[0],
+});
 
 export default function TeachersPage() {
   useRequireAuth('admin');
@@ -30,15 +44,8 @@ export default function TeachersPage() {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [formData, setFormData] = useState<Omit<Teacher, 'id'>>({
-    name: '',
-    email: '',
-    phone: '',
-    qualifications: [],
-    subjects: [],
-    active: true,
-    joinDate: new Date().toISOString().split('T')[0],
-  });
+  const [formData, setFormData] = useState<TeacherFormState>(createEmptyTeacherForm);
+  const [importOpen, setImportOpen] = useState(false);
 
   useEffect(() => {
     loadTeachers();
@@ -64,7 +71,7 @@ export default function TeachersPage() {
       } else {
         await createTeacher(formData);
       }
-      loadTeachers();
+      await loadTeachers();
       resetForm();
     } catch (error) {
       console.error('Failed to save teacher:', error);
@@ -73,13 +80,15 @@ export default function TeachersPage() {
 
   const handleEdit = (teacher: Teacher) => {
     setFormData({
-      name: teacher.name,
-      email: teacher.email,
-      phone: teacher.phone,
-      qualifications: teacher.qualifications,
-      subjects: teacher.subjects,
-      active: teacher.active,
-      joinDate: teacher.joinDate,
+      name: teacher.name ?? '',
+      email: teacher.email ?? '',
+      phone: teacher.phone ?? '',
+      qualifications: Array.isArray(teacher.qualifications)
+        ? teacher.qualifications
+        : [],
+      subjects: Array.isArray(teacher.subjects) ? teacher.subjects : [],
+      active: teacher.active ?? true,
+      joinDate: teacher.joinDate ?? new Date().toISOString().split('T')[0],
     });
     setEditingId(teacher.id);
     setShowForm(true);
@@ -89,7 +98,7 @@ export default function TeachersPage() {
     if (window.confirm('Are you sure?')) {
       try {
         await deleteTeacher(id);
-        loadTeachers();
+        await loadTeachers();
       } catch (error) {
         console.error('Failed to delete teacher:', error);
       }
@@ -97,15 +106,7 @@ export default function TeachersPage() {
   };
 
   const resetForm = () => {
-    setFormData({
-      name: '',
-      email: '',
-      phone: '',
-      qualifications: [],
-      subjects: [],
-      active: true,
-      joinDate: new Date().toISOString().split('T')[0],
-    });
+    setFormData(createEmptyTeacherForm());
     setEditingId(null);
     setShowForm(false);
   };
@@ -130,12 +131,22 @@ export default function TeachersPage() {
         ]}
         actions={
           !showForm ? (
-            <Button
-              onClick={() => setShowForm(true)}
-              className='rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600'
-            >
-              Add Teacher
-            </Button>
+            <div className='flex flex-wrap gap-2'>
+              <Button
+                variant='outline'
+                onClick={() => setImportOpen(true)}
+                className='rounded-xl'
+              >
+                <Upload className='h-4 w-4 mr-1.5' />
+                Import CSV
+              </Button>
+              <Button
+                onClick={() => setShowForm(true)}
+                className='rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600'
+              >
+                Add Teacher
+              </Button>
+            </div>
           ) : undefined
         }
       />
@@ -152,7 +163,7 @@ export default function TeachersPage() {
                   Name
                 </label>
                 <Input
-                  value={formData.name}
+                  value={formData.name || ''}
                   onChange={(e) =>
                     setFormData({ ...formData, name: e.target.value })
                   }
@@ -165,7 +176,7 @@ export default function TeachersPage() {
                 </label>
                 <Input
                   type='email'
-                  value={formData.email}
+                  value={formData.email || ''}
                   onChange={(e) =>
                     setFormData({ ...formData, email: e.target.value })
                   }
@@ -177,7 +188,7 @@ export default function TeachersPage() {
                   Phone
                 </label>
                 <Input
-                  value={formData.phone}
+                  value={formData.phone || ''}
                   onChange={(e) =>
                     setFormData({ ...formData, phone: e.target.value })
                   }
@@ -190,7 +201,7 @@ export default function TeachersPage() {
                 </label>
                 <Input
                   type='date'
-                  value={formData.joinDate}
+                  value={formData.joinDate || ''}
                   onChange={(e) =>
                     setFormData({ ...formData, joinDate: e.target.value })
                   }
@@ -218,6 +229,13 @@ export default function TeachersPage() {
           </form>
         </Card>
       )}
+
+      <BulkCsvImportModal
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        entity='teachers'
+        onSuccess={() => void loadTeachers()}
+      />
 
       <DataGrid title='Faculty directory' empty={teachers.length === 0}>
         <DataGridTable>
