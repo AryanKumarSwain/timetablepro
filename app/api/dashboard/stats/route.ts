@@ -35,6 +35,7 @@ export async function GET() {
       pendingReplacements,
     });
   } catch (error) {
+    console.error('[GET /api/dashboard/stats]', error);
     return handleApiError(error);
   }
 }

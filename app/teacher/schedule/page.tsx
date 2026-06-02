@@ -103,12 +103,15 @@ export default function TeacherSchedulePage() {
         </GlassCard>
       ) : (
         <div className='relative space-y-0'>
-          <div className='absolute left-[19px] top-4 bottom-4 w-px bg-border/80' />
+          <div className='absolute left-4 top-4 bottom-4 w-px bg-border/80' />
           {schedule.map((item, index) => {
             const replacement = getReplacementForPeriod(item.periodId);
 
             return (
-              <div key={item.periodId} className='relative pl-12 pb-6'>
+              <div
+                key={`${item.periodId}-${index}`}
+                className='relative pl-12 pb-6'
+              >
                 <div
                   className={cn(
                     'absolute left-3 top-5 h-3 w-3 rounded-full ring-4 ring-background',

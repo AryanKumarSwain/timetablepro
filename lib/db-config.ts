@@ -1,7 +1,8 @@
 /**
  * MySQL connection settings for Prisma 7 driver adapter.
- * If your password contains @, #, or /, either URL-encode it in DATABASE_URL
- * (%40 for @) or set DATABASE_HOST / DATABASE_USER / DATABASE_PASSWORD / DATABASE_NAME.
+ * Falls back to sensible local defaults so the app can boot in development
+ * without requiring a .env file. Override with DATABASE_URL or the host/user/
+ * password/name variables in production.
  */
 export function getMysqlConfig() {
   if (
@@ -20,20 +21,24 @@ export function getMysqlConfig() {
     };
   }
 
-  const url = process.env.DATABASE_URL;
-  if (!url) {
-    throw new Error(
-      'Set DATABASE_URL or DATABASE_HOST/USER/PASSWORD/NAME in .env'
-    );
+  if (process.env.DATABASE_URL) {
+    const parsed = new URL(process.env.DATABASE_URL);
+    return {
+      host: parsed.hostname,
+      port: Number(parsed.port || 3306),
+      user: decodeURIComponent(parsed.username),
+      password: decodeURIComponent(parsed.password),
+      database: parsed.pathname.replace(/^\//, ''),
+      connectionLimit: 10,
+    };
   }
 
-  const parsed = new URL(url);
   return {
-    host: parsed.hostname,
-    port: Number(parsed.port || 3306),
-    user: decodeURIComponent(parsed.username),
-    password: decodeURIComponent(parsed.password),
-    database: parsed.pathname.replace(/^\//, ''),
+    host: process.env.DATABASE_HOST ?? 'localhost',
+    port: Number(process.env.DATABASE_PORT ?? 3306),
+    user: process.env.DATABASE_USER ?? 'root',
+    password: process.env.DATABASE_PASSWORD ?? '',
+    database: process.env.DATABASE_NAME ?? 'school_timetable',
     connectionLimit: 10,
   };
 }

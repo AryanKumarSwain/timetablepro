@@ -12,6 +12,8 @@ import { Subject } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { BulkCsvImportModal } from '@/components/enterprise/bulk-csv-import-modal';
+import { Upload } from 'lucide-react';
 
 export default function SubjectsPage() {
   useRequireAuth('admin');
@@ -20,6 +22,7 @@ export default function SubjectsPage() {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
   const [formData, setFormData] = useState<Omit<Subject, 'id'>>({
     name: '',
     code: '',
@@ -109,12 +112,21 @@ export default function SubjectsPage() {
           <p className='text-muted-foreground'>Manage course subjects</p>
         </div>
         {!showForm && (
-          <Button
-            onClick={() => setShowForm(true)}
-            className='bg-primary hover:bg-primary/90'
-          >
-            Add Subject
-          </Button>
+          <div className='flex gap-2'>
+            <Button
+              variant='outline'
+              onClick={() => setImportOpen(true)}
+            >
+              <Upload className='h-4 w-4 mr-1.5' />
+              Import CSV
+            </Button>
+            <Button
+              onClick={() => setShowForm(true)}
+              className='bg-primary hover:bg-primary/90'
+            >
+              Add Subject
+            </Button>
+          </div>
         )}
       </div>
 
@@ -202,6 +214,13 @@ export default function SubjectsPage() {
           </form>
         </Card>
       )}
+
+      <BulkCsvImportModal
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        entity='subjects'
+        onSuccess={() => void loadSubjects()}
+      />
 
       {/* Subjects List */}
       <div className='overflow-x-auto'>

@@ -30,6 +30,9 @@ model School {
   weeklySlots    WeeklyTimetableSlot[]
   attendance     TeacherAttendance[]
   replacements   ReplacementAssignment[]
+  dailyReports   DailyReport[]
+  timetables     Timetable[]
+  timetableSlots TimetableSlot[]
 }
 
 enum LicenseStatus {
@@ -45,6 +48,7 @@ model User {
   role      UserRole
   schoolId  String?
   school    School?  @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  teacher   Teacher?
   createdAt DateTime @default(now())
 }
 
@@ -55,42 +59,54 @@ enum UserRole {
 }
 
 model Teacher {
-  id                    String                  @id @default(uuid())
-  schoolId              String
-  school                School                  @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  name                  String
-  email                 String
-  phone                 String
-  maxPeriodsPerWeek     Int                     @default(24)
+  id                   String                  @id @default(uuid())
+  schoolId             String
+  school               School                  @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  userId               String?                 @unique
+  user                 User?                   @relation(fields: [userId], references: [id], onDelete: SetNull)
+  name                 String
+  email                String
+  phone                String
+  qualifications       Json                    @default("[]")
+  subjects             Json                    @default("[]")
+  active               Boolean                 @default(true)
+  joinDate             String
+  maxPeriodsPerWeek    Int                     @default(24)
   subjectSpecialtyId    String
-  weeklySlots           WeeklyTimetableSlot[]
-  attendanceRecords     TeacherAttendance[]
-  absentCoverRequests   ReplacementAssignment[] @relation("OriginalTeacher")
-  fulfilledCoverDuties  ReplacementAssignment[] @relation("ReplacementTeacher")
+  weeklySlots          WeeklyTimetableSlot[]
+  timetableSlots       TimetableSlot[]
+  dailyReports         DailyReport[]
+  attendanceRecords    TeacherAttendance[]
+  absentCoverRequests  ReplacementAssignment[] @relation("OriginalTeacher")
+  fulfilledCoverDuties ReplacementAssignment[] @relation("ReplacementTeacher")
 
   @@index([schoolId])
 }
 
 model Subject {
-  id          String                @id @default(uuid())
-  schoolId    String
-  school      School                @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  name        String
-  code        String
-  weeklySlots WeeklyTimetableSlot[]
+  id             String                @id @default(uuid())
+  schoolId       String
+  school         School                @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  name           String
+  code           String
+  weeklySlots    WeeklyTimetableSlot[]
+  reportEntries  ReportEntry[]
+  timetableSlots TimetableSlot[]
 
   @@index([schoolId])
 }
 
 model ClassRoom {
-  id          String                @id @default(uuid())
-  schoolId    String
-  school      School                @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  name        String
-  grade       String
-  section     String
-  roomNumber  String
-  weeklySlots WeeklyTimetableSlot[]
+  id             String                @id @default(uuid())
+  schoolId       String
+  school         School                @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  name           String
+  grade          String
+  section        String
+  roomNumber     String
+  weeklySlots    WeeklyTimetableSlot[]
+  reportEntries  ReportEntry[]
+  timetableSlots TimetableSlot[]
 
   @@index([schoolId])
 }
@@ -103,6 +119,7 @@ model Period {
   startTime              String
   endTime                String
   weeklySlots            WeeklyTimetableSlot[]
+  timetableSlots         TimetableSlot[]
   replacementAssignments ReplacementAssignment[]
 
   @@index([schoolId])
@@ -172,4 +189,87 @@ enum LeaveReason {
 enum AssignmentStatus {
   PENDING
   CONFIRMED
+}
+
+enum DailyReportStatus {
+  DRAFT
+  SUBMITTED
+}
+
+enum TimetableStatus {
+  DRAFT
+  PUBLISHED
+}
+
+model DailyReport {
+  id          String            @id @default(cuid())
+  teacherId   String
+  teacher     Teacher           @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  schoolId    String
+  school      School            @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  reportDate  DateTime
+  status      DailyReportStatus @default(DRAFT)
+  submittedAt DateTime?
+  csvFileUrl  String?
+  pdfFileUrl  String?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  entries     ReportEntry[]
+
+  @@unique([teacherId, reportDate])
+  @@index([schoolId])
+  @@index([teacherId])
+  @@index([reportDate])
+  @@index([status])
+}
+
+model ReportEntry {
+  id          String      @id @default(cuid())
+  reportId    String
+  report      DailyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  classId     String
+  class       ClassRoom   @relation(fields: [classId], references: [id], onDelete: Cascade)
+  subjectId   String
+  subject     Subject     @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  description String      @db.Text
+  isCompleted Boolean     @default(false)
+  createdAt   DateTime    @default(now())
+
+  @@index([reportId])
+  @@index([classId])
+  @@index([subjectId])
+}
+
+model Timetable {
+  id        String          @id @default(cuid())
+  name      String
+  schoolId  String
+  school    School          @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  status    TimetableStatus @default(DRAFT)
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+  slots     TimetableSlot[]
+
+  @@index([schoolId])
+}
+
+model TimetableSlot {
+  id          String    @id @default(cuid())
+  timetableId String
+  timetable   Timetable @relation(fields: [timetableId], references: [id], onDelete: Cascade)
+  schoolId    String
+  school      School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  dayOfWeek   Int
+  periodId    String
+  period      Period    @relation(fields: [periodId], references: [id])
+  classId     String
+  class       ClassRoom @relation(fields: [classId], references: [id])
+  subjectId   String
+  subject     Subject   @relation(fields: [subjectId], references: [id])
+  teacherId   String
+  teacher     Teacher   @relation(fields: [teacherId], references: [id])
+
+  @@unique([timetableId, dayOfWeek, periodId, classId])
+  @@index([timetableId])
+  @@index([schoolId])
 }
