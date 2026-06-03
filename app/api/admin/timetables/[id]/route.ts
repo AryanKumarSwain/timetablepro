@@ -15,6 +15,7 @@ export async function GET(_request: NextRequest, context: RouteContext) {
     const { schoolId } = await requireSchoolAdmin();
     const { id } = await context.params;
 
+    // Fetch the timetable along with its relational slot data mappings
     const timetable = await prisma.timetable.findFirst({
       where: { id, ...schoolWhere(schoolId) },
       include: {
@@ -33,10 +34,11 @@ export async function GET(_request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
 
-    const [periods, classes, subjects, teachers] = await Promise.all([
+    // FIXED: Order rows chronologically by startTime so BREAK segments do not jump to the top
+    const [timetablePeriods, classes, subjects, teachers] = await Promise.all([
       prisma.period.findMany({
-        where: schoolWhere(schoolId),
-        orderBy: { periodNumber: 'asc' },
+        where: { schoolId, timetableId: id },
+        orderBy: { startTime: 'asc' },
       }),
       prisma.classRoom.findMany({
         where: schoolWhere(schoolId),
@@ -52,7 +54,28 @@ export async function GET(_request: NextRequest, context: RouteContext) {
       }),
     ]);
 
+    // FIXED: Order fallback default school-wide presets chronologically by startTime as well
+    let fallbackPeriods = timetablePeriods;
+    if (fallbackPeriods.length === 0) {
+      fallbackPeriods = await prisma.period.findMany({
+        where: { schoolId, timetableId: null },
+        orderBy: { startTime: 'asc' },
+      });
+    }
+
     const subjectIds = subjects.map((s) => s.id);
+
+    // Safely structure working days configuration array structures
+    let parsedWorkingDays = [1, 2, 3, 4, 5];
+    if (timetable.workingDays) {
+      try {
+        parsedWorkingDays = typeof timetable.workingDays === 'string' 
+          ? JSON.parse(timetable.workingDays) 
+          : (timetable.workingDays as any);
+      } catch (e) {
+        console.error("Failed parsing working days:", e);
+      }
+    }
 
     return NextResponse.json({
       id: timetable.id,
@@ -60,12 +83,16 @@ export async function GET(_request: NextRequest, context: RouteContext) {
       status: timetable.status,
       createdAt: timetable.createdAt.toISOString(),
       updatedAt: timetable.updatedAt.toISOString(),
-      periods: periods.map((p) => ({
+      baseStartTime: timetable.baseStartTime,
+      periodDuration: timetable.periodDuration,
+      workingDays: parsedWorkingDays,
+      periods: fallbackPeriods.map((p) => ({
         id: p.id,
         periodNumber: p.periodNumber,
         startTime: p.startTime,
         endTime: p.endTime,
-        label: `Period ${p.periodNumber}`,
+        isBreak: p.isBreak,
+        label: p.isBreak ? (p.label || 'BREAK') : `Period ${p.periodNumber}`,
       })),
       classes: classes.map((c) => ({
         id: c.id,
@@ -117,10 +144,12 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
 
-    const data: { name?: string; status?: TimetableStatus } = {};
+    const data: any = {};
+    
     if (typeof body.name === 'string' && body.name.trim()) {
       data.name = body.name.trim();
     }
+    
     if (body.status === 'DRAFT' || body.status === 'PUBLISHED') {
       if (body.status === 'PUBLISHED') {
         await prisma.timetable.updateMany({
@@ -129,6 +158,35 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
         });
       }
       data.status = body.status;
+    }
+
+    if (typeof body.baseStartTime === 'string') {
+      data.baseStartTime = body.baseStartTime;
+    }
+    if (typeof body.periodDuration === 'number') {
+      data.periodDuration = body.periodDuration;
+    }
+    if (Array.isArray(body.workingDays)) {
+      data.workingDays = body.workingDays; 
+    }
+
+    // Refresh structural rows without mutating globally accessible school presets
+    if (Array.isArray(body.periods)) {
+      await prisma.period.deleteMany({
+        where: { timetableId: id, schoolId },
+      });
+
+      await prisma.period.createMany({
+        data: body.periods.map((p: any) => ({
+          schoolId,
+          timetableId: id,
+          periodNumber: Number(p.periodNumber) || 0,
+          startTime: p.startTime,
+          endTime: p.endTime,
+          isBreak: !!p.isBreak,
+          label: p.isBreak ? (p.breakLabel || p.label || 'LUNCH BREAK') : `Period ${p.periodNumber}`,
+        })),
+      });
     }
 
     const updated = await prisma.timetable.update({
@@ -144,6 +202,9 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       slotCount: updated._count.slots,
       createdAt: updated.createdAt.toISOString(),
       updatedAt: updated.updatedAt.toISOString(),
+      baseStartTime: updated.baseStartTime,
+      periodDuration: updated.periodDuration,
+      workingDays: body.workingDays || updated.workingDays,
     });
   } catch (error) {
     return handleApiError(error);

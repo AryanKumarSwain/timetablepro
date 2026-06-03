@@ -41,8 +41,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Name is required' }, { status: 400 });
     }
 
+    // Default configuration payload explicitly passed for the Json type block
+    const defaultWorkingDays = [1, 2, 3, 4, 5];
+
     const timetable = await prisma.timetable.create({
-      data: { name, schoolId },
+      data: { 
+        name, 
+        schoolId,
+        baseStartTime: "08:00",
+        periodDuration: 45,
+        workingDays: defaultWorkingDays as any, // Casted safely for Prisma Client validation matching
+      },
     });
 
     return NextResponse.json({
