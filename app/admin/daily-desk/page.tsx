@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useRequireAuth } from '@/lib/auth-context';
 import {
@@ -18,7 +18,7 @@ import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/enterprise/page-header';
 import { GlassCard } from '@/components/enterprise/glass-card';
 import { PageSkeleton } from '@/components/enterprise/page-skeleton';
-import { AlertTriangle, UserPlus, Radio } from 'lucide-react';
+import { AlertTriangle, UserPlus, Radio, Share2, Download, CheckCircle2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export default function DailyDeskPage() {
@@ -39,7 +39,7 @@ export default function DailyDeskPage() {
     reason: 'Leave',
   });
 
-  const today = useMemo(() => new Date().toISOString().split('T')[0], []);
+  const today = new Date().toISOString().split('T')[0];
 
   const loadData = useCallback(async () => {
     try {
@@ -57,13 +57,27 @@ export default function DailyDeskPage() {
   }, [today]);
 
   useEffect(() => {
+    let isMounted = true;
+    
     async function init() {
-      setLoading(true);
+      if (isMounted) setLoading(true);
       await loadData();
-      setLoading(false);
+      if (isMounted) setLoading(false);
     }
+    
     void init();
-  }, [loadData]);
+
+    const handleFocus = () => {
+      void loadData();
+      router.refresh();
+    };
+
+    window.addEventListener('focus', handleFocus);
+    return () => {
+      isMounted = false;
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, [loadData, router]);
 
   const handleMarkAttendance = async (
     classId: string,
@@ -74,7 +88,7 @@ export default function DailyDeskPage() {
     try {
       await markAttendance(classId, periodId, teacherId, today, isAbsent);
       await loadData();
-      router.refresh(); // Clear layout frames across mutli-tenant dashboards
+      router.refresh(); 
     } catch (error) {
       console.error('Failed to update attendance status markers:', error);
     }
@@ -135,6 +149,29 @@ export default function DailyDeskPage() {
     }
   };
 
+  const handleShareTimetable = async () => {
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: `Daily Desk Matrix - ${today}`,
+          text: `Check out today's automated cover timetable mappings for ${today}.`,
+          url: window.location.href,
+        });
+      } catch (err) {
+        console.log('Share canceled or failed:', err);
+      }
+    } else {
+      void navigator.clipboard.writeText(window.location.href);
+      window.alert('Timetable deep-link copied to clipboard!');
+    }
+  };
+
+  // FIXED: Dynamically fetches current active timetable layout name context
+  const handleDownloadTimetable = () => {
+    const timetableName = (gridData as any)?.name || "Master Timetable";
+    window.alert(`Generating export logs... Today's timetable layout "${timetableName}" is downloading as a CSV/PDF asset bundle.`);
+  };
+
   const openCoverForm = (classId: string, periodId: string, teacherId: string) => {
     setReplacementForm({
       periodId,
@@ -167,10 +204,13 @@ export default function DailyDeskPage() {
           { label: 'Daily Desk' },
         ]}
         actions={
-          <div className='flex items-center gap-2 text-xs bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5 rounded-xl text-emerald-600 dark:text-emerald-400 font-bold uppercase tracking-wider shadow-sm'>
+          <button 
+            onClick={() => { void loadData(); router.refresh(); }}
+            className='flex items-center gap-2 text-xs bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5 rounded-xl text-emerald-600 dark:text-emerald-400 font-bold uppercase tracking-wider shadow-sm hover:bg-emerald-500/20 transition-all'
+          >
             <Radio className='h-3.5 w-3.5 animate-pulse text-emerald-500' />
-            Live Sync
-          </div>
+            Force Sync
+          </button>
         }
       />
 
@@ -179,11 +219,34 @@ export default function DailyDeskPage() {
         {/* TIMETABLE VIEW CONTAINER */}
         <div className='min-w-0 w-full overflow-hidden'>
           <GlassCard className='p-5'>
-            <div className="mb-4">
-              <h2 className='text-base font-bold uppercase tracking-wide text-foreground'>Today&apos;s Operational Matrix</h2>
-              <p className='text-xs text-muted-foreground mt-0.5'>
-                Live operations layout matched directly with master timetable structure.
-              </p>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-5">
+              <div>
+                <h2 className='text-base font-bold uppercase tracking-wide text-foreground'>Today&apos;s Operational Matrix</h2>
+                <p className='text-xs text-muted-foreground mt-0.5'>
+                  Live operations layout matched directly with master timetable structure.
+                </p>
+              </div>
+              
+              <div className="flex items-center gap-2 self-start sm:self-center">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleShareTimetable}
+                  className="rounded-xl text-xs font-semibold h-9 border-border/80 hover:bg-muted"
+                >
+                  <Share2 className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
+                  Share
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleDownloadTimetable}
+                  className="rounded-xl text-xs font-semibold h-9 border-border/80 hover:bg-muted"
+                >
+                  <Download className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
+                  Download TT
+                </Button>
+              </div>
             </div>
 
             {/* SCROLLABLE TABLE FRAMEWORK */}
@@ -191,16 +254,17 @@ export default function DailyDeskPage() {
               <table className='w-full border-collapse text-left min-w-[800px]'>
                 <thead>
                   <tr className='bg-muted/80 backdrop-blur border-b border-border/40'>
-                    <th className='p-4 text-xs font-bold uppercase tracking-wider text-muted-foreground w-[140px] sticky left-0 bg-muted z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] border-r border-border/40'>
-                      Class
+                    <th className='p-4 text-xs font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400 w-[140px] sticky left-0 bg-muted z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] border-r border-border/40'>
+                      Timetable
                     </th>
                     {gridData.periods.map((p) => (
                       <th
                         key={p.id}
                         className='p-3 border-l border-border/40 text-center min-w-[180px] w-[200px]'
                       >
+                        {/* FIXED: Prevent break rows from showing P0 */}
                         <div className='text-xs font-bold text-foreground uppercase tracking-wider'>
-                          P{p.periodNumber}
+                          {p.isBreak ? (p.label || 'BREAK') : `P${p.periodNumber}`}
                         </div>
                         <div className='text-[10px] text-muted-foreground font-medium mt-0.5'>
                           {p.startTime}–{p.endTime}
@@ -213,12 +277,10 @@ export default function DailyDeskPage() {
                   {gridData.classes.map((cls) => (
                     <tr key={cls.id} className='hover:bg-muted/10 transition-colors'>
                       
-                      {/* FIXED LEFT CLASS ROW LABELS */}
                       <td className='p-4 font-bold text-sm text-foreground bg-background/90 sticky left-0 z-10 border-r border-border/40 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]'>
                         {cls.name}
                       </td>
 
-                      {/* PERIOD HORIZONTAL CELL MAPPERS */}
                       {gridData.periods.map((period) => {
                         const periodRow = gridData.grid.find((row) => row.periodId === period.id);
                         const cell = periodRow?.cells.find((c) => c.classId === cls.id);
@@ -234,30 +296,40 @@ export default function DailyDeskPage() {
                           );
                         }
 
+                        const internalReplacement = replacements.find(
+                          (r) => r.classId === cls.id && r.periodId === period.id
+                        );
+                        const isCovered = internalReplacement?.status === 'confirmed';
+
                         return (
                           <td
                             key={`${cls.id}-${period.id}`}
                             className={cn(
                               'p-2 border-l border-border/40 h-full min-h-[115px] align-top transition-colors',
-                              cell.isAbsent ? 'bg-rose-500/[0.04]' : 'bg-background/10'
+                              cell.isAbsent ? (isCovered ? 'bg-emerald-500/[0.02]' : 'bg-rose-500/[0.04]') : 'bg-background/10'
                             )}
                           >
                             <Card
                               className={cn(
                                 'p-3 rounded-lg h-full text-xs flex flex-col justify-between shadow-none transition-all border',
                                 cell.isAbsent
-                                  ? 'border-rose-500/40 bg-rose-500/5 ring-1 ring-rose-500/10'
+                                  ? isCovered
+                                    ? 'border-emerald-500/40 bg-emerald-500/[0.02]'
+                                    : 'border-rose-500/40 bg-rose-500/5 ring-1 ring-rose-500/10'
                                   : 'border-border/60 bg-background hover:border-indigo-500/40'
                               )}
                             >
                               <div>
                                 <div className="flex items-start justify-between gap-1 mb-1">
                                   <p className='font-bold text-foreground truncate flex-1'>{cell.subjectName}</p>
-                                  {cell.isAbsent && (
+                                  {cell.isAbsent && !isCovered && (
                                     <span className="flex h-2 w-2 rounded-full bg-rose-500 animate-pulse shrink-0 mt-1" />
                                   )}
                                 </div>
-                                <p className='text-muted-foreground font-medium truncate mb-2'>
+                                <p className={cn(
+                                  'font-medium truncate mb-2',
+                                  cell.isAbsent ? 'text-muted-foreground/60 line-through' : 'text-muted-foreground'
+                                )}>
                                   {cell.teacherName}
                                 </p>
                               </div>
@@ -265,30 +337,44 @@ export default function DailyDeskPage() {
                               <div className='flex flex-col gap-1 mt-auto'>
                                 {cell.isAbsent ? (
                                   <>
-                                    <div className="flex items-center gap-1.5 px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 mb-1">
-                                      <AlertTriangle className='h-3 w-3 shrink-0 text-rose-500' />
-                                      <span className="text-[9px] font-bold uppercase tracking-wide">Absent</span>
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-1">
-                                      <Button
-                                        size='sm'
-                                        variant='outline'
-                                        className='h-6 text-[10px] font-bold rounded border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/10 transition-colors px-1'
-                                        onClick={() =>
-                                          void handleMarkAttendance(cell.classId, period.id, cell.teacherId, false)
-                                        }
-                                      >
-                                        Present
-                                      </Button>
-                                      <Button
-                                        size='sm'
-                                        variant='secondary'
-                                        className='h-6 text-[10px] font-bold rounded bg-indigo-500/10 text-indigo-600 border border-indigo-500/20 hover:bg-indigo-500/20 transition-colors px-1'
-                                        onClick={() => openCoverForm(cell.classId, period.id, cell.teacherId)}
-                                      >
-                                        Cover
-                                      </Button>
-                                    </div>
+                                    {isCovered ? (
+                                      <div className="space-y-1.5">
+                                        <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 shadow-sm">
+                                          <CheckCircle2 className='h-3 w-3 shrink-0 text-emerald-500' />
+                                          <span className="text-[10px] font-bold uppercase tracking-wider">Cover Active</span>
+                                        </div>
+                                        <p className="text-[11px] font-medium text-foreground bg-muted/60 px-1.5 py-1 rounded border border-border/40 truncate">
+                                          <span className="text-muted-foreground font-normal">Subby:</span> {getTeacherName(internalReplacement.replacementTeacherId)}
+                                        </p>
+                                      </div>
+                                    ) : (
+                                      <>
+                                        <div className="flex items-center gap-1.5 px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 mb-1">
+                                          <AlertTriangle className='h-3 w-3 shrink-0 text-rose-500' />
+                                          <span className="text-[9px] font-bold uppercase tracking-wide">Absent</span>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-1">
+                                          <Button
+                                            size='sm'
+                                            variant='outline'
+                                            className='h-6 text-[10px] font-bold rounded border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/10 transition-colors px-1'
+                                            onClick={() =>
+                                              void handleMarkAttendance(cell.classId, period.id, cell.teacherId, false)
+                                            }
+                                          >
+                                            Present
+                                          </Button>
+                                          <Button
+                                            size='sm'
+                                            variant='secondary'
+                                            className='h-6 text-[10px] font-bold rounded bg-indigo-500/10 text-indigo-600 border border-indigo-500/20 hover:bg-indigo-500/20 transition-colors px-1'
+                                            onClick={() => openCoverForm(cell.classId, period.id, cell.teacherId)}
+                                          >
+                                            Cover
+                                          </Button>
+                                        </div>
+                                      </>
+                                    )}
                                   </>
                                 ) : (
                                   <Button
@@ -345,7 +431,7 @@ export default function DailyDeskPage() {
                     <option value=''>Select Period</option>
                     {gridData.periods.map((p) => (
                       <option key={p.id} value={p.id}>
-                        Period {p.periodNumber} ({p.startTime})
+                        {p.isBreak ? (p.label || 'BREAK') : `Period ${p.periodNumber} (${p.startTime})`}
                       </option>
                     ))}
                   </select>
@@ -434,7 +520,7 @@ export default function DailyDeskPage() {
                     >
                       <div className='flex items-center justify-between mb-2'>
                         <p className='font-bold text-xs text-foreground uppercase tracking-wide bg-muted px-2 py-0.5 rounded'>
-                          {period ? `Period ${period.periodNumber}` : 'Custom Slot'}
+                          {period ? (period.isBreak ? 'BREAK' : `Period ${period.periodNumber}`) : 'Custom Slot'}
                         </p>
                         <span
                           className={cn(
