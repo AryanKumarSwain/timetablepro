@@ -72,7 +72,7 @@ model Teacher {
   active               Boolean                 @default(true)
   joinDate             String
   maxPeriodsPerWeek    Int                     @default(24)
-  subjectSpecialtyId    String
+  subjectSpecialtyId   String
   weeklySlots          WeeklyTimetableSlot[]
   timetableSlots       TimetableSlot[]
   dailyReports         DailyReport[]
@@ -84,9 +84,9 @@ model Teacher {
 }
 
 model Subject {
-  id             String                @id @default(uuid())
+  id             String          @id @default(uuid())
   schoolId       String
-  school         School                @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  school         School          @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   name           String
   code           String
   weeklySlots    WeeklyTimetableSlot[]
@@ -97,9 +97,9 @@ model Subject {
 }
 
 model ClassRoom {
-  id             String                @id @default(uuid())
+  id             String          @id @default(uuid())
   schoolId       String
-  school         School                @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  school         School          @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   name           String
   grade          String
   section        String
@@ -115,14 +115,19 @@ model Period {
   id                     String                  @id @default(uuid())
   schoolId               String
   school                 School                  @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  timetableId            String?                 
+  timetable              Timetable?              @relation(fields: [timetableId], references: [id], onDelete: Cascade)
   periodNumber           Int
   startTime              String
   endTime                String
+  isBreak                Boolean                 @default(false) 
+  label                  String?                 
   weeklySlots            WeeklyTimetableSlot[]
   timetableSlots         TimetableSlot[]
   replacementAssignments ReplacementAssignment[]
 
   @@index([schoolId])
+  @@index([timetableId])
 }
 
 model WeeklyTimetableSlot {
@@ -241,14 +246,18 @@ model ReportEntry {
 }
 
 model Timetable {
-  id        String          @id @default(cuid())
-  name      String
-  schoolId  String
-  school    School          @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  status    TimetableStatus @default(DRAFT)
-  createdAt DateTime        @default(now())
-  updatedAt DateTime        @updatedAt
-  slots     TimetableSlot[]
+  id             String          @id @default(cuid())
+  name           String
+  schoolId       String
+  school         School          @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  status         TimetableStatus @default(DRAFT)
+  baseStartTime  String          @default("08:00")
+  periodDuration Int             @default(45)
+  workingDays    Json            
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  slots          TimetableSlot[]
+  periods        Period[]        
 
   @@index([schoolId])
 }

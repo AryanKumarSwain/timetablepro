@@ -226,21 +226,29 @@ export default function TimetableEditPage() {
   };
 
   const persistGridSettings = async (updatedPeriods: ExtendedPeriod[]) => {
-    try {
-      await fetch(`/api/admin/timetables/${timetableId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          periods: updatedPeriods,
-          baseStartTime,
-          periodDuration,
-          workingDays,
-        }),
-      });
-    } catch (e) {
-      console.error("Failed persisting configuration updates:", e);
-    }
-  };
+  try {
+    await fetch(`/api/admin/timetables/${timetableId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        baseStartTime,
+        periodDuration,
+        workingDays,
+        // Make sure the structural layout is mapped along with the runtime IDs
+        periods: updatedPeriods.map(p => ({
+          id: p.id,
+          periodNumber: p.periodNumber,
+          startTime: p.startTime,
+          endTime: p.endTime,
+          isBreak: !!p.isBreak,
+          breakLabel: p.breakLabel || p.label
+        }))
+      }),
+    });
+  } catch (e) {
+    console.error("Failed persisting configuration updates:", e);
+  }
+};
 
   const handleAddRow = async (isBreak: boolean) => {
     if (!detail) return;
