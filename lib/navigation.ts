@@ -39,7 +39,6 @@ export const ADMIN_NAV: NavItem[] = [
   { label: 'Classes', href: '/admin/masters/classes', icon: GraduationCap },
   { label: 'Subjects', href: '/admin/masters/subjects', icon: BookOpen },
   { label: 'Timetables', href: '/admin/timetables', icon: Table2 },
-  { label: 'Weekly Timetable', href: '/admin/timetable', icon: CalendarDays },
   { label: 'Daily Desk', href: '/admin/daily-desk', icon: ClipboardList },
   { label: 'Reports', href: '/admin/reports', icon: FileText },
 ];
