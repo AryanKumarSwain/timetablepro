@@ -5,27 +5,48 @@ import {
   handleApiError,
   schoolWhere,
 } from '@/lib/auth-server';
-import {
-  getScheduleSlots,
-  getDayOfWeekFromDate,
-} from '@/lib/timetable-source';
+import { getDayOfWeekFromDate } from '@/lib/timetable-source';
 import { mapTeacherAttendance } from '@/lib/mappers';
 
 export async function GET(request: NextRequest) {
   try {
     const { schoolId } = await requireSchoolContext();
-    const date =
-      request.nextUrl.searchParams.get('date') ??
-      new Date().toISOString().split('T')[0];
+    
+    // Timezone-safe local date fallback calculation
+    const localTargetDate = new Date();
+    const offset = localTargetDate.getTimezoneOffset();
+    const safeLocalDate = new Date(localTargetDate.getTime() - (offset * 60 * 1000)).toISOString().split('T')[0];
+
+    const date = request.nextUrl.searchParams.get('date') ?? safeLocalDate;
     const dayOfWeek = getDayOfWeekFromDate(date);
 
-    const { slots } = await getScheduleSlots(schoolId, { dayOfWeek });
+    // 1. Locate the active PUBLISHED timetable
+    const activeTimetable = await prisma.timetable.findFirst({
+      where: {
+        schoolId,
+        status: 'PUBLISHED',
+      },
+    });
 
+    if (!activeTimetable) {
+      return NextResponse.json({
+        date,
+        dayOfWeek,
+        classes: [],
+        periods: [],
+        grid: [],
+        attendance: [],
+        replacements: [],
+        message: "No published timetable found."
+      });
+    }
+
+    // 2. Fetch specific layout periods for this active published timetable instance
     const [periods, classes, subjects, teachers, attendance, replacements] =
       await Promise.all([
         prisma.period.findMany({
-          where: schoolWhere(schoolId),
-          orderBy: { periodNumber: 'asc' },
+          where: { schoolId, timetableId: activeTimetable.id },
+          orderBy: { startTime: 'asc' },
         }),
         prisma.classRoom.findMany({
           where: schoolWhere(schoolId),
@@ -41,20 +62,38 @@ export async function GET(request: NextRequest) {
         }),
       ]);
 
+    let activePeriods = periods;
+    if (activePeriods.length === 0) {
+      activePeriods = await prisma.period.findMany({
+        where: { schoolId, timetableId: null },
+        orderBy: { startTime: 'asc' },
+      });
+    }
+
+    // 3. Fetch slot rows using the discovered active period identifiers
+    const slots = await prisma.timetableSlot.findMany({
+      where: {
+        timetableId: activeTimetable.id,
+        dayOfWeek,
+        periodId: { in: activePeriods.map(p => p.id) }
+      },
+    });
+
     const teacherMap = new Map(teachers.map((t) => [t.id, t.name]));
     const subjectMap = new Map(subjects.map((s) => [s.id, s.name]));
-    const classMap = new Map(classes.map((c) => [c.id, c.name]));
 
-    const grid = periods.map((period) => ({
+    // 4. Form grid array map layouts
+    const grid = activePeriods.map((period) => ({
       periodId: period.id,
       periodNumber: period.periodNumber,
-      label: `Period ${period.periodNumber}`,
+      label: period.isBreak ? (period.label || 'BREAK') : `Period ${period.periodNumber}`,
       startTime: period.startTime,
       endTime: period.endTime,
       cells: classes.map((cls) => {
         const slot = slots.find(
           (s) => s.periodId === period.id && s.classId === cls.id
         );
+        
         if (!slot) {
           return { classId: cls.id, className: cls.name, empty: true as const };
         }
@@ -81,8 +120,7 @@ export async function GET(request: NextRequest) {
             ? {
                 id: replacement.id,
                 replacementTeacherId: replacement.replacementTeacherId,
-                replacementTeacherName:
-                  teacherMap.get(replacement.replacementTeacherId) ?? 'Unknown',
+                replacementTeacherName: teacherMap.get(replacement.replacementTeacherId) ?? 'Unknown',
                 status: replacement.status.toLowerCase(),
               }
             : null,
@@ -94,11 +132,12 @@ export async function GET(request: NextRequest) {
       date,
       dayOfWeek,
       classes: classes.map((c) => ({ id: c.id, name: c.name })),
-      periods: periods.map((p) => ({
+      periods: activePeriods.map((p) => ({
         id: p.id,
         periodNumber: p.periodNumber,
         startTime: p.startTime,
         endTime: p.endTime,
+        isBreak: p.isBreak,
       })),
       grid,
       attendance: attendance.map((a) => mapTeacherAttendance(a)),

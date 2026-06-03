@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { useRequireAuth } from '@/lib/auth-context';
 import {
   getTimetableDetail,
@@ -17,7 +17,7 @@ import { GlassCard } from '@/components/enterprise/glass-card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, Filter } from 'lucide-react';
+import { ArrowLeft, Filter, Layers } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   TimetableGrid,
@@ -35,11 +35,13 @@ type ExtendedTimetableDetail = Omit<TimetableDetail, 'periods'> & {
   baseStartTime?: string;
   periodDuration?: number;
   workingDays?: number[];
+  targetClassName?: string; // Captures class name currently undergoing structural modification
 };
 
 export default function TimetableEditPage() {
   useRequireAuth('admin');
   const params = useParams();
+  const router = useRouter();
   const timetableId = String(params.id);
 
   const [detail, setDetail] = useState<ExtendedTimetableDetail | null>(null);
@@ -48,9 +50,8 @@ export default function TimetableEditPage() {
   const [view, setView] = useState<ViewMode>('section');
   const [search, setSearch] = useState('');
   const [selectedId, setSelectedId] = useState<string>('');
-  const [sheetOpen, setSheetOpen] = useState(false); // Fixed: Added sheetOpen back into state definitions
+  const [sheetOpen, setSheetOpen] = useState(false);
   
-  // CORE TIMELINE PARAMETER INITIALIZERS
   const [workingDays, setWorkingDays] = useState<number[]>([1, 2, 3, 4, 5]);
   const [baseStartTime, setBaseStartTime] = useState<string>("08:00");
   const [periodDuration, setPeriodDuration] = useState<number>(45);
@@ -155,7 +156,7 @@ export default function TimetableEditPage() {
     if (JSON.stringify(detail.periods) !== JSON.stringify(updatedPeriods)) {
       setDetail(prev => prev ? { ...prev, periods: updatedPeriods } : null);
     }
-  }, [baseStartTime, periodDuration]);
+  }, [baseStartTime, periodDuration, detail?.periods, recalculateTimetableTimes]);
 
   const subjectColorMap = useMemo(() => {
     const m = new Map<string, string>();
@@ -181,6 +182,17 @@ export default function TimetableEditPage() {
     return detail.slots.filter((s) => s.classId === selectedId);
   }, [detail, view, selectedId]);
 
+  // Derived Classroom Identifier lookup mapping for the currently active editing schedule layout frame
+  const classCurrentlyEditing = useMemo(() => {
+    if (!detail) return null;
+    if (view === 'faculty') {
+      const activeSlot = detail.slots.find((s) => s.teacherId === selectedId);
+      if (activeSlot) return activeSlot.className;
+    }
+    const currentClass = detail.classes.find((c) => c.id === selectedId);
+    return currentClass ? currentClass.name : (detail.targetClassName || null);
+  }, [detail, view, selectedId]);
+
   const openEditor = (dayOfWeek: number, periodId: string, slot?: TimetableDetail['slots'][number]) => {
     const classId = view === 'faculty' && slot ? slot.classId : selectedId;
     setEditCell({ dayOfWeek, periodId, classId, slot });
@@ -204,6 +216,7 @@ export default function TimetableEditPage() {
       });
       setSheetOpen(false);
       await load();
+      router.refresh(); // Clear stales, syncing engine modifications globally directly down to daily desks
     } catch (e) {
       console.error(e);
     } finally {
@@ -218,6 +231,7 @@ export default function TimetableEditPage() {
       await deleteTimetableSlot(timetableId, editCell.slot.id);
       setSheetOpen(false);
       await load();
+      router.refresh(); // Clear layout frames across multi-tenant desktop desks
     } catch (e) {
       console.error(e);
     } finally {
@@ -225,36 +239,45 @@ export default function TimetableEditPage() {
     }
   };
 
-  const persistGridSettings = async (updatedPeriods: ExtendedPeriod[]) => {
-  try {
-    await fetch(`/api/admin/timetables/${timetableId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        baseStartTime,
-        periodDuration,
-        workingDays,
-        // Make sure the structural layout is mapped along with the runtime IDs
-        periods: updatedPeriods.map(p => ({
-          id: p.id,
-          periodNumber: p.periodNumber,
-          startTime: p.startTime,
-          endTime: p.endTime,
-          isBreak: !!p.isBreak,
-          breakLabel: p.breakLabel || p.label
-        }))
-      }),
-    });
-  } catch (e) {
-    console.error("Failed persisting configuration updates:", e);
-  }
-};
+  const persistGridSettings = async (
+    updatedPeriods: ExtendedPeriod[], 
+    updatedWorkingDays = workingDays, 
+    updatedStartTime = baseStartTime, 
+    updatedDuration = periodDuration
+  ) => {
+    try {
+      const response = await fetch(`/api/admin/timetables/${timetableId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          baseStartTime: updatedStartTime,
+          periodDuration: updatedDuration,
+          workingDays: updatedWorkingDays,
+          periods: updatedPeriods.map(p => ({
+            id: p.id.startsWith('row-') ? undefined : p.id, 
+            periodNumber: p.periodNumber,
+            startTime: p.startTime,
+            endTime: p.endTime,
+            isBreak: !!p.isBreak,
+            label: p.isBreak ? (p.breakLabel || p.label || 'BREAK') : `Period ${p.periodNumber}`
+          }))
+        }),
+      });
+      if (response.ok) {
+        router.refresh(); // Ensure background intervals persist modifications instantly
+      }
+    } catch (e) {
+      console.error("Failed persisting configuration updates:", e);
+    }
+  };
 
   const handleAddRow = async (isBreak: boolean) => {
     if (!detail) return;
 
+    const tempId = `row-${crypto.randomUUID()}`;
+
     const newRow: ExtendedPeriod = {
-      id: `row-${crypto.randomUUID()}`,
+      id: tempId,
       periodNumber: isBreak ? 0 : detail.periods.filter(p => !p.isBreak).length + 1,
       label: isBreak ? 'LUNCH BREAK' : '',
       startTime: "00:00",
@@ -267,7 +290,36 @@ export default function TimetableEditPage() {
     const updatedPeriods = recalculateTimetableTimes(combined, baseStartTime, periodDuration);
     
     setDetail({ ...detail, periods: updatedPeriods });
-    await persistGridSettings(updatedPeriods);
+
+    try {
+      const response = await fetch(`/api/admin/timetables/${timetableId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          baseStartTime,
+          periodDuration,
+          workingDays,
+          periods: updatedPeriods.map(p => ({
+            id: p.id.startsWith('row-') ? undefined : p.id, 
+            periodNumber: p.periodNumber,
+            startTime: p.startTime,
+            endTime: p.endTime,
+            isBreak: !!p.isBreak,
+            label: p.isBreak ? (p.breakLabel || p.label || 'BREAK') : `Period ${p.periodNumber}`
+          }))
+        }),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.periods) {
+          setDetail(prev => prev ? { ...prev, periods: result.periods } : null);
+        }
+        router.refresh(); // Sync additions quietly without showing full layout loading cards
+      }
+    } catch (e) {
+      console.error("Failed saving new row:", e);
+    }
   };
 
   const handleRemoveRow = async (id: string) => {
@@ -280,19 +332,22 @@ export default function TimetableEditPage() {
       periods: updatedPeriods,
       slots: detail.slots.filter((s) => s.periodId !== id),
     });
+
     await persistGridSettings(updatedPeriods);
   };
 
-  const handleUpdateRowLabel = (id: string, label: string) => {
+  const handleUpdateRowLabel = async (id: string, label: string) => {
     if (!detail) return;
-    const updatedPeriods = detail.periods.map((p) => (p.id === id ? { ...p, breakLabel: label } : p));
+    const updatedPeriods = detail.periods.map((p) => (p.id === id ? { ...p, breakLabel: label, label } : p));
     setDetail({ ...detail, periods: updatedPeriods });
+    await persistGridSettings(updatedPeriods);
   };
 
-  const handleUpdateRowTime = (id: string, startTime: string, endTime: string) => {
+  const handleUpdateRowTime = async (id: string, startTime: string, endTime: string) => {
     if (!detail) return;
     const updatedPeriods = detail.periods.map((p) => (p.id === id ? { ...p, startTime, endTime } : p));
     setDetail({ ...detail, periods: updatedPeriods });
+    await persistGridSettings(updatedPeriods);
   };
 
   const periodLabel = editCell
@@ -305,6 +360,7 @@ export default function TimetableEditPage() {
 
   return (
     <div className='max-w-[1600px] mx-auto space-y-6 px-4 py-2'>
+      {/* Top Controls Action Bar */}
       <GlassCard className="p-5">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
@@ -312,7 +368,17 @@ export default function TimetableEditPage() {
               <Link href="/admin/timetables"><ArrowLeft className="h-4 w-4" /></Link>
             </Button>
             <div>
-              <h1 className="text-2xl font-bold tracking-tight">{detail.name}</h1>
+              <div className="flex items-center gap-3 flex-wrap">
+                <h1 className="text-2xl font-bold tracking-tight">{detail.name}</h1>
+                
+                {/* Dynamically inserted Class Name contextual tracking layout container */}
+                {classCurrentlyEditing && (
+                  <div className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-500/10 px-3 py-1 text-xs font-bold uppercase tracking-wider text-indigo-600 border border-indigo-500/20 shadow-sm animate-in fade-in slide-in-from-left-2 duration-200">
+                    <Layers className="h-3 w-3 text-indigo-500" />
+                    <span>Class: {classCurrentlyEditing}</span>
+                  </div>
+                )}
+              </div>
               <div className="flex items-center gap-2 mt-1">
                 <span className={cn(
                   "px-2.5 py-0.5 rounded-full text-[11px] font-bold tracking-wide uppercase",
@@ -337,6 +403,7 @@ export default function TimetableEditPage() {
         </div>
       </GlassCard>
 
+      {/* Grid Canvas Shell */}
       <div className='grid grid-cols-1 xl:grid-cols-[280px_1fr] gap-6 items-start'>
         <GlassCard className="p-4 max-h-[calc(100vh-140px)] overflow-hidden flex flex-col sticky top-6">
           <Input
@@ -346,7 +413,7 @@ export default function TimetableEditPage() {
             className='mb-3 rounded-xl text-sm bg-muted/30 focus-visible:ring-indigo-500/30 w-full'
           />
           
-          <div className='overflow-y-auto max-h-[126px] space-y-1 flex-1 pr-1 scrollbar-thin scrollbar-thumb-indigo-500/20 hover:scrollbar-thumb-indigo-500/40 scrollbar-track-transparent flex flex-col justify-start'>
+          <div className='overflow-y-auto max-h-[400px] space-y-1 flex-1 pr-1 scrollbar-thin scrollbar-thumb-indigo-500/20 hover:scrollbar-thumb-indigo-500/40 scrollbar-track-transparent flex flex-col justify-start'>
             {search.trim() === '' && (
               <div className="text-center py-6 text-xs text-muted-foreground/80 font-medium my-auto w-full">
                 Type above to look up schedules...
@@ -377,8 +444,9 @@ export default function TimetableEditPage() {
           </div>
         </GlassCard>
 
+        {/* Timetable Interactive Grid System */}
         <div className="min-w-0 w-full">
-          <GlassCard className="p-5">
+          <GlassCard className="p-5 overflow-x-auto">
             <TimetableGrid
               periods={detail.periods}
               slots={filteredSlots}
@@ -388,33 +456,19 @@ export default function TimetableEditPage() {
               periodDuration={periodDuration}
               onWorkingDaysChange={async (days) => {
                 setWorkingDays(days);
-                try {
-                  await fetch(`/api/admin/timetables/${timetableId}`, {
-                    method: 'PATCH',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ workingDays: days }),
-                  });
-                } catch (e) { console.error(e); }
+                await persistGridSettings(detail.periods, days, baseStartTime, periodDuration);
               }}
               onBaseStartTimeChange={async (time) => {
                 setBaseStartTime(time);
-                try {
-                  await fetch(`/api/admin/timetables/${timetableId}`, {
-                    method: 'PATCH',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ baseStartTime: time }),
-                  });
-                } catch (e) { console.error(e); }
+                const recalculated = recalculateTimetableTimes(detail.periods, time, periodDuration);
+                setDetail({ ...detail, periods: recalculated });
+                await persistGridSettings(recalculated, workingDays, time, periodDuration);
               }}
               onPeriodDurationChange={async (dur) => {
                 setPeriodDuration(dur);
-                try {
-                  await fetch(`/api/admin/timetables/${timetableId}`, {
-                    method: 'PATCH',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ periodDuration: dur }),
-                  });
-                } catch (e) { console.error(e); }
+                const recalculated = recalculateTimetableTimes(detail.periods, baseStartTime, dur);
+                setDetail({ ...detail, periods: recalculated });
+                await persistGridSettings(recalculated, workingDays, baseStartTime, dur);
               }}
               onAddRow={handleAddRow}
               onRemoveRow={handleRemoveRow}
@@ -437,6 +491,7 @@ export default function TimetableEditPage() {
         </div>
       </div>
 
+      {/* Optimization Matrix */}
       {workload && (
         <GlassCard className="p-6">
           <h2 className="text-sm font-bold text-foreground uppercase tracking-widest mb-4">Faculty Optimization Workload</h2>
@@ -444,6 +499,7 @@ export default function TimetableEditPage() {
         </GlassCard>
       )}
 
+      {/* Flyout Action Editor Drawer Drawer */}
       <SlotEditorSheet
         open={sheetOpen}
         onOpenChange={setSheetOpen}
