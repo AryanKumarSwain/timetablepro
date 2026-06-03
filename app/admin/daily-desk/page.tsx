@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useRequireAuth } from '@/lib/auth-context';
 import {
   getDailyDeskGrid,
@@ -17,17 +18,19 @@ import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/enterprise/page-header';
 import { GlassCard } from '@/components/enterprise/glass-card';
 import { PageSkeleton } from '@/components/enterprise/page-skeleton';
-import { AlertTriangle, UserPlus, Radio, Check, X } from 'lucide-react';
+import { AlertTriangle, UserPlus, Radio } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export default function DailyDeskPage() {
   useRequireAuth('admin');
+  const router = useRouter();
 
   const [gridData, setGridData] = useState<DailyDeskGrid | null>(null);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [replacements, setReplacements] = useState<Replacement[]>([]);
   const [loading, setLoading] = useState(true);
   const [showReplacementForm, setShowReplacementForm] = useState(false);
+  const [submittingReplacement, setSubmittingReplacement] = useState(false);
   const [replacementForm, setReplacementForm] = useState({
     periodId: '',
     classId: '',
@@ -49,7 +52,7 @@ export default function DailyDeskPage() {
       setTeachers(teachersData);
       setReplacements(replacementData);
     } catch (error) {
-      console.error('Failed to load daily desk:', error);
+      console.error('Failed to load daily desk operational matrix data:', error);
     }
   }, [today]);
 
@@ -71,8 +74,9 @@ export default function DailyDeskPage() {
     try {
       await markAttendance(classId, periodId, teacherId, today, isAbsent);
       await loadData();
+      router.refresh(); // Clear layout frames across mutli-tenant dashboards
     } catch (error) {
-      console.error('Failed to mark attendance:', error);
+      console.error('Failed to update attendance status markers:', error);
     }
   };
 
@@ -83,10 +87,17 @@ export default function DailyDeskPage() {
       !replacementForm.originalTeacherId ||
       !replacementForm.replacementTeacherId
     ) {
-      window.alert('Please fill all fields');
+      window.alert('Please fill out all assignment routing values before dispatching.');
       return;
     }
+    
+    if (replacementForm.originalTeacherId === replacementForm.replacementTeacherId) {
+      window.alert('Substitute teacher cannot match the designated absent teacher.');
+      return;
+    }
+
     try {
+      setSubmittingReplacement(true);
       await createReplacement({
         classId: replacementForm.classId,
         date: today,
@@ -106,8 +117,11 @@ export default function DailyDeskPage() {
         reason: 'Leave',
       });
       await loadData();
+      router.refresh();
     } catch (error) {
-      console.error('Failed to create replacement:', error);
+      console.error('Failed to register substitute tracking records:', error);
+    } finally {
+      setSubmittingReplacement(false);
     }
   };
 
@@ -115,8 +129,9 @@ export default function DailyDeskPage() {
     try {
       await updateReplacementStatus(replacementId, 'confirmed');
       await loadData();
+      router.refresh();
     } catch (error) {
-      console.error('Failed to confirm replacement:', error);
+      console.error('Failed verifying duty assignment confirmations:', error);
     }
   };
 
@@ -132,7 +147,7 @@ export default function DailyDeskPage() {
   };
 
   const getTeacherName = (id: string) =>
-    teachers.find((t) => t.id === id)?.name || 'Unknown';
+    teachers.find((t) => t.id === id)?.name || 'Unknown Faculty';
 
   if (loading || !gridData) {
     return (
@@ -152,7 +167,7 @@ export default function DailyDeskPage() {
           { label: 'Daily Desk' },
         ]}
         actions={
-          <div className='flex items-center gap-2 text-xs bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5 rounded-xl text-emerald-600 dark:text-emerald-400 font-bold uppercase tracking-wider'>
+          <div className='flex items-center gap-2 text-xs bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5 rounded-xl text-emerald-600 dark:text-emerald-400 font-bold uppercase tracking-wider shadow-sm'>
             <Radio className='h-3.5 w-3.5 animate-pulse text-emerald-500' />
             Live Sync
           </div>
@@ -176,7 +191,7 @@ export default function DailyDeskPage() {
               <table className='w-full border-collapse text-left min-w-[800px]'>
                 <thead>
                   <tr className='bg-muted/80 backdrop-blur border-b border-border/40'>
-                    <th className='p-4 text-xs font-bold uppercase tracking-wider text-muted-foreground w-[140px] sticky left-0 bg-muted z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]'>
+                    <th className='p-4 text-xs font-bold uppercase tracking-wider text-muted-foreground w-[140px] sticky left-0 bg-muted z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] border-r border-border/40'>
                       Class
                     </th>
                     {gridData.periods.map((p) => (
@@ -205,7 +220,6 @@ export default function DailyDeskPage() {
 
                       {/* PERIOD HORIZONTAL CELL MAPPERS */}
                       {gridData.periods.map((period) => {
-                        // Locate matching layout box details inside structural object array
                         const periodRow = gridData.grid.find((row) => row.periodId === period.id);
                         const cell = periodRow?.cells.find((c) => c.classId === cls.id);
 
@@ -252,7 +266,7 @@ export default function DailyDeskPage() {
                                 {cell.isAbsent ? (
                                   <>
                                     <div className="flex items-center gap-1.5 px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 mb-1">
-                                      <AlertTriangle className='h-3 w-3 shrink-0' />
+                                      <AlertTriangle className='h-3 w-3 shrink-0 text-rose-500' />
                                       <span className="text-[9px] font-bold uppercase tracking-wide">Absent</span>
                                     </div>
                                     <div className="grid grid-cols-2 gap-1">
@@ -312,7 +326,7 @@ export default function DailyDeskPage() {
               <Button
                 size='sm'
                 variant={showReplacementForm ? 'ghost' : 'default'}
-                className='rounded-xl text-xs font-bold h-8'
+                className='rounded-xl text-xs font-bold h-8 transition-all'
                 onClick={() => setShowReplacementForm(!showReplacementForm)}
               >
                 {showReplacementForm ? 'Cancel' : <><UserPlus className='h-3.5 w-3.5 mr-1' /> Assign</>}
@@ -320,13 +334,13 @@ export default function DailyDeskPage() {
             </div>
 
             {showReplacementForm && (
-              <div className='space-y-3 p-4 bg-indigo-500/[0.03] rounded-xl border border-indigo-500/20 shadow-inner'>
+              <div className='space-y-3 p-4 bg-indigo-500/[0.03] rounded-xl border border-indigo-500/20 shadow-inner animate-in fade-in slide-in-from-top-3 duration-200'>
                 <div>
                   <label className='block text-[11px] font-bold uppercase text-muted-foreground mb-1'>Period</label>
                   <select
                     value={replacementForm.periodId}
                     onChange={(e) => setReplacementForm({ ...replacementForm, periodId: e.target.value })}
-                    className='w-full text-xs p-2 rounded-xl bg-background border border-border/60 focus:outline-none focus:border-indigo-500'
+                    className='w-full text-xs p-2 rounded-xl bg-background border border-border/60 focus:outline-none focus:border-indigo-500 transition-colors'
                   >
                     <option value=''>Select Period</option>
                     {gridData.periods.map((p) => (
@@ -341,7 +355,7 @@ export default function DailyDeskPage() {
                   <select
                     value={replacementForm.classId}
                     onChange={(e) => setReplacementForm({ ...replacementForm, classId: e.target.value })}
-                    className='w-full text-xs p-2 rounded-xl bg-background border border-border/60 focus:outline-none focus:border-indigo-500'
+                    className='w-full text-xs p-2 rounded-xl bg-background border border-border/60 focus:outline-none focus:border-indigo-500 transition-colors'
                   >
                     <option value=''>Select Class</option>
                     {gridData.classes.map((c) => (
@@ -356,7 +370,7 @@ export default function DailyDeskPage() {
                   <select
                     value={replacementForm.originalTeacherId}
                     onChange={(e) => setReplacementForm({ ...replacementForm, originalTeacherId: e.target.value })}
-                    className='w-full text-xs p-2 rounded-xl bg-background border border-border/60 focus:outline-none focus:border-indigo-500'
+                    className='w-full text-xs p-2 rounded-xl bg-background border border-border/60 focus:outline-none focus:border-indigo-500 transition-colors'
                   >
                     <option value=''>Select Teacher</option>
                     {teachers.map((t) => (
@@ -371,7 +385,7 @@ export default function DailyDeskPage() {
                   <select
                     value={replacementForm.replacementTeacherId}
                     onChange={(e) => setReplacementForm({ ...replacementForm, replacementTeacherId: e.target.value })}
-                    className='w-full text-xs p-2 rounded-xl bg-background border border-border/60 focus:outline-none focus:border-indigo-500'
+                    className='w-full text-xs p-2 rounded-xl bg-background border border-border/60 focus:outline-none focus:border-indigo-500 transition-colors'
                   >
                     <option value=''>Select Replacement</option>
                     {teachers.map((t) => (
@@ -386,15 +400,19 @@ export default function DailyDeskPage() {
                   <select
                     value={replacementForm.reason}
                     onChange={(e) => setReplacementForm({ ...replacementForm, reason: e.target.value })}
-                    className='w-full text-xs p-2 rounded-xl bg-background border border-border/60 focus:outline-none focus:border-indigo-500'
+                    className='w-full text-xs p-2 rounded-xl bg-background border border-border/60 focus:outline-none focus:border-indigo-500 transition-colors'
                   >
                     <option value='Leave'>Leave</option>
                     <option value='Medical'>Medical</option>
                     <option value='Other'>Other</option>
                   </select>
                 </div>
-                <Button className='w-full rounded-xl text-xs font-bold mt-2' onClick={() => void handleAddReplacement()}>
-                  Confirm & Dispatch Duty
+                <Button 
+                  className='w-full rounded-xl text-xs font-bold mt-2 bg-indigo-600 hover:bg-indigo-700 text-white' 
+                  onClick={() => void handleAddReplacement()}
+                  disabled={submittingReplacement}
+                >
+                  {submittingReplacement ? 'Dispatching...' : 'Confirm & Dispatch Duty'}
                 </Button>
               </div>
             )}
