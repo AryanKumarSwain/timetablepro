@@ -30,18 +30,25 @@ type ViewMode = 'section' | 'faculty' | 'room';
 
 type ExtendedPeriod = TimetableDetail['periods'][number] & { isBreak?: boolean; breakLabel?: string };
 
+type ExtendedTimetableDetail = Omit<TimetableDetail, 'periods'> & {
+  periods: ExtendedPeriod[];
+  baseStartTime?: string;
+  periodDuration?: number;
+  workingDays?: number[];
+};
+
 export default function TimetableEditPage() {
   useRequireAuth('admin');
   const params = useParams();
   const timetableId = String(params.id);
 
-  const [detail, setDetail] = useState<(Omit<TimetableDetail, 'periods'> & { periods: ExtendedPeriod[] }) | null>(null);
+  const [detail, setDetail] = useState<ExtendedTimetableDetail | null>(null);
   const [workload, setWorkload] = useState<WorkloadData | null>(null);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<ViewMode>('section');
   const [search, setSearch] = useState('');
   const [selectedId, setSelectedId] = useState<string>('');
-  const [sheetOpen, setSheetOpen] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(false); // Fixed: Added sheetOpen back into state definitions
   
   // CORE TIMELINE PARAMETER INITIALIZERS
   const [workingDays, setWorkingDays] = useState<number[]>([1, 2, 3, 4, 5]);
@@ -66,7 +73,6 @@ export default function TimetableEditPage() {
     return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
   };
 
-  // PARSER TO RE-CALCULATE TIMELINE RANGES FLUIDLY
   const recalculateTimetableTimes = useCallback((
     currentPeriods: ExtendedPeriod[], 
     start: string, 
@@ -117,15 +123,25 @@ export default function TimetableEditPage() {
         getTimetableWorkload(timetableId),
       ]);
       
-      setDetail({ ...d, periods: [] });
+      const data = d as ExtendedTimetableDetail;
+      const initialPeriods = data.periods && data.periods.length > 0 ? data.periods : [];
+
+      if (data.baseStartTime) setBaseStartTime(data.baseStartTime);
+      if (data.periodDuration) setPeriodDuration(data.periodDuration);
+      if (data.workingDays) setWorkingDays(data.workingDays);
+
+      setDetail({ 
+        ...data, 
+        periods: recalculateTimetableTimes(initialPeriods, data.baseStartTime || "08:00", data.periodDuration || 45) 
+      });
       setWorkload(w);
-      setSelectedId((prev) => prev || d.classes[0]?.id || '');
+      setSelectedId((prev) => prev || data.classes[0]?.id || '');
     } catch (e) {
       console.error(e);
     } finally {
       setLoading(false);
     }
-  }, [timetableId]);
+  }, [timetableId, recalculateTimetableTimes]);
 
   useEffect(() => {
     void load();
@@ -133,14 +149,13 @@ export default function TimetableEditPage() {
 
   useEffect(() => {
     if (!detail || detail.periods.length === 0) return;
-    setDetail(prev => {
-      if (!prev) return null;
-      return {
-        ...prev,
-        periods: recalculateTimetableTimes(prev.periods, baseStartTime, periodDuration)
-      };
-    });
-  }, [baseStartTime, periodDuration, recalculateTimetableTimes]);
+
+    const updatedPeriods = recalculateTimetableTimes(detail.periods, baseStartTime, periodDuration);
+    
+    if (JSON.stringify(detail.periods) !== JSON.stringify(updatedPeriods)) {
+      setDetail(prev => prev ? { ...prev, periods: updatedPeriods } : null);
+    }
+  }, [baseStartTime, periodDuration]);
 
   const subjectColorMap = useMemo(() => {
     const m = new Map<string, string>();
@@ -210,7 +225,24 @@ export default function TimetableEditPage() {
     }
   };
 
-  const handleAddRow = (isBreak: boolean) => {
+  const persistGridSettings = async (updatedPeriods: ExtendedPeriod[]) => {
+    try {
+      await fetch(`/api/admin/timetables/${timetableId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          periods: updatedPeriods,
+          baseStartTime,
+          periodDuration,
+          workingDays,
+        }),
+      });
+    } catch (e) {
+      console.error("Failed persisting configuration updates:", e);
+    }
+  };
+
+  const handleAddRow = async (isBreak: boolean) => {
     if (!detail) return;
 
     const newRow: ExtendedPeriod = {
@@ -224,36 +256,35 @@ export default function TimetableEditPage() {
     };
 
     const combined = [...detail.periods, newRow];
-    setDetail({
-      ...detail,
-      periods: recalculateTimetableTimes(combined, baseStartTime, periodDuration),
-    });
+    const updatedPeriods = recalculateTimetableTimes(combined, baseStartTime, periodDuration);
+    
+    setDetail({ ...detail, periods: updatedPeriods });
+    await persistGridSettings(updatedPeriods);
   };
 
-  const handleRemoveRow = (id: string) => {
+  const handleRemoveRow = async (id: string) => {
     if (!detail) return;
     const remaining = detail.periods.filter((p) => p.id !== id);
+    const updatedPeriods = recalculateTimetableTimes(remaining, baseStartTime, periodDuration);
+    
     setDetail({
       ...detail,
-      periods: recalculateTimetableTimes(remaining, baseStartTime, periodDuration),
+      periods: updatedPeriods,
       slots: detail.slots.filter((s) => s.periodId !== id),
     });
+    await persistGridSettings(updatedPeriods);
   };
 
   const handleUpdateRowLabel = (id: string, label: string) => {
     if (!detail) return;
-    setDetail({
-      ...detail,
-      periods: detail.periods.map((p) => (p.id === id ? { ...p, breakLabel: label } : p)),
-    });
+    const updatedPeriods = detail.periods.map((p) => (p.id === id ? { ...p, breakLabel: label } : p));
+    setDetail({ ...detail, periods: updatedPeriods });
   };
 
   const handleUpdateRowTime = (id: string, startTime: string, endTime: string) => {
     if (!detail) return;
-    setDetail({
-      ...detail,
-      periods: detail.periods.map((p) => (p.id === id ? { ...p, startTime, endTime } : p)),
-    });
+    const updatedPeriods = detail.periods.map((p) => (p.id === id ? { ...p, startTime, endTime } : p));
+    setDetail({ ...detail, periods: updatedPeriods });
   };
 
   const periodLabel = editCell
@@ -347,9 +378,36 @@ export default function TimetableEditPage() {
               workingDays={workingDays}
               baseStartTime={baseStartTime}
               periodDuration={periodDuration}
-              onWorkingDaysChange={setWorkingDays}
-              onBaseStartTimeChange={setBaseStartTime}
-              onPeriodDurationChange={setPeriodDuration}
+              onWorkingDaysChange={async (days) => {
+                setWorkingDays(days);
+                try {
+                  await fetch(`/api/admin/timetables/${timetableId}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ workingDays: days }),
+                  });
+                } catch (e) { console.error(e); }
+              }}
+              onBaseStartTimeChange={async (time) => {
+                setBaseStartTime(time);
+                try {
+                  await fetch(`/api/admin/timetables/${timetableId}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ baseStartTime: time }),
+                  });
+                } catch (e) { console.error(e); }
+              }}
+              onPeriodDurationChange={async (dur) => {
+                setPeriodDuration(dur);
+                try {
+                  await fetch(`/api/admin/timetables/${timetableId}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ periodDuration: dur }),
+                  });
+                } catch (e) { console.error(e); }
+              }}
               onAddRow={handleAddRow}
               onRemoveRow={handleRemoveRow}
               onUpdateRowLabel={handleUpdateRowLabel}
@@ -378,7 +436,6 @@ export default function TimetableEditPage() {
         </GlassCard>
       )}
 
-      {/* ADJUSTED DRAWER INTERFACE WITH PADDING RE-ALIGNMENTS */}
       <SlotEditorSheet
         open={sheetOpen}
         onOpenChange={setSheetOpen}
