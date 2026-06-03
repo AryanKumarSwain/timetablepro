@@ -375,7 +375,7 @@ export default function TimetableEditPage() {
                 {classCurrentlyEditing && (
                   <div className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-500/10 px-3 py-1 text-xs font-bold uppercase tracking-wider text-indigo-600 border border-indigo-500/20 shadow-sm animate-in fade-in slide-in-from-left-2 duration-200">
                     <Layers className="h-3 w-3 text-indigo-500" />
-                    <span>Class: {classCurrentlyEditing}</span>
+                    <span>{classCurrentlyEditing}</span>
                   </div>
                 )}
               </div>
