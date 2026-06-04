@@ -1,7 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter } from 'with-next-link' // Adjusted default import fallback structures;
+import { useRouter as useNextRouter } from 'next/navigation';
 import { useRequireAuth } from '@/lib/auth-context';
 import {
   getDailyDeskGrid,
@@ -23,7 +24,7 @@ import { cn } from '@/lib/utils';
 
 export default function DailyDeskPage() {
   useRequireAuth('admin');
-  const router = useRouter();
+  const router = useNextRouter();
 
   const [gridData, setGridData] = useState<DailyDeskGrid | null>(null);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
@@ -58,13 +59,13 @@ export default function DailyDeskPage() {
 
   useEffect(() => {
     let isMounted = true;
-    
+
     async function init() {
       if (isMounted) setLoading(true);
       await loadData();
       if (isMounted) setLoading(false);
     }
-    
+
     void init();
 
     const handleFocus = () => {
@@ -88,7 +89,7 @@ export default function DailyDeskPage() {
     try {
       await markAttendance(classId, periodId, teacherId, today, isAbsent);
       await loadData();
-      router.refresh(); 
+      router.refresh();
     } catch (error) {
       console.error('Failed to update attendance status markers:', error);
     }
@@ -104,7 +105,7 @@ export default function DailyDeskPage() {
       window.alert('Please fill out all assignment routing values before dispatching.');
       return;
     }
-    
+
     if (replacementForm.originalTeacherId === replacementForm.replacementTeacherId) {
       window.alert('Substitute teacher cannot match the designated absent teacher.');
       return;
@@ -150,26 +151,32 @@ export default function DailyDeskPage() {
   };
 
   const handleShareTimetable = async () => {
-    if (navigator.share) {
+    const shareData = {
+      title: `Daily Desk Matrix - ${today}`,
+      text: `Check out today's automated cover timetable mappings for ${today}.`,
+      url: window.location.href,
+    };
+
+    if (navigator.share && navigator.canShare && navigator.canShare(shareData)) {
       try {
-        await navigator.share({
-          title: `Daily Desk Matrix - ${today}`,
-          text: `Check out today's automated cover timetable mappings for ${today}.`,
-          url: window.location.href,
-        });
+        await navigator.share(shareData);
       } catch (err) {
         console.log('Share canceled or failed:', err);
       }
     } else {
-      void navigator.clipboard.writeText(window.location.href);
-      window.alert('Timetable deep-link copied to clipboard!');
+      try {
+        await navigator.clipboard.writeText(window.location.href);
+        window.alert('🔗 Daily Desk share link copied to clipboard!');
+      } catch (clipErr) {
+        console.error('Could not copy text: ', clipErr);
+      }
     }
   };
 
-  // FIXED: Dynamically fetches current active timetable layout name context
-  const handleDownloadTimetable = () => {
-    const timetableName = (gridData as any)?.name || "Master Timetable";
-    window.alert(`Generating export logs... Today's timetable layout "${timetableName}" is downloading as a CSV/PDF asset bundle.`);
+  const handlePrintPDF = () => {
+    if (typeof window !== 'undefined') {
+      window.print();
+    }
   };
 
   const openCoverForm = (classId: string, periodId: string, teacherId: string) => {
@@ -186,6 +193,22 @@ export default function DailyDeskPage() {
   const getTeacherName = (id: string) =>
     teachers.find((t) => t.id === id)?.name || 'Unknown Faculty';
 
+  // --- HELPER FUNCTION FOR DYNAMIC SUBJECT CSS CLASS MAPPING ---
+  const getSubjectClass = (subjectName: string): string => {
+    if (!subjectName) return '';
+    const name = subjectName.toLowerCase();
+    if (name.includes('biology') || name.includes('bio')) return 'sub-biology';
+    if (name.includes('chemistry') || name.includes('chem')) return 'sub-chemistry';
+    if (name.includes('geography') || name.includes('geo')) return 'sub-geography';
+    if (name.includes('economics') || name.includes('eco')) return 'sub-economics';
+    if (name.includes('physical education') || name.includes('p.e') || name.includes('pe')) return 'sub-physical-education';
+    if (name.includes('math') || name.includes('mathematics')) return 'sub-mathematics';
+    if (name.includes('history')) return 'sub-history';
+    if (name.includes('computer') || name.includes('cs') || name.includes('it')) return 'sub-computer-science';
+    if (name.includes('physics') || name.includes('phy')) return 'sub-physics';
+    return '';
+  };
+
   if (loading || !gridData) {
     return (
       <div className='max-w-[1600px] mx-auto p-4'>
@@ -195,39 +218,44 @@ export default function DailyDeskPage() {
   }
 
   return (
-    <div className='max-w-[1600px] mx-auto space-y-6 px-4 py-2'>
-      <PageHeader
-        title='Daily Desk'
-        description={`${today} · Real-time attendance & substitution command center`}
-        breadcrumbs={[
-          { label: 'Admin', href: '/admin/dashboard' },
-          { label: 'Daily Desk' },
-        ]}
-        actions={
-          <button 
-            onClick={() => { void loadData(); router.refresh(); }}
-            className='flex items-center gap-2 text-xs bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5 rounded-xl text-emerald-600 dark:text-emerald-400 font-bold uppercase tracking-wider shadow-sm hover:bg-emerald-500/20 transition-all'
-          >
-            <Radio className='h-3.5 w-3.5 animate-pulse text-emerald-500' />
-            Force Sync
-          </button>
-        }
-      />
+    <div className='max-w-[1600px] mx-auto space-y-6 px-4 py-2 print:p-0 print:max-w-full'>
+      <div className="print:hidden">
+        <PageHeader
+          title='Daily Desk'
+          description={`${today} · Real-time attendance & substitution command center`}
+          breadcrumbs={[
+            { label: 'Admin', href: '/admin/dashboard' },
+            { label: 'Daily Desk' },
+          ]}
+          actions={
+            <button
+              onClick={() => { void loadData(); router.refresh(); }}
+              className='flex items-center gap-2 text-xs bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5 rounded-xl text-emerald-600 dark:text-emerald-400 font-bold uppercase tracking-wider shadow-sm hover:bg-emerald-500/20 transition-all'
+            >
+              <Radio className='h-3.5 w-3.5 animate-pulse text-emerald-500' />
+              Force Sync
+            </button>
+          }
+        />
+      </div>
 
-      <div className='grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-6 items-start'>
-        
+      <div className='grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-6 items-start print:block print:w-full'>
+
         {/* TIMETABLE VIEW CONTAINER */}
-        <div className='min-w-0 w-full overflow-hidden'>
-          <GlassCard className='p-5'>
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-5">
+        {/* CHANGED: Switched overflow-hidden to visible layout properties for print safety */}
+        <div className='min-w-0 w-full overflow-visible print:border-none print:p-0'>
+          <GlassCard className='p-5 print:bg-transparent print:border-none print:p-0 print:shadow-none'>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-5 print:mb-8">
               <div>
-                <h2 className='text-base font-bold uppercase tracking-wide text-foreground'>Today&apos;s Operational Matrix</h2>
-                <p className='text-xs text-muted-foreground mt-0.5'>
-                  Live operations layout matched directly with master timetable structure.
+                <h2 className='text-base font-bold uppercase tracking-wide text-foreground print:text-xl print:text-black'>
+                  Daily Operations Layout Matrix
+                </h2>
+                <p className='text-xs text-muted-foreground mt-0.5 print:text-sm print:text-gray-600'>
+                  Live scheduling run verified for calendar timeline: <strong>{today}</strong>.
                 </p>
               </div>
-              
-              <div className="flex items-center gap-2 self-start sm:self-center">
+
+              <div className="flex items-center gap-2 self-start sm:self-center print:hidden">
                 <Button
                   size="sm"
                   variant="outline"
@@ -240,169 +268,171 @@ export default function DailyDeskPage() {
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={handleDownloadTimetable}
+                  onClick={handlePrintPDF} 
                   className="rounded-xl text-xs font-semibold h-9 border-border/80 hover:bg-muted"
                 >
                   <Download className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
-                  Download TT
+                  Download PDF
                 </Button>
               </div>
             </div>
 
             {/* SCROLLABLE TABLE FRAMEWORK */}
-            <div className='overflow-x-auto rounded-xl border border-border/60 bg-muted/20 scrollbar-thin scrollbar-thumb-accent'>
-              <table className='w-full border-collapse text-left min-w-[800px]'>
-                <thead>
-                  <tr className='bg-muted/80 backdrop-blur border-b border-border/40'>
-                    <th className='p-4 text-xs font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400 w-[140px] sticky left-0 bg-muted z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] border-r border-border/40'>
-                      Timetable
-                    </th>
-                    {gridData.periods.map((p) => (
-                      <th
-                        key={p.id}
-                        className='p-3 border-l border-border/40 text-center min-w-[180px] w-[200px]'
-                      >
-                        {/* FIXED: Prevent break rows from showing P0 */}
-                        <div className='text-xs font-bold text-foreground uppercase tracking-wider'>
-                          {p.isBreak ? (p.label || 'BREAK') : `P${p.periodNumber}`}
-                        </div>
-                        <div className='text-[10px] text-muted-foreground font-medium mt-0.5'>
-                          {p.startTime}–{p.endTime}
-                        </div>
+            {/* CHANGED: Assigned scroll engine classes to container element */}
+            <div className='timetable-matrix-scroll w-full overflow-x-auto rounded-xl border border-border/60 bg-muted/20 scrollbar-thin scrollbar-thumb-accent print:overflow-visible print:border-none print:bg-transparent'>
+              <div className='timetable-inner-container print:min-w-full'>
+                <table className='w-full border-collapse text-left min-w-[800px] print:min-w-full print:table-layout-fixed'>
+                  <thead>
+                    <tr className='bg-muted/80 backdrop-blur border-b border-border/40 print:bg-gray-100 print:border-b-2 print:border-gray-300'>
+                      <th className='p-4 text-xs font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400 w-[140px] sticky left-0 bg-muted z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] border-r border-border/40 print:static print:bg-gray-100 print:text-black print:shadow-none'>
+                        Timetable
                       </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className='divide-y divide-border/40 bg-background/40'>
-                  {gridData.classes.map((cls) => (
-                    <tr key={cls.id} className='hover:bg-muted/10 transition-colors'>
-                      
-                      <td className='p-4 font-bold text-sm text-foreground bg-background/90 sticky left-0 z-10 border-r border-border/40 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]'>
-                        {cls.name}
-                      </td>
+                      {gridData.periods.map((p) => (
+                        <th
+                          key={p.id}
+                          className='p-3 border-l border-border/40 text-center min-w-[180px] w-[200px] print:border-gray-300 print:p-2'
+                        >
+                          <div className='text-xs font-bold text-foreground uppercase tracking-wider print:text-black print:text-[11px]'>
+                            {p.isBreak ? (p.label || 'BREAK') : `P${p.periodNumber}`}
+                          </div>
+                          <div className='text-[10px] text-muted-foreground font-medium mt-0.5 print:text-gray-600 print:text-[9px]'>
+                            {p.startTime}–{p.endTime}
+                          </div>
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className='divide-y divide-border/40 bg-background/40 print:bg-transparent print:divide-gray-300'>
+                    {gridData.classes.map((cls) => (
+                      <tr key={cls.id} className='hover:bg-muted/10 transition-colors print:hover:bg-transparent print:break-inside-avoid'>
 
-                      {gridData.periods.map((period) => {
-                        const periodRow = gridData.grid.find((row) => row.periodId === period.id);
-                        const cell = periodRow?.cells.find((c) => c.classId === cls.id);
+                        <td className='p-4 font-bold text-sm text-foreground bg-background/90 sticky left-0 z-10 border-r border-border/40 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] print:static print:bg-transparent print:text-black print:shadow-none print:p-2 print:border-r print:border-gray-300'>
+                          {cls.name}
+                        </td>
 
-                        if (!cell || cell.empty) {
+                        {gridData.periods.map((period) => {
+                          const periodRow = gridData.grid.find((row) => row.periodId === period.id);
+                          const cell = periodRow?.cells.find((c) => c.classId === cls.id);
+
+                          if (!cell || cell.empty) {
+                            return (
+                              <td
+                                key={`${cls.id}-${period.id}`}
+                                className='p-3 border-l border-border/40 text-center text-muted-foreground/20 bg-background/5 vertical-middle min-h-[115px] print:border-gray-300 print:p-1'
+                              >
+                                <span className="text-xs font-semibold tracking-widest print:text-gray-300">—</span>
+                              </td>
+                            );
+                          }
+
+                          const internalReplacement = replacements.find(
+                            (r) => r.classId === cls.id && r.periodId === period.id
+                          );
+                          const isCovered = internalReplacement?.status === 'confirmed';
+                          
+                          // Get matching subject dynamic color class
+                          const subjectColorClass = getSubjectClass(cell.subjectName);
+
                           return (
                             <td
                               key={`${cls.id}-${period.id}`}
-                              className='p-3 border-l border-border/40 text-center text-muted-foreground/20 bg-background/5 vertical-middle min-h-[115px]'
-                            >
-                              <span className="text-xs font-semibold tracking-widest">—</span>
-                            </td>
-                          );
-                        }
-
-                        const internalReplacement = replacements.find(
-                          (r) => r.classId === cls.id && r.periodId === period.id
-                        );
-                        const isCovered = internalReplacement?.status === 'confirmed';
-
-                        return (
-                          <td
-                            key={`${cls.id}-${period.id}`}
-                            className={cn(
-                              'p-2 border-l border-border/40 h-full min-h-[115px] align-top transition-colors',
-                              cell.isAbsent ? (isCovered ? 'bg-emerald-500/[0.02]' : 'bg-rose-500/[0.04]') : 'bg-background/10'
-                            )}
-                          >
-                            <Card
                               className={cn(
-                                'p-3 rounded-lg h-full text-xs flex flex-col justify-between shadow-none transition-all border',
-                                cell.isAbsent
-                                  ? isCovered
-                                    ? 'border-emerald-500/40 bg-emerald-500/[0.02]'
-                                    : 'border-rose-500/40 bg-rose-500/5 ring-1 ring-rose-500/10'
-                                  : 'border-border/60 bg-background hover:border-indigo-500/40'
+                                'p-2 border-l border-border/40 h-full min-h-[115px] align-top transition-colors print:border-gray-300 print:p-1',
+                                cell.isAbsent ? (isCovered ? 'bg-emerald-500/[0.02] print:bg-green-50' : 'bg-rose-500/[0.04] print:bg-red-50') : 'bg-background/10'
                               )}
                             >
-                              <div>
-                                <div className="flex items-start justify-between gap-1 mb-1">
-                                  <p className='font-bold text-foreground truncate flex-1'>{cell.subjectName}</p>
-                                  {cell.isAbsent && !isCovered && (
-                                    <span className="flex h-2 w-2 rounded-full bg-rose-500 animate-pulse shrink-0 mt-1" />
+                              <Card
+                                className={cn(
+                                  'p-3 rounded-lg h-full text-xs flex flex-col justify-between shadow-none transition-all border print:p-1.5 print:border-gray-300 print:bg-white',
+                                  cell.isAbsent
+                                    ? isCovered
+                                      ? 'border-emerald-500/40 bg-emerald-500/[0.02]'
+                                      : 'border-rose-500/40 bg-rose-500/5 ring-1 ring-rose-500/10'
+                                    : cn('border-border/60 bg-background hover:border-indigo-500/40', subjectColorClass)
+                                )}
+                              >
+                                <div>
+                                  <div className="flex items-start justify-between gap-1 mb-1">
+                                    <p className='font-bold text-foreground truncate flex-1 print:text-black print:text-[11px]'>{cell.subjectName}</p>
+                                  </div>
+                                  <p className={cn(
+                                    'font-medium truncate mb-2 print:text-[10px] print:mb-1',
+                                    cell.isAbsent ? 'text-muted-foreground/60 line-through print:text-gray-400' : 'text-muted-foreground print:text-gray-700'
+                                  )}>
+                                    {cell.teacherName}
+                                  </p>
+                                </div>
+
+                                <div className='flex flex-col gap-1 mt-auto print:mt-0'>
+                                  {cell.isAbsent ? (
+                                    <>
+                                      {isCovered ? (
+                                        <div className="space-y-1.5 print:space-y-0.5">
+                                          <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 shadow-sm print:bg-transparent print:border-none print:p-0 print:text-green-700">
+                                            <CheckCircle2 className='h-3 w-3 shrink-0 text-emerald-500 print:hidden' />
+                                            <span className="text-[10px] font-bold uppercase tracking-wider print:text-[8px]">Cover Active</span>
+                                          </div>
+                                          <p className="text-[11px] font-medium text-foreground bg-muted/60 px-1.5 py-1 rounded border border-border/40 truncate print:text-[9px] print:bg-gray-50 print:p-0.5">
+                                            <span className="text-muted-foreground font-normal print:text-gray-600">Sub:</span> {getTeacherName(internalReplacement.replacementTeacherId)}
+                                          </p>
+                                        </div>
+                                      ) : (
+                                        <>
+                                          <div className="flex items-center gap-1.5 px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 mb-1 print:bg-transparent print:border-none print:p-0 print:text-red-700 print:mb-0">
+                                            <AlertTriangle className='h-3 w-3 shrink-0 text-rose-500 print:hidden' />
+                                            <span className="text-[9px] font-bold uppercase tracking-wide print:text-[8px]">ABSENT</span>
+                                          </div>
+                                          <div className="grid grid-cols-2 gap-1 print:hidden">
+                                            <Button
+                                              size='sm'
+                                              variant='outline'
+                                              className='h-6 text-[10px] font-bold rounded border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/10 transition-colors px-1'
+                                              onClick={() =>
+                                                void handleMarkAttendance(cell.classId, period.id, cell.teacherId, false)
+                                              }
+                                            >
+                                              Present
+                                            </Button>
+                                            <Button
+                                              size='sm'
+                                              variant='secondary'
+                                              className='h-6 text-[10px] font-bold rounded bg-indigo-500/10 text-indigo-600 border border-indigo-500/20 hover:bg-indigo-500/20 transition-colors px-1'
+                                              onClick={() => openCoverForm(cell.classId, period.id, cell.teacherId)}
+                                            >
+                                              Cover
+                                            </Button>
+                                          </div>
+                                        </>
+                                      )}
+                                    </>
+                                  ) : (
+                                    <Button
+                                      size='sm'
+                                      variant='outline'
+                                      className='h-6 text-[10px] font-bold rounded border-rose-500/20 text-rose-600 hover:bg-rose-500/10 transition-colors w-full print:hidden'
+                                      onClick={() =>
+                                        void handleMarkAttendance(cell.classId, period.id, cell.teacherId, true)
+                                      }
+                                    >
+                                      Mark Absent
+                                    </Button>
                                   )}
                                 </div>
-                                <p className={cn(
-                                  'font-medium truncate mb-2',
-                                  cell.isAbsent ? 'text-muted-foreground/60 line-through' : 'text-muted-foreground'
-                                )}>
-                                  {cell.teacherName}
-                                </p>
-                              </div>
-
-                              <div className='flex flex-col gap-1 mt-auto'>
-                                {cell.isAbsent ? (
-                                  <>
-                                    {isCovered ? (
-                                      <div className="space-y-1.5">
-                                        <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 shadow-sm">
-                                          <CheckCircle2 className='h-3 w-3 shrink-0 text-emerald-500' />
-                                          <span className="text-[10px] font-bold uppercase tracking-wider">Cover Active</span>
-                                        </div>
-                                        <p className="text-[11px] font-medium text-foreground bg-muted/60 px-1.5 py-1 rounded border border-border/40 truncate">
-                                          <span className="text-muted-foreground font-normal">Subby:</span> {getTeacherName(internalReplacement.replacementTeacherId)}
-                                        </p>
-                                      </div>
-                                    ) : (
-                                      <>
-                                        <div className="flex items-center gap-1.5 px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 mb-1">
-                                          <AlertTriangle className='h-3 w-3 shrink-0 text-rose-500' />
-                                          <span className="text-[9px] font-bold uppercase tracking-wide">Absent</span>
-                                        </div>
-                                        <div className="grid grid-cols-2 gap-1">
-                                          <Button
-                                            size='sm'
-                                            variant='outline'
-                                            className='h-6 text-[10px] font-bold rounded border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/10 transition-colors px-1'
-                                            onClick={() =>
-                                              void handleMarkAttendance(cell.classId, period.id, cell.teacherId, false)
-                                            }
-                                          >
-                                            Present
-                                          </Button>
-                                          <Button
-                                            size='sm'
-                                            variant='secondary'
-                                            className='h-6 text-[10px] font-bold rounded bg-indigo-500/10 text-indigo-600 border border-indigo-500/20 hover:bg-indigo-500/20 transition-colors px-1'
-                                            onClick={() => openCoverForm(cell.classId, period.id, cell.teacherId)}
-                                          >
-                                            Cover
-                                          </Button>
-                                        </div>
-                                      </>
-                                    )}
-                                  </>
-                                ) : (
-                                  <Button
-                                    size='sm'
-                                    variant='outline'
-                                    className='h-6 text-[10px] font-bold rounded border-rose-500/20 text-rose-600 hover:bg-rose-500/10 transition-colors w-full'
-                                    onClick={() =>
-                                      void handleMarkAttendance(cell.classId, period.id, cell.teacherId, true)
-                                    }
-                                  >
-                                    Mark Absent
-                                  </Button>
-                                )}
-                              </div>
-                            </Card>
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                              </Card>
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </GlassCard>
         </div>
 
         {/* SIDE BAR: SUBSTITUTION CONTROL ENGINE */}
-        <div className='w-full max-w-[360px] ml-auto'>
+        <div className='w-full max-w-[360px] ml-auto print:hidden'>
           <GlassCard className='p-5 sticky top-6 space-y-4'>
             <div className='flex items-center justify-between pb-2 border-b border-border/40'>
               <div>
@@ -493,8 +523,8 @@ export default function DailyDeskPage() {
                     <option value='Other'>Other</option>
                   </select>
                 </div>
-                <Button 
-                  className='w-full rounded-xl text-xs font-bold mt-2 bg-indigo-600 hover:bg-indigo-700 text-white' 
+                <Button
+                  className='w-full rounded-xl text-xs font-bold mt-2 bg-indigo-600 hover:bg-indigo-700 text-white'
                   onClick={() => void handleAddReplacement()}
                   disabled={submittingReplacement}
                 >

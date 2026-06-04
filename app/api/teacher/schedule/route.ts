@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireSchoolContext, handleApiError, schoolWhere } from '@/lib/auth-server';
 import { mapReplacement } from '@/lib/mappers';
+import { getScheduleSlots, getDayOfWeekFromDate } from '@/lib/timetable-source';
 
 export async function GET(request: NextRequest) {
   const client = prisma;
@@ -10,8 +11,7 @@ export async function GET(request: NextRequest) {
     const { schoolId, user } = await requireSchoolContext();
     const teacherIdParam = request.nextUrl.searchParams.get('teacherId');
     const today = new Date().toISOString().split('T')[0];
-    const dayOfWeek =
-      new Date().getDay() === 0 ? 7 : new Date().getDay();
+    const dayOfWeek = getDayOfWeekFromDate(today);
 
     const teacher = await client.teacher.findFirst({
       where: {
@@ -29,35 +29,42 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const entries = await client.weeklyTimetableSlot.findMany({
-      where: { schoolId, teacherId: teacher.id, dayOfWeek },
-      include: { period: true, class: true, subject: true },
+    const { slots } = await getScheduleSlots(schoolId, {
+      dayOfWeek,
+      teacherId: teacher.id,
     });
 
-    const [attendance, replacements] = await Promise.all([
+    const [attendance, replacements, periods, classes, subjects] = await Promise.all([
       client.teacherAttendance.findMany({
         where: { schoolId, teacherId: teacher.id, date: today },
       }),
       client.replacementAssignment.findMany({
         where: { schoolId, date: today, originalTeacherId: teacher.id },
       }),
+      client.period.findMany({ where: schoolWhere(schoolId) }),
+      client.classRoom.findMany({ where: schoolWhere(schoolId) }),
+      client.subject.findMany({ where: schoolWhere(schoolId) }),
     ]);
 
-    const isAbsent = attendance.some((a) => a.status === 'ABSENT');
+    const periodMap = new Map(periods.map((p) => [p.id, p]));
+    const classMap = new Map(classes.map((c) => [c.id, c.name]));
+    const subjectMap = new Map(subjects.map((s) => [s.id, s.name]));
 
-    const schedule = entries.map((entry) => {
+    const schedule = slots.map((slot) => {
+      const period = periodMap.get(slot.periodId);
       const replacement = replacements.find(
-        (r) => r.periodId === entry.periodId
+        (r) => r.periodId === slot.periodId
       );
+      const isAbsent = attendance.some((a) => a.status === 'ABSENT');
       return {
-        periodId: entry.periodId,
-        periodNumber: entry.period.periodNumber,
-        startTime: entry.period.startTime,
-        endTime: entry.period.endTime,
-        classId: entry.classId,
-        className: entry.class.name,
-        subjectId: entry.subjectId,
-        subjectName: entry.subject.name,
+        periodId: slot.periodId,
+        periodNumber: period?.periodNumber ?? 0,
+        startTime: period?.startTime ?? '',
+        endTime: period?.endTime ?? '',
+        classId: slot.classId,
+        className: classMap.get(slot.classId) ?? '',
+        subjectId: slot.subjectId,
+        subjectName: subjectMap.get(slot.subjectId) ?? '',
         isAbsent,
         replacement: replacement ? mapReplacement(replacement) : undefined,
       };

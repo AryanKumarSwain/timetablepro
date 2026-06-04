@@ -17,7 +17,7 @@ import { GlassCard } from '@/components/enterprise/glass-card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, Filter, Layers } from 'lucide-react';
+import { ArrowLeft, Filter } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   TimetableGrid,
@@ -35,7 +35,7 @@ type ExtendedTimetableDetail = Omit<TimetableDetail, 'periods'> & {
   baseStartTime?: string;
   periodDuration?: number;
   workingDays?: number[];
-  targetClassName?: string; // Captures class name currently undergoing structural modification
+  targetClassName?: string;
 };
 
 export default function TimetableEditPage() {
@@ -51,7 +51,7 @@ export default function TimetableEditPage() {
   const [search, setSearch] = useState('');
   const [selectedId, setSelectedId] = useState<string>('');
   const [sheetOpen, setSheetOpen] = useState(false);
-  
+
   const [workingDays, setWorkingDays] = useState<number[]>([1, 2, 3, 4, 5]);
   const [baseStartTime, setBaseStartTime] = useState<string>("08:00");
   const [periodDuration, setPeriodDuration] = useState<number>(45);
@@ -75,8 +75,8 @@ export default function TimetableEditPage() {
   };
 
   const recalculateTimetableTimes = useCallback((
-    currentPeriods: ExtendedPeriod[], 
-    start: string, 
+    currentPeriods: ExtendedPeriod[],
+    start: string,
     duration: number
   ): ExtendedPeriod[] => {
     let currentStart = start;
@@ -90,7 +90,7 @@ export default function TimetableEditPage() {
           const diff = (eH * 60 + eM) - (sH * 60 + sM);
           return isNaN(diff) || diff <= 0 ? 45 : diff;
         })();
-        
+
         const breakEnd = addMinutesToTime(currentStart, breakMins);
         const updatedBreak = {
           ...p,
@@ -109,7 +109,7 @@ export default function TimetableEditPage() {
         startTime: currentStart,
         endTime: end,
       };
-      
+
       computedPeriodIndex += 1;
       currentStart = end;
       return updatedPeriod;
@@ -123,7 +123,7 @@ export default function TimetableEditPage() {
         getTimetableDetail(timetableId),
         getTimetableWorkload(timetableId),
       ]);
-      
+
       const data = d as ExtendedTimetableDetail;
       const initialPeriods = data.periods && data.periods.length > 0 ? data.periods : [];
 
@@ -131,9 +131,9 @@ export default function TimetableEditPage() {
       if (data.periodDuration) setPeriodDuration(data.periodDuration);
       if (data.workingDays) setWorkingDays(data.workingDays);
 
-      setDetail({ 
-        ...data, 
-        periods: recalculateTimetableTimes(initialPeriods, data.baseStartTime || "08:00", data.periodDuration || 45) 
+      setDetail({
+        ...data,
+        periods: recalculateTimetableTimes(initialPeriods, data.baseStartTime || "08:00", data.periodDuration || 45)
       });
       setWorkload(w);
       setSelectedId((prev) => prev || data.classes[0]?.id || '');
@@ -152,11 +152,21 @@ export default function TimetableEditPage() {
     if (!detail || detail.periods.length === 0) return;
 
     const updatedPeriods = recalculateTimetableTimes(detail.periods, baseStartTime, periodDuration);
-    
-    if (JSON.stringify(detail.periods) !== JSON.stringify(updatedPeriods)) {
-      setDetail(prev => prev ? { ...prev, periods: updatedPeriods } : null);
+
+    const isGlobalSettingsChange = detail.periods.some((p, i) => {
+      const target = updatedPeriods[i];
+      return target && (p.startTime !== target.startTime || p.endTime !== target.endTime);
+    });
+
+    const hasLengthChanged = detail.periods.length !== updatedPeriods.length;
+
+    if (isGlobalSettingsChange && !hasLengthChanged) {
+      const hasUnsavedRows = detail.periods.some(p => p.id.startsWith('row-'));
+      if (!hasUnsavedRows) {
+        setDetail(prev => prev ? { ...prev, periods: updatedPeriods } : null);
+      }
     }
-  }, [baseStartTime, periodDuration, detail?.periods, recalculateTimetableTimes]);
+  }, [baseStartTime, periodDuration, recalculateTimetableTimes]);
 
   const subjectColorMap = useMemo(() => {
     const m = new Map<string, string>();
@@ -166,13 +176,14 @@ export default function TimetableEditPage() {
 
   const sidebarItems = useMemo(() => {
     if (!detail) return [];
-    
     const q = search.trim().toLowerCase();
-    if (!q) return []; 
-    
-    if (view === 'section') return detail.classes.filter((c) => c.name.toLowerCase().includes(q));
-    if (view === 'faculty') return detail.teachers.filter((t) => t.name.toLowerCase().includes(q));
-    return detail.classes.filter((c) => `${c.name} ${c.roomNumber}`.toLowerCase().includes(q));
+    if (view === 'section' || view === 'room') {
+      return q ? detail.classes.filter((c) => c.name.toLowerCase().includes(q)) : detail.classes;
+    }
+    if (view === 'faculty') {
+      return q ? detail.teachers.filter((t) => t.name.toLowerCase().includes(q)) : detail.teachers;
+    }
+    return q ? detail.classes.filter((c) => `${c.name} ${c.roomNumber}`.toLowerCase().includes(q)) : detail.classes;
   }, [detail, view, search]);
 
   const filteredSlots = useMemo(() => {
@@ -182,7 +193,6 @@ export default function TimetableEditPage() {
     return detail.slots.filter((s) => s.classId === selectedId);
   }, [detail, view, selectedId]);
 
-  // Derived Classroom Identifier lookup mapping for the currently active editing schedule layout frame
   const classCurrentlyEditing = useMemo(() => {
     if (!detail) return null;
     if (view === 'faculty') {
@@ -192,6 +202,20 @@ export default function TimetableEditPage() {
     const currentClass = detail.classes.find((c) => c.id === selectedId);
     return currentClass ? currentClass.name : (detail.targetClassName || null);
   }, [detail, view, selectedId]);
+
+  const availableTeachersForCell = useMemo(() => {
+    if (!detail || !editCell) return [];
+    const busyTeacherIds = new Set(
+      detail.slots
+        .filter((slot) =>
+          slot.dayOfWeek === editCell.dayOfWeek &&
+          slot.periodId === editCell.periodId &&
+          slot.classId !== editCell.classId
+        )
+        .map((slot) => slot.teacherId)
+    );
+    return detail.teachers.filter((teacher) => !busyTeacherIds.has(teacher.id));
+  }, [detail, editCell]);
 
   const openEditor = (dayOfWeek: number, periodId: string, slot?: TimetableDetail['slots'][number]) => {
     const classId = view === 'faculty' && slot ? slot.classId : selectedId;
@@ -216,7 +240,7 @@ export default function TimetableEditPage() {
       });
       setSheetOpen(false);
       await load();
-      router.refresh(); // Clear stales, syncing engine modifications globally directly down to daily desks
+      router.refresh();
     } catch (e) {
       console.error(e);
     } finally {
@@ -231,7 +255,7 @@ export default function TimetableEditPage() {
       await deleteTimetableSlot(timetableId, editCell.slot.id);
       setSheetOpen(false);
       await load();
-      router.refresh(); // Clear layout frames across multi-tenant desktop desks
+      router.refresh();
     } catch (e) {
       console.error(e);
     } finally {
@@ -240,9 +264,9 @@ export default function TimetableEditPage() {
   };
 
   const persistGridSettings = async (
-    updatedPeriods: ExtendedPeriod[], 
-    updatedWorkingDays = workingDays, 
-    updatedStartTime = baseStartTime, 
+    updatedPeriods: ExtendedPeriod[],
+    updatedWorkingDays = workingDays,
+    updatedStartTime = baseStartTime,
     updatedDuration = periodDuration
   ) => {
     try {
@@ -254,7 +278,7 @@ export default function TimetableEditPage() {
           periodDuration: updatedDuration,
           workingDays: updatedWorkingDays,
           periods: updatedPeriods.map(p => ({
-            id: p.id.startsWith('row-') ? undefined : p.id, 
+            id: p.id, // Keep ID unchanged so the server knows if it's new or existing
             periodNumber: p.periodNumber,
             startTime: p.startTime,
             endTime: p.endTime,
@@ -264,7 +288,7 @@ export default function TimetableEditPage() {
         }),
       });
       if (response.ok) {
-        router.refresh(); // Ensure background intervals persist modifications instantly
+        router.refresh();
       }
     } catch (e) {
       console.error("Failed persisting configuration updates:", e);
@@ -273,9 +297,7 @@ export default function TimetableEditPage() {
 
   const handleAddRow = async (isBreak: boolean) => {
     if (!detail) return;
-
     const tempId = `row-${crypto.randomUUID()}`;
-
     const newRow: ExtendedPeriod = {
       id: tempId,
       periodNumber: isBreak ? 0 : detail.periods.filter(p => !p.isBreak).length + 1,
@@ -288,52 +310,33 @@ export default function TimetableEditPage() {
 
     const combined = [...detail.periods, newRow];
     const updatedPeriods = recalculateTimetableTimes(combined, baseStartTime, periodDuration);
-    
+
     setDetail({ ...detail, periods: updatedPeriods });
-
-    try {
-      const response = await fetch(`/api/admin/timetables/${timetableId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          baseStartTime,
-          periodDuration,
-          workingDays,
-          periods: updatedPeriods.map(p => ({
-            id: p.id.startsWith('row-') ? undefined : p.id, 
-            periodNumber: p.periodNumber,
-            startTime: p.startTime,
-            endTime: p.endTime,
-            isBreak: !!p.isBreak,
-            label: p.isBreak ? (p.breakLabel || p.label || 'BREAK') : `Period ${p.periodNumber}`
-          }))
-        }),
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        if (result.periods) {
-          setDetail(prev => prev ? { ...prev, periods: result.periods } : null);
-        }
-        router.refresh(); // Sync additions quietly without showing full layout loading cards
-      }
-    } catch (e) {
-      console.error("Failed saving new row:", e);
-    }
+    await persistGridSettings(updatedPeriods);
+    await load();
   };
 
   const handleRemoveRow = async (id: string) => {
     if (!detail) return;
+
     const remaining = detail.periods.filter((p) => p.id !== id);
     const updatedPeriods = recalculateTimetableTimes(remaining, baseStartTime, periodDuration);
-    
+    const updatedSlots = detail.slots.filter((s) => s.periodId !== id);
+
     setDetail({
       ...detail,
       periods: updatedPeriods,
-      slots: detail.slots.filter((s) => s.periodId !== id),
+      slots: updatedSlots,
     });
 
-    await persistGridSettings(updatedPeriods);
+    try {
+      await persistGridSettings(updatedPeriods);
+      await load();
+      router.refresh();
+    } catch (error) {
+      console.error("Failed to sync deletion with server:", error);
+      await load();
+    }
   };
 
   const handleUpdateRowLabel = async (id: string, label: string) => {
@@ -345,7 +348,11 @@ export default function TimetableEditPage() {
 
   const handleUpdateRowTime = async (id: string, startTime: string, endTime: string) => {
     if (!detail) return;
-    const updatedPeriods = detail.periods.map((p) => (p.id === id ? { ...p, startTime, endTime } : p));
+
+    const updatedPeriods = detail.periods.map((p) =>
+      p.id === id ? { ...p, startTime, endTime } : p
+    );
+
     setDetail({ ...detail, periods: updatedPeriods });
     await persistGridSettings(updatedPeriods);
   };
@@ -360,7 +367,6 @@ export default function TimetableEditPage() {
 
   return (
     <div className='max-w-[1600px] mx-auto space-y-6 px-4 py-2'>
-      {/* Top Controls Action Bar */}
       <GlassCard className="p-5">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
@@ -370,11 +376,8 @@ export default function TimetableEditPage() {
             <div>
               <div className="flex items-center gap-3 flex-wrap">
                 <h1 className="text-2xl font-bold tracking-tight">{detail.name}</h1>
-                
-                {/* Dynamically inserted Class Name contextual tracking layout container */}
                 {classCurrentlyEditing && (
-                  <div className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-500/10 px-3 py-1 text-xs font-bold uppercase tracking-wider text-indigo-600 border border-indigo-500/20 shadow-sm animate-in fade-in slide-in-from-left-2 duration-200">
-                    <Layers className="h-3 w-3 text-indigo-500" />
+                  <div className="inline-flex items-center gap-1.5 rounded-full bg-indigo-600 px-4 py-1 text-xs font-bold uppercase tracking-wider text-white shadow-md shadow-indigo-500/20">
                     <span>{classCurrentlyEditing}</span>
                   </div>
                 )}
@@ -403,48 +406,41 @@ export default function TimetableEditPage() {
         </div>
       </GlassCard>
 
-      {/* Grid Canvas Shell */}
-      <div className='grid grid-cols-1 xl:grid-cols-[280px_1fr] gap-6 items-start'>
-        <GlassCard className="p-4 max-h-[calc(100vh-140px)] overflow-hidden flex flex-col sticky top-6">
+      <div className='grid grid-cols-1 xl:grid-cols-[290px_1fr] gap-6 items-start'>
+        <GlassCard className="p-4 h-[calc(100vh-140px)] max-h-[650px] overflow-hidden flex flex-col sticky top-6">
           <Input
             placeholder={`Search ${view}...`}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className='mb-3 rounded-xl text-sm bg-muted/30 focus-visible:ring-indigo-500/30 w-full'
+            className='mb-4 rounded-xl text-sm bg-muted/30 focus-visible:ring-indigo-500/30 w-full shrink-0'
           />
-          
-          <div className='overflow-y-auto max-h-[400px] space-y-1 flex-1 pr-1 scrollbar-thin scrollbar-thumb-indigo-500/20 hover:scrollbar-thumb-indigo-500/40 scrollbar-track-transparent flex flex-col justify-start'>
-            {search.trim() === '' && (
-              <div className="text-center py-6 text-xs text-muted-foreground/80 font-medium my-auto w-full">
-                Type above to look up schedules...
-              </div>
+          <div className='overflow-y-auto flex-1 pr-1 scrollbar-thin scrollbar-thumb-indigo-500/20 hover:scrollbar-thumb-indigo-500/40 scrollbar-track-transparent'>
+            {sidebarItems.length === 0 && (
+              <div className="text-center py-12 text-xs text-muted-foreground font-medium w-full">No items found</div>
             )}
-            
-            {sidebarItems.length === 0 && search.trim() !== '' && (
-              <div className="text-center py-6 text-xs text-muted-foreground font-medium my-auto w-full">
-                No matches found
-              </div>
-            )}
-
-            {sidebarItems.map((item) => (
-              <button
-                key={item.id}
-                type='button'
-                onClick={() => setSelectedId(item.id)}
-                className={cn(
-                  "w-full text-left flex items-center px-4 h-9 min-h-[36px] rounded-xl text-xs font-bold tracking-wide uppercase transition-all border",
-                  selectedId === item.id 
-                    ? "bg-indigo-500/10 border-indigo-500/20 text-indigo-600 font-extrabold" 
-                    : "border-transparent text-muted-foreground hover:bg-muted/40 hover:text-foreground"
-                )}
-              >
-                <span className="truncate w-full block text-left">{item.name}</span>
-              </button>
-            ))}
+            <div className="flex flex-wrap gap-2 items-start content-start">
+              {sidebarItems.map((item) => {
+                const isActive = selectedId === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    type='button'
+                    onClick={() => setSelectedId(item.id)}
+                    className={cn(
+                      "px-4 h-8 text-xs font-bold rounded-full transition-all border shrink-0 uppercase tracking-wider text-center",
+                      isActive
+                        ? "bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-500/20 font-extrabold"
+                        : "bg-muted/40 border-transparent text-muted-foreground hover:bg-muted hover:text-foreground"
+                    )}
+                  >
+                    {item.name}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </GlassCard>
 
-        {/* Timetable Interactive Grid System */}
         <div className="min-w-0 w-full">
           <GlassCard className="p-5 overflow-x-auto">
             <TimetableGrid
@@ -491,7 +487,6 @@ export default function TimetableEditPage() {
         </div>
       </div>
 
-      {/* Optimization Matrix */}
       {workload && (
         <GlassCard className="p-6">
           <h2 className="text-sm font-bold text-foreground uppercase tracking-widest mb-4">Faculty Optimization Workload</h2>
@@ -499,7 +494,6 @@ export default function TimetableEditPage() {
         </GlassCard>
       )}
 
-      {/* Flyout Action Editor Drawer Drawer */}
       <SlotEditorSheet
         open={sheetOpen}
         onOpenChange={setSheetOpen}
@@ -507,7 +501,7 @@ export default function TimetableEditPage() {
         dayOfWeek={editCell?.dayOfWeek ?? 1}
         periodLabel={periodLabel}
         subjects={detail.subjects}
-        teachers={detail.teachers}
+        teachers={availableTeachersForCell}
         draft={draft}
         onDraftChange={(p) => setDraft((d) => ({ ...d, ...p }))}
         onSave={() => void handleSave()}

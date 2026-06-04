@@ -78,14 +78,10 @@ export function TimetableGrid({
 
   return (
     <div className="space-y-6 w-full">
-      {/* GLOBAL CONTROLS TOOLBAR - FULLY RESPONSIVE ONE-LINE PREFERENCE */}
+      {/* GLOBAL CONTROLS TOOLBAR */}
       <div className="w-full border border-border/60 bg-muted/10 rounded-2xl p-5 flex flex-col xl:flex-row gap-6 xl:items-center justify-between overflow-x-auto shadow-sm">
-        
-        {/* WORKING DAYS - FORCE INLINE FLEX CONTAINER */}
         <div className="flex flex-col gap-2 min-w-0 shrink-0">
-          <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
-            Working Days
-          </span>
+          <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Working Days</span>
           <div className="flex flex-nowrap items-center gap-2 whitespace-nowrap overflow-x-auto py-0.5 no-scrollbar">
             {DAY_INDICES.map((dayIndex) => {
               const isActive = workingDays.includes(dayIndex);
@@ -96,9 +92,7 @@ export function TimetableGrid({
                   onClick={() => toggleDay(dayIndex)}
                   className={cn(
                     "px-4 py-2 text-xs font-semibold rounded-xl border transition-all duration-200 select-none",
-                    isActive
-                      ? "bg-indigo-600 border-indigo-600 text-white shadow-sm shadow-indigo-600/10"
-                      : "bg-background border-border text-muted-foreground hover:bg-muted/60"
+                    isActive ? "bg-indigo-600 border-indigo-600 text-white shadow-sm shadow-indigo-600/10" : "bg-background border-border text-muted-foreground hover:bg-muted/60"
                   )}
                 >
                   {dayLabels[dayIndex]}
@@ -108,12 +102,9 @@ export function TimetableGrid({
           </div>
         </div>
 
-        {/* INPUT PARAMETERS WRAPPER */}
         <div className="flex flex-wrap md:flex-nowrap items-center gap-6 shrink-0">
           <div className="flex flex-col gap-2 min-w-[150px]">
-            <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
-              Base Start Time
-            </span>
+            <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Base Start Time</span>
             <div className="relative">
               <Input
                 type="time"
@@ -125,9 +116,7 @@ export function TimetableGrid({
           </div>
 
           <div className="flex flex-col gap-2 min-w-[150px]">
-            <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
-              Period Duration (Mins)
-            </span>
+            <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Period Duration (Mins)</span>
             <Input
               type="number"
               min={5}
@@ -138,76 +127,42 @@ export function TimetableGrid({
             />
           </div>
         </div>
-
       </div>
 
-      {/* MATRIX TABLE TIMELINE GRID */}
+      {/* MATRIX GRID TIMELINE */}
       <div className="w-full overflow-x-auto rounded-2xl border border-border/60 bg-background shadow-sm">
         <div
           className="grid min-w-[1000px]"
-          style={{
-            gridTemplateColumns: `260px repeat(${workingDays.length}, minmax(140px, 1fr))`,
-          }}
+          style={{ gridTemplateColumns: `260px repeat(${workingDays.length}, minmax(140px, 1fr))` }}
         >
-          {/* MATRIX CORNER HEADER PANEL */}
           <div className="p-4 border-b bg-muted/30 font-semibold flex flex-col gap-2.5 justify-center">
-            <span className="text-[11px] tracking-wider font-bold text-muted-foreground uppercase">
-              Timetable Engine
-            </span>
+            <span className="text-[11px] tracking-wider font-bold text-muted-foreground uppercase">Timetable Engine</span>
             <div className="flex gap-2">
-              <Button 
-                size="sm" 
-                variant="outline" 
-                className="h-8 text-xs gap-1.5 px-3 border-indigo-500/20 text-indigo-600 hover:bg-indigo-500/5 bg-background font-semibold rounded-xl transition-colors"
-                onClick={() => onAddRow(false)}
-              >
+              <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5 px-3 border-indigo-500/20 text-indigo-600 hover:bg-indigo-500/5 bg-background font-semibold rounded-xl" onClick={() => onAddRow(false)}>
                 <Plus className="h-3.5 w-3.5" /> + Period
               </Button>
-              <Button 
-                size="sm" 
-                variant="outline" 
-                className="h-8 text-xs gap-1.5 px-3 border-amber-500/20 text-amber-600 hover:bg-amber-500/5 bg-background font-semibold rounded-xl transition-colors"
-                onClick={() => onAddRow(true)}
-              >
+              <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5 px-3 border-amber-500/20 text-amber-600 hover:bg-amber-500/5 bg-background font-semibold rounded-xl" onClick={() => onAddRow(true)}>
                 <Coffee className="h-3.5 w-3.5" /> + Break
               </Button>
             </div>
           </div>
 
-          {/* DYNAMIC TIMELINE DAYS HEADER MAPPER */}
           {workingDays.map((day) => (
-            <div
-              key={day}
-              className="p-4 border-b border-l text-center font-bold bg-muted/10 text-foreground text-xs flex items-center justify-center tracking-widest uppercase"
-            >
+            <div key={day} className="p-4 border-b border-l text-center font-bold bg-muted/10 text-foreground text-xs flex items-center justify-center tracking-widest uppercase">
               {dayLabels[day]?.slice(0, 3)}
             </div>
           ))}
 
-          {/* BLANK ROW EMPTY STATE INTERACTION OVERLAY */}
           {periods.length === 0 && (
-            <div 
-              className="py-16 text-center text-sm text-muted-foreground font-medium border-t flex flex-col items-center justify-center gap-1" 
-              style={{ gridColumn: `1 / span ${workingDays.length + 1}` }}
-            >
+            <div className="py-16 text-center text-sm text-muted-foreground font-medium border-t flex flex-col items-center justify-center gap-1" style={{ gridColumn: `1 / span ${workingDays.length + 1}` }}>
               <span className="font-semibold text-foreground/80">Timeline Canvas is Empty</span>
-              <p className="text-xs text-muted-foreground/70 max-w-md">
-                Click "+ Period" to assign structured slots or "+ Break" to append timeline rest blocks.
-              </p>
+              <p className="text-xs text-muted-foreground/70 max-w-md">Click "+ Period" to assign structured slots or "+ Break" to append timeline rest blocks.</p>
             </div>
           )}
 
-          {/* ACTIVE ASSIGNED TIMETABLE TIMELINE ROWS */}
           {periods.map((period) => (
-            <div
-              key={period.id}
-              className={cn("contents group/row", period.isBreak && "bg-amber-500/[0.01]")}
-            >
-              {/* INTERACTIVE COLUMN SIDE PANEL */}
-              <div className={cn(
-                "p-4 border-t border-r flex flex-col justify-center gap-2 transition-colors relative group pl-5",
-                period.isBreak ? "bg-amber-500/[0.03]" : "bg-muted/10"
-              )}>
+            <div key={period.id} className={cn("contents group/row", period.isBreak && "bg-amber-500/[0.01]")}>
+              <div className={cn("p-4 border-t border-r flex flex-col justify-center gap-2 transition-colors relative group pl-5", period.isBreak ? "bg-amber-500/[0.03]" : "bg-muted/10")}>
                 <div className="flex items-center justify-between gap-2">
                   {period.isBreak ? (
                     <Input 
@@ -217,70 +172,55 @@ export function TimetableGrid({
                       className="h-7 text-xs font-bold bg-transparent border-none p-0 focus-visible:ring-0 w-[150px] uppercase text-amber-800 tracking-wider"
                     />
                   ) : (
-                    <span className="text-xs font-bold text-foreground tracking-wide">
-                      Period {period.periodNumber}
-                    </span>
+                    <span className="text-xs font-bold text-foreground tracking-wide">Period {period.periodNumber}</span>
                   )}
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => onRemoveRow(period.id)}
-                    className="h-7 w-7 text-destructive hover:bg-destructive/10 opacity-0 group-hover/row:opacity-100 rounded-lg transition-all duration-150 shrink-0"
-                  >
+                  <Button variant="ghost" size="icon" onClick={() => onRemoveRow(period.id)} className="h-7 w-7 text-destructive hover:bg-destructive/10 opacity-0 group-hover/row:opacity-100 rounded-lg transition-all duration-150 shrink-0">
                     <Trash2 className="h-3.5 w-3.5" />
                   </Button>
                 </div>
 
-                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                {/* FIXED: Uses unique key mappings, true inputs, and updates entirely on onBlur to completely prevent overlap jumps */}
+                <div className="flex items-center gap-1 text-xs text-muted-foreground">
                   <Input 
-                    type="text" 
-                    value={period.startTime} 
-                    maxLength={5}
-                    onChange={(e) => onUpdateRowTime(period.id, e.target.value, period.endTime)}
-                    className="h-6 w-14 text-center px-1 text-[11px] font-medium bg-background border-border/70 rounded-md shadow-sm"
+                    type="time" 
+                    defaultValue={period.startTime} 
+                    key={`start-${period.id}-${period.startTime}`}
+                    onBlur={(e) => {
+                      if (e.target.value && e.target.value !== period.startTime) {
+                        onUpdateRowTime(period.id, e.target.value, period.endTime);
+                      }
+                    }}
+                    className="h-7 w-[84px] text-center px-1 text-[11px] font-medium bg-background border-border/70 rounded-md shadow-sm"
                   />
                   <span className="text-muted-foreground/60 font-light">-</span>
                   <Input 
-                    type="text" 
-                    value={period.endTime} 
-                    maxLength={5}
-                    onChange={(e) => onUpdateRowTime(period.id, period.startTime, e.target.value)}
-                    className="h-6 w-14 text-center px-1 text-[11px] font-medium bg-background border-border/70 rounded-md shadow-sm"
+                    type="time" 
+                    defaultValue={period.endTime} 
+                    key={`end-${period.id}-${period.endTime}`}
+                    onBlur={(e) => {
+                      if (e.target.value && e.target.value !== period.endTime) {
+                        onUpdateRowTime(period.id, period.startTime, e.target.value);
+                      }
+                    }}
+                    className="h-7 w-[84px] text-center px-1 text-[11px] font-medium bg-background border-border/70 rounded-md shadow-sm"
                   />
                 </div>
               </div>
 
-              {/* TIMETABLE MAIN SLOT INTERACTION CELL ARRAY */}
               {workingDays.map((day) => {
                 const slot = findSlot(day, period.id);
-
                 if (period.isBreak) {
                   return (
-                    <div 
-                      key={`${period.id}-${day}`}
-                      className="border-t border-l bg-amber-500/[0.015] border-amber-500/[0.06] min-h-[95px] flex flex-col items-center justify-center p-2 text-center"
-                    >
+                    <div key={`${period.id}-${day}`} className="border-t border-l bg-amber-500/[0.015] border-amber-500/[0.06] min-h-[95px] flex flex-col items-center justify-center p-2 text-center">
                       <Coffee className="h-4 w-4 text-amber-500/40 mb-1" />
-                      <span className="text-[10px] font-bold text-amber-700/80 tracking-widest uppercase">
-                        {period.breakLabel || 'LUNCH BREAK'}
-                      </span>
+                      <span className="text-[10px] font-bold text-amber-700/80 tracking-widest uppercase">{period.breakLabel || 'LUNCH BREAK'}</span>
                     </div>
                   );
                 }
 
                 return (
-                  <div
-                    key={`${period.id}-${day}`}
-                    onClick={() => onCellClick(day, period.id, slot)}
-                    className="border-t border-l min-h-[95px] cursor-pointer hover:bg-muted/40 group p-2.5 transition-colors bg-background flex flex-col justify-stretch"
-                  >
-                    {slot ? (
-                      renderCell(day, period.id, slot)
-                    ) : (
-                      <div className="h-full w-full flex items-center justify-center opacity-0 group-hover:opacity-100 text-indigo-500 text-lg font-normal transition-opacity duration-150 rounded-xl border border-dashed border-indigo-500/20 bg-indigo-500/[0.02]">
-                        +
-                      </div>
-                    )}
+                  <div key={`${period.id}-${day}`} onClick={() => onCellClick(day, period.id, slot)} className="border-t border-l min-h-[95px] cursor-pointer hover:bg-muted/40 group p-2.5 transition-colors bg-background flex flex-col justify-stretch">
+                    {slot ? renderCell(day, period.id, slot) : <div className="h-full w-full flex items-center justify-center opacity-0 group-hover:opacity-100 text-indigo-500 text-lg font-normal transition-opacity duration-150 rounded-xl border border-dashed border-indigo-500/20 bg-indigo-500/[0.02]">+</div>}
                   </div>
                 );
               })}
@@ -322,66 +262,37 @@ export function SlotEditorSheet({
   saving,
 }: SlotEditorSheetProps) {
   const dayLabel = DAYS[dayOfWeek] ?? '';
-
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="rounded-l-3xl border-l">
         <SheetHeader className="pb-4 border-b">
-          <SheetTitle className="text-xl font-bold text-foreground">
-            {slot ? 'Modify Slot' : 'Assign Grid Slot'}
-          </SheetTitle>
-          <p className="text-xs text-muted-foreground font-medium">
-            {dayLabel} Layout Framework — <span className="text-indigo-600 font-semibold">{periodLabel}</span>
-          </p>
+          <SheetTitle className="text-xl font-bold text-foreground">{slot ? 'Modify Slot' : 'Assign Grid Slot'}</SheetTitle>
+          <p className="text-xs text-muted-foreground font-medium">{dayLabel} Layout Framework — <span className="text-indigo-600 font-semibold">{periodLabel}</span></p>
         </SheetHeader>
         <div className='space-y-5 mt-6'>
           <div className="space-y-2">
             <label className='text-xs font-bold text-muted-foreground uppercase tracking-wider block'>Subject</label>
-            <Select
-              value={draft.subjectId}
-              onValueChange={(v) => onDraftChange({ subjectId: v })}
-            >
-              <SelectTrigger className="rounded-xl h-11">
-                <SelectValue placeholder='Choose subject configuration' />
-              </SelectTrigger>
+            <Select value={draft.subjectId} onValueChange={(v) => onDraftChange({ subjectId: v })}>
+              <SelectTrigger className="rounded-xl h-11"><SelectValue placeholder='Choose subject configuration' /></SelectTrigger>
               <SelectContent className="rounded-xl">
-                {subjects.map((s) => (
-                  <SelectItem key={s.id} value={s.id} className="rounded-lg">
-                    {s.name}
-                  </SelectItem>
-                ))}
+                {subjects.map((s) => (<SelectItem key={s.id} value={s.id} className="rounded-lg">{s.name}</SelectItem>))}
               </SelectContent>
             </Select>
           </div>
           
           <div className="space-y-2">
             <label className='text-xs font-bold text-muted-foreground uppercase tracking-wider block'>Faculty / Teacher</label>
-            <Select
-              value={draft.teacherId}
-              onValueChange={(v) => onDraftChange({ teacherId: v })}
-            >
-              <SelectTrigger className="rounded-xl h-11">
-                <SelectValue placeholder='Assign course tutor' />
-              </SelectTrigger>
+            <Select value={draft.teacherId} onValueChange={(v) => onDraftChange({ teacherId: v })}>
+              <SelectTrigger className="rounded-xl h-11"><SelectValue placeholder='Assign course tutor' /></SelectTrigger>
               <SelectContent className="rounded-xl">
-                {teachers.map((t) => (
-                  <SelectItem key={t.id} value={t.id} className="rounded-lg">
-                    {t.name}
-                  </SelectItem>
-                ))}
+                {teachers.map((t) => (<SelectItem key={t.id} value={t.id} className="rounded-lg">{t.name}</SelectItem>))}
               </SelectContent>
             </Select>
           </div>
 
           <div className="pt-4 space-y-2.5">
-            <Button className='w-full h-11 rounded-xl font-semibold shadow-sm' disabled={saving} onClick={onSave}>
-              {saving ? 'Processing Canvas…' : 'Save Assignment'}
-            </Button>
-            {slot && (
-              <Button variant='destructive' className='w-full h-11 rounded-xl font-semibold' onClick={onRemove}>
-                Drop Grid Mapping
-              </Button>
-            )}
+            <Button className='w-full h-11 rounded-xl font-semibold shadow-sm' disabled={saving} onClick={onSave}>{saving ? 'Processing Canvas…' : 'Save Assignment'}</Button>
+            {slot && (<Button variant='destructive' className='w-full h-11 rounded-xl font-semibold' onClick={onRemove}>Drop Grid Mapping</Button>)}
           </div>
         </div>
       </SheetContent>
@@ -389,50 +300,26 @@ export function SlotEditorSheet({
   );
 }
 
-export function SubjectChip({
-  name,
-  color,
-  sublabel,
-}: {
-  name: string;
-  color: string;
-  sublabel?: string;
-}) {
+export function SubjectChip({ name, color, sublabel }: { name: string; color: string; sublabel?: string }) {
   return (
     <div className='h-full w-full p-2 rounded-xl border border-black/5 bg-background shadow-sm flex flex-col justify-between items-start overflow-hidden min-h-[70px]'>
-      <span
-        className='inline-block text-[10px] font-extrabold px-2 py-0.5 rounded-md text-white truncate max-w-full tracking-wide uppercase shadow-sm'
-        style={{ backgroundColor: color }}
-      >
-        {name}
-      </span>
-      {sublabel && (
-        <p className='text-[10px] text-muted-foreground truncate w-full font-bold tracking-tight mt-1'>{sublabel}</p>
-      )}
+      <span className='inline-block text-[10px] font-extrabold px-2 py-0.5 rounded-md text-white truncate max-w-full tracking-wide uppercase shadow-sm' style={{ backgroundColor: color }}>{name}</span>
+      {sublabel && (<p className='text-[10px] text-muted-foreground truncate w-full font-bold tracking-tight mt-1'>{sublabel}</p>)}
     </div>
   );
 }
 
-export function WorkloadPanel({
-  teacherWorkload,
-}: {
-  teacherWorkload: any[];
-}) {
+export function WorkloadPanel({ teacherWorkload }: { teacherWorkload: any[] }) {
   return (
     <div className='space-y-4'>
       {teacherWorkload.map((t, index) => (
         <div key={`teacher-${index}`} className="p-3 rounded-xl border border-border/50 bg-muted/5">
           <div className='flex justify-between text-xs font-semibold mb-1.5'>
             <span className="text-foreground">{t.name}</span>
-            <span className='text-muted-foreground'>
-              {t.remaining} / {t.total} Slots ({t.utilization}% Load)
-            </span>
+            <span className='text-muted-foreground'>{t.remaining} / {t.total} Slots ({t.utilization}% Load)</span>
           </div>
           <div className='h-2 rounded-full bg-muted overflow-hidden'>
-            <div
-              className='h-full bg-indigo-600 rounded-full transition-all duration-300'
-              style={{ width: `${Math.min(100, t.utilization)}%` }}
-            />
+            <div className='h-full bg-indigo-600 rounded-full transition-all duration-300' style={{ width: `${Math.min(100, t.utilization)}%` }} />
           </div>
         </div>
       ))}

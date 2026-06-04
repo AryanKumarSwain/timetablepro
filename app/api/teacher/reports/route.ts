@@ -118,6 +118,37 @@ export async function GET(request: NextRequest) {
       dayOfWeek,
       teacherId: teacher.id,
     });
+
+    const missingSlots = slots.filter(
+      (slot) =>
+        !report!.entries.some(
+          (e) => e.classId === slot.classId && e.subjectId === slot.subjectId
+        )
+    );
+
+    if (missingSlots.length > 0) {
+      await prisma.reportEntry.createMany({
+        data: missingSlots.map((slot) => ({
+          reportId: report!.id,
+          classId: slot.classId,
+          subjectId: slot.subjectId,
+          description: '',
+          isCompleted: false,
+        })),
+      });
+
+      report = await prisma.dailyReport.findUnique({
+        where: {
+          teacherId_reportDate: { teacherId: teacher.id, reportDate },
+        },
+        include: reportInclude,
+      });
+
+      if (!report) {
+        return NextResponse.json({ error: 'Report not found' }, { status: 404 });
+      }
+    }
+
     const periods = await prisma.period.findMany({
       where: schoolWhere(schoolId),
     });
@@ -125,23 +156,25 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       ...mapReportResponse(report),
-      scheduleSlots: slots.map((slot) => {
-        const period = periodMap.get(slot.periodId);
-        const entry = report!.entries.find(
-          (e) => e.classId === slot.classId && e.subjectId === slot.subjectId
-        );
-        return {
-          periodId: slot.periodId,
-          periodNumber: period?.periodNumber ?? 0,
-          startTime: period?.startTime ?? '',
-          endTime: period?.endTime ?? '',
-          classId: slot.classId,
-          className: entry?.class.name ?? '',
-          subjectId: slot.subjectId,
-          subjectName: entry?.subject.name ?? '',
-          entryId: entry?.id,
-        };
-      }),
+      scheduleSlots: slots
+        .map((slot) => {
+          const period = periodMap.get(slot.periodId);
+          const entry = report!.entries.find(
+            (e) => e.classId === slot.classId && e.subjectId === slot.subjectId
+          );
+          return {
+            periodId: slot.periodId,
+            periodNumber: period?.periodNumber ?? 0,
+            startTime: period?.startTime ?? '',
+            endTime: period?.endTime ?? '',
+            classId: slot.classId,
+            className: entry?.class.name ?? '',
+            subjectId: slot.subjectId,
+            subjectName: entry?.subject.name ?? '',
+            entryId: entry?.id,
+          };
+        })
+        .sort((a, b) => a.periodNumber - b.periodNumber),
     });
   } catch (error) {
     return handleApiError(error);

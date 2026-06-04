@@ -23,22 +23,26 @@ export default function TeacherSchedulePage() {
     }
   }, [auth.user?.teacherId]);
 
-  const loadSchedule = async () => {
-    try {
-      setLoading(true);
-      const today = new Date().toISOString().split('T')[0];
-      const [scheduleData, replacementData] = await Promise.all([
-        getTodayScheduleForTeacher(auth.user?.teacherId || ''),
-        getReplacements({ date: today }),
-      ]);
-      setSchedule(scheduleData);
-      setReplacements(replacementData);
-    } catch (error) {
-      console.error('Failed to load schedule:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+ const loadSchedule = async () => {
+  try {
+    setLoading(true);
+    const today = new Date().toISOString().split('T')[0];
+    const [scheduleData, replacementData] = await Promise.all([
+      getTodayScheduleForTeacher(auth.user?.teacherId || ''),
+      getReplacements({ date: today }),
+    ]);
+    
+    // Explicit sequential timeline sorting
+    const sortedSchedule = [...scheduleData].sort((a, b) => Number(a.periodNumber) - Number(b.periodNumber));
+    
+    setSchedule(sortedSchedule);
+    setReplacements(replacementData);
+  } catch (error) {
+    console.error('Failed to load schedule:', error);
+  } finally {
+    setLoading(false);
+  }
+};
 
   const getReplacementForPeriod = (periodId: string) => {
     return replacements.find(

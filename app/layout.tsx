@@ -10,7 +10,7 @@ const geist = Geist({ subsets: ['latin'], variable: '--font-geist-sans' });
 const geistMono = Geist_Mono({ subsets: ['latin'], variable: '--font-geist-mono' });
 
 export const metadata: Metadata = {
-  title: 'TimetableMaster — School Timetable & Attendance SaaS',
+  title: 'TimetablePro — Timetable & Attendance Management',
   description:
     'Enterprise school timetable, attendance, and substitute management platform',
   icons: {

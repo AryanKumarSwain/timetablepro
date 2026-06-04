@@ -9,13 +9,11 @@ import { subjectColor } from '@/lib/timetable-source';
 
 type RouteContext = { params: Promise<{ id: string }> };
 
-// Replace the GET function in your route.ts file with this:
 export async function GET(_request: NextRequest, context: RouteContext) {
   try {
     const { schoolId } = await requireSchoolAdmin();
     const { id } = await context.params;
 
-    // Fetch the timetable along with its relational slot data mappings
     const timetable = await prisma.timetable.findFirst({
       where: { id, ...schoolWhere(schoolId) },
       include: {
@@ -34,10 +32,8 @@ export async function GET(_request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
 
-    // Try to find the class name from the first assigned slot, or fallback safely
     const targetClassName = timetable.slots[0]?.class?.name || "General Schedule";
 
-    // Order rows chronologically by startTime so BREAK segments do not jump to the top
     const [timetablePeriods, classes, subjects, teachers] = await Promise.all([
       prisma.period.findMany({
         where: { schoolId, timetableId: id },
@@ -74,7 +70,7 @@ export async function GET(_request: NextRequest, context: RouteContext) {
     return NextResponse.json({
       id: timetable.id,
       name: timetable.name,
-      targetClassName, // <-- Added here to send the class name to the client
+      targetClassName,
       status: timetable.status,
       createdAt: timetable.createdAt.toISOString(),
       updatedAt: timetable.updatedAt.toISOString(),
@@ -142,7 +138,6 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     const { baseStartTime, periodDuration, workingDays, periods, name, status } = body;
     const updateData: any = {};
 
-    // Map properties safely onto update dynamic payload
     if (typeof name === 'string' && name.trim()) {
       updateData.name = name.trim();
     }
@@ -161,9 +156,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       updateData.workingDays = workingDays;
     }
 
-    // Perform isolation routine updates via safe data transactional sequences
     await prisma.$transaction(async (tx) => {
-      // If setting this specific record to published, turn other schedules down to drafts
       if (status === 'PUBLISHED') {
         await tx.timetable.updateMany({
           where: { schoolId, status: 'PUBLISHED', id: { not: id } },
@@ -171,71 +164,62 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
         });
       }
 
-      // Update parent master record settings parameters
       await tx.timetable.update({
         where: { id },
         data: updateData,
       });
 
-      // Synchronize periods structure data cleanly if present inside array list
       if (Array.isArray(periods)) {
-        // Collect current incoming valid IDs to avoid cascading validation failures on slots 
-        const incomingIds = periods.map((p: any) => p.id).filter(Boolean);
+        // Fix: Explicitly track real generated database IDs
+        const incomingIds = periods
+          .map((p: any) => p.id)
+          .filter((pid: string) => pid && !pid.startsWith('row-'));
 
-        // Remove only the deleted tracking rows from active instances
+        // 1. Cascade clear out all slots attached to missing rows first
+        await tx.timetableSlot.deleteMany({
+          where: {
+            timetableId: id,
+            periodId: { notIn: incomingIds }
+          }
+        });
+
+        // 2. Safely perform clean structural updates
         await tx.period.deleteMany({
           where: { timetableId: id, schoolId, id: { notIn: incomingIds } },
         });
 
-        // Loop array values to upsert current structures
         for (const p of periods) {
-          const formattedLabel = p.isBreak 
-            ? (p.breakLabel || p.label || 'LUNCH BREAK') 
+          const formattedLabel = p.isBreak
+            ? (p.breakLabel || p.label || 'LUNCH BREAK')
             : `Period ${p.periodNumber}`;
 
+          const data = {
+            schoolId,
+            timetableId: id,
+            periodNumber: Number(p.periodNumber) || 0,
+            startTime: p.startTime,
+            endTime: p.endTime,
+            isBreak: !!p.isBreak,
+            label: formattedLabel,
+          };
+
           if (p.id && !p.id.startsWith('row-')) {
-            await tx.period.upsert({
+            await tx.period.update({
               where: { id: p.id },
-              create: {
-                id: p.id,
-                schoolId,
-                timetableId: id,
-                periodNumber: Number(p.periodNumber) || 0,
-                startTime: p.startTime,
-                endTime: p.endTime,
-                isBreak: !!p.isBreak,
-                label: formattedLabel,
-              },
-              update: {
-                periodNumber: Number(p.periodNumber) || 0,
-                startTime: p.startTime,
-                endTime: p.endTime,
-                isBreak: !!p.isBreak,
-                label: formattedLabel,
-              },
+              data,
             });
           } else {
-            // Fallback generation logic handling newly created structural cells safely
             await tx.period.create({
-              data: {
-                schoolId,
-                timetableId: id,
-                periodNumber: Number(p.periodNumber) || 0,
-                startTime: p.startTime,
-                endTime: p.endTime,
-                isBreak: !!p.isBreak,
-                label: formattedLabel,
-              },
+              data: { ...data, id: undefined },
             });
           }
         }
       }
     });
 
-    // Fetch consolidated final counts to construct JSON compliance response payload
     const updated = await prisma.timetable.findUnique({
       where: { id },
-      include: { 
+      include: {
         _count: { select: { slots: true } },
         periods: { orderBy: { startTime: 'asc' } }
       },

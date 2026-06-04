@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRequireAuth } from '@/lib/auth-context';
 import {
+  getTodayScheduleForTeacher,
   getTeacherReport,
   updateTeacherReport,
   type DailyReportData,
@@ -17,9 +18,9 @@ import { cn } from '@/lib/utils';
 import { CheckCircle2 } from 'lucide-react';
 
 export default function TeacherReportTodayPage() {
-  useRequireAuth('teacher');
-
+  const auth = useRequireAuth('teacher');
   const [report, setReport] = useState<DailyReportData | null>(null);
+  const [scheduleSlots, setScheduleSlots] = useState<DailyReportData['scheduleSlots']>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -35,26 +36,52 @@ export default function TeacherReportTodayPage() {
   const load = useCallback(async () => {
     try {
       setLoading(true);
-      const data = await getTeacherReport('today');
+
+      // Send today's formatted local ISO date instead of literal string fallback
+      const localISODate = new Date().toISOString().split('T')[0];
+      const data = await getTeacherReport(localISODate).catch(() => getTeacherReport('today'));
+
       setReport(data);
-      setSubmitted(data.status === 'SUBMITTED');
+      setSubmitted(data?.status === 'SUBMITTED');
+
+      if (data?.scheduleSlots && data.scheduleSlots.length > 0) {
+        // Sort sequentially here
+        const sortedSlots = [...data.scheduleSlots].sort((a, b) => Number(a.periodNumber) - Number(b.periodNumber));
+        setScheduleSlots(sortedSlots);
+      } else if (auth.user?.teacherId) {
+        const fallback = await getTodayScheduleForTeacher(auth.user.teacherId);
+        const sortedFallback = fallback
+          .map((slot) => ({
+            periodId: slot.periodId,
+            periodNumber: slot.periodNumber,
+            startTime: slot.startTime,
+            endTime: slot.endTime,
+            classId: slot.classId,
+            className: slot.className,
+            subjectId: slot.subjectId,
+            subjectName: slot.subjectName,
+          }))
+          .sort((a, b) => Number(a.periodNumber) - Number(b.periodNumber)); // Added sequential sorting layer
+
+        setScheduleSlots(sortedFallback);
+      }
     } catch (e) {
       console.error(e);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [auth.user?.teacherId]);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    if (!auth.loading) {
+      void load();
+    }
+  }, [load, auth.loading]);
 
-  const scheduleSlots = report?.scheduleSlots ?? [];
-
-  const getEntryForSlot = (classId: string, subjectId: string) =>
-    report?.entries.find(
-      (e) => e.classId === classId && e.subjectId === subjectId
-    );
+  const getEntryForSlot = (classId: string, subjectId: string) => {
+    if (!report?.entries) return null;
+    return report.entries.find((e) => e.classId === classId && e.subjectId === subjectId);
+  };
 
   const persistEntries = useCallback(
     (entries: DailyReportData['entries']) => {
@@ -64,8 +91,8 @@ export default function TeacherReportTodayPage() {
         void updateTeacherReport(report.id, {
           entries: entries.map((e) => ({
             id: e.id,
-            description: e.description,
-            isCompleted: e.isCompleted,
+            description: e.description || '',
+            isCompleted: !!e.isCompleted,
           })),
         }).catch(console.error);
       }, 1000);
@@ -74,15 +101,33 @@ export default function TeacherReportTodayPage() {
   );
 
   const updateEntry = (
-    entryId: string,
+    slotClassId: string,
+    slotSubjectId: string,
     patch: { description?: string; isCompleted?: boolean }
   ) => {
     if (!report || report.status === 'SUBMITTED') return;
-    const next = report.entries.map((e) =>
-      e.id === entryId ? { ...e, ...patch } : e
+
+    const existingEntries = report.entries ? [...report.entries] : [];
+    const entryIndex = existingEntries.findIndex(
+      (e) => e.classId === slotClassId && e.subjectId === slotSubjectId
     );
-    setReport({ ...report, entries: next });
-    persistEntries(next);
+
+    if (entryIndex !== -1) {
+      existingEntries[entryIndex] = { ...existingEntries[entryIndex], ...patch };
+    } else {
+      // Self-healing fallback layer to generate missing elements cleanly
+      existingEntries.push({
+        id: `temp-${Date.now()}`,
+        classId: slotClassId,
+        subjectId: slotSubjectId,
+        description: patch.description ?? '',
+        isCompleted: patch.isCompleted ?? false,
+      });
+    }
+
+    const nextReport = { ...report, entries: existingEntries };
+    setReport(nextReport);
+    persistEntries(existingEntries);
   };
 
   const handleSubmit = async () => {
@@ -91,10 +136,10 @@ export default function TeacherReportTodayPage() {
     try {
       const updated = await updateTeacherReport(report.id, {
         status: 'SUBMITTED',
-        entries: report.entries.map((e) => ({
+        entries: (report.entries || []).map((e) => ({
           id: e.id,
-          description: e.description,
-          isCompleted: e.isCompleted,
+          description: e.description || '',
+          isCompleted: !!e.isCompleted,
         })),
       });
       setReport(updated);
@@ -106,7 +151,7 @@ export default function TeacherReportTodayPage() {
     }
   };
 
-  if (loading || !report) {
+  if (loading) {
     return (
       <div className='max-w-3xl mx-auto'>
         <PageSkeleton rows={3} />
@@ -114,7 +159,7 @@ export default function TeacherReportTodayPage() {
     );
   }
 
-  const readOnly = report.status === 'SUBMITTED';
+  const readOnly = report?.status === 'SUBMITTED';
 
   return (
     <div className='max-w-3xl mx-auto'>
@@ -122,23 +167,19 @@ export default function TeacherReportTodayPage() {
         title="Today's Report"
         description={todayLabel}
         breadcrumbs={[
-          { label: 'Teacher', href: '/teacher/schedule' },
+          { label: 'Teacher', href: '/teacher/weekly-schedule' },
           { label: "Today's Report" },
         ]}
       />
 
       {readOnly && (
-        <div
-          className={cn(
-            'mb-6 flex items-center gap-2 rounded-xl border border-emerald-500/30',
-            'bg-emerald-500/10 px-4 py-3 text-emerald-700 dark:text-emerald-400'
-          )}
-        >
+        <div className={cn(
+          'mb-6 flex items-center gap-2 rounded-xl border border-emerald-500/30',
+          'bg-emerald-500/10 px-4 py-3 text-emerald-700 dark:text-emerald-400'
+        )}>
           <CheckCircle2 className='h-5 w-5' />
           <span className='font-medium'>Report submitted</span>
-          <Badge variant='outline' className='ml-auto border-emerald-500/30'>
-            SUBMITTED
-          </Badge>
+          <Badge variant='outline' className='ml-auto border-emerald-500/30'>SUBMITTED</Badge>
         </div>
       )}
 
@@ -150,7 +191,6 @@ export default function TeacherReportTodayPage() {
         <div className='space-y-4'>
           {scheduleSlots.map((slot, index) => {
             const entry = getEntryForSlot(slot.classId, slot.subjectId);
-            if (!entry) return null;
             return (
               <ReportEntryCard
                 key={`${slot.periodId}-${slot.classId}-${index}`}
@@ -158,15 +198,11 @@ export default function TeacherReportTodayPage() {
                 timeRange={`${slot.startTime}–${slot.endTime}`}
                 className={slot.className}
                 subjectName={slot.subjectName}
-                description={entry.description}
-                isCompleted={entry.isCompleted}
+                description={entry?.description ?? ''}
+                isCompleted={entry?.isCompleted ?? false}
                 readOnly={readOnly}
-                onDescriptionChange={(v) =>
-                  updateEntry(entry.id, { description: v })
-                }
-                onCompletedChange={(v) =>
-                  updateEntry(entry.id, { isCompleted: v })
-                }
+                onDescriptionChange={(v) => updateEntry(slot.classId, slot.subjectId, { description: v })}
+                onCompletedChange={(v) => updateEntry(slot.classId, slot.subjectId, { isCompleted: v })}
               />
             );
           })}
@@ -186,7 +222,7 @@ export default function TeacherReportTodayPage() {
         </div>
       )}
 
-      {submitted && !readOnly && (
+      {submitted && (
         <p className='text-sm text-emerald-600 mt-4 text-center'>
           Report submitted successfully!
         </p>
