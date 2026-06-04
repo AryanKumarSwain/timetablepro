@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { useRouter } from 'with-next-link' // Adjusted default import fallback structures;
+import { useRouter } from 'with-next-link'; // Adjusted default import fallback structures;
 import { useRouter as useNextRouter } from 'next/navigation';
 import { useRequireAuth } from '@/lib/auth-context';
 import {
@@ -121,7 +121,7 @@ export default function DailyDeskPage() {
         replacementTeacherId: replacementForm.replacementTeacherId,
         subjectId: '',
         reason: replacementForm.reason as 'Leave' | 'Medical' | 'Other',
-        status: 'pending',
+        status: 'confirmed', // Creating it confirmed directly from matrix action steps safely
       });
       setShowReplacementForm(false);
       setReplacementForm({
@@ -193,7 +193,6 @@ export default function DailyDeskPage() {
   const getTeacherName = (id: string) =>
     teachers.find((t) => t.id === id)?.name || 'Unknown Faculty';
 
-  // --- HELPER FUNCTION FOR DYNAMIC SUBJECT CSS CLASS MAPPING ---
   const getSubjectClass = (subjectName: string): string => {
     if (!subjectName) return '';
     const name = subjectName.toLowerCase();
@@ -242,7 +241,6 @@ export default function DailyDeskPage() {
       <div className='grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-6 items-start print:block print:w-full'>
 
         {/* TIMETABLE VIEW CONTAINER */}
-        {/* CHANGED: Switched overflow-hidden to visible layout properties for print safety */}
         <div className='min-w-0 w-full overflow-visible print:border-none print:p-0'>
           <GlassCard className='p-5 print:bg-transparent print:border-none print:p-0 print:shadow-none'>
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-5 print:mb-8">
@@ -278,7 +276,6 @@ export default function DailyDeskPage() {
             </div>
 
             {/* SCROLLABLE TABLE FRAMEWORK */}
-            {/* CHANGED: Assigned scroll engine classes to container element */}
             <div className='timetable-matrix-scroll w-full overflow-x-auto rounded-xl border border-border/60 bg-muted/20 scrollbar-thin scrollbar-thumb-accent print:overflow-visible print:border-none print:bg-transparent'>
               <div className='timetable-inner-container print:min-w-full'>
                 <table className='w-full border-collapse text-left min-w-[800px] print:min-w-full print:table-layout-fixed'>
@@ -325,12 +322,11 @@ export default function DailyDeskPage() {
                             );
                           }
 
-                          const internalReplacement = replacements.find(
-                            (r) => r.classId === cls.id && r.periodId === period.id
-                          );
-                          const isCovered = internalReplacement?.status === 'confirmed';
-                          
-                          // Get matching subject dynamic color class
+                          // --- UPDATED CELL COVER LOGIC MAPPING ---
+                          const hasServerReplacement = !!cell.replacement;
+                          const isCovered = hasServerReplacement && (cell.replacement?.status === 'confirmed' || cell.replacement?.status === 'approved');
+                          const isCoverMissing = cell.isReplacementAbsent === true; // Read cascading check flag directly
+
                           const subjectColorClass = getSubjectClass(cell.subjectName);
 
                           return (
@@ -338,14 +334,16 @@ export default function DailyDeskPage() {
                               key={`${cls.id}-${period.id}`}
                               className={cn(
                                 'p-2 border-l border-border/40 h-full min-h-[115px] align-top transition-colors print:border-gray-300 print:p-1',
-                                cell.isAbsent ? (isCovered ? 'bg-emerald-500/[0.02] print:bg-green-50' : 'bg-rose-500/[0.04] print:bg-red-50') : 'bg-background/10'
+                                cell.isAbsent 
+                                  ? (isCovered && !isCoverMissing ? 'bg-emerald-500/[0.02] print:bg-green-50' : 'bg-rose-500/[0.04] print:bg-red-50') 
+                                  : 'bg-background/10'
                               )}
                             >
                               <Card
                                 className={cn(
                                   'p-3 rounded-lg h-full text-xs flex flex-col justify-between shadow-none transition-all border print:p-1.5 print:border-gray-300 print:bg-white',
                                   cell.isAbsent
-                                    ? isCovered
+                                    ? (isCovered && !isCoverMissing)
                                       ? 'border-emerald-500/40 bg-emerald-500/[0.02]'
                                       : 'border-rose-500/40 bg-rose-500/5 ring-1 ring-rose-500/10'
                                     : cn('border-border/60 bg-background hover:border-indigo-500/40', subjectColorClass)
@@ -366,17 +364,42 @@ export default function DailyDeskPage() {
                                 <div className='flex flex-col gap-1 mt-auto print:mt-0'>
                                   {cell.isAbsent ? (
                                     <>
-                                      {isCovered ? (
+                                      {/* CONDITION 1: Sub is assigned and PRESENT */}
+                                      {isCovered && !isCoverMissing && (
                                         <div className="space-y-1.5 print:space-y-0.5">
                                           <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 shadow-sm print:bg-transparent print:border-none print:p-0 print:text-green-700">
                                             <CheckCircle2 className='h-3 w-3 shrink-0 text-emerald-500 print:hidden' />
                                             <span className="text-[10px] font-bold uppercase tracking-wider print:text-[8px]">Cover Active</span>
                                           </div>
                                           <p className="text-[11px] font-medium text-foreground bg-muted/60 px-1.5 py-1 rounded border border-border/40 truncate print:text-[9px] print:bg-gray-50 print:p-0.5">
-                                            <span className="text-muted-foreground font-normal print:text-gray-600">Sub:</span> {getTeacherName(internalReplacement.replacementTeacherId)}
+                                            <span className="text-muted-foreground font-normal print:text-gray-600">Sub:</span> {cell.replacement?.replacementTeacherName}
                                           </p>
                                         </div>
-                                      ) : (
+                                      )}
+
+                                      {/* CONDITION 2: Sub is assigned but ALSO ABSENT (Like Meena Mam) */}
+                                      {isCovered && isCoverMissing && (
+                                        <div className="space-y-1.5 print:space-y-0.5">
+                                          <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 shadow-sm print:text-amber-700">
+                                            <AlertTriangle className='h-3 w-3 shrink-0 text-amber-500' />
+                                            <span className="text-[10px] font-bold uppercase tracking-wider print:text-[8px]">Sub Absent!</span>
+                                          </div>
+                                          <p className="text-[11px] font-medium text-muted-foreground bg-rose-500/5 px-1.5 py-1 rounded border border-rose-500/20 line-through truncate print:text-[9px]">
+                                            Sub: {cell.replacement?.replacementTeacherName}
+                                          </p>
+                                          <Button
+                                            size='sm'
+                                            variant='secondary'
+                                            className='h-6 text-[10px] font-bold rounded bg-indigo-500/10 text-indigo-600 border border-indigo-500/20 hover:bg-indigo-500/20 transition-colors w-full print:hidden'
+                                            onClick={() => openCoverForm(cell.classId, period.id, cell.replacement?.replacementTeacherId || cell.teacherId)}
+                                          >
+                                            Re-Assign Cover
+                                          </Button>
+                                        </div>
+                                      )}
+
+                                      {/* CONDITION 3: Completely Uncovered Session */}
+                                      {!isCovered && (
                                         <>
                                           <div className="flex items-center gap-1.5 px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 mb-1 print:bg-transparent print:border-none print:p-0 print:text-red-700 print:mb-0">
                                             <AlertTriangle className='h-3 w-3 shrink-0 text-rose-500 print:hidden' />
@@ -555,7 +578,7 @@ export default function DailyDeskPage() {
                         <span
                           className={cn(
                             'px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider',
-                            rep.status === 'confirmed'
+                            rep.status === 'confirmed' || rep.status === 'approved'
                               ? 'bg-green-500/10 text-green-600 dark:text-green-400'
                               : 'bg-yellow-500/10 text-yellow-600 dark:text-yellow-400'
                           )}
