@@ -98,13 +98,25 @@ export async function GET(request: NextRequest) {
           return { classId: cls.id, className: cls.name, empty: true as const };
         }
 
-        const att = attendance.find((a) => a.teacherId === slot.teacherId);
+        const originalTeacherAtt = attendance.find((a) => a.teacherId === slot.teacherId);
+        const originalTeacherAbsent = originalTeacherAtt?.status === 'ABSENT';
+
         const replacement = replacements.find(
           (r) =>
             r.periodId === slot.periodId &&
             r.classId === slot.classId &&
             r.originalTeacherId === slot.teacherId
         );
+
+        // --- CASCADING ABSENCE CHECK ---
+        // If a replacement exists and is confirmed, check if that substitute teacher is ALSO absent
+        let isReplacementAbsent = false;
+        if (replacement && replacement.status.toLowerCase() === 'confirmed') {
+          const replacementAtt = attendance.find((a) => a.teacherId === replacement.replacementTeacherId);
+          if (replacementAtt?.status === 'ABSENT') {
+            isReplacementAbsent = true;
+          }
+        }
 
         return {
           classId: cls.id,
@@ -115,7 +127,8 @@ export async function GET(request: NextRequest) {
           subjectName: subjectMap.get(slot.subjectId) ?? 'Unknown',
           teacherId: slot.teacherId,
           teacherName: teacherMap.get(slot.teacherId) ?? 'Unknown',
-          isAbsent: att?.status === 'ABSENT',
+          isAbsent: originalTeacherAbsent,
+          isReplacementAbsent: isReplacementAbsent, // Flag identifying that Jai Sir is also out
           replacement: replacement
             ? {
                 id: replacement.id,

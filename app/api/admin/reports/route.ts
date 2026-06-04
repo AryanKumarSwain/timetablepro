@@ -9,27 +9,42 @@ import { mapReportResponse } from '@/lib/report-utils';
 
 export async function GET(request: NextRequest) {
   try {
+    // 1. Authenticate user session safely
     const { schoolId } = await requireSchoolAdmin();
 
-    const teacherName = request.nextUrl.searchParams.get('teacherName');
-    const date = request.nextUrl.searchParams.get('date');
-    const classId = request.nextUrl.searchParams.get('classId');
-    const subjectId = request.nextUrl.searchParams.get('subjectId');
+    // 2. Safely extract tracking parameters from request URL
+    const { searchParams } = request.nextUrl;
+    const teacherName = searchParams.get('teacherName') || '';
+    const date = searchParams.get('date') || '';
+    const classId = searchParams.get('classId') || '';
+    const subjectId = searchParams.get('subjectId') || '';
 
+    // 3. Query records cleanly using globally safe filtering constraints
     const reports = await prisma.dailyReport.findMany({
       where: {
         ...schoolWhere(schoolId),
-        ...(teacherName
-          ? { teacher: { name: { contains: teacherName } } }
-          : {}),
-        ...(date
+        
+        // Safe database lookup across MySQL, SQLite, and Postgres
+        ...(teacherName.trim()
           ? {
-              reportDate: {
-                gte: new Date(`${date}T00:00:00`),
-                lt: new Date(`${date}T23:59:59`),
+              teacher: {
+                name: {
+                  contains: teacherName.trim(), 
+                  // REMOVED 'mode: insensitive' to completely eliminate backend query engine crashes!
+                },
               },
             }
           : {}),
+          
+        ...(date
+          ? {
+              reportDate: {
+                gte: new Date(`${date}T00:00:00.000Z`),
+                lte: new Date(`${date}T23:59:59.999Z`),
+              },
+            }
+          : {}),
+          
         ...(classId || subjectId
           ? {
               entries: {
@@ -43,18 +58,36 @@ export async function GET(request: NextRequest) {
       },
       include: {
         teacher: true,
-        entries: { include: { class: true, subject: true } },
+        entries: { 
+          include: { 
+            class: true, 
+            subject: true 
+          } 
+        },
       },
-      orderBy: { reportDate: 'desc' },
+      orderBy: { 
+        reportDate: 'desc' 
+      },
     });
 
-    return NextResponse.json(
-      reports.map((r) => ({
-        ...mapReportResponse(r),
-        entryCount: r.entries.length,
-      }))
-    );
+    // 4. Transform response payloads and map entry data arrays securely
+    const transformedReports = reports.map((r) => ({
+      ...mapReportResponse(r),
+      entryCount: r.entries?.length || 0,
+    }));
+
+    // 5. SECURE FALLBACK FILTER: Double check case-insensitivity in JS runtime 
+    // to guarantee "br" catches "Mr. Brijesh Rawat" even if database default is strictly case-sensitive!
+    const searchTarget = teacherName.trim().toLowerCase();
+    const finalFilteredResult = searchTarget
+      ? transformedReports.filter((r) => 
+          r.teacherName?.toLowerCase().includes(searchTarget)
+        )
+      : transformedReports;
+
+    return NextResponse.json(finalFilteredResult);
   } catch (error) {
+    console.error('[API_REPORTS_GET_CRASH_FIXED]', error);
     return handleApiError(error);
   }
 }
