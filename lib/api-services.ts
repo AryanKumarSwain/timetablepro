@@ -178,6 +178,16 @@ export async function getWeeklyTimetable(): Promise<WeeklyTimetableEntry[]> {
   return apiFetch('/api/timetable');
 }
 
+export async function getPublishedWeeklyTimetable(
+  classId?: string,
+  teacherId?: string
+): Promise<WeeklyTimetableEntry[]> {
+  const qs = new URLSearchParams();
+  if (classId) qs.set('classId', classId);
+  if (teacherId) qs.set('teacherId', teacherId);
+  return apiFetch(`/api/teacher/weekly-schedule${qs.toString() ? `?${qs.toString()}` : ''}`);
+}
+
 export async function getWeeklyTimetableForClass(
   classId: string
 ): Promise<WeeklyTimetableEntry[]> {
@@ -523,32 +533,30 @@ export type DailyDeskGrid = {
   dayOfWeek: number;
   classes: { id: string; name: string }[];
   periods: Period[];
+  // Transformed grid structure to map cleanly to your table rows:
   grid: {
-    periodId: string;
-    periodNumber: number;
-    label: string;
-    startTime: string;
-    endTime: string;
-    cells: Array<
-      | { classId: string; className: string; empty: true }
-      | {
-          classId: string;
-          className: string;
-          empty: false;
-          slotId: string;
-          subjectId: string;
-          subjectName: string;
-          teacherId: string;
-          teacherName: string;
-          isAbsent: boolean;
-          replacement: {
-            id: string;
-            replacementTeacherId: string;
-            replacementTeacherName: string;
-            status: string;
-          } | null;
-        }
-    >;
+    classId: string;
+    className: string;
+    slots: {
+      periodId: string;
+      periodNumber: number;
+      label: string;         // e.g., "P1", "P2"
+      startTime: string;
+      endTime: string;
+      empty: boolean;
+      slotId?: string;
+      subjectId?: string;
+      subjectName?: string;
+      teacherId?: string;
+      teacherName?: string;
+      isAbsent?: boolean;
+      replacement: {
+        id: string;
+        replacementTeacherId: string;
+        replacementTeacherName: string;
+        status: 'PENDING' | 'APPROVED' | 'DECLINED'; // Clearer type instead of string
+      } | null;
+    }[];
   }[];
   attendance: DailyAttendance[];
   replacements: Replacement[];
@@ -632,4 +640,68 @@ export async function getAdminReports(filters?: {
 
 export async function getAdminReport(id: string): Promise<DailyReportData> {
   return apiFetch(`/api/admin/reports/${id}`);
+}
+
+export async function getReports(filters?: {
+  teacherName?: string;
+  date?: string;
+  classId?: string;
+  subjectId?: string;
+}): Promise<DailyReportData[]> {
+  const params = new URLSearchParams();
+  if (filters?.teacherName) params.set('teacherName', filters.teacherName);
+  if (filters?.date) params.set('date', filters.date);
+  if (filters?.classId) params.set('classId', filters.classId);
+  if (filters?.subjectId) params.set('subjectId', filters.subjectId);
+  const qs = params.toString();
+  return apiFetch(`/api/reports${qs ? `?${qs}` : ''}`);
+}
+
+// CRITICAL EXPORT RESTORATION & JSON ERROR CAPTURE PATCH
+export async function downloadReportsCsv(date: string): Promise<Blob> {
+  const cleanDate = date.includes('T') ? date.split('T')[0] : date;
+  const res = await fetch(`/api/reports/download/csv/${encodeURIComponent(cleanDate)}`, {
+    credentials: 'include',
+  });
+  
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    let message = `Failed to download reports for ${cleanDate}`;
+    try {
+      const parsed = JSON.parse(text);
+      if (parsed?.error) message = parsed.error;
+    } catch {
+      if (text) message = text;
+    }
+    throw new Error(message);
+  }
+  return res.blob();
+}
+
+export async function getDraftReportToday(): Promise<DailyReportData> {
+  return apiFetch('/api/reports/draft/today');
+}
+
+export async function getReportClassesToday(): Promise<{ scheduleSlots: DailyReportData['scheduleSlots'] }> {
+  const today = new Date();
+  const dayName = today.toLocaleDateString('en-US', { weekday: 'long' });
+  return apiFetch(`/api/reports/classes?day=${encodeURIComponent(dayName)}`);
+}
+
+export async function submitReport(data: {
+  reportId?: string;
+  date?: string;
+  status?: 'DRAFT' | 'SUBMITTED';
+  entries: Array<{
+    id?: string;
+    classId: string;
+    subjectId: string;
+    description: string;
+    isCompleted: boolean;
+  }>;
+}): Promise<DailyReportData> {
+  return apiFetch('/api/reports/submit', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
 }

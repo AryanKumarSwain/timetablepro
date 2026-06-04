@@ -1,5 +1,16 @@
+function buildApiUrl(path: string) {
+  const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, '');
+  if (!apiBaseUrl) {
+    return path.startsWith('/') ? path : `/${path}`;
+  }
+
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  return `${apiBaseUrl}${normalizedPath}`;
+}
+
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(path, {
+  const url = buildApiUrl(path);
+  const res = await fetch(url, {
     ...init,
     headers: {
       ...(init?.body ? { 'Content-Type': 'application/json' } : {}),
