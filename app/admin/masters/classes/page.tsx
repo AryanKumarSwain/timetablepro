@@ -7,9 +7,8 @@ import {
   createClass,
   updateClass,
   deleteClass,
-  getTeachers,
 } from '@/lib/api-services';
-import { Class, Teacher } from '@/lib/types';
+import { Class } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -20,17 +19,16 @@ export default function ClassesPage() {
   useRequireAuth('admin');
 
   const [classes, setClasses] = useState<Class[]>([]);
-  const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [importOpen, setImportOpen] = useState(false);
-  const [formData, setFormData] = useState<Omit<Class, 'id'>>({
+  
+  // Cleaned up form state containing only Name, Section, and Room Number
+  const [formData, setFormData] = useState<Omit<Class, 'id' | 'strength' | 'classTeacher'>>({
     name: '',
-    classLevel: 9,
     section: '',
-    strength: 0,
-    classTeacher: '',
+    roomNumber: '', 
   });
 
   useEffect(() => {
@@ -40,12 +38,8 @@ export default function ClassesPage() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [classesData, teachersData] = await Promise.all([
-        getClasses(),
-        getTeachers(),
-      ]);
+      const classesData = await getClasses();
       setClasses(classesData);
-      setTeachers(teachersData);
     } catch (error) {
       console.error('Failed to load data:', error);
     } finally {
@@ -71,10 +65,8 @@ export default function ClassesPage() {
   const handleEdit = (cls: Class) => {
     setFormData({
       name: cls.name,
-      classLevel: cls.classLevel,
       section: cls.section,
-      strength: cls.strength,
-      classTeacher: cls.classTeacher,
+      roomNumber: cls.roomNumber || '',
     });
     setEditingId(cls.id);
     setShowForm(true);
@@ -94,10 +86,8 @@ export default function ClassesPage() {
   const resetForm = () => {
     setFormData({
       name: '',
-      classLevel: 9,
       section: '',
-      strength: 0,
-      classTeacher: '',
+      roomNumber: '',
     });
     setEditingId(null);
     setShowForm(false);
@@ -143,7 +133,7 @@ export default function ClassesPage() {
             {editingId ? 'Edit Class' : 'Add New Class'}
           </h2>
           <form onSubmit={handleSubmit} className='space-y-4'>
-            <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
+            <div className='grid grid-cols-1 md:grid-cols-3 gap-4'>
               <div>
                 <label className='block text-sm font-medium text-foreground mb-2'>
                   Name
@@ -156,28 +146,6 @@ export default function ClassesPage() {
                   placeholder='Class 10-A'
                   required
                 />
-              </div>
-              <div>
-                <label className='block text-sm font-medium text-foreground mb-2'>
-                  Class Level
-                </label>
-                <select
-                  value={formData.classLevel}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      classLevel: parseInt(e.target.value),
-                    })
-                  }
-                  className='w-full px-3 py-2 bg-input border border-border rounded-md text-foreground'
-                  required
-                >
-                  {[...Array(4)].map((_, i) => (
-                    <option key={i + 9} value={i + 9}>
-                      Class {i + 9}
-                    </option>
-                  ))}
-                </select>
               </div>
               <div>
                 <label className='block text-sm font-medium text-foreground mb-2'>
@@ -194,43 +162,19 @@ export default function ClassesPage() {
               </div>
               <div>
                 <label className='block text-sm font-medium text-foreground mb-2'>
-                  Strength
+                  Room Number (Optional)
                 </label>
                 <Input
-                  type='number'
-                  value={formData.strength}
+                  value={formData.roomNumber}
                   onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      strength: parseInt(e.target.value) || 0,
-                    })
+                    setFormData({ ...formData, roomNumber: e.target.value })
                   }
-                  required
+                  placeholder='101'
                 />
-              </div>
-              <div className='md:col-span-2'>
-                <label className='block text-sm font-medium text-foreground mb-2'>
-                  Class Teacher
-                </label>
-                <select
-                  value={formData.classTeacher}
-                  onChange={(e) =>
-                    setFormData({ ...formData, classTeacher: e.target.value })
-                  }
-                  className='w-full px-3 py-2 bg-input border border-border rounded-md text-foreground'
-                  required
-                >
-                  <option value=''>Select a teacher</option>
-                  {teachers.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.name}
-                    </option>
-                  ))}
-                </select>
               </div>
             </div>
 
-            <div className='flex gap-2'>
+            <div className='flex gap-2 pt-2'>
               <Button
                 type='submit'
                 className='bg-primary hover:bg-primary/90'
@@ -257,7 +201,7 @@ export default function ClassesPage() {
         onSuccess={() => void loadData()}
       />
 
-      {/* Classes List */}
+      {/* Classes List Table */}
       <div className='overflow-x-auto'>
         <table className='w-full'>
           <thead>
@@ -266,13 +210,10 @@ export default function ClassesPage() {
                 Name
               </th>
               <th className='text-left py-3 px-4 font-semibold text-foreground'>
-                Level
+                Section
               </th>
               <th className='text-left py-3 px-4 font-semibold text-foreground'>
-                Strength
-              </th>
-              <th className='text-left py-3 px-4 font-semibold text-foreground'>
-                Class Teacher
+                Room Number
               </th>
               <th className='text-left py-3 px-4 font-semibold text-foreground'>
                 Actions
@@ -280,48 +221,42 @@ export default function ClassesPage() {
             </tr>
           </thead>
           <tbody>
-            {classes.map((cls) => {
-              const teacher = teachers.find((t) => t.id === cls.classTeacher);
-              return (
-                <tr
-                  key={cls.id}
-                  className='border-b border-border hover:bg-card/50 transition'
-                >
-                  <td className='py-3 px-4 text-foreground font-medium'>
-                    {cls.name}
-                  </td>
-                  <td className='py-3 px-4 text-muted-foreground'>
-                    {cls.classLevel}
-                  </td>
-                  <td className='py-3 px-4 text-muted-foreground'>
-                    {cls.strength}
-                  </td>
-                  <td className='py-3 px-4 text-muted-foreground'>
-                    {teacher?.name || 'Unassigned'}
-                  </td>
-                  <td className='py-3 px-4'>
-                    <div className='flex gap-2'>
-                      <Button
-                        onClick={() => handleEdit(cls)}
-                        size='sm'
-                        variant='outline'
-                        className='border-border hover:bg-card'
-                      >
-                        Edit
-                      </Button>
-                      <Button
-                        onClick={() => handleDelete(cls.id)}
-                        size='sm'
-                        variant='outline'
-                        className='border-destructive/30 text-destructive hover:bg-destructive/10'
-                      >
-                        Delete
-                      </Button>
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
+            {classes.map((cls) => (
+              <tr
+                key={cls.id}
+                className='border-b border-border hover:bg-card/50 transition'
+              >
+                <td className='py-3 px-4 text-foreground font-medium'>
+                  {cls.name}
+                </td>
+                <td className='py-3 px-4 text-muted-foreground'>
+                  {cls.section}
+                </td>
+                <td className='py-3 px-4 text-muted-foreground'>
+                  {cls.roomNumber || '—'}
+                </td>
+                <td className='py-3 px-4'>
+                  <div className='flex gap-2'>
+                    <Button
+                      onClick={() => handleEdit(cls)}
+                      size='sm'
+                      variant='outline'
+                      className='border-border hover:bg-card'
+                    >
+                      Edit
+                    </Button>
+                    <Button
+                      onClick={() => handleDelete(cls.id)}
+                      size='sm'
+                      variant='outline'
+                      className='border-destructive/30 text-destructive hover:bg-destructive/10'
+                    >
+                      Delete
+                    </Button>
+                  </div>
+                </td>
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>

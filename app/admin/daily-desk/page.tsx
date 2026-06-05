@@ -20,7 +20,7 @@ import { PageHeader } from '@/components/enterprise/page-header';
 import { GlassCard } from '@/components/enterprise/glass-card';
 import { PageSkeleton } from '@/components/enterprise/page-skeleton';
 import { AlertTriangle, UserPlus, Radio, Share2, Download, CheckCircle2 } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn, isTeacherActive } from '@/lib/utils';
 
 export default function DailyDeskPage() {
   useRequireAuth('admin');
@@ -512,11 +512,14 @@ export default function DailyDeskPage() {
                     className='w-full text-xs p-2 rounded-xl bg-background border border-border/60 focus:outline-none focus:border-indigo-500 transition-colors'
                   >
                     <option value=''>Select Teacher</option>
-                    {teachers.map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {t.name}
-                      </option>
-                    ))}
+                    {(() => {
+                      const activeTeachers = teachers.filter((t) => isTeacherActive(t.active));
+                      return activeTeachers.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.name}
+                        </option>
+                      ));
+                    })()}
                   </select>
                 </div>
                 <div>
@@ -527,11 +530,14 @@ export default function DailyDeskPage() {
                     className='w-full text-xs p-2 rounded-xl bg-background border border-border/60 focus:outline-none focus:border-indigo-500 transition-colors'
                   >
                     <option value=''>Select Replacement</option>
-                    {teachers.map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {t.name}
-                      </option>
-                    ))}
+                    {(() => {
+                      const activeTeachers = teachers.filter((t) => isTeacherActive(t.active));
+                      return activeTeachers.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.name}
+                        </option>
+                      ));
+                    })()}
                   </select>
                 </div>
                 <div>

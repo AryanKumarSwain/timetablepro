@@ -434,7 +434,7 @@ export type TimetableDetail = TimetableSummary & {
   periods: Period[];
   classes: { id: string; name: string; grade: string; section: string; roomNumber: string }[];
   subjects: { id: string; name: string; code: string; color: string }[];
-  teachers: { id: string; name: string; email: string }[];
+  teachers: { id: string; name: string; email: string; active: boolean }[];
   slots: {
     id: string;
     dayOfWeek: number;

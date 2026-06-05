@@ -7,10 +7,11 @@ import { getTeachers, getDailyDeskGrid, markAttendance, type DailyDeskGrid } fro
 import type { Teacher } from '@/lib/types';
 import { GlassCard } from '@/components/enterprise/glass-card';
 import { Button } from '@/components/ui/button';
-import { Calendar, CheckCircle, AlertCircle, Save, RefreshCw, UserCheck } from 'lucide-react';
+import { Calendar, RefreshCw, UserCheck } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
 
-export default function TeacherAttendancePage() {
+export default function AdminAttendancePage() {
   useRequireAuth('admin');
   const router = useRouter();
 
@@ -24,9 +25,9 @@ export default function TeacherAttendancePage() {
   const [savingState, setSavingState] = useState<Record<string, boolean>>({});
 
   // Core Data Loader
-  const loadAttendanceMatrix = useCallback(async () => {
+  const loadAttendanceMatrix = useCallback(async (showSilence = false) => {
     try {
-      setLoading(true);
+      if (!showSilence) setLoading(true);
       const [teachersList, deskGrid] = await Promise.all([
         getTeachers(),
         getDailyDeskGrid(selectedDate),
@@ -35,27 +36,17 @@ export default function TeacherAttendancePage() {
       setGridData(deskGrid);
     } catch (error) {
       console.error('Failed to pull localized teacher timeline matrix:', error);
+      toast.error('Failed to sync data registry maps.');
     } finally {
       setLoading(false);
     }
   }, [selectedDate]);
 
   useEffect(() => {
-    void loadAttendanceMatrix();
+    void loadAttendanceMatrix(false);
   }, [loadAttendanceMatrix]);
 
-  // Helper function to check if a teacher is absent for a given period from the grid data
-  const isPeriodAbsent = (teacherId: string, periodId: string): boolean => {
-    if (!gridData) return false;
-    const periodRow = gridData.grid.find((row) => row.periodId === periodId);
-    if (!periodRow) return false;
-    
-    // Find any cell where this teacher teaches during this period and is marked absent
-    const cell = periodRow.cells.find((c) => c.teacherId === teacherId);
-    return cell ? cell.isAbsent : false;
-  };
-
-  // Helper function to check if a teacher is absent for ALL assigned periods (Full Day)
+  // Check if a teacher is absent for ALL assigned periods (Full Day)
   const isFullDayAbsent = (teacherId: string): boolean => {
     if (!gridData) return false;
     
@@ -73,19 +64,23 @@ export default function TeacherAttendancePage() {
     return totalAssignedPeriods > 0 && totalAssignedPeriods === absentPeriodsCount;
   };
 
-  // Dispatch attendance changes to backend API service
+  // Fixed: Handle individual checkbox toggles cleanly without event bubbling
   const handleAttendanceToggle = async (
+    e: React.ChangeEvent<HTMLInputElement>,
     teacherId: string,
     periodId: string,
     currentAbsentStatus: boolean
   ) => {
+    // Stop layout propagation instantly to prevent flashing and double-toggles
+    e.stopPropagation();
+    
     if (!gridData) return;
     const key = `${teacherId}-${periodId}`;
+    if (savingState[key]) return; // prevent double clicks
     
     try {
       setSavingState((prev) => ({ ...prev, [key]: true }));
       
-      // Locate the targeted cell instance to get the context classId
       const periodRow = gridData.grid.find((row) => row.periodId === periodId);
       const cell = periodRow?.cells.find((c) => c.teacherId === teacherId && !c.empty);
 
@@ -94,14 +89,14 @@ export default function TeacherAttendancePage() {
         return;
       }
 
-      // Flip the current status: if currently absent, mark present (false), and vice versa
+      // Explicitly pass down the inverted target boolean status value 
       await markAttendance(cell.classId, periodId, teacherId, selectedDate, !currentAbsentStatus);
       
-      // Refresh local view data and synchronize global Next.js cache state
-      await loadAttendanceMatrix();
-      router.refresh();
+      // Silently reload data backend matrices without full-page white flashes
+      await loadAttendanceMatrix(true);
     } catch (err) {
       console.error('Error changing local execution marker parameter:', err);
+      toast.error('Failed processing singular period state amendment.');
     } finally {
       setSavingState((prev) => ({ ...prev, [key]: false }));
     }
@@ -114,14 +109,11 @@ export default function TeacherAttendancePage() {
 
     try {
       setSavingState((prev) => ({ ...prev, [key]: true }));
-
-      // Find all active class sessions this teacher owns throughout the selected day
       const promises: Promise<any>[] = [];
       
       gridData.grid.forEach((row) => {
         const cell = row.cells.find((c) => c.teacherId === teacherId && !c.empty);
         if (cell) {
-          // Fire updates in parallel for each assigned slot
           promises.push(
             markAttendance(cell.classId, row.periodId, teacherId, selectedDate, markAsAbsent)
           );
@@ -129,13 +121,12 @@ export default function TeacherAttendancePage() {
       });
 
       if (promises.length === 0) {
-        window.alert('This teacher has no active periods assigned in the baseline timetable today.');
+        toast.error('This teacher has no active periods assigned today.');
         return;
       }
 
       await Promise.all(promises);
-      await loadAttendanceMatrix();
-      router.refresh();
+      await loadAttendanceMatrix(true);
     } catch (err) {
       console.error('Failed executing full day operations modification matrix:', err);
     } finally {
@@ -172,7 +163,7 @@ export default function TeacherAttendancePage() {
           <Button
             size="sm"
             variant="outline"
-            onClick={() => void loadAttendanceMatrix()}
+            onClick={() => void loadAttendanceMatrix(false)}
             className="rounded-xl border-border/80 h-9 text-xs font-bold"
           >
             <RefreshCw className={cn("h-3.5 w-3.5 mr-1.5", loading && "animate-spin")} />
@@ -223,7 +214,7 @@ export default function TeacherAttendancePage() {
                       )}
                     >
                       {/* Name Column */}
-                      <td className="p-4 font-bold sticky left-0 bg-background/95 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] border-r border-border/30">
+                      <td className="p-4 font-bold sticky left-0 bg-background/95 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] border-r border-r-border/30">
                         <div className="truncate">{teacher.name}</div>
                         <div className="text-[10px] text-muted-foreground font-normal truncate mt-0.5">
                           {teacher.email || 'No registry email'}
@@ -251,7 +242,6 @@ export default function TeacherAttendancePage() {
                         const periodRow = gridData.grid.find((row) => row.periodId === period.id);
                         const cell = periodRow?.cells.find((c) => c.teacherId === teacher.id && !c.empty);
                         
-                        // If teacher doesn't have a class session during this period, block interaction safely
                         if (!cell) {
                           return (
                             <td key={period.id} className="p-3 text-center border-l border-border/30 text-muted-foreground/20 bg-muted/5 select-none">
@@ -271,20 +261,20 @@ export default function TeacherAttendancePage() {
                               isAbsent ? "bg-rose-500/[0.03]" : "bg-emerald-500/[0.01]"
                             )}
                           >
-                            <label className="flex flex-col items-center justify-center cursor-pointer gap-1.5 group select-none">
+                            <div className="flex flex-col items-center justify-center gap-1.5 select-none">
                               <input
                                 type="checkbox"
                                 checked={isAbsent}
                                 disabled={isSaving || isFullDaySaving}
-                                onChange={() => void handleAttendanceToggle(teacher.id, period.id, isAbsent)}
+                                onChange={(e) => void handleAttendanceToggle(e, teacher.id, period.id, isAbsent)}
                                 className="w-4 h-4 rounded border-border/80 text-indigo-600 focus:ring-indigo-500 accent-indigo-600 cursor-pointer disabled:opacity-40"
                               />
                               <span 
                                 className={cn(
-                                  "text-[9px] font-bold tracking-wide uppercase transition-colors px-1 rounded",
+                                  "text-[9px] font-bold tracking-wide uppercase px-1 rounded transition-colors",
                                   isAbsent 
                                     ? "text-rose-600 bg-rose-500/10" 
-                                    : "text-emerald-600 dark:text-emerald-500 bg-emerald-500/10 group-hover:text-rose-500"
+                                    : "text-emerald-600 dark:text-emerald-500 bg-emerald-500/10"
                                 )}
                               >
                                 {isSaving ? '...' : isAbsent ? 'Absent' : 'Present'}
@@ -292,7 +282,7 @@ export default function TeacherAttendancePage() {
                               <span className="text-[8px] text-muted-foreground font-medium max-w-[100px] truncate block opacity-70">
                                 {cell.className} · {cell.subjectName}
                               </span>
-                            </label>
+                            </div>
                           </td>
                         );
                       })}

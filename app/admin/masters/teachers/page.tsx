@@ -68,13 +68,23 @@ export default function TeachersPage() {
     try {
       if (editingId) {
         await updateTeacher(editingId, formData);
+        console.log(`[Status Sync] Updated master settings profile layout for: ${formData.name}`);
       } else {
         await createTeacher(formData);
+        
+        // --- SMTP Dispatch Simulation Hook ---
+        // Note: Replace this placeholder block with your global API nodemailer microservice
+        console.log('---------------------------------------------------------');
+        console.log(`[SMTP Dispatch Simulation Check]`);
+        console.log(`TO: ${formData.email}`);
+        console.log(`SUBJECT: Welcome to the Portal, ${formData.name}!`);
+        console.log(`BODY: Account registration successful. Status configured: ACTIVE.`);
+        console.log('---------------------------------------------------------');
       }
       await loadTeachers();
       resetForm();
     } catch (error) {
-      console.error('Failed to save teacher:', error);
+      console.error('Failed to save teacher record setup:', error);
     }
   };
 
@@ -83,9 +93,7 @@ export default function TeachersPage() {
       name: teacher.name ?? '',
       email: teacher.email ?? '',
       phone: teacher.phone ?? '',
-      qualifications: Array.isArray(teacher.qualifications)
-        ? teacher.qualifications
-        : [],
+      qualifications: Array.isArray(teacher.qualifications) ? teacher.qualifications : [],
       subjects: Array.isArray(teacher.subjects) ? teacher.subjects : [],
       active: teacher.active ?? true,
       joinDate: teacher.joinDate ?? new Date().toISOString().split('T')[0],
@@ -208,14 +216,30 @@ export default function TeachersPage() {
                   required
                 />
               </div>
+              
+              {/* Added Interactive Status Switch/Checkbox Field Element */}
+              <div className='flex items-center space-x-3 pt-4 md:col-span-2'>
+                <input
+                  type='checkbox'
+                  id='active'
+                  checked={formData.active}
+                  onChange={(e) =>
+                    setFormData({ ...formData, active: e.target.checked })
+                  }
+                  className='h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500'
+                />
+                <label htmlFor='active' className='text-sm font-medium text-foreground select-none'>
+                  Teacher is Active (Unchecking hides records from assignment dropdown layouts)
+                </label>
+              </div>
             </div>
 
-            <div className='flex gap-2'>
+            <div className='flex gap-2 pt-2'>
               <Button
                 type='submit'
                 className='bg-primary hover:bg-primary/90'
               >
-                {editingId ? 'Update' : 'Create'}
+                {editingId ? 'Update Profile' : 'Create Profile'}
               </Button>
               <Button
                 type='button'

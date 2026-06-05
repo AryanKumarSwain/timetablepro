@@ -1,151 +1,253 @@
-'use client';
+"use client";
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRequireAuth } from '@/lib/auth-context';
 import {
-  getTodayScheduleForTeacher,
-  getTeacherReport,
-  updateTeacherReport,
+  getDraftReportToday,
+  getReportClassesToday,
+  submitReport,
   type DailyReportData,
 } from '@/lib/api-services';
 import { PageHeader } from '@/components/enterprise/page-header';
 import { PageSkeleton } from '@/components/enterprise/page-skeleton';
 import { GlassCard } from '@/components/enterprise/glass-card';
-import { ReportEntryCard } from '@/components/reports/report-entry-card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { cn } from '@/lib/utils';
-import { CheckCircle2 } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from '@/components/ui/checkbox';
 
-export default function TeacherReportTodayPage() {
+// Helper to separate text from comma-separated items
+function splitDescription(desc = '') {
+  const marker = '\n\nTLM:';
+  const idx = desc.indexOf(marker);
+  if (idx === -1) {
+    return { description: desc, tlm: '' };
+  }
+  return {
+    description: desc.slice(0, idx),
+    tlm: desc.slice(idx + marker.length).trim(),
+  };
+}
+
+// Tag/Pill Input UI Component matching layout requirements
+interface TagInputProps {
+  tags: string[];
+  onChange: (tags: string[]) => void;
+  readOnly?: boolean;
+  placeholder?: string;
+}
+
+function TagInput({ tags = [], onChange, readOnly, placeholder = "Add item..." }: TagInputProps) {
+  const [input, setInput] = useState('');
+
+  const addTag = () => {
+    const trimmed = input.trim().replace(/,+/g, '');
+    if (trimmed && !tags.includes(trimmed)) {
+      onChange([...tags, trimmed]);
+      setInput('');
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault();
+      addTag();
+    }
+  };
+
+  const removeTag = (indexToRemove: number) => {
+    onChange(tags.filter((_, i) => i !== indexToRemove));
+  };
+
+  return (
+    <div className="flex flex-wrap gap-1.5 p-2 border rounded-xl bg-background/50 min-h-[95px] content-start items-center focus-within:ring-1 focus-within:ring-ring">
+      {(tags || []).map((tag, i) => (
+        <span
+          key={i}
+          className="inline-flex items-center gap-1.5 bg-[#f3f4f6] text-[#374151] text-xs font-medium px-2 py-1 rounded-md border border-gray-200"
+        >
+          {tag}
+          {!readOnly && (
+            <button
+              type="button"
+              onClick={() => removeTag(i)}
+              className="text-gray-400 hover:text-gray-600 font-bold text-[9px] w-3.5 h-3.5 flex items-center justify-center rounded-full bg-gray-200/40"
+            >
+              ✕
+            </button>
+          )}
+        </span>
+      ))}
+      {!readOnly && (
+        <input
+          type="text"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={handleKeyDown}
+          onBlur={addTag}
+          placeholder={tags.length === 0 ? placeholder : ""}
+          className="flex-1 bg-transparent border-0 outline-none p-0 text-xs min-w-[60px] focus:ring-0 focus:outline-none text-foreground"
+        />
+      )}
+    </div>
+  );
+}
+
+export default function TeacherReportsPage() {
   const auth = useRequireAuth('teacher');
-  const [report, setReport] = useState<DailyReportData | null>(null);
-  const [scheduleSlots, setScheduleSlots] = useState<DailyReportData['scheduleSlots']>([]);
   const [loading, setLoading] = useState(true);
+  const [report, setReport] = useState<DailyReportData | null>(null);
+  const [rows, setRows] = useState<Array<{
+    entryId?: string;
+    classId: string;
+    className: string;
+    subjectId: string;
+    subjectName: string;
+    description: string;
+    tlm: string[];
+    periodNumber: string | number;
+    startTime: string;
+    endTime: string;
+    isCompleted: boolean;
+  }>>([]);
   const [submitting, setSubmitting] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
-  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [validationError, setValidationError] = useState<string | null>(null);
+  const [submitSuccess, setSubmitSuccess] = useState<string | null>(null);
+  const [attemptedSubmit, setAttemptedSubmit] = useState(false);
+  const [loadMessage, setLoadMessage] = useState<string | null>(null);
 
-  const todayLabel = new Date().toLocaleDateString('en-US', {
-    weekday: 'long',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  });
+  useEffect(() => {
+    if (!auth.loading && auth.user) {
+      void load();
+    }
+  }, [auth.loading, auth.user]);
 
-  const load = useCallback(async () => {
+  const load = async () => {
     try {
       setLoading(true);
+      setLoadMessage(null);
+      setAttemptedSubmit(false);
 
-      // Send today's formatted local ISO date instead of literal string fallback
-      const localISODate = new Date().toISOString().split('T')[0];
-      const data = await getTeacherReport(localISODate).catch(() => getTeacherReport('today'));
+      const classData = await getReportClassesToday();
+      const slots = classData.scheduleSlots ?? [];
 
-      setReport(data);
-      setSubmitted(data?.status === 'SUBMITTED');
+      let existingReport: DailyReportData | null = null;
+      try {
+        existingReport = await getDraftReportToday();
+      } catch (error) {
+        console.warn('Draft report record not found.', error);
+      }
 
-      if (data?.scheduleSlots && data.scheduleSlots.length > 0) {
-        // Sort sequentially here
-        const sortedSlots = [...data.scheduleSlots].sort((a, b) => Number(a.periodNumber) - Number(b.periodNumber));
-        setScheduleSlots(sortedSlots);
-      } else if (auth.user?.teacherId) {
-        const fallback = await getTodayScheduleForTeacher(auth.user.teacherId);
-        const sortedFallback = fallback
-          .map((slot) => ({
-            periodId: slot.periodId,
-            periodNumber: slot.periodNumber,
-            startTime: slot.startTime,
-            endTime: slot.endTime,
-            classId: slot.classId,
-            className: slot.className,
-            subjectId: slot.subjectId,
-            subjectName: slot.subjectName,
-          }))
-          .sort((a, b) => Number(a.periodNumber) - Number(b.periodNumber)); // Added sequential sorting layer
+      const savedEntries = existingReport?.entries ?? [];
 
-        setScheduleSlots(sortedFallback);
+      const integratedRows = slots.map((slot) => {
+        const matchingEntry = savedEntries.find(
+          (e) => String(e.classId) === String(slot.classId) &&
+            String(e.subjectId) === String(slot.subjectId)
+        );
+
+        const { description, tlm } = splitDescription(matchingEntry?.description ?? '');
+
+        return {
+          entryId: matchingEntry?.id,
+          classId: slot.classId,
+          className: slot.className || 'N/A',
+          subjectId: slot.subjectId,
+          subjectName: slot.subjectName || 'N/A',
+          periodNumber: slot.periodNumber ?? 'N/A',
+          startTime: slot.startTime ?? '',
+          endTime: slot.endTime ?? '',
+          description,
+          tlm: tlm ? tlm.split(',').map(t => t.trim()).filter(Boolean) : [],
+          isCompleted: matchingEntry?.isCompleted ?? false,
+        };
+      }).sort((a, b) => String(a.periodNumber).localeCompare(String(b.periodNumber), undefined, { numeric: true }));
+
+      setReport(existingReport);
+      setRows(integratedRows);
+
+      if (slots.length === 0) {
+        setLoadMessage('No scheduled classes were found for today. Please verify your published timetable layout.');
       }
     } catch (e) {
       console.error(e);
+      setLoadMessage('Unable to load today\'s scheduled classes. Please refresh or contact support.');
     } finally {
       setLoading(false);
     }
-  }, [auth.user?.teacherId]);
-
-  useEffect(() => {
-    if (!auth.loading) {
-      void load();
-    }
-  }, [load, auth.loading]);
-
-  const getEntryForSlot = (classId: string, subjectId: string) => {
-    if (!report?.entries) return null;
-    return report.entries.find((e) => e.classId === classId && e.subjectId === subjectId);
   };
 
-  const persistEntries = useCallback(
-    (entries: DailyReportData['entries']) => {
-      if (!report || report.status === 'SUBMITTED') return;
-      if (saveTimer.current) clearTimeout(saveTimer.current);
-      saveTimer.current = setTimeout(() => {
-        void updateTeacherReport(report.id, {
-          entries: entries.map((e) => ({
-            id: e.id,
-            description: e.description || '',
-            isCompleted: !!e.isCompleted,
-          })),
-        }).catch(console.error);
-      }, 1000);
-    },
-    [report]
-  );
+  const readOnly = useMemo(() => report?.status === 'SUBMITTED', [report]);
 
-  const updateEntry = (
-    slotClassId: string,
-    slotSubjectId: string,
-    patch: { description?: string; isCompleted?: boolean }
-  ) => {
-    if (!report || report.status === 'SUBMITTED') return;
-
-    const existingEntries = report.entries ? [...report.entries] : [];
-    const entryIndex = existingEntries.findIndex(
-      (e) => e.classId === slotClassId && e.subjectId === slotSubjectId
-    );
-
-    if (entryIndex !== -1) {
-      existingEntries[entryIndex] = { ...existingEntries[entryIndex], ...patch };
-    } else {
-      // Self-healing fallback layer to generate missing elements cleanly
-      existingEntries.push({
-        id: `temp-${Date.now()}`,
-        classId: slotClassId,
-        subjectId: slotSubjectId,
-        description: patch.description ?? '',
-        isCompleted: patch.isCompleted ?? false,
-      });
-    }
-
-    const nextReport = { ...report, entries: existingEntries };
-    setReport(nextReport);
-    persistEntries(existingEntries);
+  const updateRow = (idx: number, patch: Partial<{ description: string; tlm: string[]; isCompleted: boolean }>) => {
+    setRows((prev) => {
+      const next = [...prev];
+      next[idx] = { ...next[idx], ...patch };
+      return next;
+    });
+    setValidationError(null);
+    setSubmitSuccess(null);
   };
 
   const handleSubmit = async () => {
-    if (!report) return;
+    if (rows.length === 0) return;
+    setSubmitSuccess(null);
+
+    // 1. MANDATORY DESCRIPTION VALIDATION: Ensure every row has text in descriptions
+    const missingDescriptions = rows.filter(r => !r.description || !r.description.trim());
+    if (missingDescriptions.length > 0) {
+      setValidationError("Please fill out 'What did you cover today?' for all listed periods before submitting.");
+      setAttemptedSubmit(true);
+      return;
+    }
+
+    // 2. CHECKBOX VALIDATION: Verify lesson completions
+    const missingConfirmations = rows.filter(r => !r.isCompleted);
+    if (missingConfirmations.length > 0) {
+      setValidationError("Please check 'Lesson completed' for all listed periods before submitting your report.");
+      setAttemptedSubmit(true);
+      return;
+    }
+
+    setValidationError(null);
     setSubmitting(true);
     try {
-      const updated = await updateTeacherReport(report.id, {
-        status: 'SUBMITTED',
-        entries: (report.entries || []).map((e) => ({
-          id: e.id,
-          description: e.description || '',
-          isCompleted: !!e.isCompleted,
-        })),
+      const entriesPayload = rows.map((r) => {
+        // TLM is optional: if empty, it falls back to blank string notation safely
+        const tlmString = (r.tlm || []).join(', ');
+        return {
+          id: r.entryId,
+          classId: r.classId,
+          className: r.className,
+          subjectId: r.subjectId,
+          subjectName: r.subjectName,
+          periodNumber: Number(r.periodNumber) || r.periodNumber,
+          startTime: r.startTime,
+          endTime: r.endTime,
+          description: `${r.description.trim()}${tlmString ? `\n\nTLM: ${tlmString}` : ''}`,
+          isCompleted: r.isCompleted,
+        };
       });
-      setReport(updated);
-      setSubmitted(true);
+
+      // 🔥 EXPLICIT DATE STRING INSTEAD OF "today" VALUE
+      // This prevents runtime offset shifts from saving the report to June 4th
+      const todayObj = new Date();
+      const yyyy = todayObj.getFullYear();
+      const mm = String(todayObj.getMonth() + 1).padStart(2, '0'); // Months are 0-indexed
+      const dd = String(todayObj.getDate()).padStart(2, '0');
+
+      const explicitLocalDate = `${yyyy}-${mm}-${dd}`;
+      await submitReport({
+        reportId: report?.id,
+        date: explicitLocalDate,
+        status: 'SUBMITTED',
+        entries: entriesPayload,
+      });
+
+      setSubmitSuccess("Report submitted successfully!");
+      void load();
     } catch (e) {
       console.error(e);
+      setValidationError("Failed to submit the report. Please try again.");
     } finally {
       setSubmitting(false);
     }
@@ -153,79 +255,111 @@ export default function TeacherReportTodayPage() {
 
   if (loading) {
     return (
-      <div className='max-w-3xl mx-auto'>
-        <PageSkeleton rows={3} />
+      <div className='max-w-4xl mx-auto px-4 mt-6'>
+        <PageSkeleton rows={4} />
       </div>
     );
   }
 
-  const readOnly = report?.status === 'SUBMITTED';
-
   return (
-    <div className='max-w-3xl mx-auto'>
-      <PageHeader
-        title="Today's Report"
-        description={todayLabel}
-        breadcrumbs={[
-          { label: 'Teacher', href: '/teacher/weekly-schedule' },
-          { label: "Today's Report" },
-        ]}
-      />
+    <div className='max-w-5xl mx-auto px-6 py-6 space-y-6'>
+      <PageHeader title="Today's Report" description="Friday, June 5, 2026" />
 
-      {readOnly && (
-        <div className={cn(
-          'mb-6 flex items-center gap-2 rounded-xl border border-emerald-500/30',
-          'bg-emerald-500/10 px-4 py-3 text-emerald-700 dark:text-emerald-400'
-        )}>
-          <CheckCircle2 className='h-5 w-5' />
-          <span className='font-medium'>Report submitted</span>
-          <Badge variant='outline' className='ml-auto border-emerald-500/30'>SUBMITTED</Badge>
+      {/* Interactive Form Guard Alert Element */}
+      {validationError && (
+        <div className="p-4 text-sm font-semibold text-red-600 bg-red-50 border border-red-200 rounded-xl animate-in fade-in duration-200">
+          ⚠️ {validationError}
         </div>
       )}
 
-      {scheduleSlots.length === 0 ? (
-        <GlassCard className='p-12 text-center'>
-          <p className='text-muted-foreground'>No classes scheduled for today</p>
+      {/* Success Alert Banner Element */}
+      {submitSuccess && (
+        <div className="p-4 text-sm font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 rounded-xl animate-in fade-in duration-200">
+          ✓ {submitSuccess}
+        </div>
+      )}
+
+      {rows.length === 0 ? (
+        <GlassCard className='p-12 text-center text-muted-foreground'>
+          {loadMessage ?? 'No scheduled classes for today.'}
         </GlassCard>
       ) : (
-        <div className='space-y-4'>
-          {scheduleSlots.map((slot, index) => {
-            const entry = getEntryForSlot(slot.classId, slot.subjectId);
-            return (
-              <ReportEntryCard
-                key={`${slot.periodId}-${slot.classId}-${index}`}
-                periodLabel={`Period ${slot.periodNumber}`}
-                timeRange={`${slot.startTime}–${slot.endTime}`}
-                className={slot.className}
-                subjectName={slot.subjectName}
-                description={entry?.description ?? ''}
-                isCompleted={entry?.isCompleted ?? false}
-                readOnly={readOnly}
-                onDescriptionChange={(v) => updateEntry(slot.classId, slot.subjectId, { description: v })}
-                onCompletedChange={(v) => updateEntry(slot.classId, slot.subjectId, { isCompleted: v })}
-              />
-            );
-          })}
-        </div>
-      )}
+        <div className='space-y-5'>
+          {rows.map((r, i) => (
+            <GlassCard key={`${r.classId}-${r.subjectId}-${i}`} className='p-5 shadow-sm border border-muted/60'>
 
-      {!readOnly && scheduleSlots.length > 0 && (
-        <div className='mt-8 flex justify-end'>
-          <Button
-            size='lg'
-            className='rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600'
-            disabled={submitting}
-            onClick={() => void handleSubmit()}
-          >
-            {submitting ? 'Submitting…' : 'Submit Report'}
-          </Button>
-        </div>
-      )}
+              {/* Dynamic Badge Row Info Section */}
+              <div className='flex flex-wrap items-center gap-2 mb-4 text-sm font-semibold text-foreground'>
+                <span>
+                  Period {r.periodNumber}
+                  {r.startTime && r.endTime ? ` · ${r.startTime}–${r.endTime}` : ''}
+                </span>
+                <span className='px-2 py-0.5 text-xs bg-secondary text-secondary-foreground border rounded-md font-medium ml-1'>
+                  {r.className}
+                </span>
+                <span className='px-2.5 py-0.5 text-xs bg-[#008080] text-white rounded-full font-medium ml-0.5'>
+                  {r.subjectName}
+                </span>
+              </div>
 
-      {submitted && (
-        <p className='text-sm text-emerald-600 mt-4 text-center'>
-          Report submitted successfully!
-        </p>
+              {/* Input Workspace Interface Layout */}
+              <div className='grid grid-cols-1 md:grid-cols-3 gap-4 items-start'>
+
+                <div className='md:col-span-2 space-y-1.5'>
+                  <label className='text-xs font-semibold text-muted-foreground'>
+                    What did you cover today? <span className="text-red-500">*</span>
+                  </label>
+                  <Textarea
+                    value={r.description}
+                    onChange={(e) => updateRow(i, { description: e.target.value })}
+                    readOnly={readOnly}
+                    placeholder="Enter what you covered in class (Required)"
+                    className='min-h-[95px] resize-none focus-visible:ring-1'
+                  />
+                </div>
+
+                <div className='md:col-span-1 space-y-1.5'>
+                  <label className='text-xs font-semibold text-muted-foreground'>
+                    TLM Materials Used <span className="text-xs font-normal text-muted-foreground/70">(Optional)</span>
+                  </label>
+                  <TagInput
+                    tags={r.tlm || []}
+                    onChange={(tags) => updateRow(i, { tlm: tags })}
+                    readOnly={readOnly}
+                    placeholder="Type item & press Enter"
+                  />
+                </div>
+              </div>
+
+              {/* Lesson Completion Checkbox Wrapper */}
+              <div className='flex items-center gap-2 mt-4 pt-1 border-t border-muted/40'>
+                <Checkbox
+                  id={`comp-${i}`}
+                  checked={r.isCompleted}
+                  onCheckedChange={(checked) => updateRow(i, { isCompleted: !!checked })}
+                  disabled={readOnly}
+                />
+                <label htmlFor={`comp-${i}`} className='text-sm font-medium selection:bg-transparent cursor-pointer text-muted-foreground select-none'>
+                  Lesson completed
+                </label>
+              </div>
+
+            </GlassCard>
+          ))}
+
+          {!readOnly && (
+            <div className='flex justify-end pt-2'>
+              <Button
+                size='lg'
+                onClick={() => void handleSubmit()}
+                disabled={submitting}
+                className='rounded-xl px-10 bg-[#6366f1] hover:bg-[#4f46e5] text-white font-medium shadow-sm'
+              >
+                {submitting ? 'Submitting…' : 'Submit Report'}
+              </Button>
+            </div>
+          )}
+        </div>
       )}
     </div>
   );

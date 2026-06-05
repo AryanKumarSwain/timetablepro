@@ -13,40 +13,12 @@ export const CSV_IMPORT_CONFIGS: Record<CsvImportEntity, CsvImportConfig> = {
   teachers: {
     entity: 'teachers',
     title: 'Import Teachers',
-    description:
-      'Upload a CSV with faculty details. Subject code must match an existing subject (import subjects first).',
-    headers: [
-      'name',
-      'email',
-      'phone',
-      'joinDate',
-      'maxPeriodsPerWeek',
-      'subjectCode',
-      'active',
-      'qualifications',
-    ],
-    requiredFields: ['name', 'email', 'phone'],
+    description: 'Upload a CSV with faculty details.',
+    headers: ['name', 'email', 'phone', 'joinDate'],
+    requiredFields: ['name', 'email', 'phone'], // joinDate is optional
     sampleRows: [
-      [
-        'Jane Smith',
-        'jane.smith@school.edu',
-        '+1-555-0101',
-        '2024-08-01',
-        '24',
-        'MAT101',
-        'true',
-        'B.Ed;M.Sc Mathematics',
-      ],
-      [
-        'John Doe',
-        'john.doe@school.edu',
-        '+1-555-0102',
-        '2024-08-01',
-        '22',
-        'PHY101',
-        'true',
-        'Ph.D Physics',
-      ],
+      ['Jane Smith', 'jane.smith@school.edu', '+1-555-0101', '2024-08-01'],
+      ['John Doe', 'john.doe@school.edu', '+1-555-0102', ''],
     ],
   },
   subjects: {
@@ -64,14 +36,13 @@ export const CSV_IMPORT_CONFIGS: Record<CsvImportEntity, CsvImportConfig> = {
   classes: {
     entity: 'classes',
     title: 'Import Classes',
-    description:
-      'Upload a CSV with class sections. Grade is the numeric level (e.g. 10).',
-    headers: ['name', 'grade', 'section', 'roomNumber'],
-    requiredFields: ['name', 'grade', 'section'],
+    description: 'Upload a CSV with class segments.',
+    headers: ['name', 'section', 'roomNumber'],
+    requiredFields: ['name', 'section'], // roomNumber is optional
     sampleRows: [
-      ['Class 10-A', '10', 'A', '101'],
-      ['Class 10-B', '10', 'B', '102'],
-      ['Class 9-A', '9', 'A', '201'],
+      ['Class 10-A', 'A', '101'],
+      ['Class 10-B', 'B', '102'],
+      ['Class 9-A', 'A', ''],
     ],
   },
 };

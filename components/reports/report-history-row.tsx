@@ -17,6 +17,10 @@ export function ReportHistoryRow({
   expanded,
   onToggle,
 }: ReportHistoryRowProps) {
+  // 🔥 FIX: Extract the YYYY-MM-DD substring directly.
+  // This prevents the browser from shifting the day backwards due to local timezone offsets.
+  const displayDate = report.reportDate ? report.reportDate.split('T')[0] : '';
+
   return (
     <GlassCard className='overflow-hidden'>
       <button
@@ -24,7 +28,8 @@ export function ReportHistoryRow({
         onClick={onToggle}
         className='w-full flex items-center gap-4 p-4 text-left hover:bg-muted/30 transition-colors'
       >
-        <span className='font-medium flex-1'>{report.reportDate}</span>
+        {/* Render the safe formatted date string instead of the raw date object */}
+        <span className='font-medium flex-1'>{displayDate}</span>
         <Badge
           variant='outline'
           className={cn(

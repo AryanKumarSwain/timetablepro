@@ -42,20 +42,34 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
+
     if (Array.isArray(body.entries)) {
       for (const entry of body.entries) {
-        if (!entry.id) continue;
-        await prisma.reportEntry.updateMany({
-          where: { id: String(entry.id), reportId: id },
-          data: {
-            ...(typeof entry.description === 'string'
-              ? { description: entry.description }
-              : {}),
-            ...(typeof entry.isCompleted === 'boolean'
-              ? { isCompleted: entry.isCompleted }
-              : {}),
-          },
-        });
+        if (entry.id) {
+          // Update existing entry if it already has an ID
+          await prisma.reportEntry.updateMany({
+            where: { id: String(entry.id), reportId: id },
+            data: {
+              ...(typeof entry.description === 'string'
+                ? { description: entry.description }
+                : {}),
+              ...(typeof entry.isCompleted === 'boolean'
+                ? { isCompleted: entry.isCompleted }
+                : {}),
+            },
+          });
+        } else {
+          // FIX: If the entry doesn't have an ID yet, CREATE it!
+          await prisma.reportEntry.create({
+            data: {
+              reportId: id,
+              classId: entry.classId,
+              subjectId: entry.subjectId,
+              description: entry.description || '',
+              isCompleted: entry.isCompleted ?? false,
+            },
+          });
+        }
       }
     }
 

@@ -102,6 +102,7 @@ export async function GET(_request: NextRequest, context: RouteContext) {
         id: t.id,
         name: t.name,
         email: t.email,
+        active: t.active,
       })),
       slots: timetable.slots.map((s) => ({
         id: s.id,

@@ -7,14 +7,15 @@ import {
   CalendarDays,
   ClipboardList,
   BarChart3,
-  Building2,
-  CreditCard,
   School,
-  UserCircle,
-  CalendarRange,
+  CreditCard,
   FileText,
   History,
+  UserCircle,
+  CalendarRange,
   Table2,
+  UserCheck,
+  Settings, // Imported for your Settings tab
 } from 'lucide-react';
 
 export type AppRole = 'super-admin' | 'admin' | 'teacher';
@@ -40,7 +41,9 @@ export const ADMIN_NAV: NavItem[] = [
   { label: 'Subjects', href: '/admin/masters/subjects', icon: BookOpen },
   { label: 'Timetables', href: '/admin/timetables', icon: Table2 },
   { label: 'Daily Desk', href: '/admin/daily-desk', icon: ClipboardList },
+  { label: 'Attendance', href: '/admin/attendance', icon: UserCheck }, // Added Attendance tab
   { label: 'Reports', href: '/admin/reports', icon: FileText },
+  { label: 'Settings', href: '/admin/settings', icon: Settings }, // Added Admin Settings
 ];
 
 export const TEACHER_NAV: NavItem[] = [
@@ -49,6 +52,7 @@ export const TEACHER_NAV: NavItem[] = [
   { label: "Today's Report", href: '/teacher/report/today', icon: FileText },
   { label: 'Report History', href: '/teacher/report/history', icon: History },
   { label: 'Profile', href: '/teacher/schedule', icon: UserCircle },
+  { label: 'Settings', href: '/teacher/settings', icon: Settings }, // Added Teacher Settings
 ];
 
 export function getNavForRole(role: AppRole): NavItem[] {

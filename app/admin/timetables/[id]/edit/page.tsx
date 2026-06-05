@@ -18,7 +18,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ArrowLeft, Filter } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn, isTeacherActive } from '@/lib/utils';
 import {
   TimetableGrid,
   SlotEditorSheet,
@@ -214,7 +214,7 @@ export default function TimetableEditPage() {
         )
         .map((slot) => slot.teacherId)
     );
-    return detail.teachers.filter((teacher) => !busyTeacherIds.has(teacher.id));
+    return detail.teachers.filter((teacher) => !busyTeacherIds.has(teacher.id) && isTeacherActive(teacher.active));
   }, [detail, editCell]);
 
   const openEditor = (dayOfWeek: number, periodId: string, slot?: TimetableDetail['slots'][number]) => {
