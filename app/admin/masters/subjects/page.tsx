@@ -12,6 +12,16 @@ import { Subject } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { PageHeader } from '@/components/enterprise/page-header';
+import {
+  DataGrid,
+  DataGridTable,
+  DataGridHead,
+  DataGridRow,
+  DataGridTh,
+  DataGridTd,
+} from '@/components/enterprise/data-grid';
+import { PageSkeleton } from '@/components/enterprise/page-skeleton';
 import { BulkCsvImportModal } from '@/components/enterprise/bulk-csv-import-modal';
 import { Upload } from 'lucide-react';
 
@@ -92,39 +102,43 @@ export default function SubjectsPage() {
 
   if (loading) {
     return (
-      <div className='p-6'>
-        <p className='text-muted-foreground'>Loading subjects...</p>
+      <div className='max-w-7xl mx-auto'>
+        <PageSkeleton />
       </div>
     );
   }
 
   return (
-    <div className='max-w-7xl mx-auto p-6'>
-      <div className='mb-6 flex items-center justify-between'>
-        <div>
-          <h1 className='text-3xl font-bold text-foreground mb-1'>
-            Subjects
-          </h1>
-          <p className='text-muted-foreground'>Manage course subjects</p>
-        </div>
-        {!showForm && (
-          <div className='flex gap-2'>
-            <Button
-              variant='outline'
-              onClick={() => setImportOpen(true)}
-            >
-              <Upload className='h-4 w-4 mr-1.5' />
-              Import CSV
-            </Button>
-            <Button
-              onClick={() => setShowForm(true)}
-              className='bg-primary hover:bg-primary/90'
-            >
-              Add Subject
-            </Button>
-          </div>
-        )}
-      </div>
+    <div className='max-w-7xl mx-auto'>
+      <PageHeader
+        title='Subjects'
+        description='Manage course subjects'
+        breadcrumbs={[
+          { label: 'Admin', href: '/admin/dashboard' },
+          { label: 'Masters' },
+          { label: 'Subjects' },
+        ]}
+        actions={
+          !showForm ? (
+            <div className='flex flex-wrap gap-2'>
+              <Button
+                variant='outline'
+                onClick={() => setImportOpen(true)}
+                className='rounded-xl'
+              >
+                <Upload className='h-4 w-4 mr-1.5' />
+                Import CSV
+              </Button>
+              <Button
+                onClick={() => setShowForm(true)}
+                className='rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600'
+              >
+                Add Subject
+              </Button>
+            </div>
+          ) : undefined
+        }
+      />
 
       {showForm && (
         <Card className='p-6 mb-6 border-border'>
@@ -188,41 +202,31 @@ export default function SubjectsPage() {
         onSuccess={() => void loadSubjects()}
       />
 
-      {/* Subjects List Table */}
-      <div className='overflow-x-auto'>
-        <table className='w-full'>
-          <thead>
-            <tr className='border-b border-border'>
-              <th className='text-left py-3 px-4 font-semibold text-foreground'>
-                Name
-              </th>
-              <th className='text-left py-3 px-4 font-semibold text-foreground'>
-                Code
-              </th>
-              <th className='text-left py-3 px-4 font-semibold text-foreground'>
-                Actions
-              </th>
+      <DataGrid title='Subjects list' empty={subjects.length === 0}>
+        <DataGridTable>
+          <DataGridHead>
+            <tr>
+              <DataGridTh>Name</DataGridTh>
+              <DataGridTh>Code</DataGridTh>
+              <DataGridTh>Actions</DataGridTh>
             </tr>
-          </thead>
+          </DataGridHead>
           <tbody>
             {subjects.map((subject) => (
-              <tr
-                key={subject.id}
-                className='border-b border-border hover:bg-card/50 transition'
-              >
-                <td className='py-3 px-4 text-foreground font-medium'>
+              <DataGridRow key={subject.id}>
+                <DataGridTd className='font-medium text-foreground'>
                   {subject.name}
-                </td>
-                <td className='py-3 px-4 text-muted-foreground'>
+                </DataGridTd>
+                <DataGridTd className='text-muted-foreground'>
                   {subject.code}
-                </td>
-                <td className='py-3 px-4'>
+                </DataGridTd>
+                <DataGridTd>
                   <div className='flex gap-2'>
                     <Button
                       onClick={() => handleEdit(subject)}
                       size='sm'
                       variant='outline'
-                      className='border-border hover:bg-card'
+                      className='rounded-lg'
                     >
                       Edit
                     </Button>
@@ -230,17 +234,17 @@ export default function SubjectsPage() {
                       onClick={() => handleDelete(subject.id)}
                       size='sm'
                       variant='outline'
-                      className='border-destructive/30 text-destructive hover:bg-destructive/10'
+                      className='rounded-lg border-rose-500/30 text-rose-600'
                     >
                       Delete
                     </Button>
                   </div>
-                </td>
-              </tr>
+                </DataGridTd>
+              </DataGridRow>
             ))}
           </tbody>
-        </table>
-      </div>
+        </DataGridTable>
+      </DataGrid>
     </div>
   );
 }

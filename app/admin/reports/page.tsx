@@ -129,143 +129,155 @@ export default function AdminReportsPage() {
   }
 
   return (
-    <div className='max-w-7xl mx-auto px-4 py-6'>
+    <div className='max-w-7xl mx-auto px-4 py-6 space-y-6'>
+      {/* 1. TOP ELEMENT: PAGE HEADER SECTION */}
       <PageHeader
         title='Reports'
         description='Review submitted daily teaching reports'
         breadcrumbs={[{ label: 'Admin', href: '/admin/dashboard' }, { label: 'Reports' }]}
       />
 
-      {/* SEARCH BOX TOOLBAR CONTAINER */}
-      <div className='mb-6 max-w-sm'>
-        <Input
-          placeholder='Search teacher name...'
-          value={teacherName}
-          onChange={(e) => setTeacherName(e.target.value)}
-        />
-      </div>
-
-      {/* THREE PANELS LAYOUT SYSTEM */}
-      <div className='grid grid-cols-1 md:grid-cols-4 lg:grid-cols-12 gap-6 items-start'>
+      {/* 2. SHARED FILTER TOOLBAR SYSTEM
+          Uses the exact same grid layout breakdown as the cards below (9 cols vs 3 cols) 
+          so the search boxes align flawlessly with their respective sections.
+      */}
+      <div className='grid grid-cols-1 lg:grid-cols-12 gap-6 items-center'>
+        {/* Left Side Filter Container */}
+        <div className='lg:col-span-9'>
+          <div className='max-w-sm'>
+            <Input
+              placeholder='Search teacher name...'
+              value={teacherName}
+              onChange={(e) => setTeacherName(e.target.value)}
+            />
+          </div>
+        </div>
         
-        {/* PANEL A: LEFT-HAND TEACHERS SELECTION TRACKER LIST */}
-        <div className='md:col-span-1 lg:col-span-3 space-y-2 bg-white p-3 rounded-2xl border border-gray-200 shadow-sm'>
-          <h4 className='font-bold text-xs uppercase tracking-wider text-gray-400 px-2 mb-2'>Faculty Roster</h4>
-          {/* Custom sizing limit for clean view of up to 5 items safely */}
-          <div className='space-y-1 h-[240px] overflow-y-auto pr-1 scrollbar-thin'>
-            {uniqueTeachers.length === 0 ? (
-              <div className='text-xs text-center py-4 text-gray-400'>No faculty found</div>
-            ) : (
-              uniqueTeachers.map((teacher) => (
-                <button
-                  key={teacher.id}
-                  onClick={() => setSelectedTeacherId(teacher.id)}
-                  className={`w-full text-left px-3 py-2.5 rounded-xl text-sm font-medium transition-all flex items-center gap-2.5 ${
-                    selectedTeacherId === teacher.id
-                      ? 'bg-blue-50 text-blue-700 border-l-4 border-blue-600 pl-2 shadow-xs'
-                      : 'text-gray-700 hover:bg-gray-50'
-                  }`}
-                >
-                  <User className={`h-4 w-4 ${selectedTeacherId === teacher.id ? 'text-blue-600' : 'text-gray-400'}`} />
-                  <span className='truncate'>{teacher.name}</span>
-                </button>
-              ))
+        {/* Right Side Filter Container: Now matches baseline rows perfectly */}
+        <div className='lg:col-span-3'>
+          <div className="relative flex items-center">
+            <CalendarSearch className="absolute left-2.5 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
+            <input
+              type="date"
+              value={calendarSearchDate}
+              onChange={(e) => setCalendarSearchDate(e.target.value)}
+              className="w-full text-xs bg-white border border-gray-200 hover:bg-gray-50 focus:bg-white rounded-lg h-9 pl-8 pr-2 focus:outline-none focus:ring-1 focus:ring-blue-500 text-gray-700 shadow-xs transition-all"
+            />
+            {calendarSearchDate && (
+              <button 
+                onClick={() => setCalendarSearchDate('')}
+                className="absolute right-2 text-[10px] bg-gray-200/80 hover:bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded"
+              >
+                Clear
+              </button>
             )}
           </div>
         </div>
+      </div>
 
-        {/* PANEL B: MIDDLE VIEW - LOGGED ENTRIES FOR SELECTIVE TEACHER REPORT HISTORY PROFILE */}
-        <div className='md:col-span-2 lg:col-span-6 space-y-4'>
-          <div className='p-4 bg-white rounded-2xl border border-gray-200 shadow-sm'>
-            <div className='mb-4'>
-              <h3 className='font-extrabold text-lg text-gray-900'>
-                {selectedTeacherDetails ? `${selectedTeacherDetails.name}'s History` : 'Select a Teacher'}
-              </h3>
-              <p className='text-xs text-gray-400'>Timeline tracking records index</p>
-            </div>
-            
-            <div className='overflow-x-auto rounded-xl border border-gray-100'>
-              <table className='min-w-full divide-y divide-gray-200 text-left text-sm'>
-                <thead className='bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wider'>
-                  <tr>
-                    <th className='px-4 py-3'>Target Date</th>
-                    <th className='px-4 py-3 text-center'>Entries</th>
-                    <th className='px-4 py-3'>Status</th>
-                    <th className='px-4 py-3 text-right'>Actions</th>
-                  </tr>
-                </thead>
-                <tbody className='divide-y divide-gray-200 bg-white text-gray-700'>
-                  {selectedTeacherReports.length === 0 ? (
-                    <tr>
-                      <td colSpan={4} className='px-4 py-8 text-center text-gray-400 text-xs'>
-                        No logging entries recorded for this individual track.
-                      </td>
-                    </tr>
-                  ) : (
-                    selectedTeacherReports.map((r) => {
-                      const cleanRepDate = r.reportDate ? String(r.reportDate).split('T')[0] : '—';
-                      return (
-                        <tr key={r.id} className='hover:bg-gray-50/80 transition-colors'>
-                          <td className='px-4 py-3 font-semibold text-gray-900 whitespace-nowrap'>{cleanRepDate}</td>
-                          <td className='px-4 py-3 text-center font-bold'>{r.entries?.length || 0}</td>
-                          <td className='px-4 py-3 whitespace-nowrap'>
-                            <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-bold border ${
-                              r.status === 'SUBMITTED'
-                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                : 'bg-amber-50 text-amber-700 border-amber-200'
-                            }`}>
-                              {r.status || 'DRAFT'}
-                            </span>
-                          </td>
-                          <td className='px-4 py-3 text-right whitespace-nowrap'>
-                            <div className='inline-flex gap-1'>
-                              <Button size='sm' variant='ghost' className='h-8 w-8 p-0' onClick={() => handleIndividualView(r.id)}>
-                                <Eye className='h-4 w-4 text-gray-500' />
-                              </Button>
-                              <Button size='sm' variant='ghost' className='h-8 w-8 p-0' onClick={() => handleIndividualDownload(r.id, 'csv')}>
-                                <FileSpreadsheet className='h-4 w-4 text-emerald-600' />
-                              </Button>
-                              <Button size='sm' variant='ghost' className='h-8 w-8 p-0' onClick={() => handleIndividualDownload(r.id, 'pdf')}>
-                                <FileText className='h-4 w-4 text-red-500' />
-                              </Button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-
-        {/* PANEL C: RIGHT-HAND TIMELINE INDEX CALENDAR SIDEBAR */}
-        <div className='md:col-span-1 lg:col-span-3 bg-white p-3 rounded-2xl border border-gray-200 shadow-sm space-y-3'>
-          <div>
-            <h4 className='font-bold text-xs uppercase tracking-wider text-gray-400 px-1 mb-2'>Calendar Checkpoints</h4>
-            
-            {/* INLINE DATE SEARCH INPUT */}
-            <div className="relative flex items-center mb-1">
-              <CalendarSearch className="absolute left-2.5 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
-              <input
-                type="date"
-                value={calendarSearchDate}
-                onChange={(e) => setCalendarSearchDate(e.target.value)}
-                className="w-full text-xs bg-gray-50/60 border border-gray-200 hover:bg-gray-50 focus:bg-white rounded-lg h-8 pl-8 pr-2 focus:outline-none focus:ring-1 focus:ring-blue-500 text-gray-700 transition-all"
-              />
-              {calendarSearchDate && (
-                <button 
-                  onClick={() => setCalendarSearchDate('')}
-                  className="absolute right-2 text-[10px] bg-gray-200/80 hover:bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded"
-                >
-                  Clear
-                </button>
+      {/* 3. CORE DISPLAY MATRIX GRID SYSTEM */}
+      <div className='grid grid-cols-1 lg:grid-cols-12 gap-6 items-start'>
+        
+        {/* MAIN PANEL CONTENT GROUPS (LEFT + MIDDLE PANELS) */}
+        <div className='lg:col-span-9 grid grid-cols-1 md:grid-cols-3 lg:grid-cols-9 gap-6 items-start'>
+          
+          {/* PANEL A: LEFT-HAND TEACHERS SELECTION TRACKER LIST */}
+          <div className='md:col-span-1 lg:col-span-3 space-y-2 bg-white p-3 rounded-2xl border border-gray-200 shadow-sm'>
+            <h4 className='font-bold text-xs uppercase tracking-wider text-gray-400 px-2 mb-2'>Faculty Roster</h4>
+            <div className='space-y-1 h-[240px] overflow-y-auto pr-1 scrollbar-thin'>
+              {uniqueTeachers.length === 0 ? (
+                <div className='text-xs text-center py-4 text-gray-400'>No faculty found</div>
+              ) : (
+                uniqueTeachers.map((teacher) => (
+                  <button
+                    key={teacher.id}
+                    onClick={() => setSelectedTeacherId(teacher.id)}
+                    className={`w-full text-left px-3 py-2.5 rounded-xl text-sm font-medium transition-all flex items-center gap-2.5 ${
+                      selectedTeacherId === teacher.id
+                        ? 'bg-blue-50 text-blue-700 border-l-4 border-blue-600 pl-2 shadow-xs'
+                        : 'text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    <User className={`h-4 w-4 ${selectedTeacherId === teacher.id ? 'text-blue-600' : 'text-gray-400'}`} />
+                    <span className='truncate'>{teacher.name}</span>
+                  </button>
+                ))
               )}
             </div>
           </div>
 
-          {/* Structured Scroll view showing only up to 5 entries before scroll activation */}
+          {/* PANEL B: MIDDLE VIEW - LOGGED ENTRIES HISTORY */}
+          <div className='md:col-span-2 lg:col-span-6 space-y-4'>
+            <div className='p-4 bg-white rounded-2xl border border-gray-200 shadow-sm'>
+              <div className='mb-4'>
+                <h3 className='font-extrabold text-lg text-gray-900'>
+                  {selectedTeacherDetails ? `${selectedTeacherDetails.name}'s History` : 'Select a Teacher'}
+                </h3>
+                <p className='text-xs text-gray-400'>Timeline tracking records index</p>
+              </div>
+              
+              <div className='overflow-x-auto rounded-xl border border-gray-100'>
+                <table className='min-w-full divide-y divide-gray-200 text-left text-sm'>
+                  <thead className='bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wider'>
+                    <tr>
+                      <th className='px-4 py-3'>Target Date</th>
+                      <th className='px-4 py-3 text-center'>Entries</th>
+                      <th className='px-4 py-3'>Status</th>
+                      <th className='px-4 py-3 text-right'>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className='divide-y divide-gray-200 bg-white text-gray-700'>
+                    {selectedTeacherReports.length === 0 ? (
+                      <tr>
+                        <td colSpan={4} className='px-4 py-8 text-center text-gray-400 text-xs'>
+                          No logging entries recorded for this individual track.
+                        </td>
+                      </tr>
+                    ) : (
+                      selectedTeacherReports.map((r) => {
+                        const cleanRepDate = r.reportDate ? String(r.reportDate).split('T')[0] : '—';
+                        return (
+                          <tr key={r.id} className='hover:bg-gray-50/80 transition-colors'>
+                            <td className='px-4 py-3 font-semibold text-gray-900 whitespace-nowrap'>{cleanRepDate}</td>
+                            <td className='px-4 py-3 text-center font-bold'>{r.entries?.length || 0}</td>
+                            <td className='px-4 py-3 whitespace-nowrap'>
+                              <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-bold border ${
+                                r.status === 'SUBMITTED'
+                                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                  : 'bg-amber-50 text-amber-700 border-amber-200'
+                              }`}>
+                                {r.status || 'DRAFT'}
+                              </span>
+                            </td>
+                            <td className='px-4 py-3 text-right whitespace-nowrap'>
+                              <div className='inline-flex gap-1'>
+                                <Button size='sm' variant='ghost' className='h-8 w-8 p-0' onClick={() => handleIndividualView(r.id)}>
+                                  <Eye className='h-4 w-4 text-gray-500' />
+                                </Button>
+                                <Button size='sm' variant='ghost' className='h-8 w-8 p-0' onClick={() => handleIndividualDownload(r.id, 'csv')}>
+                                  <FileSpreadsheet className='h-4 w-4 text-emerald-600' />
+                                </Button>
+                                <Button size='sm' variant='ghost' className='h-8 w-8 p-0' onClick={() => handleIndividualDownload(r.id, 'pdf')}>
+                                  <FileText className='h-4 w-4 text-red-500' />
+                                </Button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        {/* PANEL C: RIGHT-HAND TIMELINE INDEX CALENDAR SIDEBAR CARD */}
+        <div className='lg:col-span-3 bg-white p-3 rounded-2xl border border-gray-200 shadow-sm space-y-3'>
+          <h4 className='font-bold text-xs uppercase tracking-wider text-gray-400 px-1'>Calendar Checkpoints</h4>
+
           <div className='space-y-2 h-[345px] overflow-y-auto pr-1 scrollbar-thin'>
             {sortedFilteredDates.length === 0 ? (
               <div className='text-xs text-center py-8 text-gray-400 italic bg-gray-50/50 rounded-xl border border-dashed border-gray-200'>
@@ -297,7 +309,7 @@ export default function AdminReportsPage() {
 
       </div>
 
-      {/* MASTER LAYOUT MATRIX DIALOG (SHOWS BOTH SUBMITTED & PENDING TRACKS FOR THAT DATE) */}
+      {/* MASTER LAYOUT MATRIX DIALOG */}
       <Dialog open={!!openDate} onOpenChange={(v) => { if (!v) setOpenDate(null); }}>
         <DialogContent className='sm:max-w-xl max-h-[85vh] overflow-y-auto p-6'>
           <DialogHeader>
@@ -329,7 +341,6 @@ export default function AdminReportsPage() {
 
               return (
                 <>
-                  {/* SUBMITTED SEGMENT LIST */}
                   <div>
                     <h4 className='font-bold text-xs uppercase text-emerald-800 tracking-wider mb-2 bg-emerald-50 px-2 py-1 rounded-md inline-block'>
                       Submitted Core ({submittedItems.length})
@@ -348,7 +359,6 @@ export default function AdminReportsPage() {
                     )}
                   </div>
 
-                  {/* SAVED AS DRAFTS SEGMENT LIST */}
                   <div>
                     <h4 className='font-bold text-xs uppercase text-blue-800 tracking-wider mb-2 bg-blue-50 px-2 py-1 rounded-md inline-block'>
                       Draft Saves ({draftItems.length})
@@ -367,7 +377,6 @@ export default function AdminReportsPage() {
                     )}
                   </div>
 
-                  {/* UN-SUBMITTED MISSING PENDING CHECKLIST TRACKER */}
                   <div>
                     <h4 className='font-bold text-xs uppercase text-amber-800 tracking-wider mb-2 bg-amber-50 px-2 py-1 rounded-md inline-block'>
                       Absent / Pending Submissions ({pendingTeachers.length})

@@ -48,7 +48,10 @@ model User {
   role      UserRole
   schoolId  String?
   school    School?  @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  name      String?
+  phone     String?
   teacher   Teacher?
+  tokens    VerificationToken[]
   createdAt DateTime @default(now())
 }
 
@@ -56,6 +59,23 @@ enum UserRole {
   SUPER_ADMIN
   ADMIN
   TEACHER
+}
+
+enum VerificationTokenType {
+  PASSWORD_RESET
+}
+
+model VerificationToken {
+  id         String                     @id @default(uuid())
+  userId     String
+  user       User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token      String
+  type       VerificationTokenType      @default(PASSWORD_RESET)
+  expiresAt  DateTime
+  createdAt  DateTime                   @default(now())
+
+  @@unique([token])
+  @@index([userId])
 }
 
 model Teacher {
@@ -164,6 +184,8 @@ model TeacherAttendance {
 enum AttendanceStatus {
   PRESENT
   ABSENT
+  FIRST_HALF
+  SECOND_HALF
 }
 
 model ReplacementAssignment {

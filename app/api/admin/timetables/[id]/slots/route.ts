@@ -22,7 +22,9 @@ export async function POST(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
 
-    const dayOfWeek = Number(body.dayOfWeek);
+    const rawDay = Number(body.dayOfWeek);
+    // Normalize from 0-6 (Sunday-Saturday) to 1-7 (Monday-Sunday)
+    const dayOfWeek = rawDay === 0 ? 7 : rawDay;
     const periodId = String(body.periodId);
     const classId = String(body.classId);
     const subjectId = String(body.subjectId);
