@@ -23,6 +23,14 @@ async function resolveTeacher(schoolId: string, userEmail: string) {
   });
 }
 
+// Helper to reliably establish absolute local dates without server timezone slip downs
+function getAbsoluteLocalDate() {
+  const d = new Date();
+  // Adjusts manual runtime shifts to match local calendar configuration exactly
+  const targetDate = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
+  return new Date(targetDate.toISOString().split('T')[0] + 'T00:00:00.000Z');
+}
+
 export async function GET(request: NextRequest) {
   try {
     const { schoolId, user } = await requireSchoolContext();
@@ -51,7 +59,8 @@ export async function GET(request: NextRequest) {
     }
 
     const dateParam = request.nextUrl.searchParams.get('date');
-    const reportDate = parseReportDateParam(dateParam);
+    // If getting today's workspace, assert absolute date lock
+    const reportDate = !dateParam || dateParam === 'today' ? getAbsoluteLocalDate() : parseReportDateParam(dateParam);
     const dateStr = formatReportDate(reportDate);
 
     let report = await prisma.dailyReport.findUnique({
@@ -91,7 +100,6 @@ export async function GET(request: NextRequest) {
         include: reportInclude,
       });
 
-      // Enrich with period info for UI
       const periodMap = new Map(periods.map((p) => [p.id, p]));
       return NextResponse.json({
         ...mapReportResponse(report),
@@ -194,18 +202,88 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const reportDate = parseReportDateParam(
-      body.date ? String(body.date) : 'today'
-    );
+    
+    // 🔥 THE FIX: Stop string date shifting on the backend
+    let reportDate: Date;
+    if (!body.date || body.date === 'today') {
+      reportDate = getAbsoluteLocalDate();
+    } else {
+      // Handles parsing of custom incoming date fields cleanly 
+      const rawStr = String(body.date).split('T')[0];
+      reportDate = new Date(rawStr + 'T00:00:00.000Z');
+    }
 
-    const report = await prisma.dailyReport.create({
-      data: {
-        teacherId: teacher.id,
-        schoolId,
-        reportDate,
-      },
-      include: reportInclude,
+    const entriesData = Array.isArray(body.entries)
+      ? body.entries.map((e: any) => ({
+          classId: e.classId,
+          subjectId: e.subjectId,
+          description: e.description || '',
+          isCompleted: e.isCompleted ?? false,
+        }))
+      : [];
+
+    const statusUpdate = body.status === 'SUBMITTED' ? 'SUBMITTED' : 'DRAFT';
+
+    // Check if the report record exists for this specific localized date instance 
+    let report = await prisma.dailyReport.findUnique({
+      where: { teacherId_reportDate: { teacherId: teacher.id, reportDate } },
     });
+
+    if (!report) {
+      report = await prisma.dailyReport.create({
+        data: {
+          teacherId: teacher.id,
+          schoolId,
+          reportDate,
+          status: statusUpdate,
+          submittedAt: statusUpdate === 'SUBMITTED' ? new Date() : null,
+          ...(entriesData.length > 0
+            ? {
+                entries: {
+                  create: entriesData,
+                },
+              }
+            : {}),
+        },
+        include: reportInclude,
+      });
+    } else {
+      // Record already exists; perform safe row synchronization updates
+      for (const entry of entriesData) {
+        const existingEntry = await prisma.reportEntry.findFirst({
+          where: { reportId: report.id, classId: entry.classId, subjectId: entry.subjectId }
+        });
+
+        if (existingEntry) {
+          await prisma.reportEntry.update({
+            where: { id: existingEntry.id },
+            data: {
+              description: entry.description,
+              isCompleted: entry.isCompleted,
+            },
+          });
+        } else {
+          await prisma.reportEntry.create({
+            data: {
+              reportId: report.id,
+              classId: entry.classId,
+              subjectId: entry.subjectId,
+              description: entry.description,
+              isCompleted: entry.isCompleted,
+            },
+          });
+        }
+      }
+
+      report = await prisma.dailyReport.update({
+        where: { id: report.id },
+        data: {
+          status: statusUpdate,
+          submittedAt: statusUpdate === 'SUBMITTED' ? new Date() : report.submittedAt,
+        },
+        include: reportInclude,
+      });
+    }
 
     return NextResponse.json(mapReportResponse(report));
   } catch (error) {

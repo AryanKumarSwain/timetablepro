@@ -23,11 +23,11 @@ export default function SubjectsPage() {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [importOpen, setImportOpen] = useState(false);
-  const [formData, setFormData] = useState<Omit<Subject, 'id'>>({
+  
+  // Kept only Name and Code properties
+  const [formData, setFormData] = useState<Omit<Subject, 'id' | 'credits' | 'description'>>({
     name: '',
     code: '',
-    credits: 3,
-    description: '',
   });
 
   useEffect(() => {
@@ -65,8 +65,6 @@ export default function SubjectsPage() {
     setFormData({
       name: subject.name,
       code: subject.code,
-      credits: subject.credits,
-      description: subject.description || '',
     });
     setEditingId(subject.id);
     setShowForm(true);
@@ -87,8 +85,6 @@ export default function SubjectsPage() {
     setFormData({
       name: '',
       code: '',
-      credits: 3,
-      description: '',
     });
     setEditingId(null);
     setShowForm(false);
@@ -146,6 +142,7 @@ export default function SubjectsPage() {
                   onChange={(e) =>
                     setFormData({ ...formData, name: e.target.value })
                   }
+                  placeholder='Mathematics'
                   required
                 />
               </div>
@@ -158,44 +155,13 @@ export default function SubjectsPage() {
                   onChange={(e) =>
                     setFormData({ ...formData, code: e.target.value })
                   }
+                  placeholder='MATH101'
                   required
-                />
-              </div>
-              <div>
-                <label className='block text-sm font-medium text-foreground mb-2'>
-                  Credits
-                </label>
-                <Input
-                  type='number'
-                  value={formData.credits}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      credits: parseInt(e.target.value) || 3,
-                    })
-                  }
-                  required
-                />
-              </div>
-              <div className='md:col-span-2'>
-                <label className='block text-sm font-medium text-foreground mb-2'>
-                  Description
-                </label>
-                <textarea
-                  value={formData.description || ''}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      description: e.target.value,
-                    })
-                  }
-                  className='w-full px-3 py-2 bg-input border border-border rounded-md text-foreground'
-                  rows={3}
                 />
               </div>
             </div>
 
-            <div className='flex gap-2'>
+            <div className='flex gap-2 pt-2'>
               <Button
                 type='submit'
                 className='bg-primary hover:bg-primary/90'
@@ -222,7 +188,7 @@ export default function SubjectsPage() {
         onSuccess={() => void loadSubjects()}
       />
 
-      {/* Subjects List */}
+      {/* Subjects List Table */}
       <div className='overflow-x-auto'>
         <table className='w-full'>
           <thead>
@@ -232,12 +198,6 @@ export default function SubjectsPage() {
               </th>
               <th className='text-left py-3 px-4 font-semibold text-foreground'>
                 Code
-              </th>
-              <th className='text-left py-3 px-4 font-semibold text-foreground'>
-                Credits
-              </th>
-              <th className='text-left py-3 px-4 font-semibold text-foreground'>
-                Description
               </th>
               <th className='text-left py-3 px-4 font-semibold text-foreground'>
                 Actions
@@ -255,12 +215,6 @@ export default function SubjectsPage() {
                 </td>
                 <td className='py-3 px-4 text-muted-foreground'>
                   {subject.code}
-                </td>
-                <td className='py-3 px-4 text-muted-foreground'>
-                  {subject.credits}
-                </td>
-                <td className='py-3 px-4 text-muted-foreground text-sm'>
-                  {subject.description}
                 </td>
                 <td className='py-3 px-4'>
                   <div className='flex gap-2'>

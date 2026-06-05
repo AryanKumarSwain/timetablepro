@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireSchoolContext, handleApiError, schoolWhere } from '@/lib/auth-server';
 import { getScheduleSlots, getDayOfWeekFromDate } from '@/lib/timetable-source';
@@ -9,7 +9,8 @@ async function resolveTeacher(schoolId: string, userEmail: string) {
   });
 }
 
-export async function GET() {
+// FIX: Parameter changed from 'req' to 'request' to match the query parsing logic below
+export async function GET(request: NextRequest) {
   try {
     const { schoolId, user } = await requireSchoolContext();
     if (user.role !== 'TEACHER') {
@@ -59,6 +60,7 @@ export async function GET() {
       }
     };
 
+    // Now 'request' is correctly defined and won't throw a ReferenceError
     const queryDay = parseDayValue(request.nextUrl.searchParams.get('day') ?? request.nextUrl.searchParams.get('dayOfWeek'));
     const today = new Date();
     today.setHours(0, 0, 0, 0);

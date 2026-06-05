@@ -25,7 +25,7 @@ import { Card } from '@/components/ui/card';
 import { PageHeader } from '@/components/enterprise/page-header';
 import { GlassCard } from '@/components/enterprise/glass-card';
 import { PageSkeleton } from '@/components/enterprise/page-skeleton';
-import { cn } from '@/lib/utils';
+import { cn, isTeacherActive } from '@/lib/utils';
 
 const DAYS = [
   'Monday',
@@ -591,14 +591,17 @@ export default function WeeklyTimetablePage() {
                             className='w-full px-2 py-1.5 bg-input border border-border rounded-lg text-foreground text-xs'
                           >
                             <option value=''>Teacher</option>
-                            {teachers.map((teacher, teacherIndex) => (
-                              <option
-                                key={`teacher-${period.id}-${dayIndex}-${teacher.id}-${teacherIndex}`}
-                                value={teacher.id}
-                              >
-                                {teacher.name.split(' ')[0]}
-                              </option>
-                            ))}
+                            {(() => {
+                              const activeTeachers = teachers.filter((t) => isTeacherActive(t.active));
+                              return activeTeachers.map((teacher, teacherIndex) => (
+                                <option
+                                  key={`teacher-${period.id}-${dayIndex}-${teacher.id}-${teacherIndex}`}
+                                  value={teacher.id}
+                                >
+                                  {teacher.name.split(' ')[0]}
+                                </option>
+                              ));
+                            })()}
                           </select>
                           <select
                             name='subject'

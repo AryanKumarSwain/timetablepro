@@ -1,6 +1,6 @@
 'use client';
 
-import { cn } from '@/lib/utils';
+import { cn, isTeacherActive } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Trash2, Plus, Coffee } from 'lucide-react';
@@ -285,7 +285,12 @@ export function SlotEditorSheet({
             <Select value={draft.teacherId} onValueChange={(v) => onDraftChange({ teacherId: v })}>
               <SelectTrigger className="rounded-xl h-11"><SelectValue placeholder='Assign course tutor' /></SelectTrigger>
               <SelectContent className="rounded-xl">
-                {teachers.map((t) => (<SelectItem key={t.id} value={t.id} className="rounded-lg">{t.name}</SelectItem>))}
+                {(() => {
+                  const activeTeachers = teachers.filter((t) => isTeacherActive(t.active));
+                  return activeTeachers.map((t) => (
+                    <SelectItem key={t.id} value={t.id} className="rounded-lg">{t.name}</SelectItem>
+                  ));
+                })()}
               </SelectContent>
             </Select>
           </div>

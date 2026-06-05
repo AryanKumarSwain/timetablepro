@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useMemo } from 'react';
 import { useRequireAuth } from '@/lib/auth-context';
 import {
   getAdminReports,
@@ -12,7 +12,7 @@ import { PageHeader } from '@/components/enterprise/page-header';
 import { PageSkeleton } from '@/components/enterprise/page-skeleton';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Download, Eye, FileSpreadsheet, FileText, User } from 'lucide-react';
+import { Download, Eye, FileSpreadsheet, FileText, User, CalendarSearch } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 
 export default function AdminReportsPage() {
@@ -24,6 +24,9 @@ export default function AdminReportsPage() {
   const [selectedTeacherId, setSelectedTeacherId] = useState<string | null>(null);
   const [openDate, setOpenDate] = useState<string | null>(null);
   const [currentGrid, setCurrentGrid] = useState<any | null>(null);
+
+  // Calendar search input filter state
+  const [calendarSearchDate, setCalendarSearchDate] = useState('');
 
   const load = useCallback(async () => {
     try {
@@ -107,6 +110,16 @@ export default function AdminReportsPage() {
     return acc;
   }, {} as Record<string, DailyReportData[]>);
 
+  // Dynamic filter loop matching target search criteria against date tags
+  const sortedFilteredDates = useMemo(() => {
+    return Object.keys(byDate)
+      .filter((d) => {
+        if (!calendarSearchDate) return true;
+        return d.includes(calendarSearchDate);
+      })
+      .sort((a, b) => b.localeCompare(a));
+  }, [byDate, calendarSearchDate]);
+
   if (loading && reports.length === 0) {
     return (
       <div className='max-w-7xl mx-auto px-4 py-6'>
@@ -138,7 +151,8 @@ export default function AdminReportsPage() {
         {/* PANEL A: LEFT-HAND TEACHERS SELECTION TRACKER LIST */}
         <div className='md:col-span-1 lg:col-span-3 space-y-2 bg-white p-3 rounded-2xl border border-gray-200 shadow-sm'>
           <h4 className='font-bold text-xs uppercase tracking-wider text-gray-400 px-2 mb-2'>Faculty Roster</h4>
-          <div className='space-y-1 max-h-[65vh] overflow-y-auto pr-1'>
+          {/* Custom sizing limit for clean view of up to 5 items safely */}
+          <div className='space-y-1 h-[240px] overflow-y-auto pr-1 scrollbar-thin'>
             {uniqueTeachers.length === 0 ? (
               <div className='text-xs text-center py-4 text-gray-400'>No faculty found</div>
             ) : (
@@ -227,30 +241,57 @@ export default function AdminReportsPage() {
         </div>
 
         {/* PANEL C: RIGHT-HAND TIMELINE INDEX CALENDAR SIDEBAR */}
-        <div className='md:col-span-1 lg:col-span-3 space-y-2'>
-          <h4 className='font-bold text-xs uppercase tracking-wider text-gray-400 px-1'>Calendar Checkpoints</h4>
-          <div className='space-y-2 max-h-[65vh] overflow-y-auto pr-1'>
-            {Object.keys(byDate)
-              .sort((a, b) => b.localeCompare(a))
-              .map((d) => {
+        <div className='md:col-span-1 lg:col-span-3 bg-white p-3 rounded-2xl border border-gray-200 shadow-sm space-y-3'>
+          <div>
+            <h4 className='font-bold text-xs uppercase tracking-wider text-gray-400 px-1 mb-2'>Calendar Checkpoints</h4>
+            
+            {/* INLINE DATE SEARCH INPUT */}
+            <div className="relative flex items-center mb-1">
+              <CalendarSearch className="absolute left-2.5 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
+              <input
+                type="date"
+                value={calendarSearchDate}
+                onChange={(e) => setCalendarSearchDate(e.target.value)}
+                className="w-full text-xs bg-gray-50/60 border border-gray-200 hover:bg-gray-50 focus:bg-white rounded-lg h-8 pl-8 pr-2 focus:outline-none focus:ring-1 focus:ring-blue-500 text-gray-700 transition-all"
+              />
+              {calendarSearchDate && (
+                <button 
+                  onClick={() => setCalendarSearchDate('')}
+                  className="absolute right-2 text-[10px] bg-gray-200/80 hover:bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Structured Scroll view showing only up to 5 entries before scroll activation */}
+          <div className='space-y-2 h-[345px] overflow-y-auto pr-1 scrollbar-thin'>
+            {sortedFilteredDates.length === 0 ? (
+              <div className='text-xs text-center py-8 text-gray-400 italic bg-gray-50/50 rounded-xl border border-dashed border-gray-200'>
+                No matching checkpoint records
+              </div>
+            ) : (
+              sortedFilteredDates.map((d) => {
                 const list = byDate[d];
                 return (
-                  <div key={d} className='p-3 bg-white rounded-xl border border-gray-200 shadow-xs flex items-center justify-between gap-2 hover:border-gray-400 transition-all'>
-                    <div>
-                      <div className='text-sm font-bold text-gray-900'>{d}</div>
-                      <div className='text-[11px] text-gray-400'>{list.length} track submissions</div>
+                  <div key={d} className='p-2.5 bg-white rounded-xl border border-gray-200/90 shadow-xs flex items-center justify-between gap-2 hover:border-gray-400 transition-all'>
+                    <div className="min-w-0 flex-1">
+                      <div className='text-xs font-black text-gray-900'>{d}</div>
+                      <div className='text-[10px] font-medium text-gray-400 mt-0.5'>{list.length} submissions</div>
                     </div>
-                    <div className='flex gap-1 items-center'>
-                      <Button size='sm' variant='outline' className='h-7 text-xs px-2 bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100' onClick={() => openDetails(d)}>
+                    <div className='flex gap-1 items-center shrink-0'>
+                      <Button size='sm' variant='outline' className='h-6 text-[10px] font-bold px-2 bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100 rounded-lg' onClick={() => openDetails(d)}>
                         Layout
                       </Button>
-                      <Button size='sm' variant='ghost' className='h-7 w-7 p-0' onClick={() => exportDateCsv(d)}>
-                        <Download className='h-3.5 w-3.5 text-gray-500' />
+                      <Button size='sm' variant='ghost' className='h-6 w-6 p-0 rounded-lg' onClick={() => exportDateCsv(d)}>
+                        <Download className='h-3 w-3 text-gray-500' />
                       </Button>
                     </div>
                   </div>
                 );
-              })}
+              })
+            )}
           </div>
         </div>
 
@@ -265,7 +306,6 @@ export default function AdminReportsPage() {
           </DialogHeader>
           
           <div className='mt-4 space-y-6'>
-            {/* COMPLETE REALTIME TRACKS BREAKDOWN */}
             {(() => {
               const dayReports = byDate[openDate ?? ''] || [];
               const submittedItems = dayReports.filter((r) => r.status === 'SUBMITTED');

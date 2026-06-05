@@ -137,6 +137,7 @@ export function validateCsvRows(
   rows.forEach((row, index) => {
     const rowNumber = index + 2;
 
+    // 1. Enforce strict missing check for whatever fields are specified as mandatory
     for (const field of config.requiredFields) {
       if (!row[field]?.trim()) {
         errors.push({
@@ -147,6 +148,7 @@ export function validateCsvRows(
       }
     }
 
+    // 2. Specific Entity Validation rulesets
     if (entity === 'teachers') {
       const email = row.email?.trim().toLowerCase();
       if (email) {
@@ -166,15 +168,6 @@ export function validateCsvRows(
           seenEmails.add(email);
         }
       }
-
-      const max = row.maxPeriodsPerWeek?.trim();
-      if (max && Number.isNaN(Number(max))) {
-        errors.push({
-          row: rowNumber,
-          field: 'maxPeriodsPerWeek',
-          message: 'Must be a number.',
-        });
-      }
     }
 
     if (entity === 'subjects') {
@@ -191,17 +184,9 @@ export function validateCsvRows(
         }
       }
     }
-
-    if (entity === 'classes') {
-      const grade = row.grade?.trim();
-      if (grade && Number.isNaN(Number(grade))) {
-        errors.push({
-          row: rowNumber,
-          field: 'grade',
-          message: 'Grade must be a number.',
-        });
-      }
-    }
+    
+    // Note: 'classes' configuration has roomNumber mapped as an optional column. 
+    // No parsing conversion rules needed since grade constraints are removed.
   });
 
   return errors;
