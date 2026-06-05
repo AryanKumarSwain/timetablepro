@@ -7,8 +7,10 @@ import {
   getAdminDashboardStats,
   getDailyAttendance,
   getReplacements,
+  getTeachers,
+  getPeriods, // 1. Added master periods service import
 } from '@/lib/api-services';
-import { AdminDashboardStats, DailyAttendance, Replacement } from '@/lib/types';
+import { AdminDashboardStats, DailyAttendance, Replacement, Teacher, Period } from '@/lib/types';
 import { KPICard } from '@/components/kpi-card';
 import { PageHeader } from '@/components/enterprise/page-header';
 import { GlassCard } from '@/components/enterprise/glass-card';
@@ -48,6 +50,8 @@ export default function AdminDashboard() {
   const [stats, setStats] = useState<AdminDashboardStats | null>(null);
   const [attendance, setAttendance] = useState<DailyAttendance[]>([]);
   const [replacements, setReplacements] = useState<Replacement[]>([]);
+  const [teachers, setTeachers] = useState<Teacher[]>([]);
+  const [periods, setPeriods] = useState<Period[]>([]); // 2. State for holding period layout configuration
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -66,10 +70,12 @@ export default function AdminDashboard() {
     const loadData = async () => {
       try {
         const today = new Date().toISOString().split('T')[0];
-        const [statsData, attendanceData, replacementData] = await Promise.all([
+        const [statsData, attendanceData, replacementData, teachersList, periodsList] = await Promise.all([
           getAdminDashboardStats(),
           getDailyAttendance(today),
           getReplacements({ date: today }),
+          getTeachers(),
+          getPeriods(), // 3. Fetch full active system slots structure
         ]);
 
         if (!isMounted) return;
@@ -77,6 +83,8 @@ export default function AdminDashboard() {
         setStats(statsData);
         setAttendance(attendanceData);
         setReplacements(replacementData);
+        setTeachers(teachersList);
+        setPeriods(periodsList);
       } catch (error) {
         console.error('Failed to load dashboard data:', error);
       } finally {
@@ -94,6 +102,10 @@ export default function AdminDashboard() {
   }, [auth.loading, auth.session]);
 
   if (auth.loading || loading) return <PageSkeleton />;
+
+  // 4. Create lookup dictionary maps for clean layout rendering
+  const teacherMap = new Map(teachers.map((t) => [t.id, t.name]));
+  const periodMap = new Map(periods.map((p) => [p.id, p.name || `Period ${p.periodNumber || p.name}`]));
 
   return (
     <div className='max-w-7xl mx-auto'>
@@ -220,7 +232,9 @@ export default function AdminDashboard() {
                   className='flex items-center justify-between p-3 rounded-xl bg-muted/30 border border-border/40'
                 >
                   <div>
-                    <p className='text-sm font-medium'>Teacher {record.teacherId.slice(0, 8)}…</p>
+                    <p className='text-sm font-medium'>
+                      {teacherMap.get(record.teacherId) || `Teacher ${record.teacherId.slice(0, 8)}…`}
+                    </p>
                     <p className='text-xs text-muted-foreground'>{record.date}</p>
                   </div>
                   <span
@@ -265,15 +279,25 @@ export default function AdminDashboard() {
                   key={record.id}
                   className='flex items-center justify-between p-3 rounded-xl bg-muted/30 text-sm'
                 >
-                  <span>Period {record.periodId.slice(0, 6)}…</span>
+                  <div className='flex flex-col gap-0.5'>
+                    {/* 5. Dynamically translates the raw periodId hash into names like 'Period 1' or 'P1' */}
+                    <span className='font-medium'>
+                      {periodMap.get(record.periodId) || record.periodName || `Period ${record.periodId.slice(0, 6)}…`}
+                    </span>
+                    {(record.replacementTeacherName || teacherMap.get(record.replacementTeacherId)) && (
+                      <span className='text-xs text-muted-foreground'>
+                        Sub: {record.replacementTeacherName || teacherMap.get(record.replacementTeacherId)}
+                      </span>
+                    )}
+                  </div>
                   <span
                     className={
                       record.status === 'pending'
-                        ? 'text-amber-600 text-xs font-medium'
-                        : 'text-emerald-600 text-xs font-medium'
+                        ? 'text-amber-600 text-xs font-medium capitalize'
+                        : 'text-emerald-600 text-xs font-medium capitalize'
                     }
                   >
-                    {record.status}
+                    {record.status.toLowerCase()}
                   </span>
                 </div>
               ))}

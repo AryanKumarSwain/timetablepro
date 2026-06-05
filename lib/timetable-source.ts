@@ -82,9 +82,15 @@ export async function getScheduleSlots(
   };
 }
 
+// Fixed ISO/local safe mapping vector helper
 export function getDayOfWeekFromDate(dateStr: string): number {
-  const day = new Date(`${dateStr}T12:00:00`).getDay();
-  return day === 0 ? 7 : day;
+  // Split date components cleanly to avoid timezone offsets moving days back
+  const [year, month, day] = dateStr.split('-').map(Number);
+  const date = new Date(year, month - 1, day);
+  const dayOfWeek = date.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+  
+  // Align Sunday to index position 7 if your system shifts it to the end
+  return dayOfWeek === 0 ? 7 : dayOfWeek;
 }
 
 export const SUBJECT_COLOR_PALETTE = [

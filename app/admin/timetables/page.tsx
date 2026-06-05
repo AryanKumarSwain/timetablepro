@@ -107,12 +107,13 @@ function TimetableRow({
       <div className='flex items-center gap-2 shrink-0'>
         {isPublished ? (
           <>
-            <Button size='sm' variant='outline' onClick={onUnpublish}>
+            <Button size='sm' variant='outline' className='rounded-lg' onClick={onUnpublish}>
               Unpublish
             </Button>
             <Button
               size='sm'
               variant='outline'
+              className='rounded-lg'
               onClick={() =>
                 navigator.clipboard.writeText(
                   `${window.location.origin}/admin/timetables/${item.id}/edit`
@@ -124,13 +125,13 @@ function TimetableRow({
             </Button>
           </>
         ) : (
-          <Button size='sm' onClick={onPublish}>
+          <Button size='sm' className='rounded-lg' onClick={onPublish}>
             Publish
           </Button>
         )}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button size='icon' variant='ghost' className='h-8 w-8'>
+            <Button size='icon' variant='ghost' className='h-8 w-8 rounded-lg'>
               <MoreVertical className='h-4 w-4' />
             </Button>
           </DropdownMenuTrigger>
@@ -218,7 +219,7 @@ export default function TimetablesPage() {
         ]}
         actions={
           <Button
-            className='rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600'
+            className='rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 shadow-md hover:from-indigo-500 hover:to-violet-500 transition-all'
             onClick={() => setModalOpen(true)}
           >
             <Plus className='h-4 w-4 mr-1.5' />
@@ -227,7 +228,7 @@ export default function TimetablesPage() {
         }
       />
 
-      <div className='grid sm:grid-cols-3 gap-4 mb-8'>
+      <div className='grid sm:grid-cols-3 gap-4 mb-8 mt-6'>
         <StatCard
           label='Total Timetables'
           value={timetables.length}
@@ -251,7 +252,7 @@ export default function TimetablesPage() {
       </div>
 
       <GlassCard className='p-6 mb-6'>
-        <h2 className='text-lg font-semibold mb-4'>
+        <h2 className='text-lg font-semibold mb-4 text-foreground'>
           Published Timetables [{published.length}]
         </h2>
         {published.length === 0 ? (
@@ -276,7 +277,7 @@ export default function TimetablesPage() {
       </GlassCard>
 
       <GlassCard className='p-6'>
-        <h2 className='text-lg font-semibold mb-4'>
+        <h2 className='text-lg font-semibold mb-4 text-foreground'>
           Draft Timetables [{drafts.length}]
         </h2>
         {drafts.length === 0 ? (
@@ -301,21 +302,26 @@ export default function TimetablesPage() {
       </GlassCard>
 
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
-        <DialogContent>
+        <DialogContent className='rounded-2xl border border-border/60 bg-background/95 backdrop-blur-md'>
           <DialogHeader>
-            <DialogTitle>New Timetable</DialogTitle>
+            <DialogTitle className='text-xl font-bold'>New Timetable</DialogTitle>
           </DialogHeader>
           <Input
             placeholder='Timetable name'
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && void handleCreate()}
+            className='rounded-xl'
           />
-          <DialogFooter>
-            <Button variant='outline' onClick={() => setModalOpen(false)}>
+          <DialogFooter className='gap-2 sm:gap-0'>
+            <Button variant='outline' className='rounded-xl' onClick={() => setModalOpen(false)}>
               Cancel
             </Button>
-            <Button disabled={creating || !newName.trim()} onClick={() => void handleCreate()}>
+            <Button 
+              disabled={creating || !newName.trim()} 
+              onClick={() => void handleCreate()}
+              className='rounded-xl bg-indigo-600 hover:bg-indigo-500'
+            >
               {creating ? 'Creating…' : 'Create'}
             </Button>
           </DialogFooter>

@@ -1,33 +1,31 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
 import { useRequireAuth } from '@/lib/auth-context';
-import { getTeachers, getDailyDeskGrid, markAttendance, type DailyDeskGrid } from '@/lib/api-services';
+import { getTeachers, getDailyDeskGrid } from '@/lib/api-services';
 import type { Teacher } from '@/lib/types';
 import { GlassCard } from '@/components/enterprise/glass-card';
-import { Button } from '@/components/ui/button';
-import { Calendar, RefreshCw, UserCheck } from 'lucide-react';
+import { PageHeader } from '@/components/enterprise/page-header';
+import { PageSkeleton } from '@/components/enterprise/page-skeleton';
+import { Calendar, RefreshCw, UserCheck, CheckCircle, XCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
 export default function AdminAttendancePage() {
   useRequireAuth('admin');
-  const router = useRouter();
 
-  // State Management
   const [selectedDate, setSelectedDate] = useState<string>(
     new Date().toISOString().split('T')[0]
   );
   const [teachers, setTeachers] = useState<Teacher[]>([]);
-  const [gridData, setGridData] = useState<DailyDeskGrid | null>(null);
+  const [gridData, setGridData] = useState<any>(null);
   const [loading, setLoading] = useState<boolean>(true);
-  const [savingState, setSavingState] = useState<Record<string, boolean>>({});
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
 
-  // Core Data Loader
-  const loadAttendanceMatrix = useCallback(async (showSilence = false) => {
+  // Load teachers list and daily desk slots matrix simultaneously
+  const loadDataRegistry = useCallback(async (silent = false) => {
     try {
-      if (!showSilence) setLoading(true);
+      if (!silent) setLoading(true);
       const [teachersList, deskGrid] = await Promise.all([
         getTeachers(),
         getDailyDeskGrid(selectedDate),
@@ -35,265 +33,186 @@ export default function AdminAttendancePage() {
       setTeachers(teachersList);
       setGridData(deskGrid);
     } catch (error) {
-      console.error('Failed to pull localized teacher timeline matrix:', error);
-      toast.error('Failed to sync data registry maps.');
+      console.error(error);
+      toast.error('Failed to update dashboard matrix logs.');
     } finally {
       setLoading(false);
     }
   }, [selectedDate]);
 
   useEffect(() => {
-    void loadAttendanceMatrix(false);
-  }, [loadAttendanceMatrix]);
+    void loadDataRegistry(false);
+  }, [loadDataRegistry]);
 
-  // Check if a teacher is absent for ALL assigned periods (Full Day)
-  const isFullDayAbsent = (teacherId: string): boolean => {
-    if (!gridData) return false;
-    
-    let totalAssignedPeriods = 0;
-    let absentPeriodsCount = 0;
+  // Read current attendance from backend response safely with absolute fallback redundancy
+  const getTeacherCurrentStatus = (teacherId: string): 'PRESENT' | 'ABSENT' => {
+    if (!gridData) return 'PRESENT';
 
-    gridData.grid.forEach((row) => {
-      const cell = row.cells.find((c) => c.teacherId === teacherId && !c.empty);
-      if (cell) {
-        totalAssignedPeriods++;
-        if (cell.isAbsent) absentPeriodsCount++;
-      }
-    });
-
-    return totalAssignedPeriods > 0 && totalAssignedPeriods === absentPeriodsCount;
-  };
-
-  // Fixed: Handle individual checkbox toggles cleanly without event bubbling
-  const handleAttendanceToggle = async (
-    e: React.ChangeEvent<HTMLInputElement>,
-    teacherId: string,
-    periodId: string,
-    currentAbsentStatus: boolean
-  ) => {
-    // Stop layout propagation instantly to prevent flashing and double-toggles
-    e.stopPropagation();
-    
-    if (!gridData) return;
-    const key = `${teacherId}-${periodId}`;
-    if (savingState[key]) return; // prevent double clicks
-    
-    try {
-      setSavingState((prev) => ({ ...prev, [key]: true }));
-      
-      const periodRow = gridData.grid.find((row) => row.periodId === periodId);
-      const cell = periodRow?.cells.find((c) => c.teacherId === teacherId && !c.empty);
-
-      if (!cell) {
-        console.warn(`No assigned class found for teacher ${teacherId} in period ${periodId}`);
-        return;
-      }
-
-      // Explicitly pass down the inverted target boolean status value 
-      await markAttendance(cell.classId, periodId, teacherId, selectedDate, !currentAbsentStatus);
-      
-      // Silently reload data backend matrices without full-page white flashes
-      await loadAttendanceMatrix(true);
-    } catch (err) {
-      console.error('Error changing local execution marker parameter:', err);
-      toast.error('Failed processing singular period state amendment.');
-    } finally {
-      setSavingState((prev) => ({ ...prev, [key]: false }));
+    // Layer 1: Verify presence inside explicit global attendance logs array matching any structural key variations
+    if (gridData.attendance && Array.isArray(gridData.attendance)) {
+      const isAbsentInAttendance = gridData.attendance.some(
+        (a: any) => 
+          a.teacherId === teacherId || 
+          a.id === teacherId || 
+          a.facultyId === teacherId ||
+          (a.teacher && a.teacher.id === teacherId)
+      );
+      if (isAbsentInAttendance) return 'ABSENT';
     }
+
+    // Layer 2: Redundant Fallback Matrix Lookup — inspect layout cell elements directly
+    // If ANY block today displays this instructor as absent, immediately treat as absolute ABSENT state
+    if (gridData.grid && Array.isArray(gridData.grid)) {
+      for (const row of gridData.grid) {
+        const structuralCell = row.cells?.find((c: any) => c.teacherId === teacherId && !c.empty);
+        if (structuralCell && structuralCell.isAbsent) {
+          return 'ABSENT';
+        }
+      }
+    }
+    
+    return 'PRESENT';
   };
 
-  // Full Day Bulk Attendance Action
-  const handleFullDayToggle = async (teacherId: string, markAsAbsent: boolean) => {
-    if (!gridData) return;
-    const key = `${teacherId}-fullday`;
-
+  // Submit data directly to POST endpoint route
+  const handleStatusChange = async (teacherId: string, targetStatus: 'PRESENT' | 'ABSENT') => {
     try {
-      setSavingState((prev) => ({ ...prev, [key]: true }));
-      const promises: Promise<any>[] = [];
-      
-      gridData.grid.forEach((row) => {
-        const cell = row.cells.find((c) => c.teacherId === teacherId && !c.empty);
-        if (cell) {
-          promises.push(
-            markAttendance(cell.classId, row.periodId, teacherId, selectedDate, markAsAbsent)
-          );
-        }
+      setUpdatingId(teacherId);
+
+      const response = await fetch('/api/admin/attendance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          teacherId: teacherId,
+          date: selectedDate,
+          status: targetStatus
+        })
       });
 
-      if (promises.length === 0) {
-        toast.error('This teacher has no active periods assigned today.');
-        return;
+      if (!response.ok) {
+        const dataError = await response.json().catch(() => ({}));
+        throw new Error(dataError.error || `Server Error: ${response.status}`);
       }
 
-      await Promise.all(promises);
-      await loadAttendanceMatrix(true);
-    } catch (err) {
-      console.error('Failed executing full day operations modification matrix:', err);
+      toast.success(`Status updated to ${targetStatus}`);
+      
+      // Force instant silent reload to fetch updated grid arrays from server
+      await loadDataRegistry(true);
+    } catch (err: any) {
+      console.error('API Mutation Error:', err);
+      toast.error(err.message || 'Failed to update status.');
     } finally {
-      setSavingState((prev) => ({ ...prev, [key]: false }));
+      setUpdatingId(null);
     }
   };
 
-  return (
-    <div className="max-w-[1600px] mx-auto space-y-6 p-4">
-      
-      {/* HEADER SECTION */}
-      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-border/40 pb-4">
-        <div>
-          <h1 className="text-xl font-black uppercase tracking-wider text-foreground flex items-center gap-2">
-            <UserCheck className="h-5 w-5 text-indigo-500" />
-            Teacher Attendance Register
-          </h1>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Manage granular absences. Checked entries mark absences, which flow live onto your Daily Desk matrix.
-          </p>
-        </div>
-
-        {/* DATE PICKER & FORCE SYNC CONTROL */}
-        <div className="flex items-center gap-3 w-full md:w-auto">
-          <div className="relative flex-1 md:flex-none">
-            <Calendar className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
-            <input
-              type="date"
-              value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
-              className="pl-9 pr-4 py-1.5 w-full md:w-48 rounded-xl bg-background border border-border/60 text-xs font-semibold focus:outline-none focus:border-indigo-500 transition-colors"
-            />
-          </div>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => void loadAttendanceMatrix(false)}
-            className="rounded-xl border-border/80 h-9 text-xs font-bold"
-          >
-            <RefreshCw className={cn("h-3.5 w-3.5 mr-1.5", loading && "animate-spin")} />
-            Sync
-          </Button>
-        </div>
+  if (loading) {
+    return (
+      <div className="max-w-7xl mx-auto">
+        <PageSkeleton />
       </div>
+    );
+  }
 
-      {loading ? (
-        <div className="space-y-3 py-12 text-center text-xs font-medium text-muted-foreground animate-pulse">
-          Parsing timetable registry structures...
-        </div>
-      ) : (
-        <GlassCard className="p-0 overflow-hidden border border-border/60">
-          <div className="w-full overflow-x-auto scrollbar-thin">
-            <table className="w-full border-collapse text-left min-w-[900px]">
-              <thead>
-                <tr className="bg-muted/60 border-b border-border/40 text-[11px] font-black uppercase tracking-widest text-muted-foreground">
-                  <th className="p-4 w-[240px] bg-muted/80 sticky left-0 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">
-                    Faculty Personnel
-                  </th>
-                  <th className="p-4 text-center w-[150px]">
-                    Full Day Absence
-                  </th>
-                  {gridData?.periods.map((period) => (
-                    <th key={period.id} className="p-3 text-center border-l border-border/40 min-w-[120px]">
-                      <div className="text-foreground font-bold">
-                        {period.isBreak ? (period.label || 'BREAK') : `P${period.periodNumber}`}
-                      </div>
-                      <div className="text-[9px] text-muted-foreground font-medium lowercase tracking-normal">
-                        ({period.startTime})
-                      </div>
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border/30 text-xs font-medium text-foreground">
-                {teachers.map((teacher) => {
-                  const fullAbsent = isFullDayAbsent(teacher.id);
-                  const isFullDaySaving = savingState[`${teacher.id}-fullday`];
-
-                  return (
-                    <tr 
-                      key={teacher.id} 
-                      className={cn(
-                        "hover:bg-muted/5 transition-colors",
-                        fullAbsent && "bg-rose-500/[0.02]"
-                      )}
-                    >
-                      {/* Name Column */}
-                      <td className="p-4 font-bold sticky left-0 bg-background/95 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] border-r border-r-border/30">
-                        <div className="truncate">{teacher.name}</div>
-                        <div className="text-[10px] text-muted-foreground font-normal truncate mt-0.5">
-                          {teacher.email || 'No registry email'}
-                        </div>
-                      </td>
-
-                      {/* Bulk Toggle Full Day Column */}
-                      <td className="p-4 text-center vertical-middle">
-                        <button
-                          disabled={isFullDaySaving}
-                          onClick={() => void handleFullDayToggle(teacher.id, !fullAbsent)}
-                          className={cn(
-                            "px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all border",
-                            fullAbsent
-                              ? "bg-rose-500/10 text-rose-600 border-rose-500/30 shadow-sm"
-                              : "bg-emerald-500/5 text-emerald-600 border-emerald-500/20 hover:bg-rose-500/5 hover:text-rose-500 hover:border-rose-500/20"
-                          )}
-                        >
-                          {isFullDaySaving ? 'Updating...' : fullAbsent ? '⚡ Absent (All)' : 'Mark Absent'}
-                        </button>
-                      </td>
-
-                      {/* Dynamic Intersect Periods Mapping */}
-                      {gridData?.periods.map((period) => {
-                        const periodRow = gridData.grid.find((row) => row.periodId === period.id);
-                        const cell = periodRow?.cells.find((c) => c.teacherId === teacher.id && !c.empty);
-                        
-                        if (!cell) {
-                          return (
-                            <td key={period.id} className="p-3 text-center border-l border-border/30 text-muted-foreground/20 bg-muted/5 select-none">
-                              <span className="text-[10px] tracking-widest font-normal">—</span>
-                            </td>
-                          );
-                        }
-
-                        const isAbsent = cell.isAbsent;
-                        const isSaving = savingState[`${teacher.id}-${period.id}`];
-
-                        return (
-                          <td 
-                            key={period.id} 
-                            className={cn(
-                              "p-3 text-center border-l border-border/30 transition-colors",
-                              isAbsent ? "bg-rose-500/[0.03]" : "bg-emerald-500/[0.01]"
-                            )}
-                          >
-                            <div className="flex flex-col items-center justify-center gap-1.5 select-none">
-                              <input
-                                type="checkbox"
-                                checked={isAbsent}
-                                disabled={isSaving || isFullDaySaving}
-                                onChange={(e) => void handleAttendanceToggle(e, teacher.id, period.id, isAbsent)}
-                                className="w-4 h-4 rounded border-border/80 text-indigo-600 focus:ring-indigo-500 accent-indigo-600 cursor-pointer disabled:opacity-40"
-                              />
-                              <span 
-                                className={cn(
-                                  "text-[9px] font-bold tracking-wide uppercase px-1 rounded transition-colors",
-                                  isAbsent 
-                                    ? "text-rose-600 bg-rose-500/10" 
-                                    : "text-emerald-600 dark:text-emerald-500 bg-emerald-500/10"
-                                )}
-                              >
-                                {isSaving ? '...' : isAbsent ? 'Absent' : 'Present'}
-                              </span>
-                              <span className="text-[8px] text-muted-foreground font-medium max-w-[100px] truncate block opacity-70">
-                                {cell.className} · {cell.subjectName}
-                              </span>
-                            </div>
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+  return (
+    <div className="max-w-7xl mx-auto">
+      <PageHeader
+        title="Duty Roster & Attendance Controls"
+        description="Select daily attendance states. Present teachers maintain slots; Absent triggers substitution workflow."
+        breadcrumbs={[
+          { label: 'Admin', href: '/admin/dashboard' },
+          { label: 'Operations' },
+          { label: 'Attendance' },
+        ]}
+        actions={
+          <div className="flex items-center gap-3 w-full md:w-auto">
+            <div className="relative flex-1 md:flex-none">
+              <Calendar className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
+              <input
+                type="date"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                className="pl-9 pr-4 py-1.5 w-full md:w-48 rounded-xl bg-background border border-border/60 text-xs font-semibold focus:outline-none"
+              />
+            </div>
+            <button 
+              onClick={() => void loadDataRegistry(false)} 
+              className="inline-flex items-center justify-center px-3 h-9 rounded-xl border border-border bg-background text-xs font-bold hover:bg-muted transition-colors gap-1.5"
+            >
+              <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
+              Sync
+            </button>
           </div>
-        </GlassCard>
-      )}
+        }
+      />
+
+      <GlassCard className="p-0 overflow-hidden border border-border/60 mt-6">
+        <table className="w-full border-collapse text-left">
+          <thead>
+            <tr className="bg-muted/60 border-b border-border/40 text-[11px] font-black uppercase tracking-widest text-muted-foreground">
+              <th className="p-4 w-[400px]">Faculty Personnel Details</th>
+              <th className="p-4 w-[250px] text-center">Current Status</th>
+              <th className="p-4 text-right">Actions Matrix</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border/30 text-xs font-medium">
+            {teachers.map((teacher) => {
+              const status = getTeacherCurrentStatus(teacher.id);
+              const isWorking = updatingId === teacher.id;
+
+              return (
+                <tr key={teacher.id} className={cn("hover:bg-muted/5 transition-colors", status === 'ABSENT' && "bg-rose-500/[0.02]")}>
+                  <td className="p-4">
+                    <div className="font-bold text-foreground">{teacher.name}</div>
+                    <div className="text-[10px] text-muted-foreground font-normal mt-0.5">{teacher.email || 'No institutional mail bound'}</div>
+                  </td>
+                  
+                  {/* CURRENT METRIC STATUS BADGE */}
+                  <td className="p-4 text-center">
+                    <span className={cn(
+                      "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest inline-flex items-center gap-1.5 shadow-sm transition-all",
+                      status === 'PRESENT' ? "bg-emerald-500 text-white" : "bg-rose-500 text-white"
+                    )}>
+                      {status === 'PRESENT' ? <CheckCircle className="h-3 w-3" /> : <XCircle className="h-3 w-3" />}
+                      {status}
+                    </span>
+                  </td>
+                  
+                  {/* ACTION BUTTONS WITH SOLID COLORS */}
+                  <td className="p-4 text-right">
+                    <div className="flex items-center justify-end gap-2.5">
+                      <button
+                        disabled={isWorking}
+                        onClick={() => void handleStatusChange(teacher.id, 'PRESENT')}
+                        className={cn(
+                          "px-4 py-2 rounded-xl text-xs font-extrabold uppercase tracking-wider transition-all shadow-sm duration-150 min-w-[120px] text-center",
+                          status === 'PRESENT'
+                            ? "bg-emerald-500 text-white border-b-2 border-emerald-700" 
+                            : "bg-background text-muted-foreground border border-border/80 hover:bg-muted opacity-60"
+                        )}
+                      >
+                        Mark Present
+                      </button>
+                      <button
+                        disabled={isWorking}
+                        onClick={() => void handleStatusChange(teacher.id, 'ABSENT')}
+                        className={cn(
+                          "px-4 py-2 rounded-xl text-xs font-extrabold uppercase tracking-wider transition-all shadow-sm duration-150 min-w-[120px] text-center",
+                          status === 'ABSENT'
+                            ? "bg-rose-500 text-white border-b-2 border-rose-700" 
+                            : "bg-background text-muted-foreground border border-border/80 hover:bg-rose-500/10 opacity-60"
+                        )}
+                      >
+                        Mark Absent
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </GlassCard>
     </div>
   );
 }

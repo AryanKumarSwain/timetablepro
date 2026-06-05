@@ -8,14 +8,18 @@ import {
 import { getDayOfWeekFromDate } from '@/lib/timetable-source';
 import { mapTeacherAttendance } from '@/lib/mappers';
 
+// Prevent Next.js from caching the midnight date check across page changes
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export async function GET(request: NextRequest) {
   try {
     const { schoolId } = await requireSchoolContext();
     
-    // Timezone-safe local date fallback calculation
-    const localTargetDate = new Date();
-    const offset = localTargetDate.getTimezoneOffset();
-    const safeLocalDate = new Date(localTargetDate.getTime() - (offset * 60 * 1000)).toISOString().split('T')[0];
+    // Generates a real-time 'YYYY-MM-DD' string that changes exactly at midnight IST
+    const safeLocalDate = new Date().toLocaleDateString('en-CA', {
+      timeZone: 'Asia/Kolkata',
+    });
 
     const date = request.nextUrl.searchParams.get('date') ?? safeLocalDate;
     const dayOfWeek = getDayOfWeekFromDate(date);
@@ -73,12 +77,13 @@ export async function GET(request: NextRequest) {
     // 3. Fetch slot rows using the discovered active period identifiers
     const slots = await prisma.timetableSlot.findMany({
       where: {
+        schoolId,
         timetableId: activeTimetable.id,
         dayOfWeek,
         periodId: { in: activePeriods.map(p => p.id) }
       },
     });
-
+    
     const teacherMap = new Map(teachers.map((t) => [t.id, t.name]));
     const subjectMap = new Map(subjects.map((s) => [s.id, s.name]));
 
@@ -109,7 +114,6 @@ export async function GET(request: NextRequest) {
         );
 
         // --- CASCADING ABSENCE CHECK ---
-        // If a replacement exists and is confirmed, check if that substitute teacher is ALSO absent
         let isReplacementAbsent = false;
         if (replacement && replacement.status.toLowerCase() === 'confirmed') {
           const replacementAtt = attendance.find((a) => a.teacherId === replacement.replacementTeacherId);
@@ -128,7 +132,7 @@ export async function GET(request: NextRequest) {
           teacherId: slot.teacherId,
           teacherName: teacherMap.get(slot.teacherId) ?? 'Unknown',
           isAbsent: originalTeacherAbsent,
-          isReplacementAbsent: isReplacementAbsent, // Flag identifying that Jai Sir is also out
+          isReplacementAbsent: isReplacementAbsent,
           replacement: replacement
             ? {
                 id: replacement.id,

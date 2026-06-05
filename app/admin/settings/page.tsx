@@ -2,6 +2,7 @@
 
 import { SettingsPageContent } from '@/components/shared/settings-page-content';
 import { useAuth, useRequireAuth } from '@/lib/auth-context';
+import { QueryProvider } from '@/components/providers/query-provider'; // 1. Import your provider
 import { UserCheck } from 'lucide-react';
 
 export default function AdminSettingsPage() {
@@ -17,13 +18,16 @@ export default function AdminSettingsPage() {
   }
 
   return (
-    <div className="max-w-[1200px] mx-auto space-y-6 p-4">
-      <div className="flex items-center gap-2 border-b border-border/40 pb-4">
-        <h1 className="text-xl font-black uppercase tracking-wider text-foreground flex items-center gap-2">
-          Admin Settings Control Workspace
-        </h1>
+    // 2. Wrap the component tree directly inside the QueryProvider boundary
+    <QueryProvider>
+      <div className="max-w-[1200px] mx-auto space-y-6 p-4">
+        <div className="flex items-center gap-2 border-b border-border/40 pb-4">
+          <h1 className="text-xl font-black uppercase tracking-wider text-foreground flex items-center gap-2">
+            Admin Settings Control Workspace
+          </h1>
+        </div>
+        <SettingsPageContent initialUser={user} />
       </div>
-      <SettingsPageContent initialUser={user} />
-    </div>
+    </QueryProvider>
   );
 }

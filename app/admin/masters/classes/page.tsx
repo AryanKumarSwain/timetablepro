@@ -12,6 +12,16 @@ import { Class } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { PageHeader } from '@/components/enterprise/page-header';
+import {
+  DataGrid,
+  DataGridTable,
+  DataGridHead,
+  DataGridRow,
+  DataGridTh,
+  DataGridTd,
+} from '@/components/enterprise/data-grid';
+import { PageSkeleton } from '@/components/enterprise/page-skeleton';
 import { BulkCsvImportModal } from '@/components/enterprise/bulk-csv-import-modal';
 import { Upload } from 'lucide-react';
 
@@ -95,37 +105,43 @@ export default function ClassesPage() {
 
   if (loading) {
     return (
-      <div className='p-6'>
-        <p className='text-muted-foreground'>Loading classes...</p>
+      <div className='max-w-7xl mx-auto'>
+        <PageSkeleton />
       </div>
     );
   }
 
   return (
-    <div className='max-w-7xl mx-auto p-6'>
-      <div className='mb-6 flex items-center justify-between'>
-        <div>
-          <h1 className='text-3xl font-bold text-foreground mb-1'>Classes</h1>
-          <p className='text-muted-foreground'>Manage school classes</p>
-        </div>
-        {!showForm && (
-          <div className='flex gap-2'>
-            <Button
-              variant='outline'
-              onClick={() => setImportOpen(true)}
-            >
-              <Upload className='h-4 w-4 mr-1.5' />
-              Import CSV
-            </Button>
-            <Button
-              onClick={() => setShowForm(true)}
-              className='bg-primary hover:bg-primary/90'
-            >
-              Add Class
-            </Button>
-          </div>
-        )}
-      </div>
+    <div className='max-w-7xl mx-auto'>
+      <PageHeader
+        title='Classes'
+        description='Manage school classes'
+        breadcrumbs={[
+          { label: 'Admin', href: '/admin/dashboard' },
+          { label: 'Masters' },
+          { label: 'Classes' },
+        ]}
+        actions={
+          !showForm ? (
+            <div className='flex flex-wrap gap-2'>
+              <Button
+                variant='outline'
+                onClick={() => setImportOpen(true)}
+                className='rounded-xl'
+              >
+                <Upload className='h-4 w-4 mr-1.5' />
+                Import CSV
+              </Button>
+              <Button
+                onClick={() => setShowForm(true)}
+                className='rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600'
+              >
+                Add Class
+              </Button>
+            </div>
+          ) : undefined
+        }
+      />
 
       {showForm && (
         <Card className='p-6 mb-6 border-border'>
@@ -201,47 +217,35 @@ export default function ClassesPage() {
         onSuccess={() => void loadData()}
       />
 
-      {/* Classes List Table */}
-      <div className='overflow-x-auto'>
-        <table className='w-full'>
-          <thead>
-            <tr className='border-b border-border'>
-              <th className='text-left py-3 px-4 font-semibold text-foreground'>
-                Name
-              </th>
-              <th className='text-left py-3 px-4 font-semibold text-foreground'>
-                Section
-              </th>
-              <th className='text-left py-3 px-4 font-semibold text-foreground'>
-                Room Number
-              </th>
-              <th className='text-left py-3 px-4 font-semibold text-foreground'>
-                Actions
-              </th>
+      <DataGrid title='Classes list' empty={classes.length === 0}>
+        <DataGridTable>
+          <DataGridHead>
+            <tr>
+              <DataGridTh>Name</DataGridTh>
+              <DataGridTh>Section</DataGridTh>
+              <DataGridTh>Room Number</DataGridTh>
+              <DataGridTh>Actions</DataGridTh>
             </tr>
-          </thead>
+          </DataGridHead>
           <tbody>
             {classes.map((cls) => (
-              <tr
-                key={cls.id}
-                className='border-b border-border hover:bg-card/50 transition'
-              >
-                <td className='py-3 px-4 text-foreground font-medium'>
+              <DataGridRow key={cls.id}>
+                <DataGridTd className='font-medium text-foreground'>
                   {cls.name}
-                </td>
-                <td className='py-3 px-4 text-muted-foreground'>
+                </DataGridTd>
+                <DataGridTd className='text-muted-foreground'>
                   {cls.section}
-                </td>
-                <td className='py-3 px-4 text-muted-foreground'>
+                </DataGridTd>
+                <DataGridTd className='text-muted-foreground'>
                   {cls.roomNumber || '—'}
-                </td>
-                <td className='py-3 px-4'>
+                </DataGridTd>
+                <DataGridTd>
                   <div className='flex gap-2'>
                     <Button
                       onClick={() => handleEdit(cls)}
                       size='sm'
                       variant='outline'
-                      className='border-border hover:bg-card'
+                      className='rounded-lg'
                     >
                       Edit
                     </Button>
@@ -249,17 +253,17 @@ export default function ClassesPage() {
                       onClick={() => handleDelete(cls.id)}
                       size='sm'
                       variant='outline'
-                      className='border-destructive/30 text-destructive hover:bg-destructive/10'
+                      className='rounded-lg border-rose-500/30 text-rose-600'
                     >
                       Delete
                     </Button>
                   </div>
-                </td>
-              </tr>
+                </DataGridTd>
+              </DataGridRow>
             ))}
           </tbody>
-        </table>
-      </div>
+        </DataGridTable>
+      </DataGrid>
     </div>
   );
 }

@@ -11,9 +11,11 @@ export async function GET() {
   }
 
   const { user } = session;
+  const userEmail = user.email.trim().toLowerCase();
+  const userWhere = { email: userEmail };
   let teacherId: string | undefined;
   let phone: string | null = null;
-  let name = user.email.split('@')[0];
+  let name = userEmail.split('@')[0];
 
   // Try fetching the deeper record profile from the DB to get the live Name and Phone values
   if (user.role === 'TEACHER' && user.schoolId) {
@@ -25,13 +27,12 @@ export async function GET() {
       name = teacher.name;
       phone = teacher.phone || null;
     }
-  } else if (user.role === 'ADMIN' || user.role === 'SUPER_ADMIN') {
-    // If you have a dedicated Admin profile table or keep details on User model, look it up here.
-    // Example assuming standard Prisma User model schema lookup:
-    const dbUser = await prisma.user.findUnique({ where: { id: user.id } });
+  } else {
+    // Admin and Super-Admin users have profile info on the User model
+    const dbUser = await prisma.user.findUnique({ where: userWhere });
     if (dbUser) {
       name = dbUser.name || name;
-      phone = (dbUser as any).phone || null; // fallback gracefully if column differs
+      phone = dbUser.phone || null;
     }
   }
 
@@ -66,10 +67,18 @@ export async function PATCH(request: Request) {
     }
 
     const { user } = session;
+    const userEmail = user.email.trim().toLowerCase();
+    const userWhere = { email: userEmail };
 
     if (user.role !== 'TEACHER') {
+      // Admins and Super-Admins have profile info on the User model
+      await prisma.user.update({
+        where: userWhere,
+        data: { name: name.trim(), phone: phone?.trim() || null },
+      });
+
       return NextResponse.json({
-        id: user.id,
+        id: user.id || user.email,
         name: name.trim(),
         email: user.email,
         phone: phone?.trim() || null,

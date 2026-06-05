@@ -136,7 +136,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
 
-    const { baseStartTime, periodDuration, workingDays, periods, name, status } = body;
+    const { baseStartTime, periodDuration, workingDays, periods, slots, name, status } = body;
     const updateData: any = {};
 
     if (typeof name === 'string' && name.trim()) {
@@ -158,6 +158,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     }
 
     await prisma.$transaction(async (tx) => {
+      // 1. If publishing this timeline tracking matrix, demote other layouts
       if (status === 'PUBLISHED') {
         await tx.timetable.updateMany({
           where: { schoolId, status: 'PUBLISHED', id: { not: id } },
@@ -165,18 +166,19 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
         });
       }
 
+      // 2. Commit parent configuration tracking fields
       await tx.timetable.update({
         where: { id },
         data: updateData,
       });
 
+      // 3. Process structural rows and period intervals
       if (Array.isArray(periods)) {
-        // Fix: Explicitly track real generated database IDs
         const incomingIds = periods
           .map((p: any) => p.id)
           .filter((pid: string) => pid && !pid.startsWith('row-'));
 
-        // 1. Cascade clear out all slots attached to missing rows first
+        // Cascade wipe slots matching dropped period profiles
         await tx.timetableSlot.deleteMany({
           where: {
             timetableId: id,
@@ -184,7 +186,6 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
           }
         });
 
-        // 2. Safely perform clean structural updates
         await tx.period.deleteMany({
           where: { timetableId: id, schoolId, id: { notIn: incomingIds } },
         });
@@ -214,6 +215,42 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
               data: { ...data, id: undefined },
             });
           }
+        }
+      }
+
+      // --- CRITICAL DATA BRIDGE SYNC ADDITION ---
+      // 4. Update and synchronize timetable slot configurations directly
+      if (Array.isArray(slots)) {
+        // Clear out the stale assignments index map for this specific timetable model
+        await tx.timetableSlot.deleteMany({
+          where: { timetableId: id }
+        });
+
+        // Batch insert the newly assigned array maps coming from the frontend matrix form
+        if (slots.length > 0) {
+          const slotData = slots.map((s: any) => {
+            // Normalize dayOfWeek from frontend (0-6) to system format (1-7)
+            const rawDay = Number(s.dayOfWeek);
+            const normalizedDay = rawDay === 0 ? 7 : rawDay;
+            return {
+              dayOfWeek: normalizedDay,
+              periodId: s.periodId,
+              classId: s.classId,
+              subjectId: s.subjectId,
+              teacherId: s.teacherId,
+              timetableId: id,
+              schoolId: schoolId,
+            };
+          });
+          console.log('[PATCH timetables] Creating slots:', {
+            count: slotData.length,
+            sample: slotData[0],
+            schoolId,
+            timetableId: id,
+          });
+          await tx.timetableSlot.createMany({
+            data: slotData
+          });
         }
       }
     });
