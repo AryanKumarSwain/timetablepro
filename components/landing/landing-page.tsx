@@ -83,7 +83,7 @@ export function LandingPage() {
             <div className='h-9 w-9 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center'>
               <Sparkles className='h-4 w-4 text-white' />
             </div>
-            TimetableMaster
+            TimetablePro
           </Link>
           <nav className='hidden md:flex items-center gap-8 text-sm text-muted-foreground'>
             <a href='#features' className='hover:text-foreground transition-colors'>
@@ -148,7 +148,7 @@ export function LandingPage() {
             transition={{ delay: 0.2 }}
             className='mt-6 text-lg text-muted-foreground max-w-2xl mx-auto'
           >
-            TimetableMaster unifies weekly scheduling, daily attendance, and
+            TimetablePro unifies weekly scheduling, daily attendance, and
             intelligent substitute assignment in one premium SaaS platform.
           </motion.p>
           <motion.div
@@ -292,7 +292,7 @@ export function LandingPage() {
       </section>
 
       <footer className='border-t border-border/50 py-8 text-center text-sm text-muted-foreground'>
-        © {new Date().getFullYear()} TimetableMaster. Enterprise school scheduling.
+        © {new Date().getFullYear()} TimetablePro. Enterprise school scheduling.
       </footer>
     </div>
   );

@@ -31,6 +31,7 @@ import {
   BarChart3,
   PieChart as PieIcon,
   SlidersHorizontal,
+  Calendar,
 } from 'lucide-react';
 import {
   BarChart,
@@ -43,23 +44,18 @@ import {
   Cell,
   PieChart,
   Pie,
-  LabelList,
 } from 'recharts';
 
-// Generates an elegant, balanced, and distinct unique color per item
-// Limits extreme brightness/neon properties to remain highly readable on white dashboards
 function getUniqueColor(str: string): string {
   let hash = 0;
   for (let i = 0; i < str.length; i++) {
     hash = str.charCodeAt(i) + ((hash << 5) - hash);
   }
-  
+
   const h = Math.abs(hash % 360);
-  // 60% - 72% Saturation: Vivid but controlled, prevents neon glow distortion
-  const s = 60 + (Math.abs(hash >> 2) % 12); 
-  // 48% - 56% Lightness: Clean modern tone ensuring dark enough contrast for numerical text overlays
-  const l = 48 + (Math.abs(hash >> 4) % 8);  
-  
+  const s = 60 + (Math.abs(hash >> 2) % 12);
+  const l = 48 + (Math.abs(hash >> 4) % 8);
+
   return `hsl(${h}, ${s}%, ${l}%)`;
 }
 
@@ -72,11 +68,13 @@ export default function AdminDashboard() {
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [periods, setPeriods] = useState<Period[]>([]);
   const [loading, setLoading] = useState(true);
-  
-  // Real-time Database filter states
+
+  // Real-time Filter Tracking States
   const [timeFilter, setTimeFilter] = useState('1-week');
   const [classFilter, setClassFilter] = useState('all');
-  const [sortFilter, setSortFilter] = useState('a-z'); // Alphabetical by default
+  const [sortFilter, setSortFilter] = useState('a-z');
+  const [dateRange, setDateRange] = useState({ start: '', end: '' });
+
   const [classList, setClassList] = useState<Array<{ id: string; label: string }>>([]);
   const [dbWorkload, setDbWorkload] = useState<any[]>([]);
   const [dbSubjects, setDbSubjects] = useState<any[]>([]);
@@ -110,10 +108,14 @@ export default function AdminDashboard() {
         setTeachers(teachersList);
         setPeriods(periodsList);
 
-        // Fetch analytical tracking parameters safely
-        const response = await fetch(`/api/admin/analytics?range=${timeFilter}&classId=${classFilter}&schoolId=${schoolId}`);
+        let url = `/api/admin/analytics?range=${timeFilter}&classId=${classFilter}&schoolId=${schoolId}`;
+        if (dateRange.start && dateRange.end) {
+          url += `&startDate=${dateRange.start}&endDate=${dateRange.end}`;
+        }
+
+        const response = await fetch(url);
         const contentType = response.headers.get('content-type');
-        
+
         if (response.ok && contentType && contentType.includes('application/json')) {
           const liveAnalyticsRes = await response.json();
           if (liveAnalyticsRes && !liveAnalyticsRes.error) {
@@ -139,28 +141,20 @@ export default function AdminDashboard() {
     return () => {
       isMounted = false;
     };
-  }, [auth.loading, auth.session, timeFilter, classFilter]);
+  }, [auth.loading, auth.session, timeFilter, classFilter, dateRange]);
 
-  // Assign dynamic clean colors to teachers and apply sort logic
   const sortedWorkload = useMemo(() => {
     const dataCopy = dbWorkload.map((item) => ({
       ...item,
       color: getUniqueColor(item.name || 'Unknown Teacher')
     }));
 
-    if (sortFilter === 'a-z') {
-      return dataCopy.sort((a, b) => a.name.localeCompare(b.name));
-    }
-    if (sortFilter === 'z-a') {
-      return dataCopy.sort((a, b) => b.name.localeCompare(a.name));
-    }
-    if (sortFilter === 'low-high') {
-      return dataCopy.sort((a, b) => a.classes - b.classes);
-    }
+    if (sortFilter === 'a-z') return dataCopy.sort((a, b) => a.name.localeCompare(b.name));
+    if (sortFilter === 'z-a') return dataCopy.sort((a, b) => b.name.localeCompare(a.name));
+    if (sortFilter === 'low-high') return dataCopy.sort((a, b) => a.classes - b.classes);
     return dataCopy.sort((a, b) => b.classes - a.classes);
   }, [dbWorkload, sortFilter]);
 
-  // Assign dynamic clean colors to subjects
   const formattedSubjects = useMemo(() => {
     return dbSubjects.map((subject) => ({
       ...subject,
@@ -175,8 +169,7 @@ export default function AdminDashboard() {
 
   return (
     <div className="max-w-7xl mx-auto space-y-6 p-4">
-      
-      {/* PAGE HEADER */}
+
       <PageHeader
         title="Operations Dashboard"
         description="Live campus metrics, attendance, and substitution pipeline"
@@ -194,7 +187,6 @@ export default function AdminDashboard() {
         }
       />
 
-      {/* SYSTEM WARNING BANNER */}
       {(stats?.pendingReplacements ?? 0) > 0 && (
         <GlassCard className="p-4 border-amber-500/30 bg-amber-500/5 flex items-center gap-3 rounded-2xl">
           <AlertTriangle className="h-5 w-5 text-amber-500 shrink-0" />
@@ -207,67 +199,79 @@ export default function AdminDashboard() {
         </GlassCard>
       )}
 
-      {/* CORE KPI CARDS GRID */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <KPICard
-          label="Total Teachers"
-          value={stats?.totalTeachers || 0}
-          subtext="Active in system"
-          index={0}
-        />
-        <KPICard
-          label="Total Classes"
-          value={stats?.totalClasses || 0}
-          subtext="Classes managed"
-          index={1}
-        />
-        <KPICard
-          label="Today's Absences"
-          value={stats?.todayAbsent || 0}
-          variant="danger"
-          subtext="Teachers absent today"
-          index={2}
-        />
-        <KPICard
-          label="Pending Replacements"
-          value={stats?.pendingReplacements || 0}
-          variant="warning"
-          subtext="Awaiting confirmation"
-          index={3}
-        />
+        <KPICard label="Total Teachers" value={stats?.totalTeachers || 0} subtext="Active in system" index={0} />
+        <KPICard label="Total Classes" value={stats?.totalClasses || 0} subtext="Classes managed" index={1} />
+        <KPICard label="Today's Absences" value={stats?.todayAbsent || 0} variant="danger" subtext="Teachers absent today" index={2} />
+        <KPICard label="Pending Replacements" value={stats?.pendingReplacements || 0} variant="warning" subtext="Awaiting confirmation" index={3} />
       </div>
 
-      {/* CHARTS AND ACTIONS BLOCK */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
+
         {/* Teacher Workload Card */}
         <GlassCard className="lg:col-span-2 p-6 rounded-3xl shadow-sm">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
-            <div className="flex items-center gap-2">
+          {/* FIX APPLIED HERE: 
+            1. Added `shrink-0` to the title wrapper.
+            2. Added `whitespace-nowrap` to the h3 text.
+            3. Adjusted right-side flex controls to wrap cleanly.
+          */}
+          <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 mb-6">
+            <div className="flex items-center gap-2 shrink-0">
               <BarChart3 className="h-4 w-4 text-indigo-500" />
-              <h3 className="font-extrabold text-base tracking-tight text-foreground">Teacher Workload</h3>
+              <h3 className="font-extrabold text-base tracking-tight text-foreground whitespace-nowrap">
+                Teacher Workload
+              </h3>
             </div>
-            
-            <div className="flex flex-wrap items-center gap-2">
-              {/* Sorting Filter Selector Dropdown */}
-              <div className="flex items-center gap-1.5 bg-muted/40 px-2 py-1 rounded-xl border border-border/50">
-                <SlidersHorizontal className="h-3 w-3 text-muted-foreground" />
+
+            <div className="flex flex-wrap items-center xl:justify-end gap-2 w-full xl:w-auto">
+              <div className="flex items-center gap-1.5 bg-background border border-border px-2 py-1 rounded-xl shadow-sm">
+                <Calendar className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                <input
+                  type="date"
+                  className="bg-transparent w-[105px] text-xs outline-none cursor-pointer text-foreground font-medium"
+                  value={dateRange.start}
+                  onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))}
+                />
+                <span className="text-muted-foreground text-xs px-0.5 shrink-0">to</span>
+                <input
+                  type="date"
+                  className="bg-transparent w-[105px] text-xs outline-none cursor-pointer text-foreground font-medium"
+                  value={dateRange.end}
+                  onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))}
+                />
+                {(dateRange.start || dateRange.end) && (
+                  <button
+                    onClick={() => setDateRange({ start: '', end: '' })}
+                    className="text-[10px] bg-muted hover:bg-muted/80 px-1.5 py-0.5 rounded ml-1 font-bold text-muted-foreground shrink-0 transition-colors"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+
+              <div className="flex items-center gap-1 bg-muted/40 px-1.5 py-0.5 rounded-lg border border-border/50 shrink-0">
+                <SlidersHorizontal className="h-3 w-3 text-muted-foreground ml-1" />
                 <Select value={sortFilter} onValueChange={setSortFilter}>
-                  <SelectTrigger className="w-[140px] h-7 rounded-lg text-xs font-semibold bg-transparent border-none shadow-none p-0 focus:ring-0 focus-visible:ring-0">
-                    <SelectValue placeholder="Sort order" />
+                  <SelectTrigger className="w-[80px] h-6 rounded-lg text-xs font-semibold bg-transparent border-none shadow-none p-0 focus:ring-0 focus-visible:ring-0">
+                    <SelectValue placeholder="Sort" />
                   </SelectTrigger>
-                  <SelectContent className="rounded-lg shadow-md border-border">
-                    <SelectItem value="a-z" className="text-xs font-medium">Alphabetical (A-Z)</SelectItem>
-                    <SelectItem value="z-a" className="text-xs font-medium">Reverse (Z-A)</SelectItem>
-                    <SelectItem value="high-low" className="text-xs font-medium">High to Low</SelectItem>
-                    <SelectItem value="low-high" className="text-xs font-medium">Low to High</SelectItem>
+                  <SelectContent className="rounded-lg shadow-md border-border min-w-[90px]">
+                    <SelectItem value="a-z" className="text-xs font-medium">A - Z</SelectItem>
+                    <SelectItem value="z-a" className="text-xs font-medium">Z - A</SelectItem>
+                    <SelectItem value="high-low" className="text-xs font-medium">Highest</SelectItem>
+                    <SelectItem value="low-high" className="text-xs font-medium">Lowest</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
-              {/* Range Selector Dropdown */}
-              <Select value={timeFilter} onValueChange={setTimeFilter}>
-                <SelectTrigger className="w-[110px] h-9 rounded-xl text-xs font-medium bg-background border-border">
+              <Select
+                value={timeFilter}
+                onValueChange={(val) => {
+                  setTimeFilter(val);
+                  setDateRange({ start: '', end: '' });
+                }}
+              >
+                <SelectTrigger className="w-[110px] h-9 rounded-xl text-xs font-medium bg-background border-border shrink-0">
                   <SelectValue placeholder="Select range" />
                 </SelectTrigger>
                 <SelectContent className="rounded-xl">
@@ -275,34 +279,33 @@ export default function AdminDashboard() {
                   <SelectItem value="2-weeks" className="text-xs">2 Weeks</SelectItem>
                   <SelectItem value="6-weeks" className="text-xs">6 Weeks</SelectItem>
                   <SelectItem value="1-year" className="text-xs">1 Year</SelectItem>
-                  <SelectItem value="all" className="text-xs">All</SelectItem>
+                  <SelectItem value="all" className="text-xs">All Time</SelectItem>
                 </SelectContent>
               </Select>
             </div>
           </div>
-          
+
           <div className="h-80">
             {sortedWorkload.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={sortedWorkload} barSize={14} margin={{ top: 25, right: 10, left: 10, bottom: 65 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-border/40" />
-                  <XAxis 
-                    dataKey="name" 
-                    axisLine={false} 
-                    tickLine={false} 
+                  <XAxis
+                    dataKey="name"
+                    axisLine={false}
+                    tickLine={false}
                     angle={-45}
                     textAnchor="end"
                     interval={0}
-                    className="text-[9px] font-bold text-muted-foreground" 
+                    className="text-[9px] font-bold text-muted-foreground"
                   />
                   <YAxis axisLine={false} tickLine={false} className="text-[11px] font-semibold text-muted-foreground" />
-                  <Tooltip 
+                  <Tooltip
                     cursor={{ fill: 'rgba(0,0,0,0.02)' }}
                     contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', padding: '4px 8px', borderRadius: '6px', fontSize: '12px', height: 'auto', width: 'auto' }}
                     itemStyle={{ margin: 0, padding: 0 }}
                   />
                   <Bar dataKey="classes" radius={[4, 4, 0, 0]}>
-                    <LabelList dataKey="classes" position="top" offset={6} style={{ fill: '#4b5563', fontSize: 9, fontWeight: 700 }} />
                     {sortedWorkload.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={entry.color} />
                     ))}
@@ -310,7 +313,7 @@ export default function AdminDashboard() {
                 </BarChart>
               </ResponsiveContainer>
             ) : (
-              <div className="h-full flex items-center justify-center text-xs text-muted-foreground">No custom slots assigned yet</div>
+              <div className="h-full flex items-center justify-center text-xs text-muted-foreground">No active schedule custom slots found</div>
             )}
           </div>
         </GlassCard>
@@ -320,11 +323,11 @@ export default function AdminDashboard() {
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
               <PieIcon className="h-4 w-4 text-pink-500" />
-              <h3 className="font-extrabold text-base tracking-tight text-foreground">Subject Dist.</h3>
+              <h3 className="font-extrabold text-base tracking-tight text-foreground">Subject Distribution</h3>
             </div>
 
             <Select value={classFilter} onValueChange={setClassFilter}>
-              <SelectTrigger className="w-[115px] h-8 rounded-lg text-xs font-medium bg-background border-border shadow-none">
+              <SelectTrigger className="w-[115px] h-8 rounded-lg text-xs font-medium bg-background border-border shadow-none shrink-0">
                 <SelectValue placeholder="Select Class" />
               </SelectTrigger>
               <SelectContent className="rounded-lg">
@@ -356,14 +359,14 @@ export default function AdminDashboard() {
                         <Cell key={`cell-${index}`} fill={entry.color} />
                       ))}
                     </Pie>
-                    <Tooltip 
-                      formatter={(value) => `${value}%`} 
+                    <Tooltip
+                      formatter={(value) => `${value}%`}
                       contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', padding: '4px 8px', borderRadius: '6px', fontSize: '12px', height: 'auto', width: 'auto' }}
                       itemStyle={{ margin: 0, padding: 0 }}
                     />
                   </PieChart>
                 </ResponsiveContainer>
-                
+
                 <div className="absolute text-center flex flex-col items-center">
                   <span className="text-xl font-black text-foreground">{totalDatabaseSlots}</span>
                   <span className="text-[9px] text-muted-foreground font-bold uppercase tracking-wider">Slots</span>
@@ -388,9 +391,8 @@ export default function AdminDashboard() {
         </GlassCard>
       </div>
 
-      {/* LOWER DATA MONITOR TABLES */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        
+
         {/* Attendance Pipeline Card */}
         <GlassCard className="p-6 rounded-2xl">
           <div className="flex items-center gap-2 mb-4">
@@ -400,23 +402,14 @@ export default function AdminDashboard() {
           {attendance.length > 0 ? (
             <div className="space-y-2 max-h-64 overflow-y-auto">
               {attendance.map((record) => (
-                <div
-                  key={record.id}
-                  className="flex items-center justify-between p-3 rounded-xl bg-muted/30 border border-border/40"
-                >
+                <div key={record.id} className="flex items-center justify-between p-3 rounded-xl bg-muted/30 border border-border/40">
                   <div>
                     <p className="text-sm font-medium">
                       {teacherMap.get(record.teacherId) || `Teacher ${record.teacherId.slice(0, 8)}…`}
                     </p>
                     <p className="text-xs text-muted-foreground">{record.date}</p>
                   </div>
-                  <span
-                    className={
-                      record.status === 'ABSENT'
-                        ? 'px-2.5 py-1 rounded-full text-xs font-medium bg-rose-500/15 text-rose-600'
-                        : 'px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-500/15 text-emerald-600'
-                    }
-                  >
+                  <span className={record.status === 'ABSENT' ? 'px-2.5 py-1 rounded-full text-xs font-medium bg-rose-500/15 text-rose-600' : 'px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-500/15 text-emerald-600'}>
                     {record.status?.toLowerCase() || 'unknown'}
                   </span>
                 </div>
@@ -436,10 +429,7 @@ export default function AdminDashboard() {
           {replacements.length > 0 ? (
             <div className="space-y-2">
               {replacements.slice(0, 4).map((record) => (
-                <div
-                  key={record.id}
-                  className="flex items-center justify-between p-3 rounded-xl bg-muted/30 text-sm"
-                >
+                <div key={record.id} className="flex items-center justify-between p-3 rounded-xl bg-muted/30 text-sm">
                   <div className="flex flex-col gap-0.5">
                     <span className="font-medium text-foreground">
                       {periodMap.get(record.periodId) || record.periodName || `Period ${record.periodId.slice(0, 6)}…`}
@@ -450,13 +440,7 @@ export default function AdminDashboard() {
                       </span>
                     )}
                   </div>
-                  <span
-                    className={
-                      record.status === 'PENDING'
-                        ? 'text-amber-600 text-xs font-medium capitalize'
-                        : 'text-emerald-600 text-xs font-medium capitalize'
-                    }
-                  >
+                  <span className={record.status === 'PENDING' ? 'text-amber-600 text-xs font-medium capitalize' : 'text-emerald-600 text-xs font-medium capitalize'}>
                     {record.status?.toLowerCase() || 'pending'}
                   </span>
                 </div>
@@ -466,8 +450,8 @@ export default function AdminDashboard() {
             <p className="text-sm text-muted-foreground">No operational substitutions active today</p>
           )}
         </GlassCard>
-
       </div>
+
     </div>
   );
 }

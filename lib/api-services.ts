@@ -335,6 +335,16 @@ export async function getAdminDashboardStats(): Promise<AdminDashboardStats> {
 // ============================================================================
 // Super Admin platform analytics
 // ============================================================================
+export type PlatformPlanMixItem = {
+  plan: string;
+  count: number;
+};
+
+export type PlatformGrowthDatum = {
+  month: string;
+  schools: number;
+};
+
 export type PlatformSummary = {
   activeSchools: number;
   trialSchools: number;
@@ -343,6 +353,8 @@ export type PlatformSummary = {
   monthlyRecurringRevenueRaw: number;
   systemHealth: string;
   latencyMs: number;
+  planMix: PlatformPlanMixItem[];
+  growthData: PlatformGrowthDatum[];
 };
 
 export type PlatformSchoolRow = {

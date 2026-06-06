@@ -52,7 +52,7 @@ export function EnterpriseSidebar({
                   <Sparkles className='h-4 w-4 text-white' />
                 </div>
                 <div className='min-w-0'>
-                  <p className='text-sm font-semibold truncate'>TimetableMaster</p>
+                  <p className='text-sm font-semibold truncate'>TimetablePro</p>
                   <p className='text-[10px] text-muted-foreground uppercase tracking-wider'>
                     {roleLabel}
                   </p>

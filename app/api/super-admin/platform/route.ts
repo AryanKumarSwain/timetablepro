@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
 
   try {
     await requireSuperAdmin();
-    const panel = request.nextUrl.searchParams.get('panel');
+    const panel = request.nextUrl.searchParams.get('panel')?.toLowerCase() ?? '';
 
     if (panel === 'schools') {
       const schools = await client.school.findMany({
@@ -155,31 +155,35 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ uptimePercent, probes });
     }
 
-    const [schoolCount, teacherCount, schoolsWithPlans, trialCount] =
+ const [schoolCount, teacherCount, activeSchools, trialCount, allSchools] =
       await Promise.all([
         client.school.count(),
         client.teacher.count(),
-        client.school.findMany({
-          where: { licenseStatus: 'ACTIVE' },
-          include: { plan: true },
-        }),
+        client.school.findMany({ where: { licenseStatus: 'ACTIVE' }, include: { plan: true } }),
         client.school.count({ where: { licenseStatus: 'TRAIL_EXPIRED' } }),
+        client.school.findMany({ include: { plan: true }, orderBy: { createdAt: 'asc' } }),
       ]);
 
-    const activeMrr = schoolsWithPlans.reduce(
-      (sum, school) => sum + Number(school.plan.priceMonthly),
-      0
-    );
+    // Calculate MRR
+    const activeMrr = activeSchools.reduce((sum, s) => sum + Number(s.plan.priceMonthly), 0);
+
+    // 1. Calculate Plan Mix (for Pie Chart)
+    const planMix = allSchools.reduce<Record<string, number>>((acc, s) => {
+      acc[s.plan.name] = (acc[s.plan.name] || 0) + 1;
+      return acc;
+    }, {});
+
+    // 2. Calculate Growth Data (for Line Chart - Grouped by Month)
+    const growthData = allSchools.reduce<Record<string, number>>((acc, s) => {
+      const month = s.createdAt.toLocaleString('default', { month: 'short' });
+      acc[month] = (acc[month] || 0) + 1;
+      return acc;
+    }, {});
 
     const started = performance.now();
     let healthOk = true;
-    try {
-      await client.$queryRaw`SELECT 1`;
-    } catch {
-      healthOk = false;
-    }
+    try { await client.$queryRaw`SELECT 1`; } catch { healthOk = false; }
     const latencyMs = Math.round(performance.now() - started);
-    const uptimePercent = healthOk ? '99.9' : '95.0';
 
     return NextResponse.json({
       activeSchools: schoolCount,
@@ -187,8 +191,11 @@ export async function GET(request: NextRequest) {
       platformTeachers: teacherCount,
       monthlyRecurringRevenue: formatCurrency(activeMrr),
       monthlyRecurringRevenueRaw: activeMrr,
-      systemHealth: `${uptimePercent}%`,
+      systemHealth: healthOk ? '99.9%' : '95.0%',
       latencyMs,
+      // Pass these to the frontend
+      planMix: Object.entries(planMix).map(([plan, count]) => ({ plan, count })),
+      growthData: Object.entries(growthData).map(([month, schools]) => ({ month, schools })),
     });
   } catch (error) {
     return handleApiError(error);

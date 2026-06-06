@@ -5,6 +5,8 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const range = searchParams.get('range') || '1-week';
+    const startDateStr = searchParams.get('startDate');
+    const endDateStr = searchParams.get('endDate');
     const classId = searchParams.get('classId') || 'all';
     const schoolId = searchParams.get('schoolId');
 
@@ -17,7 +19,26 @@ export async function GET(request: Request) {
       targetedSchoolId = fallbackSchool.id;
     }
 
-    // Fetch Active Schedule Slots
+    // 1. DYNAMIC RANGE & MULTIPLIER CALCULATION
+    let multiplier = 1;
+
+    if (startDateStr && endDateStr) {
+      // Calculate weeks between custom range to accurately scale recurring timetable slots
+      const start = new Date(startDateStr);
+      const end = new Date(endDateStr);
+      const diffInMs = Math.abs(end.getTime() - start.getTime());
+      const diffInDays = Math.ceil(diffInMs / (1000 * 60 * 60 * 24)) || 1;
+      
+      // Convert days to weeks baseline (minimum 1 week multiplier allocation)
+      multiplier = Math.max(1, Math.round(diffInDays / 7));
+    } else {
+      // Fallback to traditional quick-select strings
+      if (range === '2-weeks') multiplier = 2;
+      if (range === '6-weeks') multiplier = 6;
+      if (range === '1-year') multiplier = 52;
+    }
+
+    // 2. FETCH ACTIVE SCHEDULE SLOTS
     let activeSlots: any[] = [];
     try {
       const rawSlots = await (prisma as any).timetableslot.findMany({
@@ -39,17 +60,12 @@ export async function GET(request: Request) {
       }
     }
 
-    // Fetch Metadata Records
+    // 3. FETCH METADATA RECORDS
     const [teachersList, subjectsList, classesList] = await Promise.all([
       (prisma as any).teacher.findMany({ where: { schoolId: targetedSchoolId }, select: { id: true, name: true } }).catch(() => []),
       (prisma as any).subject.findMany({ where: { schoolId: targetedSchoolId }, select: { id: true, name: true } }).catch(() => []),
       prisma.classRoom.findMany({ where: { schoolId: targetedSchoolId }, select: { id: true, name: true, grade: true, section: true } }).catch(() => [])
     ]);
-
-    let multiplier = 1;
-    if (range === '2-weeks') multiplier = 2;
-    if (range === '6-weeks') multiplier = 6;
-    if (range === '1-year') multiplier = 52;
 
     const workloadMap: Record<string, number> = {};
     teachersList.forEach((t: any) => { workloadMap[t.id] = 0; });
@@ -60,9 +76,23 @@ export async function GET(request: Request) {
       }
     });
 
+    // 4. APPLY LIVE SUBSTITUTION ADJUSTMENTS
     try {
+      // Build conditions for daily modifications adjustments
+      const substitutionWhereClause: any = {
+        schoolId: targetedSchoolId,
+        status: 'CONFIRMED'
+      };
+
+      if (startDateStr && endDateStr) {
+        substitutionWhereClause.date = {
+          gte: startDateStr,
+          lte: endDateStr
+        };
+      }
+
       const modifications = await prisma.replacementAssignment.findMany({
-        where: { schoolId: targetedSchoolId, status: 'CONFIRMED' }
+        where: substitutionWhereClause
       });
 
       modifications.forEach((mod: any) => {
@@ -79,7 +109,6 @@ export async function GET(request: Request) {
 
     const colors = ['#6366f1', '#a855f7', '#ec4899', '#10b981', '#f97316', '#06b6d4'];
 
-    // CRITICAL CHANGE: We no longer .filter() out teachers with 0 classes!
     const teacherWorkload = teachersList.map((t: any, index: number) => ({
       name: t.name,
       classes: workloadMap[t.id] || 0,
@@ -95,11 +124,12 @@ export async function GET(request: Request) {
       subjectCounts[slot.subjectId] = (subjectCounts[slot.subjectId] || 0) + 1;
     });
 
-    const totalSlotsCount = filteredSlots.length;
+    // Total slots processed scales linearly with structural system depth loops
+    const totalSlotsCount = filteredSlots.length * multiplier;
 
     const subjectDistribution = subjectsList.map((s: any, index: number) => {
       const count = subjectCounts[s.id] || 0;
-      const percentage = totalSlotsCount > 0 ? Math.round((count / totalSlotsCount) * 100) : 0;
+      const percentage = totalSlotsCount > 0 ? Math.round(((count * multiplier) / totalSlotsCount) * 100) : 0;
       return {
         name: s.name,
         value: percentage,
