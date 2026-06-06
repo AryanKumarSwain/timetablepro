@@ -11,6 +11,8 @@ import { Input } from '@/components/ui/input';
 import { GlassCard } from '@/components/enterprise/glass-card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
+// 👇 Import the recovery modal
+import { ForgotPasswordModal } from '@/components/auth/forgot-password-modal';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -20,6 +22,9 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [tab, setTab] = useState('admin');
   const [mounted, setMounted] = useState(false);
+  
+  // 👇 Recovery Modal state tracker
+  const [forgotPasswordOpen, setForgotPasswordOpen] = useState(false);
 
   const auth = useAuth();
   const router = useRouter();
@@ -176,6 +181,17 @@ export default function LoginPage() {
                   </div>
                 </div>
 
+                {/* 👇 Forgot Password Action Link Container */}
+                <div className="flex justify-end pt-0.5">
+                  <button
+                    type="button"
+                    onClick={() => setForgotPasswordOpen(true)}
+                    className="text-xs font-medium text-indigo-500 hover:text-indigo-600 dark:text-indigo-400 dark:hover:text-indigo-300 transition-colors"
+                  >
+                    Forgot Password?
+                  </button>
+                </div>
+
                 {error && (
                   <motion.p
                     initial={{ opacity: 0, x: -8 }}
@@ -241,6 +257,12 @@ export default function LoginPage() {
           </p>
         </motion.div>
       </div>
+
+      {/* 👇 Forgot Password Overlay Verification Modal Component */}
+      <ForgotPasswordModal 
+        isOpen={forgotPasswordOpen} 
+        onClose={() => setForgotPasswordOpen(false)} 
+      />
     </div>
   );
 }

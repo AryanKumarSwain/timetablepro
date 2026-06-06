@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getSession } from '@/lib/session';
 import { getRoleRedirectPath } from '@/lib/session';
+import bcrypt from 'bcryptjs';
 
 // --- GET: Fetch current user details & format for client state ---
 export async function GET() {
@@ -17,7 +18,6 @@ export async function GET() {
   let phone: string | null = null;
   let name = userEmail.split('@')[0];
 
-  // Try fetching the deeper record profile from the DB to get the live Name and Phone values
   if (user.role === 'TEACHER' && user.schoolId) {
     const teacher = await prisma.teacher.findFirst({
       where: { schoolId: user.schoolId, email: user.email },
@@ -28,7 +28,6 @@ export async function GET() {
       phone = teacher.phone || null;
     }
   } else {
-    // Admin and Super-Admin users have profile info on the User model
     const dbUser = await prisma.user.findUnique({ where: userWhere });
     if (dbUser) {
       name = dbUser.name || name;
@@ -51,7 +50,7 @@ export async function GET() {
   });
 }
 
-// --- PATCH: Save structural details updated from Settings page ---
+// --- PATCH: Multi-flow Account Security Update ---
 export async function PATCH(request: Request) {
   try {
     const session = await getSession();
@@ -60,7 +59,7 @@ export async function PATCH(request: Request) {
     }
 
     const body = await request.json();
-    const { name, phone } = body;
+    const { name, phone, oldPassword, newPassword, otp } = body;
 
     if (!name?.trim()) {
       return NextResponse.json({ error: 'Name parameter is completely mandatory' }, { status: 400 });
@@ -70,35 +69,85 @@ export async function PATCH(request: Request) {
     const userEmail = user.email.trim().toLowerCase();
     const userWhere = { email: userEmail };
 
-    if (user.role !== 'TEACHER') {
-      // Admins and Super-Admins have profile info on the User model
-      await prisma.user.update({
-        where: userWhere,
-        data: { name: name.trim(), phone: phone?.trim() || null },
-      });
+    const userUpdateData: any = {
+      name: name.trim(),
+      phone: phone?.trim() || null,
+    };
 
-      return NextResponse.json({
-        id: user.id || user.email,
-        name: name.trim(),
-        email: user.email,
-        phone: phone?.trim() || null,
-      });
+    // --- PASSWORD FLOW CONTROL ---
+    if (newPassword) {
+      if (newPassword.length < 8) {
+        return NextResponse.json({ error: 'Password length must be at least 8 characters long' }, { status: 400 });
+      }
+
+      if (user.role === 'TEACHER') {
+        // FLOW A: TEACHER SECURITY FLOW (REQUIRES OTP)
+        if (!otp) {
+          return NextResponse.json({ error: 'Verification token missing for Teacher authorization' }, { status: 400 });
+        }
+
+        const tokenRecord = await prisma.verificationToken.findFirst({
+          where: {
+            userId: user.id,
+            token: otp,
+            type: 'PASSWORD_RESET',
+            expiresAt: { gte: new Date() },
+          },
+        });
+
+        if (!tokenRecord) {
+          return NextResponse.json({ error: 'Invalid or expired verification OTP token' }, { status: 400 });
+        }
+
+        // Consume used token cleanly
+        await prisma.verificationToken.delete({ where: { id: tokenRecord.id } });
+        userUpdateData.password = await bcrypt.hash(newPassword, 10);
+
+      } else {
+        // FLOW B: ADMIN SECURITY FLOW (REQUIRES OLD PASSWORD)
+        if (!oldPassword) {
+          return NextResponse.json({ error: 'Current password is required for Admin validation' }, { status: 400 });
+        }
+
+        const dbUser = await prisma.user.findUnique({ where: userWhere });
+        if (!dbUser) return NextResponse.json({ error: 'Profile metadata missing' }, { status: 404 });
+
+        const isMatch = await bcrypt.compare(oldPassword, dbUser.password);
+        if (!isMatch) {
+          return NextResponse.json({ error: 'The old password you entered is incorrect' }, { status: 400 });
+        }
+
+        userUpdateData.password = await bcrypt.hash(newPassword, 10);
+      }
     }
 
-    // Teachers have a dedicated profile record for name/phone updates.
-    await prisma.teacher.updateMany({
-      where: { schoolId: user.schoolId, email: user.email },
-      data: { name: name.trim(), phone: phone?.trim() || null },
-    });
+    // --- APPLY WRITES TO DATABASE ---
+    if (user.role !== 'TEACHER') {
+      await prisma.user.update({
+        where: userWhere,
+        data: userUpdateData,
+      });
+    } else {
+      // Sync teacher profile credentials
+      await prisma.user.update({
+        where: userWhere,
+        data: userUpdateData.password ? { password: userUpdateData.password } : {},
+      });
+
+      await prisma.teacher.updateMany({
+        where: { schoolId: user.schoolId, email: user.email },
+        data: { name: name.trim(), phone: phone?.trim() || null },
+      });
+    }
 
     return NextResponse.json({
       id: user.id,
       name: name.trim(),
       email: user.email,
-      phone: phone?.trim() || null,
+      phone: phone?.trim() || "",
     });
   } catch (error) {
     console.error('[PATCH /api/auth/me Exception]:', error);
-    return NextResponse.json({ error: 'Failed saving updated matrix adjustments' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed saving updated profile modifications' }, { status: 500 });
   }
 }

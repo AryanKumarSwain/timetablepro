@@ -41,9 +41,11 @@ export function AppShell({ role, roleLabel, children }: AppShellProps) {
 
   return (
     <div className='min-h-screen bg-background mesh-gradient'>
+      {/* 👇 UPDATED: Added userRole prop mapping below */}
       <TopNavbar
         userName={user?.name}
         userEmail={user?.email}
+        userRole={role} // 👈 This links your active shell role to the navbar visibility logic!
         navItems={navItems}
         onOpenCommand={() => setCommandOpen(true)}
         onLogout={handleLogout}

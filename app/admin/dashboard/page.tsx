@@ -30,6 +30,7 @@ import {
   AlertTriangle,
   BarChart3,
   PieChart as PieIcon,
+  SlidersHorizontal,
 } from 'lucide-react';
 import {
   BarChart,
@@ -45,6 +46,23 @@ import {
   LabelList,
 } from 'recharts';
 
+// Generates an elegant, balanced, and distinct unique color per item
+// Limits extreme brightness/neon properties to remain highly readable on white dashboards
+function getUniqueColor(str: string): string {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  
+  const h = Math.abs(hash % 360);
+  // 60% - 72% Saturation: Vivid but controlled, prevents neon glow distortion
+  const s = 60 + (Math.abs(hash >> 2) % 12); 
+  // 48% - 56% Lightness: Clean modern tone ensuring dark enough contrast for numerical text overlays
+  const l = 48 + (Math.abs(hash >> 4) % 8);  
+  
+  return `hsl(${h}, ${s}%, ${l}%)`;
+}
+
 export default function AdminDashboard() {
   const auth = useRequireAuth('admin');
 
@@ -58,6 +76,7 @@ export default function AdminDashboard() {
   // Real-time Database filter states
   const [timeFilter, setTimeFilter] = useState('1-week');
   const [classFilter, setClassFilter] = useState('all');
+  const [sortFilter, setSortFilter] = useState('a-z'); // Alphabetical by default
   const [classList, setClassList] = useState<Array<{ id: string; label: string }>>([]);
   const [dbWorkload, setDbWorkload] = useState<any[]>([]);
   const [dbSubjects, setDbSubjects] = useState<any[]>([]);
@@ -121,6 +140,33 @@ export default function AdminDashboard() {
       isMounted = false;
     };
   }, [auth.loading, auth.session, timeFilter, classFilter]);
+
+  // Assign dynamic clean colors to teachers and apply sort logic
+  const sortedWorkload = useMemo(() => {
+    const dataCopy = dbWorkload.map((item) => ({
+      ...item,
+      color: getUniqueColor(item.name || 'Unknown Teacher')
+    }));
+
+    if (sortFilter === 'a-z') {
+      return dataCopy.sort((a, b) => a.name.localeCompare(b.name));
+    }
+    if (sortFilter === 'z-a') {
+      return dataCopy.sort((a, b) => b.name.localeCompare(a.name));
+    }
+    if (sortFilter === 'low-high') {
+      return dataCopy.sort((a, b) => a.classes - b.classes);
+    }
+    return dataCopy.sort((a, b) => b.classes - a.classes);
+  }, [dbWorkload, sortFilter]);
+
+  // Assign dynamic clean colors to subjects
+  const formattedSubjects = useMemo(() => {
+    return dbSubjects.map((subject) => ({
+      ...subject,
+      color: getUniqueColor(subject.name || 'General')
+    }));
+  }, [dbSubjects]);
 
   const teacherMap = useMemo(() => new Map(teachers.map((t) => [t.id, t.name])), [teachers]);
   const periodMap = useMemo(() => new Map(periods.map((p) => [p.id, p.name || `Period ${p.periodNumber || p.name}`])), [periods]);
@@ -196,18 +242,35 @@ export default function AdminDashboard() {
         
         {/* Teacher Workload Card */}
         <GlassCard className="lg:col-span-2 p-6 rounded-3xl shadow-sm">
-          <div className="flex items-center justify-between mb-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
             <div className="flex items-center gap-2">
               <BarChart3 className="h-4 w-4 text-indigo-500" />
               <h3 className="font-extrabold text-base tracking-tight text-foreground">Teacher Workload</h3>
             </div>
             
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Sorting Filter Selector Dropdown */}
+              <div className="flex items-center gap-1.5 bg-muted/40 px-2 py-1 rounded-xl border border-border/50">
+                <SlidersHorizontal className="h-3 w-3 text-muted-foreground" />
+                <Select value={sortFilter} onValueChange={setSortFilter}>
+                  <SelectTrigger className="w-[140px] h-7 rounded-lg text-xs font-semibold bg-transparent border-none shadow-none p-0 focus:ring-0 focus-visible:ring-0">
+                    <SelectValue placeholder="Sort order" />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-lg shadow-md border-border">
+                    <SelectItem value="a-z" className="text-xs font-medium">Alphabetical (A-Z)</SelectItem>
+                    <SelectItem value="z-a" className="text-xs font-medium">Reverse (Z-A)</SelectItem>
+                    <SelectItem value="high-low" className="text-xs font-medium">High to Low</SelectItem>
+                    <SelectItem value="low-high" className="text-xs font-medium">Low to High</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Range Selector Dropdown */}
               <Select value={timeFilter} onValueChange={setTimeFilter}>
-                <SelectTrigger className="w-[120px] h-8 rounded-lg text-xs font-medium bg-background border-border shadow-none">
+                <SelectTrigger className="w-[110px] h-9 rounded-xl text-xs font-medium bg-background border-border">
                   <SelectValue placeholder="Select range" />
                 </SelectTrigger>
-                <SelectContent className="rounded-lg">
+                <SelectContent className="rounded-xl">
                   <SelectItem value="1-week" className="text-xs">1 Week</SelectItem>
                   <SelectItem value="2-weeks" className="text-xs">2 Weeks</SelectItem>
                   <SelectItem value="6-weeks" className="text-xs">6 Weeks</SelectItem>
@@ -218,14 +281,11 @@ export default function AdminDashboard() {
             </div>
           </div>
           
-          {/* Increased height to 350 to gracefully display long, tilted name labels */}
           <div className="h-80">
-            {dbWorkload.length > 0 ? (
+            {sortedWorkload.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
-                {/* Increased bottom margin to 65 so tilted text isn't cut off */}
-                <BarChart data={dbWorkload} barSize={24} margin={{ top: 25, right: 10, left: 10, bottom: 65 }}>
+                <BarChart data={sortedWorkload} barSize={14} margin={{ top: 25, right: 10, left: 10, bottom: 65 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-border/40" />
-                  {/* Tilted labels at -45 degrees with custom positioning text-anchor */}
                   <XAxis 
                     dataKey="name" 
                     axisLine={false} 
@@ -233,7 +293,7 @@ export default function AdminDashboard() {
                     angle={-45}
                     textAnchor="end"
                     interval={0}
-                    className="text-[10px] font-bold text-muted-foreground" 
+                    className="text-[9px] font-bold text-muted-foreground" 
                   />
                   <YAxis axisLine={false} tickLine={false} className="text-[11px] font-semibold text-muted-foreground" />
                   <Tooltip 
@@ -241,10 +301,9 @@ export default function AdminDashboard() {
                     contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', padding: '4px 8px', borderRadius: '6px', fontSize: '12px', height: 'auto', width: 'auto' }}
                     itemStyle={{ margin: 0, padding: 0 }}
                   />
-                  <Bar dataKey="classes" radius={[6, 6, 0, 0]}>
-                    {/* Keeps static numerical balance over individual chart vectors */}
-                    <LabelList dataKey="classes" position="top" offset={6} style={{ fill: '#4b5563', fontSize: 11, fontWeight: 700 }} />
-                    {dbWorkload.map((entry, index) => (
+                  <Bar dataKey="classes" radius={[4, 4, 0, 0]}>
+                    <LabelList dataKey="classes" position="top" offset={6} style={{ fill: '#4b5563', fontSize: 9, fontWeight: 700 }} />
+                    {sortedWorkload.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={entry.color} />
                     ))}
                   </Bar>
@@ -280,12 +339,12 @@ export default function AdminDashboard() {
           </div>
 
           <div className="h-44 w-full relative flex items-center justify-center">
-            {dbSubjects.length > 0 ? (
+            {formattedSubjects.length > 0 ? (
               <>
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
-                      data={dbSubjects}
+                      data={formattedSubjects}
                       cx="50%"
                       cy="50%"
                       innerRadius={50}
@@ -293,7 +352,7 @@ export default function AdminDashboard() {
                       paddingAngle={3}
                       dataKey="value"
                     >
-                      {dbSubjects.map((entry, index) => (
+                      {formattedSubjects.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={entry.color} />
                       ))}
                     </Pie>
@@ -316,7 +375,7 @@ export default function AdminDashboard() {
           </div>
 
           <div className="space-y-2 mt-2 max-h-32 overflow-y-auto">
-            {dbSubjects.map((item, idx) => (
+            {formattedSubjects.map((item, idx) => (
               <div key={idx} className="flex items-center justify-between text-xs font-semibold">
                 <div className="flex items-center gap-2">
                   <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: item.color }} />

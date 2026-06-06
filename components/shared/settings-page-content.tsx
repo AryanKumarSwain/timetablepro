@@ -9,9 +9,8 @@ import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { CheckCircle2, Mail, KeyRound, RefreshCw } from 'lucide-react';
+import { KeyRound, RefreshCw, ShieldCheck, Mail, CheckCircle2 } from 'lucide-react';
 
-// Reusable fetch client
 async function fetchClient<T>(url: string, { method = 'GET', body }: { method?: string; body?: any } = {}): Promise<T> {
   const res = await fetch(url, {
     method,
@@ -20,12 +19,10 @@ async function fetchClient<T>(url: string, { method = 'GET', body }: { method?: 
   });
   if (!res.ok) {
     const errData = await res.json().catch(() => ({}));
-    throw new Error(errData.error || 'Something went wrong processing data configurations');
+    throw new Error(errData.error || 'Something went wrong processing configurations');
   }
   return res.json();
 }
-
-type PasswordStep = 'idle' | 'otp-sent' | 'done';
 
 interface UserProfile {
   id: string;
@@ -39,13 +36,9 @@ interface SettingsPageContentProps {
   initialUser: UserProfile | null;
 }
 
-// Stagger variants for entry cards animation
 const containerVariants = {
   hidden: { opacity: 0 },
-  show: {
-    opacity: 1,
-    transition: { staggerChildren: 0.08 }
-  }
+  show: { opacity: 1, transition: { staggerChildren: 0.08 } }
 };
 
 const cardVariants = {
@@ -53,7 +46,6 @@ const cardVariants = {
   show: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 300, damping: 24 } }
 };
 
-// Form transition animations
 const stepVariants = {
   initial: { opacity: 0, x: 20 },
   animate: { opacity: 1, x: 0, transition: { duration: 0.25, ease: 'easeOut' } },
@@ -61,16 +53,22 @@ const stepVariants = {
 };
 
 export function SettingsPageContent({ initialUser }: SettingsPageContentProps) {
+  const isTeacher = initialUser?.role?.toLowerCase() === 'teacher';
+
   const [name, setName] = useState(initialUser?.name ?? '');
   const [phone, setPhone] = useState(initialUser?.phone ?? '');
 
-  // Manual loading states replacing react-query mutations
+  // Operation Pendings
   const [profilePending, setProfilePending] = useState(false);
+  const [passwordPending, setPasswordPending] = useState(false);
   const [sendOtpPending, setSendOtpPending] = useState(false);
-  const [verifyOtpPending, setVerifyOtpPending] = useState(false);
 
-  const [step, setStep] = useState<PasswordStep>('idle');
+  // Flow State for Teachers
+  const [otpStep, setOtpStep] = useState<'idle' | 'sent' | 'done'>('idle');
+
+  // Fields State
   const [otp, setOtp] = useState('');
+  const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
@@ -81,7 +79,6 @@ export function SettingsPageContent({ initialUser }: SettingsPageContentProps) {
     }
   }, [initialUser]);
 
-  // 1. Manual Profile Update Function
   const handleProfileSave = async () => {
     if (!name.trim()) return toast.error('Name parameter is mandatory');
     
@@ -92,65 +89,70 @@ export function SettingsPageContent({ initialUser }: SettingsPageContentProps) {
         body: { name: name.trim(), phone: phone.trim() || undefined } 
       });
       toast.success('Profile configurations successfully updated');
-      setTimeout(() => {
-        window.location.reload();
-      }, 800);
+      setTimeout(() => window.location.reload(), 800);
     } catch (e: any) {
-      toast.error(e.message || 'Failed saving updated matrix adjustments');
+      toast.error(e.message || 'Failed saving profile info');
     } finally {
       setProfilePending(false);
     }
   };
 
-  // 2. Manual Send OTP Function
+  // Triggered for Teachers to acquire Code
   const handleSendOtp = async () => {
     setSendOtpPending(true);
     try {
-      const res = await fetchClient<{ message: string }>('/api/auth/me/send-otp', { 
-        method: 'POST', 
-        body: {} 
-      });
-      setStep('otp-sent');
-      toast.success(res.message || 'Verification token dispatched successfully');
+      const res = await fetchClient<{ message: string }>('/api/auth/me/send-otp', { method: 'POST' });
+      setOtpStep('sent');
+      toast.success(res.message || 'Verification token sent.');
     } catch (e: any) {
-      toast.error(e.message || 'Failed routing security sequence validation token');
+      toast.error(e.message || 'Failed generating verification code.');
     } finally {
       setSendOtpPending(false);
     }
   };
 
-  // 3. Manual Verify OTP Function
-  const handleVerifyOtp = async () => {
-    if (!otp || otp.length !== 6) return toast.error('Enter valid 6-digit verification sequence');
-    if (!newPassword) return toast.error('New secure password text string missing');
-    if (newPassword !== confirmPassword) return toast.error('Passwords mismatch verification criteria');
-    if (newPassword.length < 8) return toast.error('Password length must safely clear minimum 8 characters requirement');
-    
-    setVerifyOtpPending(true);
+  // Unified execution trigger mapping flows conditionally
+  const handlePasswordUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPassword) return toast.error('New password string missing');
+    if (newPassword !== confirmPassword) return toast.error('Passwords do not match');
+    if (newPassword.length < 8) return toast.error('Password must be at least 8 characters long');
+
+    if (!isTeacher && !oldPassword) {
+      return toast.error('Current password is required for Admin modifications');
+    }
+    if (isTeacher && (!otp || otp.length !== 6)) {
+      return toast.error('Please supply your valid 6-digit OTP code');
+    }
+
+    setPasswordPending(true);
     try {
-      await fetchClient('/api/auth/me/verify-otp', { 
-        method: 'POST', 
-        body: { otp, newPassword } 
+      await fetchClient('/api/auth/me', {
+        method: 'PATCH',
+        body: {
+          name: name.trim(),
+          phone: phone.trim() || undefined,
+          newPassword,
+          oldPassword: !isTeacher ? oldPassword : undefined,
+          otp: isTeacher ? otp : undefined
+        }
       });
-      setStep('done');
-      setOtp('');
+      
+      toast.success('Security password update successful');
+      setOldPassword('');
       setNewPassword('');
       setConfirmPassword('');
-      toast.success('Security entry change complete. Your password is modified.');
+      setOtp('');
+      if (isTeacher) setOtpStep('done');
     } catch (e: any) {
-      toast.error(e.message);
+      toast.error(e.message || 'Failed setting custom verification attributes');
     } finally {
-      setVerifyOtpPending(false);
+      setPasswordPending(false);
     }
   };
 
   return (
-    <motion.div 
-      variants={containerVariants}
-      initial="hidden"
-      animate="show"
-      className="mx-auto max-w-2xl space-y-6"
-    >
+    <motion.div variants={containerVariants} initial="hidden" animate="show" className="mx-auto max-w-2xl space-y-6">
       {/* Account Info */}
       <motion.div variants={cardVariants}>
         <Card className="border border-border/60 shadow-sm backdrop-blur-md">
@@ -174,7 +176,7 @@ export function SettingsPageContent({ initialUser }: SettingsPageContentProps) {
         </Card>
       </motion.div>
 
-      {/* Edit Profile */}
+      {/* Edit Profile Info */}
       <motion.div variants={cardVariants}>
         <Card className="border border-border/60 shadow-sm">
           <CardHeader>
@@ -189,7 +191,7 @@ export function SettingsPageContent({ initialUser }: SettingsPageContentProps) {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="E.g., Dr. Rajesh Kumar"
-                className="rounded-xl border-border/80 text-xs transition-colors focus-visible:ring-indigo-500"
+                className="rounded-xl border-border/80 text-xs focus-visible:ring-indigo-500"
               />
             </div>
             <div className="space-y-1.5">
@@ -199,13 +201,13 @@ export function SettingsPageContent({ initialUser }: SettingsPageContentProps) {
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 placeholder="+91 XXXXX XXXXX"
-                className="rounded-xl border-border/80 text-xs transition-colors focus-visible:ring-indigo-500"
+                className="rounded-xl border-border/80 text-xs focus-visible:ring-indigo-500"
               />
             </div>
             <Button
               onClick={handleProfileSave}
               disabled={profilePending}
-              className="w-full rounded-xl text-xs font-bold shadow-md bg-indigo-600 hover:bg-indigo-700 active:scale-[0.99] transition-all text-white flex items-center justify-center gap-2"
+              className="w-full rounded-xl text-xs font-bold shadow-md bg-indigo-600 hover:bg-indigo-700 text-white flex items-center justify-center gap-2 transition-all"
             >
               {profilePending && <RefreshCw className="h-3 w-3 animate-spin" />}
               {profilePending ? 'Updating Data Matrices...' : 'Save Updated Dimensions'}
@@ -214,65 +216,108 @@ export function SettingsPageContent({ initialUser }: SettingsPageContentProps) {
         </Card>
       </motion.div>
 
-      {/* Change Password with OTP */}
+      {/* Dynamic Authentication Context Card */}
       <motion.div variants={cardVariants}>
         <Card className="border border-border/60 shadow-sm overflow-hidden">
           <CardHeader>
-            <CardTitle className="text-lg font-bold tracking-tight">Authentication Update</CardTitle>
+            <div className="flex items-center gap-2">
+              <KeyRound className="h-4 w-4 text-indigo-500" />
+              <CardTitle className="text-lg font-bold tracking-tight">Authentication Update</CardTitle>
+            </div>
             <CardDescription>
-              Request secure verification token transmission directly to <strong>{initialUser?.email || 'your email'}</strong>
+              {isTeacher 
+                ? `Verification code configuration will dispatch automatically to ${initialUser?.email || 'your email'}.`
+                : 'Direct re-authentication update context for Admin parameters.'}
             </CardDescription>
           </CardHeader>
-          <CardContent className="relative">
+          <CardContent>
             <AnimatePresence mode="wait" initial={false}>
-              {step === 'idle' && (
-                <motion.div
-                  key="idle-step"
-                  variants={stepVariants}
-                  initial="initial"
-                  animate="animate"
-                  exit="exit"
-                >
-                  <Button
-                    onClick={handleSendOtp}
-                    disabled={sendOtpPending}
-                    variant="outline"
-                    className="w-full rounded-xl text-xs font-bold border-border/80 hover:bg-muted/50 active:scale-[0.99] transition-all"
-                  >
-                    <Mail className={`mr-2 h-4 w-4 text-indigo-500 ${sendOtpPending ? 'animate-pulse' : ''}`} />
-                    {sendOtpPending ? 'Generating OTP Credentials...' : 'Send Verification OTP'}
-                  </Button>
-                </motion.div>
+              
+              {/* FLOW 1: ADMIN FLOW OR INITIAL TEACHER TRIGGER */}
+              {(!isTeacher || otpStep === 'idle') && (
+                <motion.form key="direct-password-form" variants={stepVariants} initial="initial" animate="animate" exit="exit" onSubmit={handlePasswordUpdate} className="space-y-4">
+                  {!isTeacher && (
+                    <div className="space-y-1.5">
+                      <Label htmlFor="oldPassword" className="text-xs font-bold">Current Password</Label>
+                      <Input
+                        id="oldPassword"
+                        type="password"
+                        value={oldPassword}
+                        onChange={(e) => setOldPassword(e.target.value)}
+                        placeholder="••••••••"
+                        className="rounded-xl border-border/80 text-xs focus-visible:ring-indigo-500"
+                      />
+                    </div>
+                  )}
+
+                  {isTeacher ? (
+                    <Button
+                      type="button"
+                      onClick={handleSendOtp}
+                      disabled={sendOtpPending}
+                      variant="outline"
+                      className="w-full rounded-xl text-xs font-bold border-border/80 hover:bg-muted/50 transition-all flex items-center justify-center"
+                    >
+                      <Mail className={`mr-2 h-4 w-4 text-indigo-500 ${sendOtpPending ? 'animate-pulse' : ''}`} />
+                      {sendOtpPending ? 'Generating OTP Credentials...' : 'Send Verification OTP Code'}
+                    </Button>
+                  ) : (
+                    <>
+                      <Separator className="bg-border/40 my-1" />
+                      <div className="space-y-1.5">
+                        <Label htmlFor="newPassword" className="text-xs font-bold">New Password</Label>
+                        <Input
+                          id="newPassword"
+                          type="password"
+                          value={newPassword}
+                          onChange={(e) => setNewPassword(e.target.value)}
+                          placeholder="Minimum 8 characters"
+                          className="rounded-xl text-xs focus-visible:ring-indigo-500"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="confirmPassword" className="text-xs font-bold">Confirm New Password</Label>
+                        <Input
+                          id="confirmPassword"
+                          type="password"
+                          value={confirmPassword}
+                          onChange={(e) => setConfirmPassword(e.target.value)}
+                          placeholder="Match choice criteria"
+                          className="rounded-xl text-xs focus-visible:ring-indigo-500"
+                        />
+                      </div>
+                      <Button
+                        type="submit"
+                        disabled={passwordPending}
+                        className="w-full rounded-xl text-xs font-bold shadow-md bg-indigo-600 hover:bg-indigo-700 text-white flex items-center justify-center gap-2 transition-all"
+                      >
+                        {passwordPending ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="h-3.5 w-3.5" />}
+                        Save New Password
+                      </Button>
+                    </>
+                  )}
+                </motion.form>
               )}
 
-              {step === 'otp-sent' && (
-                <motion.div
-                  key="otp-step"
-                  variants={stepVariants}
-                  initial="initial"
-                  animate="animate"
-                  exit="exit"
-                  className="space-y-4"
-                >
-                  <div className="flex items-center justify-between gap-2 rounded-xl bg-indigo-500/10 border border-indigo-500/20 px-4 py-3 text-xs text-indigo-600 dark:text-indigo-400">
-                    <div className="flex items-center gap-2">
-                      <Mail className="h-4 w-4 shrink-0" />
-                      <span>Verification block dispatched.</span>
-                    </div>
-                    
+              {/* FLOW 2: TEACHER LIVE OTP ENTRY VIEW */}
+              {isTeacher && otpStep === 'sent' && (
+                <motion.form key="teacher-otp-form" variants={stepVariants} initial="initial" animate="animate" exit="exit" onSubmit={handlePasswordUpdate} className="space-y-4">
+                  <div className="flex items-center justify-between gap-2 rounded-xl bg-indigo-500/10 border border-indigo-500/20 px-4 py-2.5 text-xs text-indigo-600 dark:text-indigo-400">
+                    <span className="flex items-center gap-2">
+                      <Mail className="h-3.5 w-3.5" /> Code dispatched successfully.
+                    </span>
                     <button
                       type="button"
                       onClick={handleSendOtp}
                       disabled={sendOtpPending}
-                      className="text-xs font-black underline uppercase tracking-wider text-indigo-700 hover:text-indigo-800 disabled:opacity-50 flex items-center gap-1 transition-colors"
+                      className="text-xs font-bold underline flex items-center gap-1 hover:opacity-80 transition-opacity"
                     >
-                      <RefreshCw className={`h-3 w-3 ${sendOtpPending ? 'animate-spin' : ''}`} />
-                      {sendOtpPending ? 'Resending...' : 'Resend OTP'}
+                      <RefreshCw className={`h-3 w-3 ${sendOtpPending ? 'animate-spin' : ''}`} /> Resend
                     </button>
                   </div>
 
                   <div className="space-y-1.5">
-                    <Label htmlFor="otp" className="text-xs font-bold">6-Digit OTP Token</Label>
+                    <Label htmlFor="otp" className="text-xs font-bold">6-Digit Verification Code</Label>
                     <Input
                       id="otp"
                       value={otp}
@@ -284,79 +329,53 @@ export function SettingsPageContent({ initialUser }: SettingsPageContentProps) {
                   </div>
 
                   <div className="space-y-1.5">
-                    <Label htmlFor="newPassword" className="text-xs font-bold">Target Secure Password</Label>
+                    <Label htmlFor="newPassword" className="text-xs font-bold">New Secure Password</Label>
                     <Input
                       id="newPassword"
                       type="password"
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
-                      placeholder="Minimum 8 characters length"
+                      placeholder="Minimum 8 characters"
                       className="rounded-xl text-xs focus-visible:ring-indigo-500"
                     />
                   </div>
 
                   <div className="space-y-1.5">
-                    <Label htmlFor="confirmPassword" className="text-xs font-bold">Verify Entry Sequence</Label>
+                    <Label htmlFor="confirmPassword" className="text-xs font-bold">Confirm Password</Label>
                     <Input
                       id="confirmPassword"
                       type="password"
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
-                      placeholder="Match target system password exactly"
+                      placeholder="Verify profile characters choice"
                       className="rounded-xl text-xs focus-visible:ring-indigo-500"
                     />
                   </div>
 
                   <div className="flex gap-3">
-                    <Button
-                      variant="outline"
-                      className="flex-1 rounded-xl text-xs font-bold active:scale-[0.99] transition-all"
-                      onClick={() => { setStep('idle'); setOtp(''); }}
-                    >
+                    <Button type="button" variant="outline" className="flex-1 rounded-xl text-xs font-bold" onClick={() => { setOtpStep('idle'); setOtp(''); }}>
                       Cancel
                     </Button>
-                    <Button
-                      className="flex-1 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white active:scale-[0.99] transition-all flex items-center justify-center gap-2"
-                      onClick={handleVerifyOtp}
-                      disabled={verifyOtpPending}
-                    >
-                      {verifyOtpPending ? (
-                        <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                      ) : (
-                        <KeyRound className="h-3.5 w-3.5" />
-                      )}
-                      {verifyOtpPending ? 'Validating...' : 'Verify & Lock Password'}
+                    <Button type="submit" disabled={passwordPending} className="flex-1 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white flex items-center justify-center gap-2 transition-all">
+                      {passwordPending ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="h-3.5 w-3.5" />}
+                      Verify & Lock Changes
                     </Button>
                   </div>
-                </motion.div>
+                </motion.form>
               )}
 
-              {step === 'done' && (
-                <motion.div
-                  key="done-step"
-                  variants={stepVariants}
-                  initial="initial"
-                  animate="animate"
-                  exit="exit"
-                  className="flex flex-col items-center gap-2 py-4 text-center"
-                >
-                  <motion.div
-                    initial={{ scale: 0 }}
-                    animate={{ scale: 1, transition: { type: 'spring', stiffness: 400, damping: 15 } }}
-                  >
-                    <CheckCircle2 className="h-10 w-10 text-emerald-500" />
-                  </motion.div>
-                  <p className="font-bold text-sm">Security Profile Shift Complete</p>
-                  <p className="text-xs text-muted-foreground">The modified credentials have written completely to memory clusters.</p>
-                  <Button 
-                    variant="outline" 
-                    onClick={() => setStep('idle')} 
-                    className="mt-2 text-xs rounded-xl active:scale-[0.99] transition-all"
-                  >
-                    Reset Form State
+              {/* FLOW 3: SUCCESS CONFIRMATION DISPLAY */}
+              {isTeacher && otpStep === 'done' && (
+                <motion.div key="teacher-success-view" variants={stepVariants} initial="initial" animate="animate" exit="exit" className="flex flex-col items-center gap-2 py-4 text-center">
+                  <CheckCircle2 className="h-10 w-10 text-emerald-500 animate-bounce" />
+                  <p className="font-bold text-sm text-foreground">Password Reset Complete</p>
+                  <p className="text-xs text-muted-foreground">Teacher account credentials updated securely.</p>
+                  <Button variant="outline" onClick={() => setOtpStep('idle')} className="mt-2 text-xs rounded-xl">
+                    Back to settings
                   </Button>
                 </motion.div>
               )}
+
             </AnimatePresence>
           </CardContent>
         </Card>
