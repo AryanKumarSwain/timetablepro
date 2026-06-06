@@ -165,7 +165,7 @@ export function TopNavbar({
           </SheetTrigger>
           <SheetContent side='left' className='w-72 p-0'>
             <div className='p-4 border-b border-border'>
-              <p className='font-semibold'>TimetableMaster</p>
+              <p className='font-semibold'>TimetablePro</p>
               <p className='text-xs text-muted-foreground'>{schoolName}</p>
             </div>
             <nav className='p-2 space-y-1'>

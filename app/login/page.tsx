@@ -66,7 +66,7 @@ export default function LoginPage() {
           <div className='h-10 w-10 rounded-xl bg-white/10 flex items-center justify-center backdrop-blur'>
             <Sparkles className='h-5 w-5' />
           </div>
-          TimetableMaster
+          TimetablePro
         </div>
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -92,7 +92,7 @@ export default function LoginPage() {
           </div>
         </motion.div>
         <p className='relative text-xs text-white/40'>
-          © TimetableMaster · Trusted by schools worldwide
+          © TimetablePro · Trusted by schools worldwide
         </p>
       </div>
 
@@ -106,7 +106,7 @@ export default function LoginPage() {
             <div className='h-9 w-9 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center'>
               <Sparkles className='h-4 w-4 text-white' />
             </div>
-            TimetableMaster
+            TimetablePro
           </div>
 
           <GlassCard className='p-8'>

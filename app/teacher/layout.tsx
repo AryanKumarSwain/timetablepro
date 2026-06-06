@@ -1,6 +1,8 @@
 'use client';
 
 import { AppShell } from '@/components/enterprise/app-shell';
+// 👇 Import the localized alert component we created
+import { LoginAlertProvider } from '@/components/enterprise/login-alert-provider';
 
 export default function TeacherLayout({
   children,
@@ -8,8 +10,10 @@ export default function TeacherLayout({
   children: React.ReactNode;
 }) {
   return (
-    <AppShell role='teacher' roleLabel='Teacher Portal'>
-      {children}
-    </AppShell>
+    <LoginAlertProvider>
+      <AppShell role='teacher' roleLabel='Teacher Portal'>
+        {children}
+      </AppShell>
+    </LoginAlertProvider>
   );
 }
