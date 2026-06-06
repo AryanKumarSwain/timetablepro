@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useRequireAuth } from '@/lib/auth-context';
 import {
@@ -8,7 +8,7 @@ import {
   getDailyAttendance,
   getReplacements,
   getTeachers,
-  getPeriods, // 1. Added master periods service import
+  getPeriods,
 } from '@/lib/api-services';
 import { AdminDashboardStats, DailyAttendance, Replacement, Teacher, Period } from '@/lib/types';
 import { KPICard } from '@/components/kpi-card';
@@ -17,12 +17,19 @@ import { GlassCard } from '@/components/enterprise/glass-card';
 import { PageSkeleton } from '@/components/enterprise/page-skeleton';
 import { Button } from '@/components/ui/button';
 import {
-  Users,
-  GraduationCap,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
   UserX,
   Clock,
   ArrowRight,
   AlertTriangle,
+  BarChart3,
+  PieChart as PieIcon,
 } from 'lucide-react';
 import {
   BarChart,
@@ -32,17 +39,11 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  AreaChart,
-  Area,
+  Cell,
+  PieChart,
+  Pie,
+  LabelList,
 } from 'recharts';
-
-const workloadData = [
-  { day: 'Mon', load: 82 },
-  { day: 'Tue', load: 76 },
-  { day: 'Wed', load: 91 },
-  { day: 'Thu', load: 68 },
-  { day: 'Fri', load: 74 },
-];
 
 export default function AdminDashboard() {
   const auth = useRequireAuth('admin');
@@ -51,17 +52,19 @@ export default function AdminDashboard() {
   const [attendance, setAttendance] = useState<DailyAttendance[]>([]);
   const [replacements, setReplacements] = useState<Replacement[]>([]);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
-  const [periods, setPeriods] = useState<Period[]>([]); // 2. State for holding period layout configuration
+  const [periods, setPeriods] = useState<Period[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  // Real-time Database filter states
+  const [timeFilter, setTimeFilter] = useState('1-week');
+  const [classFilter, setClassFilter] = useState('all');
+  const [classList, setClassList] = useState<Array<{ id: string; label: string }>>([]);
+  const [dbWorkload, setDbWorkload] = useState<any[]>([]);
+  const [dbSubjects, setDbSubjects] = useState<any[]>([]);
+  const [totalDatabaseSlots, setTotalDatabaseSlots] = useState(0);
 
   useEffect(() => {
-    if (auth.loading) {
-      setLoading(true);
-      return;
-    }
-
-    if (!auth.session) {
-      setLoading(false);
+    if (auth.loading || !auth.session) {
       return;
     }
 
@@ -70,12 +73,14 @@ export default function AdminDashboard() {
     const loadData = async () => {
       try {
         const today = new Date().toISOString().split('T')[0];
+        const schoolId = (auth.session.user as any)?.schoolId || 'default-id';
+
         const [statsData, attendanceData, replacementData, teachersList, periodsList] = await Promise.all([
-          getAdminDashboardStats(),
-          getDailyAttendance(today),
-          getReplacements({ date: today }),
-          getTeachers(),
-          getPeriods(), // 3. Fetch full active system slots structure
+          getAdminDashboardStats().catch(() => null),
+          getDailyAttendance(today).catch(() => []),
+          getReplacements({ date: today }).catch(() => []),
+          getTeachers().catch(() => []),
+          getPeriods().catch(() => []),
         ]);
 
         if (!isMounted) return;
@@ -85,8 +90,24 @@ export default function AdminDashboard() {
         setReplacements(replacementData);
         setTeachers(teachersList);
         setPeriods(periodsList);
+
+        // Fetch analytical tracking parameters safely
+        const response = await fetch(`/api/admin/analytics?range=${timeFilter}&classId=${classFilter}&schoolId=${schoolId}`);
+        const contentType = response.headers.get('content-type');
+        
+        if (response.ok && contentType && contentType.includes('application/json')) {
+          const liveAnalyticsRes = await response.json();
+          if (liveAnalyticsRes && !liveAnalyticsRes.error) {
+            setDbWorkload(liveAnalyticsRes.teacherWorkload || []);
+            setDbSubjects(liveAnalyticsRes.subjectDistribution || []);
+            setTotalDatabaseSlots(liveAnalyticsRes.totalSlots || 0);
+            if (liveAnalyticsRes.classesList) {
+              setClassList(liveAnalyticsRes.classesList);
+            }
+          }
+        }
       } catch (error) {
-        console.error('Failed to load dashboard data:', error);
+        console.error('Error loading dashboard metrics:', error);
       } finally {
         if (isMounted) {
           setLoading(false);
@@ -99,213 +120,294 @@ export default function AdminDashboard() {
     return () => {
       isMounted = false;
     };
-  }, [auth.loading, auth.session]);
+  }, [auth.loading, auth.session, timeFilter, classFilter]);
+
+  const teacherMap = useMemo(() => new Map(teachers.map((t) => [t.id, t.name])), [teachers]);
+  const periodMap = useMemo(() => new Map(periods.map((p) => [p.id, p.name || `Period ${p.periodNumber || p.name}`])), [periods]);
 
   if (auth.loading || loading) return <PageSkeleton />;
 
-  // 4. Create lookup dictionary maps for clean layout rendering
-  const teacherMap = new Map(teachers.map((t) => [t.id, t.name]));
-  const periodMap = new Map(periods.map((p) => [p.id, p.name || `Period ${p.periodNumber || p.name}`]));
-
   return (
-    <div className='max-w-7xl mx-auto'>
+    <div className="max-w-7xl mx-auto space-y-6 p-4">
+      
+      {/* PAGE HEADER */}
       <PageHeader
-        title='Operations Dashboard'
-        description='Live campus metrics, attendance, and substitution pipeline'
+        title="Operations Dashboard"
+        description="Live campus metrics, attendance, and substitution pipeline"
         breadcrumbs={[
           { label: 'Admin', href: '/admin/dashboard' },
           { label: 'Dashboard' },
         ]}
         actions={
-          <Button asChild className='rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600'>
-            <Link href='/admin/daily-desk'>
+          <Button asChild className="rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600">
+            <Link href="/admin/daily-desk">
               Open Daily Desk
-              <ArrowRight className='ml-2 h-4 w-4' />
+              <ArrowRight className="ml-2 h-4 w-4" />
             </Link>
           </Button>
         }
       />
 
+      {/* SYSTEM WARNING BANNER */}
       {(stats?.pendingReplacements ?? 0) > 0 && (
-        <GlassCard className='mb-6 p-4 border-amber-500/30 bg-amber-500/5 flex items-center gap-3'>
-          <AlertTriangle className='h-5 w-5 text-amber-500 shrink-0' />
-          <p className='text-sm'>
-            <span className='font-semibold'>{stats?.pendingReplacements}</span> substitution
-            assignments awaiting confirmation.
+        <GlassCard className="p-4 border-amber-500/30 bg-amber-500/5 flex items-center gap-3 rounded-2xl">
+          <AlertTriangle className="h-5 w-5 text-amber-500 shrink-0" />
+          <p className="text-sm">
+            <span className="font-semibold">{stats?.pendingReplacements}</span> substitution assignments awaiting confirmation.
           </p>
-          <Button size='sm' variant='outline' className='ml-auto rounded-xl' asChild>
-            <Link href='/admin/daily-desk'>Review</Link>
+          <Button size="sm" variant="outline" className="ml-auto rounded-xl" asChild>
+            <Link href="/admin/daily-desk">Review</Link>
           </Button>
         </GlassCard>
       )}
 
-      <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8'>
+      {/* CORE KPI CARDS GRID */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <KPICard
-          label='Total Teachers'
+          label="Total Teachers"
           value={stats?.totalTeachers || 0}
-          subtext='Active in system'
+          subtext="Active in system"
           index={0}
         />
         <KPICard
-          label='Total Classes'
+          label="Total Classes"
           value={stats?.totalClasses || 0}
-          subtext='Classes managed'
+          subtext="Classes managed"
           index={1}
         />
         <KPICard
           label="Today's Absences"
           value={stats?.todayAbsent || 0}
-          variant='danger'
-          subtext='Teachers absent today'
+          variant="danger"
+          subtext="Teachers absent today"
           index={2}
         />
         <KPICard
-          label='Pending Replacements'
+          label="Pending Replacements"
           value={stats?.pendingReplacements || 0}
-          variant='warning'
-          subtext='Awaiting confirmation'
+          variant="warning"
+          subtext="Awaiting confirmation"
           index={3}
         />
       </div>
 
-      <div className='grid lg:grid-cols-3 gap-6 mb-8'>
-        <GlassCard className='lg:col-span-2 p-6'>
-          <h3 className='font-semibold mb-4'>Weekly workload index</h3>
-          <div className='h-56'>
-            <ResponsiveContainer width='100%' height='100%'>
-              <AreaChart data={workloadData}>
-                <defs>
-                  <linearGradient id='loadGrad' x1='0' y1='0' x2='0' y2='1'>
-                    <stop offset='0%' stopColor='oklch(0.55 0.15 265)' stopOpacity={0.4} />
-                    <stop offset='100%' stopColor='oklch(0.55 0.15 265)' stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray='3 3' className='stroke-border/50' />
-                <XAxis dataKey='day' className='text-xs' />
-                <YAxis className='text-xs' />
-                <Tooltip />
-                <Area
-                  type='monotone'
-                  dataKey='load'
-                  stroke='oklch(0.55 0.15 265)'
-                  fill='url(#loadGrad)'
-                />
-              </AreaChart>
-            </ResponsiveContainer>
+      {/* CHARTS AND ACTIONS BLOCK */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        {/* Teacher Workload Card */}
+        <GlassCard className="lg:col-span-2 p-6 rounded-3xl shadow-sm">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-2">
+              <BarChart3 className="h-4 w-4 text-indigo-500" />
+              <h3 className="font-extrabold text-base tracking-tight text-foreground">Teacher Workload</h3>
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <Select value={timeFilter} onValueChange={setTimeFilter}>
+                <SelectTrigger className="w-[120px] h-8 rounded-lg text-xs font-medium bg-background border-border shadow-none">
+                  <SelectValue placeholder="Select range" />
+                </SelectTrigger>
+                <SelectContent className="rounded-lg">
+                  <SelectItem value="1-week" className="text-xs">1 Week</SelectItem>
+                  <SelectItem value="2-weeks" className="text-xs">2 Weeks</SelectItem>
+                  <SelectItem value="6-weeks" className="text-xs">6 Weeks</SelectItem>
+                  <SelectItem value="1-year" className="text-xs">1 Year</SelectItem>
+                  <SelectItem value="all" className="text-xs">All</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          
+          {/* Increased height to 350 to gracefully display long, tilted name labels */}
+          <div className="h-80">
+            {dbWorkload.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                {/* Increased bottom margin to 65 so tilted text isn't cut off */}
+                <BarChart data={dbWorkload} barSize={24} margin={{ top: 25, right: 10, left: 10, bottom: 65 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-border/40" />
+                  {/* Tilted labels at -45 degrees with custom positioning text-anchor */}
+                  <XAxis 
+                    dataKey="name" 
+                    axisLine={false} 
+                    tickLine={false} 
+                    angle={-45}
+                    textAnchor="end"
+                    interval={0}
+                    className="text-[10px] font-bold text-muted-foreground" 
+                  />
+                  <YAxis axisLine={false} tickLine={false} className="text-[11px] font-semibold text-muted-foreground" />
+                  <Tooltip 
+                    cursor={{ fill: 'rgba(0,0,0,0.02)' }}
+                    contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', padding: '4px 8px', borderRadius: '6px', fontSize: '12px', height: 'auto', width: 'auto' }}
+                    itemStyle={{ margin: 0, padding: 0 }}
+                  />
+                  <Bar dataKey="classes" radius={[6, 6, 0, 0]}>
+                    {/* Keeps static numerical balance over individual chart vectors */}
+                    <LabelList dataKey="classes" position="top" offset={6} style={{ fill: '#4b5563', fontSize: 11, fontWeight: 700 }} />
+                    {dbWorkload.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-full flex items-center justify-center text-xs text-muted-foreground">No custom slots assigned yet</div>
+            )}
           </div>
         </GlassCard>
-        <GlassCard className='p-6'>
-          <h3 className='font-semibold mb-4'>Quick actions</h3>
-          <div className='space-y-2'>
-            {[
-              { href: '/admin/masters/teachers', label: 'Manage Teachers', icon: Users },
-              { href: '/admin/timetable', label: 'Weekly Timetable', icon: GraduationCap },
-              { href: '/admin/daily-desk', label: 'Daily Desk', icon: Clock },
-            ].map((action) => (
-              <Button
-                key={action.href}
-                variant='outline'
-                className='w-full justify-start rounded-xl h-11'
-                asChild
-              >
-                <Link href={action.href}>
-                  <action.icon className='h-4 w-4 mr-2 text-indigo-500' />
-                  {action.label}
-                </Link>
-              </Button>
+
+        {/* Subject Distribution Card */}
+        <GlassCard className="p-6 rounded-3xl shadow-sm flex flex-col justify-between">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <PieIcon className="h-4 w-4 text-pink-500" />
+              <h3 className="font-extrabold text-base tracking-tight text-foreground">Subject Dist.</h3>
+            </div>
+
+            <Select value={classFilter} onValueChange={setClassFilter}>
+              <SelectTrigger className="w-[115px] h-8 rounded-lg text-xs font-medium bg-background border-border shadow-none">
+                <SelectValue placeholder="Select Class" />
+              </SelectTrigger>
+              <SelectContent className="rounded-lg">
+                <SelectItem value="all" className="text-xs">All Classes</SelectItem>
+                {classList.map((cls) => (
+                  <SelectItem key={cls.id} value={cls.id} className="text-xs">
+                    {cls.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="h-44 w-full relative flex items-center justify-center">
+            {dbSubjects.length > 0 ? (
+              <>
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={dbSubjects}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={50}
+                      outerRadius={75}
+                      paddingAngle={3}
+                      dataKey="value"
+                    >
+                      {dbSubjects.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip 
+                      formatter={(value) => `${value}%`} 
+                      contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', padding: '4px 8px', borderRadius: '6px', fontSize: '12px', height: 'auto', width: 'auto' }}
+                      itemStyle={{ margin: 0, padding: 0 }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+                
+                <div className="absolute text-center flex flex-col items-center">
+                  <span className="text-xl font-black text-foreground">{totalDatabaseSlots}</span>
+                  <span className="text-[9px] text-muted-foreground font-bold uppercase tracking-wider">Slots</span>
+                </div>
+              </>
+            ) : (
+              <div className="text-xs text-muted-foreground text-center px-4">No scheduled periods available</div>
+            )}
+          </div>
+
+          <div className="space-y-2 mt-2 max-h-32 overflow-y-auto">
+            {dbSubjects.map((item, idx) => (
+              <div key={idx} className="flex items-center justify-between text-xs font-semibold">
+                <div className="flex items-center gap-2">
+                  <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
+                  <span className="text-muted-foreground truncate max-w-[120px]">{item.name}</span>
+                </div>
+                <span className="text-foreground font-black">{item.value}%</span>
+              </div>
             ))}
           </div>
         </GlassCard>
       </div>
 
-      <div className='grid grid-cols-1 lg:grid-cols-2 gap-6'>
-        <GlassCard className='p-6'>
-          <div className='flex items-center gap-2 mb-4'>
-            <UserX className='h-5 w-5 text-rose-500' />
-            <h3 className='font-semibold'>Today&apos;s Attendance</h3>
+      {/* LOWER DATA MONITOR TABLES */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        
+        {/* Attendance Pipeline Card */}
+        <GlassCard className="p-6 rounded-2xl">
+          <div className="flex items-center gap-2 mb-4">
+            <UserX className="h-5 w-5 text-rose-500" />
+            <h3 className="font-semibold">Today's Attendance</h3>
           </div>
           {attendance.length > 0 ? (
-            <div className='space-y-2 max-h-64 overflow-y-auto'>
+            <div className="space-y-2 max-h-64 overflow-y-auto">
               {attendance.map((record) => (
                 <div
                   key={record.id}
-                  className='flex items-center justify-between p-3 rounded-xl bg-muted/30 border border-border/40'
+                  className="flex items-center justify-between p-3 rounded-xl bg-muted/30 border border-border/40"
                 >
                   <div>
-                    <p className='text-sm font-medium'>
+                    <p className="text-sm font-medium">
                       {teacherMap.get(record.teacherId) || `Teacher ${record.teacherId.slice(0, 8)}…`}
                     </p>
-                    <p className='text-xs text-muted-foreground'>{record.date}</p>
+                    <p className="text-xs text-muted-foreground">{record.date}</p>
                   </div>
                   <span
                     className={
-                      record.isAbsent
+                      record.status === 'ABSENT'
                         ? 'px-2.5 py-1 rounded-full text-xs font-medium bg-rose-500/15 text-rose-600'
                         : 'px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-500/15 text-emerald-600'
                     }
                   >
-                    {record.isAbsent ? 'Absent' : 'Present'}
+                    {record.status?.toLowerCase() || 'unknown'}
                   </span>
                 </div>
               ))}
             </div>
           ) : (
-            <p className='text-sm text-muted-foreground'>No attendance records yet</p>
+            <p className="text-sm text-muted-foreground">No attendance records found</p>
           )}
         </GlassCard>
 
-        <GlassCard className='p-6'>
-          <h3 className='font-semibold mb-4'>Substitution pipeline</h3>
-          <div className='h-40 mb-4'>
-            <ResponsiveContainer width='100%' height='100%'>
-              <BarChart
-                data={[
-                  { name: 'Pending', count: stats?.pendingReplacements || 0 },
-                  { name: 'Today', count: stats?.todayReplacements || 0 },
-                ]}
-              >
-                <CartesianGrid strokeDasharray='3 3' className='stroke-border/50' />
-                <XAxis dataKey='name' />
-                <YAxis allowDecimals={false} />
-                <Tooltip />
-                <Bar dataKey='count' fill='oklch(0.55 0.15 265)' radius={[6, 6, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+        {/* Substitution Monitoring Grid */}
+        <GlassCard className="p-6 rounded-2xl">
+          <div className="flex items-center gap-2 mb-4">
+            <Clock className="h-5 w-5 text-indigo-500" />
+            <h3 className="font-semibold">Substitution Pipeline</h3>
           </div>
           {replacements.length > 0 ? (
-            <div className='space-y-2'>
+            <div className="space-y-2">
               {replacements.slice(0, 4).map((record) => (
                 <div
                   key={record.id}
-                  className='flex items-center justify-between p-3 rounded-xl bg-muted/30 text-sm'
+                  className="flex items-center justify-between p-3 rounded-xl bg-muted/30 text-sm"
                 >
-                  <div className='flex flex-col gap-0.5'>
-                    {/* 5. Dynamically translates the raw periodId hash into names like 'Period 1' or 'P1' */}
-                    <span className='font-medium'>
+                  <div className="flex flex-col gap-0.5">
+                    <span className="font-medium text-foreground">
                       {periodMap.get(record.periodId) || record.periodName || `Period ${record.periodId.slice(0, 6)}…`}
                     </span>
                     {(record.replacementTeacherName || teacherMap.get(record.replacementTeacherId)) && (
-                      <span className='text-xs text-muted-foreground'>
+                      <span className="text-xs text-muted-foreground">
                         Sub: {record.replacementTeacherName || teacherMap.get(record.replacementTeacherId)}
                       </span>
                     )}
                   </div>
                   <span
                     className={
-                      record.status === 'pending'
+                      record.status === 'PENDING'
                         ? 'text-amber-600 text-xs font-medium capitalize'
                         : 'text-emerald-600 text-xs font-medium capitalize'
                     }
                   >
-                    {record.status.toLowerCase()}
+                    {record.status?.toLowerCase() || 'pending'}
                   </span>
                 </div>
               ))}
             </div>
           ) : (
-            <p className='text-sm text-muted-foreground'>No replacements scheduled today</p>
+            <p className="text-sm text-muted-foreground">No operational substitutions active today</p>
           )}
         </GlassCard>
+
       </div>
     </div>
   );

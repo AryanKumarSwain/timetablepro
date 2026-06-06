@@ -39,9 +39,9 @@ export const ADMIN_NAV: NavItem[] = [
   { label: 'Teachers', href: '/admin/masters/teachers', icon: Users },
   { label: 'Classes', href: '/admin/masters/classes', icon: GraduationCap },
   { label: 'Subjects', href: '/admin/masters/subjects', icon: BookOpen },
+   { label: 'Attendance', href: '/admin/attendance', icon: UserCheck },
   { label: 'Timetables', href: '/admin/timetables', icon: Table2 },
   { label: 'Daily Desk', href: '/admin/daily-desk', icon: ClipboardList },
-  { label: 'Attendance', href: '/admin/attendance', icon: UserCheck }, // Added Attendance tab
   { label: 'Reports', href: '/admin/reports', icon: FileText },
   { label: 'Settings', href: '/admin/settings', icon: Settings }, // Added Admin Settings
 ];
