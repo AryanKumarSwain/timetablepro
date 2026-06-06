@@ -53,6 +53,7 @@ export interface Class {
 // ============================================================================
 
 export interface Period {
+  name: string;
   id: string;
   periodNumber: number;
   startTime: string;
@@ -100,8 +101,10 @@ export interface Replacement {
   classId: string;
   date: string;
   periodId: string;
+  periodName?: string;
   originalTeacherId: string;
   replacementTeacherId: string;
+  replacementTeacherName?: string;
   subjectId: string;
   reason: string;
   status: 'pending' | 'confirmed' | 'completed' | 'cancelled';
