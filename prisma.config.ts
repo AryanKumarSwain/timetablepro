@@ -1,6 +1,10 @@
 import 'dotenv/config';
-import { defineConfig, type PrismaConfig } from 'prisma/config';
+import { defineConfig, env } from 'prisma/config';
 
+/**
+ * Generates the fallback MariaDB / MySQL connection string if raw discrete environment 
+ * block parameters are supplied instead of a pre-formed standard single-string layout.
+ */
 function getDatabaseUrl(): string {
   if (process.env.DATABASE_URL) {
     return process.env.DATABASE_URL;
@@ -15,15 +19,14 @@ function getDatabaseUrl(): string {
   return `mysql://${user}:${password}@${host}:${port}/${database}`;
 }
 
-const config = {
+export default defineConfig({
   schema: 'prisma/schema.prisma',
   migrations: {
     path: 'prisma/migrations',
     seed: 'tsx prisma/seed.ts',
   },
   datasource: {
-    url: getDatabaseUrl(),
+    // Falls back safely to parsing separate blocks if DATABASE_URL isn't explicitly found
+    url: env('DATABASE_URL') ?? getDatabaseUrl(),
   },
-} satisfies PrismaConfig;
-
-export default defineConfig(config);
+});

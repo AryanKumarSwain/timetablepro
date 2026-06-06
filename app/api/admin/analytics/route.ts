@@ -8,10 +8,8 @@ export async function GET(request: Request) {
     const classId = searchParams.get('classId') || 'all';
     const schoolId = searchParams.get('schoolId');
 
-    // 1. Resolve a valid School ID
     let targetedSchoolId = schoolId;
     if (!targetedSchoolId || targetedSchoolId === 'default-id' || targetedSchoolId === 'school-demo') {
-      // Fallback to raw client handle if extended school property isn't defined
       const fallbackSchool = await (prisma as any).school.findFirst({ select: { id: true } });
       if (!fallbackSchool) {
         return NextResponse.json({ teacherWorkload: [], subjectDistribution: [], totalSlots: 0, classesList: [] });
@@ -19,18 +17,15 @@ export async function GET(request: Request) {
       targetedSchoolId = fallbackSchool.id;
     }
 
-    // 2. Fetch Active Schedule Slots
-    // Using explicit table property names matching your exact Prisma runtime instance
+    // Fetch Active Schedule Slots
     let activeSlots: any[] = [];
     try {
-      // Check your mapped timetable model key
       const rawSlots = await (prisma as any).timetableslot.findMany({
         where: { schoolId: targetedSchoolId },
         include: { timetable: true }
       });
       activeSlots = rawSlots.filter((slot: any) => slot.timetable?.status === 'PUBLISHED');
     } catch (e) {
-      console.warn("timetableslot not found, trying camelCase variant or fallback...");
       try {
         const rawSlots = await (prisma as any).timetableSlot.findMany({
           where: { schoolId: targetedSchoolId },
@@ -38,21 +33,19 @@ export async function GET(request: Request) {
         });
         activeSlots = rawSlots.filter((slot: any) => slot.timetable?.status === 'PUBLISHED');
       } catch (err) {
-        // If timetable slots don't exist yet, fall back to your working weeklyTimetableSlot
         activeSlots = await prisma.weeklyTimetableSlot.findMany({
           where: { schoolId: targetedSchoolId }
         }).catch(() => []);
       }
     }
 
-    // 3. Fetch Metadata Records safely using your file's working mapping
+    // Fetch Metadata Records
     const [teachersList, subjectsList, classesList] = await Promise.all([
       (prisma as any).teacher.findMany({ where: { schoolId: targetedSchoolId }, select: { id: true, name: true } }).catch(() => []),
       (prisma as any).subject.findMany({ where: { schoolId: targetedSchoolId }, select: { id: true, name: true } }).catch(() => []),
       prisma.classRoom.findMany({ where: { schoolId: targetedSchoolId }, select: { id: true, name: true, grade: true, section: true } }).catch(() => [])
     ]);
 
-    // 4. Calculate Teacher Workloads with Substitution Overloads
     let multiplier = 1;
     if (range === '2-weeks') multiplier = 2;
     if (range === '6-weeks') multiplier = 6;
@@ -61,25 +54,21 @@ export async function GET(request: Request) {
     const workloadMap: Record<string, number> = {};
     teachersList.forEach((t: any) => { workloadMap[t.id] = 0; });
 
-    // Base calculation from active slots
     activeSlots.forEach((slot: any) => {
       if (workloadMap[slot.teacherId] !== undefined) {
         workloadMap[slot.teacherId] += 1 * multiplier;
       }
     });
 
-    // Daily Desk substitutions adjustment (Using your working replacementAssignment handle)
     try {
       const modifications = await prisma.replacementAssignment.findMany({
         where: { schoolId: targetedSchoolId, status: 'CONFIRMED' }
       });
 
       modifications.forEach((mod: any) => {
-        // Subtract 1 baseline class from the absent teacher
         if (workloadMap[mod.originalTeacherId] !== undefined) {
           workloadMap[mod.originalTeacherId] = Math.max(0, workloadMap[mod.originalTeacherId] - 1);
         }
-        // Add 1 replacement class load to the cover teacher
         if (workloadMap[mod.replacementTeacherId] !== undefined) {
           workloadMap[mod.replacementTeacherId] += 1;
         }
@@ -90,16 +79,13 @@ export async function GET(request: Request) {
 
     const colors = ['#6366f1', '#a855f7', '#ec4899', '#10b981', '#f97316', '#06b6d4'];
 
+    // CRITICAL CHANGE: We no longer .filter() out teachers with 0 classes!
     const teacherWorkload = teachersList.map((t: any, index: number) => ({
       name: t.name,
       classes: workloadMap[t.id] || 0,
       color: colors[index % colors.length]
-    }))
-    .filter((t: any) => t.classes > 0)
-    .sort((a: any, b: any) => b.classes - a.classes)
-    .slice(0, 6);
+    }));
 
-    // 5. Calculate Dynamic Class Subject Distribution
     const filteredSlots = classId === 'all'
       ? activeSlots
       : activeSlots.filter((slot: any) => slot.classId === classId);
@@ -123,7 +109,6 @@ export async function GET(request: Request) {
     .filter((s: any) => s.value > 0)
     .sort((a: any, b: any) => b.value - a.value);
 
-    // 6. Return Structured API Result
     return NextResponse.json({
       teacherWorkload,
       subjectDistribution,
