@@ -250,11 +250,21 @@ export default function LoginPage() {
             </div>
           </GlassCard>
 
-          <p className='text-center text-sm text-muted-foreground mt-6'>
-            <Link href='/' className='hover:text-foreground transition-colors'>
-              ← Back to home
-            </Link>
-          </p>
+            <p className='text-center text-sm text-muted-foreground mt-6'>
+              Don&apos;t have an account?{' '}
+              <Link
+                href='/signup'
+                className='text-indigo-500 hover:text-indigo-600 font-medium transition-colors'
+              >
+                create a new account
+              </Link>
+            </p>
+
+            <p className='text-center text-sm text-muted-foreground mt-3'>
+              <Link href='/' className='hover:text-foreground transition-colors'>
+                ← Back to home
+              </Link>
+            </p>
         </motion.div>
       </div>
 

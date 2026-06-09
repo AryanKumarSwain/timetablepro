@@ -16,6 +16,8 @@ export async function GET() {
   const userWhere = { email: userEmail };
   let teacherId: string | undefined;
   let phone: string | null = null;
+  let countryCode: string | null = null;
+  let onboardingDone = true;
   let name = userEmail.split('@')[0];
 
   if (user.role === 'TEACHER' && user.schoolId) {
@@ -32,6 +34,8 @@ export async function GET() {
     if (dbUser) {
       name = dbUser.name || name;
       phone = dbUser.phone || null;
+      countryCode = dbUser.countryCode || null;
+      onboardingDone = dbUser.onboardingDone;
     }
   }
 
@@ -41,12 +45,14 @@ export async function GET() {
       email: user.email,
       name,
       phone,
+      countryCode,
+      onboardingDone,
       role: user.role.toLowerCase().replace('_', '-') as 'super-admin' | 'admin' | 'teacher',
       schoolId: user.schoolId,
       teacherId,
       active: true,
     },
-    redirectTo: getRoleRedirectPath(user.role),
+    redirectTo: getRoleRedirectPath(user.role, onboardingDone),
   });
 }
 

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getIronSession } from 'iron-session';
 import { sessionOptions, type AppSessionData } from '@/lib/session';
 
-const PUBLIC_PATHS = ['/', '/login', '/unauthorized'];
+const PUBLIC_PATHS = ['/', '/login', '/signup', '/unauthorized'];
 
 function isPublicPath(pathname: string) {
   return (
@@ -58,7 +58,15 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  const { role } = session.user;
+  const { role, onboardingDone } = session.user;
+
+  if (
+    role === 'ADMIN' &&
+    onboardingDone === false &&
+    pathname.startsWith('/admin')
+  ) {
+    return NextResponse.redirect(new URL('/signup', request.url));
+  }
 
   if (pathname.startsWith('/super-admin') && role !== 'SUPER_ADMIN') {
     return NextResponse.redirect(new URL('/unauthorized', request.url));
