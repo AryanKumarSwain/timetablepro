@@ -27,13 +27,13 @@ export interface NavItem {
   badge?: string;
 }
 
+
 export const SUPER_ADMIN_NAV: NavItem[] = [
   { label: 'Dashboard', href: '/super-admin/dashboard', icon: LayoutDashboard },
-  { label: 'Schools', href: '/super-admin/dashboard', icon: School },
-  { label: 'Plans', href: '/super-admin/dashboard', icon: CreditCard },
-  { label: 'Analytics', href: '/super-admin/dashboard', icon: BarChart3 },
+  { label: 'Schools', href: '/super-admin/schools', icon: School },      // Change from dashboard
+  { label: 'Plans', href: '/super-admin/plans', icon: CreditCard },      // Change from dashboard
+  { label: 'Analytics', href: '/super-admin/analytics', icon: BarChart3 },// Change from dashboard
 ];
-
 export const ADMIN_NAV: NavItem[] = [
   { label: 'Dashboard', href: '/admin/dashboard', icon: LayoutDashboard },
   { label: 'Teachers', href: '/admin/masters/teachers', icon: Users },
