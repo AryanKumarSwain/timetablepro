@@ -123,6 +123,9 @@ export interface User {
   role: UserRole;
   schoolId?: string | null;
   teacherId?: string;
+  phone?: string | null;
+  countryCode?: string | null;
+  onboardingDone?: boolean;
   active: boolean;
 }
 
