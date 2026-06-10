@@ -70,7 +70,7 @@ export function TopNavbar({
 }: TopNavbarProps) {
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
-  
+
   // Real Notification Stream States Data Tracks
   const [notifications, setNotifications] = useState<LiveNotification[]>([]);
   const [isComposeOpen, setIsComposeOpen] = useState(false);
@@ -104,7 +104,7 @@ export function TopNavbar({
   useEffect(() => {
     setMounted(true);
     syncNotifications();
-    
+
     // Auto-refresh dynamic data blocks every 45 seconds to keep tabs accurate
     const loopTracker = setInterval(syncNotifications, 45000);
     return () => clearInterval(loopTracker);
@@ -203,19 +203,10 @@ export function TopNavbar({
         </button>
 
         {/* ACTIVE WORKSPACE SCOPED SCHOOL CARD DROP-DOWN */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant='outline' size='sm' className='hidden lg:flex gap-2 rounded-xl'>
-              <Building2 className='h-4 w-4 text-indigo-500' />
-              <span className='max-w-[140px] truncate'>{schoolName}</span>
-              <ChevronDown className='h-3 w-3 opacity-50' />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align='end'>
-            <DropdownMenuLabel>Workspace</DropdownMenuLabel>
-            <DropdownMenuItem>{schoolName}</DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <div className="hidden lg:flex items-center gap-2 rounded-xl px-3 py-2 border">
+          <Building2 className="h-4 w-4 text-indigo-500" />
+          <span className="max-w-[140px] truncate">{schoolName}</span>
+        </div>
 
         <div className='ml-auto flex items-center gap-1'>
           <Button
@@ -258,19 +249,19 @@ export function TopNavbar({
                   </div>
                   <div className="space-y-1.5">
                     <label className="text-xs font-bold text-muted-foreground">Header Topic Title</label>
-                    <Input 
-                      value={composeTitle} 
-                      onChange={(e) => setComposeTitle(e.target.value)} 
-                      placeholder={parsedRole === 'admin' ? "E.g., Staff Meeting Room Change" : "E.g., System Update Announcement"} 
+                    <Input
+                      value={composeTitle}
+                      onChange={(e) => setComposeTitle(e.target.value)}
+                      placeholder={parsedRole === 'admin' ? "E.g., Staff Meeting Room Change" : "E.g., System Update Announcement"}
                       className="rounded-xl text-xs"
                     />
                   </div>
                   <div className="space-y-1.5">
                     <label className="text-xs font-bold text-muted-foreground">Message Context Body</label>
-                    <Textarea 
-                      value={composeMessage} 
-                      onChange={(e) => setComposeMessage(e.target.value)} 
-                      placeholder="Provide clear message details here..." 
+                    <Textarea
+                      value={composeMessage}
+                      onChange={(e) => setComposeMessage(e.target.value)}
+                      placeholder="Provide clear message details here..."
                       className="min-h-[100px] rounded-xl text-xs resize-none"
                     />
                   </div>
@@ -320,7 +311,7 @@ export function TopNavbar({
                   </div>
                 ) : (
                   notifications.map((notif) => (
-                    <div 
+                    <div
                       key={notif.id}
                       onClick={() => !notif.isRead && handleMarkAsRead(notif.id)}
                       className={cn(
