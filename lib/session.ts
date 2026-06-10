@@ -7,6 +7,7 @@ export interface SessionUser {
   email: string;
   role: UserRole;
   schoolId: string | null;
+  onboardingDone?: boolean;
 }
 
 export interface AppSessionData {
@@ -43,7 +44,10 @@ export async function getSession() {
   return getIronSession<AppSessionData>(cookieStore, sessionOptions);
 }
 
-export function getRoleRedirectPath(role: UserRole): string {
+export function getRoleRedirectPath(role: UserRole, onboardingDone = true): string {
+  if (role === 'ADMIN' && !onboardingDone) {
+    return '/signup';
+  }
   switch (role) {
     case 'SUPER_ADMIN':
       return '/super-admin/dashboard';

@@ -80,6 +80,11 @@ export default function AdminDashboard() {
   const [dbSubjects, setDbSubjects] = useState<any[]>([]);
   const [totalDatabaseSlots, setTotalDatabaseSlots] = useState(0);
 
+  // Extract the school name dynamically from the session data
+  const dynamicSchoolName = useMemo(() => {
+    return (auth.session?.user as any)?.schoolName || 'Operations Dashboard';
+  }, [auth.session]);
+
   useEffect(() => {
     if (auth.loading || !auth.session) {
       return;
@@ -170,8 +175,9 @@ export default function AdminDashboard() {
   return (
     <div className="max-w-7xl mx-auto space-y-6 p-4">
 
+      {/* CHANGED HERE: title is now using dynamicSchoolName instead of a static string */}
       <PageHeader
-        title="Operations Dashboard"
+        title={dynamicSchoolName}
         description="Live campus metrics, attendance, and substitution pipeline"
         breadcrumbs={[
           { label: 'Admin', href: '/admin/dashboard' },
@@ -207,14 +213,8 @@ export default function AdminDashboard() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
         {/* Teacher Workload Card */}
         <GlassCard className="lg:col-span-2 p-6 rounded-3xl shadow-sm">
-          {/* FIX APPLIED HERE: 
-            1. Added `shrink-0` to the title wrapper.
-            2. Added `whitespace-nowrap` to the h3 text.
-            3. Adjusted right-side flex controls to wrap cleanly.
-          */}
           <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 mb-6">
             <div className="flex items-center gap-2 shrink-0">
               <BarChart3 className="h-4 w-4 text-indigo-500" />
@@ -392,7 +392,6 @@ export default function AdminDashboard() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-
         {/* Attendance Pipeline Card */}
         <GlassCard className="p-6 rounded-2xl">
           <div className="flex items-center gap-2 mb-4">

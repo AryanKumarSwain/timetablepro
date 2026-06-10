@@ -62,8 +62,8 @@ interface TopNavbarProps {
 export function TopNavbar({
   userName,
   userEmail,
-  schoolName = 'Demo International School',
-  userRole = 'teacher',
+  schoolName,
+  userRole,
   navItems,
   onOpenCommand,
   onLogout,

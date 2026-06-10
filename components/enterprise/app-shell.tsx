@@ -8,6 +8,17 @@ import { EnterpriseSidebar } from './sidebar';
 import { TopNavbar } from './top-navbar';
 import { CommandPalette } from './command-palette';
 
+// Define the shape matching your Prisma relation for frontend Type safety
+interface PrismaUserWithSchool {
+  name?: string | null;
+  email?: string;
+  role?: string;
+  school?: {
+    id: string;
+    name: string; // This maps directly to your Prisma School model
+  } | null;
+}
+
 interface AppShellProps {
   role: AppRole;
   roleLabel: string;
@@ -21,6 +32,10 @@ export function AppShell({ role, roleLabel, children }: AppShellProps) {
   const [commandOpen, setCommandOpen] = useState(false);
 
   const navItems = getNavForRole(role);
+
+  // Cast user to our relational type to safely extract the school name
+  const extendedUser = user as unknown as PrismaUserWithSchool;
+  const schoolName = extendedUser?.school?.name ?? undefined;
 
   const handleLogout = async () => {
     await logout();
@@ -41,11 +56,11 @@ export function AppShell({ role, roleLabel, children }: AppShellProps) {
 
   return (
     <div className='min-h-screen bg-background mesh-gradient'>
-      {/* 👇 UPDATED: Added userRole prop mapping below */}
       <TopNavbar
-        userName={user?.name}
-        userEmail={user?.email}
-        userRole={role} // 👈 This links your active shell role to the navbar visibility logic!
+        userName={extendedUser?.name ?? undefined}
+        userEmail={extendedUser?.email}
+        schoolName={schoolName} // 👈 Dynamic school name loaded via your Prisma relation!
+        userRole={role}
         navItems={navItems}
         onOpenCommand={() => setCommandOpen(true)}
         onLogout={handleLogout}

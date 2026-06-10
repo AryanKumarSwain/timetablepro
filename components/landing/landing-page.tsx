@@ -98,7 +98,7 @@ export function LandingPage() {
               <Link href='/login'>Sign in</Link>
             </Button>
             <Button asChild className='rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600'>
-              <Link href='/login'>Start Free Trial</Link>
+              <Link href='/signup'>Start Free Trial</Link>
             </Button>
           </div>
         </div>
@@ -162,7 +162,7 @@ export function LandingPage() {
               asChild
               className='rounded-xl h-12 px-8 bg-gradient-to-r from-indigo-600 to-violet-600 shadow-lg shadow-indigo-500/25'
             >
-              <Link href='/login'>
+              <Link href='/signup'>
                 Start Free Trial
                 <ArrowRight className='ml-2 h-4 w-4' />
               </Link>
@@ -283,7 +283,7 @@ export function LandingPage() {
                   )}
                   variant={plan.popular ? 'default' : 'outline'}
                 >
-                  <Link href='/login'>Get started</Link>
+                  <Link href='/signup'>Get started</Link>
                 </Button>
               </GlassCard>
             ))}

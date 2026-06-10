@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
     }
 
-    const valid = await bcrypt.compare(password, user.password);
+    const valid = user.password ? await bcrypt.compare(password, user.password) : false;
     if (!valid) {
       return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
     }
@@ -29,6 +29,7 @@ export async function POST(request: NextRequest) {
       email: user.email,
       role: user.role,
       schoolId: user.schoolId,
+      onboardingDone: user.onboardingDone,
     };
     session.isLoggedIn = true;
     await session.save();
@@ -51,7 +52,7 @@ export async function POST(request: NextRequest) {
         teacherId,
         active: true,
       },
-      redirectTo: getRoleRedirectPath(user.role),
+      redirectTo: getRoleRedirectPath(user.role, user.onboardingDone),
     });
   } catch (error) {
     console.error('[auth/login]', error);

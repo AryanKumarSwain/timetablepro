@@ -14,24 +14,56 @@ export async function GET() {
   const { user } = session;
   const userEmail = user.email.trim().toLowerCase();
   const userWhere = { email: userEmail };
+  
   let teacherId: string | undefined;
   let phone: string | null = null;
+  let countryCode: string | null = null;
+  let onboardingDone = true;
   let name = userEmail.split('@')[0];
+  
+  // Track school relation data dynamically
+  let schoolPayload: { id: string; name: string } | null = null;
 
   if (user.role === 'TEACHER' && user.schoolId) {
+    // 1. Fetch teacher and query school data reactively
     const teacher = await prisma.teacher.findFirst({
       where: { schoolId: user.schoolId, email: user.email },
+      include: {
+        school: true // Pull institutional identity variables
+      }
     });
+
     teacherId = teacher?.id;
     if (teacher) {
       name = teacher.name;
       phone = teacher.phone || null;
+      if (teacher.school) {
+        schoolPayload = {
+          id: teacher.school.id,
+          name: teacher.school.name,
+        };
+      }
     }
   } else {
-    const dbUser = await prisma.user.findUnique({ where: userWhere });
+    // 2. Fetch admin user data along with their nested school metadata relation
+    const dbUser = await prisma.user.findUnique({ 
+      where: userWhere,
+      include: {
+        school: true // Crucial link to feed the frontend context shell
+      }
+    });
+
     if (dbUser) {
       name = dbUser.name || name;
       phone = dbUser.phone || null;
+      countryCode = dbUser.countryCode || null;
+      onboardingDone = dbUser.onboardingDone;
+      if (dbUser.school) {
+        schoolPayload = {
+          id: dbUser.school.id,
+          name: dbUser.school.name,
+        };
+      }
     }
   }
 
@@ -41,12 +73,15 @@ export async function GET() {
       email: user.email,
       name,
       phone,
+      countryCode,
+      onboardingDone,
       role: user.role.toLowerCase().replace('_', '-') as 'super-admin' | 'admin' | 'teacher',
       schoolId: user.schoolId,
+      school: schoolPayload, // 👈 Successfully maps to your custom layout shell definitions!
       teacherId,
       active: true,
     },
-    redirectTo: getRoleRedirectPath(user.role),
+    redirectTo: getRoleRedirectPath(user.role, onboardingDone),
   });
 }
 
@@ -112,7 +147,7 @@ export async function PATCH(request: Request) {
         const dbUser = await prisma.user.findUnique({ where: userWhere });
         if (!dbUser) return NextResponse.json({ error: 'Profile metadata missing' }, { status: 404 });
 
-        const isMatch = await bcrypt.compare(oldPassword, dbUser.password);
+        const isMatch = await bcrypt.compare(oldPassword, dbUser.password || '');
         if (!isMatch) {
           return NextResponse.json({ error: 'The old password you entered is incorrect' }, { status: 400 });
         }

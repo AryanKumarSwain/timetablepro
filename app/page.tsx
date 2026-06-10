@@ -13,6 +13,10 @@ export default function Page() {
   useEffect(() => {
     if (loading || !session) return;
     const role = session.user.role;
+    if (role === 'admin' && session.user.onboardingDone === false) {
+      router.replace('/signup');
+      return;
+    }
     if (role === 'super-admin') router.replace('/super-admin/dashboard');
     else if (role === 'admin') router.replace('/admin/dashboard');
     else if (role === 'teacher') router.replace('/teacher/schedule');
