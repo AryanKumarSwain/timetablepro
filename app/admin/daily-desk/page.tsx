@@ -95,12 +95,32 @@ export default function DailyDeskPage() {
     teacherId: string,
     isAbsent: boolean
   ) => {
+    // Optimistic UI update: set the cell's isAbsent locally first
+    setGridData((prev) => {
+      if (!prev) return prev;
+      const newGrid = {
+        ...prev,
+        grid: prev.grid.map((row) => ({
+          ...row,
+          cells: row.cells.map((c) => {
+            if (c.classId === classId && row.periodId === periodId) {
+              return { ...c, isAbsent };
+            }
+            return c;
+          }),
+        })),
+      } as DailyDeskGrid;
+      return newGrid;
+    });
+
     try {
       await markAttendance(classId, periodId, teacherId, today, isAbsent);
       await loadData();
       router.refresh();
     } catch (error) {
       console.error('Failed to update attendance status markers:', error);
+      // Revert optimistic update on error by reloading data
+      await loadData();
     }
   };
 

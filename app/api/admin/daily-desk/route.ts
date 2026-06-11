@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireSchoolContext, handleApiError, schoolWhere } from '@/lib/auth-server';
 import { getDayOfWeekFromDate } from '@/lib/timetable-source';
-import { mapTeacherAttendance } from '@/lib/mappers';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,18 +25,21 @@ export async function GET(request: NextRequest) {
       prisma.subject.findMany({ where: schoolWhere(schoolId) }),
       prisma.teacher.findMany({ where: schoolWhere(schoolId) }),
       prisma.teacherAttendance.findMany({ where: { ...schoolWhere(schoolId), date } }),
-      prisma.replacementAssignment.findMany({ 
+      prisma.replacementAssignment.findMany({
         where: { ...schoolWhere(schoolId), date },
-        include: { replacementTeacher: true } // Ensure we have teacher data
+        include: { replacementTeacher: true },
       }),
     ]);
 
     const slots = await prisma.timetableSlot.findMany({
       where: { schoolId, timetableId: activeTimetable.id, dayOfWeek, periodId: { in: periods.map(p => p.id) } },
     });
-    
+
     const teacherMap = new Map(teachers.map((t) => [t.id, t.name]));
     const subjectMap = new Map(subjects.map((s) => [s.id, s.name]));
+
+    const isTeacherAbsent = (teacherId: string) =>
+      attendance.some((a) => a.teacherId === teacherId && a.status === 'ABSENT');
 
     const grid = periods.map((period) => ({
       periodId: period.id,
@@ -47,22 +49,55 @@ export async function GET(request: NextRequest) {
         const slot = slots.find((s) => s.periodId === period.id && s.classId === cls.id);
         if (!slot) return { classId: cls.id, className: cls.name, empty: true };
 
-        const replacement = replacements.find((r) => r.periodId === slot.periodId && r.classId === slot.classId);
+        const slotReplacements = replacements
+          .filter((r) => r.periodId === slot.periodId && r.classId === slot.classId)
+          .sort((a, b) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime());
+
+        const replacement = slotReplacements[0];
+        const originalAbsent = isTeacherAbsent(slot.teacherId);
+        const isReplacementAbsent = replacement ? isTeacherAbsent(replacement.replacementTeacherId) : false;
 
         return {
           classId: cls.id,
           slotId: slot.id,
+          subjectId: slot.subjectId,
+          teacherId: slot.teacherId,
           subjectName: subjectMap.get(slot.subjectId),
           teacherName: teacherMap.get(slot.teacherId),
-          replacement: replacement ? {
-            replacementTeacherName: replacement.replacementTeacher?.name || 'Unknown',
-            status: replacement.status.toLowerCase()
-          } : null
+          isAbsent: originalAbsent,
+          isReplacementAbsent,
+          replacement: replacement
+            ? {
+                replacementTeacherId: replacement.replacementTeacherId,
+                replacementTeacherName: replacement.replacementTeacher?.name || teacherMap.get(replacement.replacementTeacherId) || 'Unknown',
+                status: replacement.status.toLowerCase(),
+              }
+            : null,
         };
       }),
     }));
 
-    return NextResponse.json({ grid, date, dayOfWeek, hasActiveSlots: slots.length > 0 });
+    const normalizedPeriods = periods.map((p) => ({
+      id: p.id,
+      periodNumber: p.periodNumber,
+      startTime: p.startTime,
+      endTime: p.endTime,
+      isBreak: p.isBreak,
+      label: p.label || (p.isBreak ? 'BREAK' : `Period ${p.periodNumber}`),
+    }));
+
+    const normalizedClasses = classes.map((c) => ({ id: c.id, name: c.name }));
+
+    return NextResponse.json({
+      grid,
+      periods: normalizedPeriods,
+      classes: normalizedClasses,
+      date,
+      dayOfWeek,
+      attendance,
+      replacements,
+      hasActiveSlots: slots.length > 0,
+    });
   } catch (error) {
     return handleApiError(error);
   }

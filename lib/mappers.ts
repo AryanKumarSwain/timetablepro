@@ -118,7 +118,7 @@ export function mapReplacement(r: ReplacementAssignment): Replacement {
     periodId: r.periodId,
     originalTeacherId: r.originalTeacherId,
     replacementTeacherId: r.replacementTeacherId,
-    subjectId: '',
+    subjectId: r.subjectId ?? '',
     reason: reasonMap[r.reason] ?? 'Leave',
     status: statusMap[r.status] ?? 'pending',
     createdAt: r.date,
