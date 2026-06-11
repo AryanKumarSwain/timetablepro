@@ -24,7 +24,7 @@ import {
   STUDENT_RANGES,
 } from '@/lib/signup-constants';
 
-type Step = 1 | 2 | 3;
+type Step = 1 | 2 | 3 | 4;
 type FieldErrors = Record<string, string>;
 
 function GoogleIcon({ className }: { className?: string }) {
@@ -86,14 +86,19 @@ export default function SignupPage() {
   const [phone, setPhone] = useState('');
   const [countryCode, setCountryCode] = useState('+1');
   const [password, setPassword] = useState('');
+  
+  // Step 2
+  const [otp, setOtp] = useState('');
+  const [pendingEmail, setPendingEmail] = useState('');
+  const [otpSent, setOtpSent] = useState(false);
 
-  // Step 2 (Google OAuth completion)
+  // Step 3 (Google OAuth completion)
   const [googleEmail, setGoogleEmail] = useState('');
   const [googleFullName, setGoogleFullName] = useState('');
   const [googlePhone, setGooglePhone] = useState('');
   const [googleCountryCode, setGoogleCountryCode] = useState('+91');
 
-  // Step 3
+  // Step 4
   const [instituteName, setInstituteName] = useState('');
   const [instituteType, setInstituteType] = useState('');
   const [city, setCity] = useState('');
@@ -126,9 +131,9 @@ export default function SignupPage() {
         setGoogleFullName(user.name || '');
 
         if (!user.phone) {
-          setStep(2);
-        } else {
           setStep(3);
+        } else {
+          setStep(4);
         }
       } catch {
         // stay on step 1
@@ -174,7 +179,9 @@ export default function SignupPage() {
         return;
       }
 
-      setStep(3);
+      setPendingEmail(data.email || email);
+      setOtpSent(true);
+      setStep(2);
     } catch {
       setFormError('Unable to create account. Please try again.');
     } finally {
@@ -215,7 +222,7 @@ export default function SignupPage() {
         return;
       }
 
-      setStep(3);
+      setStep(4);
     } catch {
       setFormError('Failed to update profile. Please try again.');
     } finally {
@@ -477,8 +484,117 @@ export default function SignupPage() {
               </p>
             </StepShell>
 
-            {/* Step 2: Google Profile Setup Fallback Completion */}
-            <StepShell step={2} currentStep={step} title='Complete Registration'>
+            {/* Step 2: OTP Verification */}
+            <StepShell
+              step={2}
+              currentStep={step}
+              title='Verify Email'
+              subtitle='Enter the 6-digit code sent to your email'
+            >
+              <div className='mb-4 text-sm text-muted-foreground'>
+                Verification code sent to:
+                <span className='font-semibold ml-1'>{pendingEmail}</span>
+              </div>
+
+              <form
+                onSubmit={async (e) => {
+                  e.preventDefault();
+
+                  setLoading(true);
+                  setFormError('');
+
+                  try {
+                    const res = await fetch('/api/auth/verify-email', {
+                      method: 'POST',
+                      headers: {
+                        'Content-Type': 'application/json',
+                      },
+                      credentials: 'include',
+                      body: JSON.stringify({
+                        email: pendingEmail,
+                        otp,
+                      }),
+                    });
+
+                    const data = await res.json();
+
+                    if (!res.ok || !data.success) {
+                      setFormError(data.error || 'Invalid OTP');
+                      return;
+                    }
+
+                    setStep(4);
+                  } catch {
+                    setFormError('Verification failed');
+                  } finally {
+                    setLoading(false);
+                  }
+                }}
+                className='space-y-4'
+              >
+                <div>
+                  <label className='text-sm font-medium'>
+                    Verification Code
+                  </label>
+
+                  <Input
+                    value={otp}
+                    onChange={(e) =>
+                      setOtp(e.target.value.replace(/\D/g, ''))
+                    }
+                    maxLength={6}
+                    placeholder='Enter 6-digit OTP'
+                    className='mt-1.5 rounded-xl text-center text-lg tracking-[0.3em]'
+                  />
+                </div>
+
+                {formError && (
+                  <p className='text-sm text-rose-600 dark:text-rose-400 bg-rose-500/10 border border-rose-500/20 rounded-xl px-3 py-2'>
+                    {formError}
+                  </p>
+                )}
+
+                <Button
+                  type='submit'
+                  disabled={loading || otp.length !== 6}
+                  className='w-full h-11 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 text-white'
+                >
+                  {loading ? 'Verifying...' : 'Verify Email'}
+                </Button>
+
+                <Button
+                  type='button'
+                  variant='outline'
+                  className='w-full'
+                  onClick={async () => {
+                    try {
+                      await fetch('/api/auth/signup', {
+                        method: 'POST',
+                        headers: {
+                          'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                          fullName,
+                          email,
+                          phone,
+                          countryCode,
+                          password,
+                        }),
+                      });
+
+                      alert('OTP resent successfully');
+                    } catch {
+                      alert('Failed to resend OTP');
+                    }
+                  }}
+                >
+                  Resend OTP
+                </Button>
+              </form>
+            </StepShell>
+
+            {/* Step 3: Google Profile Setup Fallback Completion */}
+            <StepShell step={3} currentStep={step} title='Complete Registration'>
               <div className='flex flex-col items-center mt-6 mb-6 bg-muted/30 border border-border/40 p-4 rounded-xl'>
                 <div className='h-14 w-14 rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center text-white text-xl font-bold shadow-lg'>
                   {googleEmail ? googleEmail.charAt(0).toUpperCase() : 'G'}
@@ -555,9 +671,9 @@ export default function SignupPage() {
               </form>
             </StepShell>
 
-            {/* Step 3: Meta Onboarding Setup Data Operations */}
+            {/* Step 4: Meta Onboarding Setup Data Operations */}
             <StepShell
-              step={3}
+              step={4}
               currentStep={step}
               title='One last step!'
               subtitle='Tell us about your institute to personalize your experience'

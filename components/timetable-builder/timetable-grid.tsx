@@ -25,39 +25,52 @@ export const DAY_INDICES = [0, 1, 2, 3, 4, 5, 6] as const;
 type SlotCell = TimetableDetail['slots'][number];
 
 interface TimetableGridProps {
-  periods: (TimetableDetail['periods'][number] & { isBreak?: boolean; breakLabel?: string })[];
-  slots: SlotCell[];
-  subjectColorMap: Map<string, string>;
-  workingDays: number[];
-  baseStartTime: string;
-  periodDuration: number;
-  onWorkingDaysChange: (days: number[]) => void;
-  onBaseStartTimeChange: (time: string) => void;
-  onPeriodDurationChange: (duration: number) => void;
-  onAddRow: (isBreak: boolean) => void;
-  onRemoveRow: (id: string) => void;
-  onUpdateRowLabel: (id: string, label: string) => void;
-  onUpdateRowTime: (id: string, startTime: string, endTime: string) => void;
-  renderCell: (dayOfWeek: number, periodId: string, slot?: SlotCell) => React.ReactNode;
-  onCellClick: (dayOfWeek: number, periodId: string, slot?: SlotCell) => void;
+  periods?: (TimetableDetail['periods'][number] & { isBreak?: boolean; breakLabel?: string })[];
+  slots?: SlotCell[];
+  subjectColorMap?: Map<string, string>;
+  workingDays?: number[];
+  baseStartTime?: string;
+  periodDuration?: number;
+  onWorkingDaysChange?: (days: number[]) => void;
+  onBaseStartTimeChange?: (time: string) => void;
+  onPeriodDurationChange?: (duration: number) => void;
+  onAddRow?: (isBreak: boolean) => void;
+  onRemoveRow?: (id: string) => void;
+  onUpdateRowLabel?: (id: string, label: string) => void;
+  onUpdateRowTime?: (id: string, startTime: string, endTime: string) => void;
+  renderCell?: (dayOfWeek: number, periodId: string, slot?: SlotCell) => React.ReactNode;
+  onCellClick?: (dayOfWeek: number, periodId: string, slot?: SlotCell) => void;
 }
 
+const defaultRenderCell = (dayOfWeek: number, periodId: string, slot?: SlotCell) => {
+  if (!slot) {
+    return null;
+  }
+  return (
+    <div className='h-full w-full p-2 rounded-xl border border-dashed border-indigo-500/20 bg-indigo-500/[0.02] flex flex-col justify-center gap-1'>
+      <span className='text-sm font-semibold text-foreground truncate'>{slot.subjectName || 'Untitled'}</span>
+      <span className='text-xs text-muted-foreground truncate'>{slot.teacherName || 'Staff'}</span>
+      <span className='text-[11px] text-muted-foreground/70 truncate'>{slot.className}</span>
+    </div>
+  );
+};
+
 export function TimetableGrid({
-  periods,
-  slots,
-  subjectColorMap,
-  workingDays,
-  baseStartTime,
-  periodDuration,
-  onWorkingDaysChange,
-  onBaseStartTimeChange,
-  onPeriodDurationChange,
-  onAddRow,
-  onRemoveRow,
-  onUpdateRowLabel,
-  onUpdateRowTime,
-  renderCell,
-  onCellClick,
+  periods = [],
+  slots = [],
+  subjectColorMap = new Map(),
+  workingDays = [1, 2, 3, 4, 5],
+  baseStartTime = '08:00',
+  periodDuration = 45,
+  onWorkingDaysChange = () => {},
+  onBaseStartTimeChange = () => {},
+  onPeriodDurationChange = () => {},
+  onAddRow = () => {},
+  onRemoveRow = () => {},
+  onUpdateRowLabel = () => {},
+  onUpdateRowTime = () => {},
+  renderCell = defaultRenderCell,
+  onCellClick = () => {},
 }: TimetableGridProps) {
   const findSlot = (day: number, periodId: string) =>
     slots.find((s) => s.dayOfWeek === day && s.periodId === periodId);
@@ -67,12 +80,13 @@ export function TimetableGrid({
   };
 
   const toggleDay = (dayIndex: number) => {
-    if (workingDays.includes(dayIndex)) {
-      if (workingDays.length > 1) {
-        onWorkingDaysChange(workingDays.filter((d) => d !== dayIndex).sort());
+    const days = Array.isArray(workingDays) ? workingDays : [1, 2, 3, 4, 5];
+    if (days.includes(dayIndex)) {
+      if (days.length > 1) {
+        onWorkingDaysChange(days.filter((d) => d !== dayIndex).sort());
       }
     } else {
-      onWorkingDaysChange([...workingDays, dayIndex].sort());
+      onWorkingDaysChange([...days, dayIndex].sort());
     }
   };
 
@@ -83,22 +97,25 @@ export function TimetableGrid({
         <div className="flex flex-col gap-2 min-w-0 shrink-0">
           <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Working Days</span>
           <div className="flex flex-nowrap items-center gap-2 whitespace-nowrap overflow-x-auto py-0.5 no-scrollbar">
-            {DAY_INDICES.map((dayIndex) => {
-              const isActive = workingDays.includes(dayIndex);
-              return (
-                <button
-                  key={dayIndex}
-                  type="button"
-                  onClick={() => toggleDay(dayIndex)}
-                  className={cn(
-                    "px-4 py-2 text-xs font-semibold rounded-xl border transition-all duration-200 select-none",
-                    isActive ? "bg-indigo-600 border-indigo-600 text-white shadow-sm shadow-indigo-600/10" : "bg-background border-border text-muted-foreground hover:bg-muted/60"
-                  )}
-                >
-                  {dayLabels[dayIndex]}
-                </button>
-              );
-            })}
+            {(() => {
+              const days = Array.isArray(workingDays) ? workingDays : [1, 2, 3, 4, 5];
+              return days.map((dayIndex) => {
+                const isActive = Array.isArray(workingDays) ? workingDays.includes(dayIndex) : false;
+                return (
+                  <button
+                    key={dayIndex}
+                    type="button"
+                    onClick={() => toggleDay(dayIndex)}
+                    className={cn(
+                      "px-4 py-2 text-xs font-semibold rounded-xl border transition-all duration-200 select-none",
+                      isActive ? "bg-indigo-600 border-indigo-600 text-white shadow-sm shadow-indigo-600/10" : "bg-background border-border text-muted-foreground hover:bg-muted/60"
+                    )}
+                  >
+                    {dayLabels[dayIndex]}
+                  </button>
+                );
+              });
+            })()}
           </div>
         </div>
 
@@ -207,7 +224,7 @@ export function TimetableGrid({
                 </div>
               </div>
 
-              {workingDays.map((day) => {
+              {(Array.isArray(workingDays) ? workingDays : [1, 2, 3, 4, 5]).map((day) => {
                 const slot = findSlot(day, period.id);
                 if (period.isBreak) {
                   return (
@@ -219,8 +236,12 @@ export function TimetableGrid({
                 }
 
                 return (
-                  <div key={`${period.id}-${day}`} onClick={() => onCellClick(day, period.id, slot)} className="border-t border-l min-h-[95px] cursor-pointer hover:bg-muted/40 group p-2.5 transition-colors bg-background flex flex-col justify-stretch">
-                    {slot ? renderCell(day, period.id, slot) : <div className="h-full w-full flex items-center justify-center opacity-0 group-hover:opacity-100 text-indigo-500 text-lg font-normal transition-opacity duration-150 rounded-xl border border-dashed border-indigo-500/20 bg-indigo-500/[0.02]">+</div>}
+                  <div
+                    key={`${period.id}-${day}`}
+                    onClick={() => onCellClick?.(day, period.id, slot)}
+                    className="border-t border-l min-h-[95px] cursor-pointer hover:bg-muted/40 group p-2.5 transition-colors bg-background flex flex-col justify-stretch"
+                  >
+                    {slot ? renderCell?.(day, period.id, slot) : <div className="h-full w-full flex items-center justify-center opacity-0 group-hover:opacity-100 text-indigo-500 text-lg font-normal transition-opacity duration-150 rounded-xl border border-dashed border-indigo-500/20 bg-indigo-500/[0.02]">+</div>}
                   </div>
                 );
               })}
@@ -272,25 +293,22 @@ export function SlotEditorSheet({
         <div className='space-y-5 mt-6'>
           <div className="space-y-2">
             <label className='text-xs font-bold text-muted-foreground uppercase tracking-wider block'>Subject</label>
-            <Select value={draft.subjectId} onValueChange={(v) => onDraftChange({ subjectId: v })}>
+            <Select value={draft?.subjectId ?? ''} onValueChange={(v) => onDraftChange({ subjectId: v ?? '' })}>
               <SelectTrigger className="rounded-xl h-11"><SelectValue placeholder='Choose subject configuration' /></SelectTrigger>
               <SelectContent className="rounded-xl">
-                {subjects.map((s) => (<SelectItem key={s.id} value={s.id} className="rounded-lg">{s.name}</SelectItem>))}
+                {(subjects ?? []).map((s) => (<SelectItem key={s.id} value={s.id} className="rounded-lg">{s.name}</SelectItem>))}
               </SelectContent>
             </Select>
           </div>
           
           <div className="space-y-2">
             <label className='text-xs font-bold text-muted-foreground uppercase tracking-wider block'>Faculty / Teacher</label>
-            <Select value={draft.teacherId} onValueChange={(v) => onDraftChange({ teacherId: v })}>
+            <Select value={draft?.teacherId ?? ''} onValueChange={(v) => onDraftChange({ teacherId: v ?? '' })}>
               <SelectTrigger className="rounded-xl h-11"><SelectValue placeholder='Assign course tutor' /></SelectTrigger>
               <SelectContent className="rounded-xl">
-                {(() => {
-                  const activeTeachers = teachers.filter((t) => isTeacherActive(t.active));
-                  return activeTeachers.map((t) => (
-                    <SelectItem key={t.id} value={t.id} className="rounded-lg">{t.name}</SelectItem>
-                  ));
-                })()}
+                {((teachers ?? []).filter((t) => isTeacherActive(t.active))).map((t) => (
+                  <SelectItem key={t.id} value={t.id} className="rounded-lg">{t.name}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>

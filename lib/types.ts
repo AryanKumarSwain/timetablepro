@@ -48,6 +48,15 @@ export interface Class {
   roomNumber?: string;
 }
 
+export interface SaasPlan {
+  id: string;
+  name: string;
+  teacherMin: number;
+  teacherMax: number;
+  priceMonthly: number;
+  schoolCount: number;
+}
+
 // ============================================================================
 // Period
 // ============================================================================

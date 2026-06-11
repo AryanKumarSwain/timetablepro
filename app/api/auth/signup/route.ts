@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { prisma } from '@/lib/prisma';
-import { getSession } from '@/lib/session';
+import { sendVerificationCode } from '@/lib/mailer';
 
 type FieldErrors = Record<string, string>;
 
@@ -25,13 +25,18 @@ function validateSignupBody(body: unknown): {
   const password = String(raw.password ?? '');
 
   if (!fullName) errors.fullName = 'Full name is required';
-  if (!email) errors.email = 'Email address is required';
-  else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+
+  if (!email) {
+    errors.email = 'Email address is required';
+  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     errors.email = 'Enter a valid email address';
   }
+
   if (!phone) errors.phone = 'Phone number is required';
-  if (!password) errors.password = 'Password is required';
-  else if (password.length < 6) {
+
+  if (!password) {
+    errors.password = 'Password is required';
+  } else if (password.length < 6) {
     errors.password = 'Password must be at least 6 characters';
   }
 
@@ -39,7 +44,20 @@ function validateSignupBody(body: unknown): {
     return { ok: false, errors };
   }
 
-  return { ok: true, data: { fullName, email, phone, countryCode, password } };
+  return {
+    ok: true,
+    data: {
+      fullName,
+      email,
+      phone,
+      countryCode,
+      password,
+    },
+  };
+}
+
+function generateOtp() {
+  return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
 export async function POST(request: NextRequest) {
@@ -48,49 +66,100 @@ export async function POST(request: NextRequest) {
     const validated = validateSignupBody(body);
 
     if (!validated.ok) {
-      return NextResponse.json({ success: false, errors: validated.errors }, { status: 400 });
+      return NextResponse.json(
+        { success: false, errors: validated.errors },
+        { status: 400 }
+      );
     }
 
-    const { fullName, email, phone, countryCode, password } = validated.data;
+    const {
+      fullName,
+      email,
+      phone,
+      countryCode,
+      password,
+    } = validated.data;
 
-    const existing = await prisma.user.findUnique({ where: { email } });
-    if (existing) {
+    const existingUser = await prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (existingUser) {
       return NextResponse.json(
-        { success: false, errors: { email: 'An account with this email already exists' } },
+        {
+          success: false,
+          errors: {
+            email: 'An account with this email already exists',
+          },
+        },
         { status: 409 }
       );
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    const user = await prisma.user.create({
-      data: {
+    const otp = generateOtp();
+
+    await prisma.emailVerification.upsert({
+      where: {
         email,
-        name: fullName,
+      },
+      update: {
+        fullName,
         phone,
         countryCode,
         password: hashedPassword,
-        role: 'ADMIN',
-        onboardingDone: false,
+        otp,
+        expiresAt: new Date(Date.now() + 10 * 60 * 1000),
+      },
+      create: {
+        email,
+        fullName,
+        phone,
+        countryCode,
+        password: hashedPassword,
+        otp,
+        expiresAt: new Date(Date.now() + 10 * 60 * 1000),
       },
     });
 
-    const session = await getSession();
-    session.user = {
-      id: user.id,
-      email: user.email,
-      role: user.role,
-      schoolId: user.schoolId,
-      onboardingDone: user.onboardingDone,
-    };
-    session.isLoggedIn = true;
-    await session.save();
+    const emailResult = await sendVerificationCode(
+      email,
+      otp
+    );
 
-    return NextResponse.json({ success: true });
+    if (!emailResult.sent) {
+      return NextResponse.json(
+        {
+          success: false,
+          errors: {
+            email:
+              emailResult.error ??
+              'Unable to send verification email',
+          },
+        },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      requiresVerification: true,
+      email,
+      message:
+        'Verification code sent successfully',
+    });
   } catch (error) {
     console.error('[auth/signup]', error);
+
     return NextResponse.json(
-      { success: false, errors: { _form: 'Unable to create account. Please try again.' } },
+      {
+        success: false,
+        errors: {
+          _form:
+            'Unable to create account. Please try again.',
+        },
+      },
       { status: 500 }
     );
   }

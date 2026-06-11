@@ -85,10 +85,14 @@ export function useAuth(): AuthContextType {
   return context;
 }
 
-export function useRequireAuth(requiredRole?: UserRole | 'admin' | 'teacher') {
+export function useRequireAuth(requiredRole?: UserRole | 'admin' | 'teacher', skip = false) {
   const auth = useAuth();
 
   useEffect(() => {
+    if (skip) {
+      return;
+    }
+
     if (!auth.loading && !auth.session) {
       window.location.href = '/login';
       return;
@@ -119,6 +123,7 @@ export function useRequireAuth(requiredRole?: UserRole | 'admin' | 'teacher') {
     auth.isAdmin,
     auth.isTeacher,
     auth.isSuperAdmin,
+    skip,
   ]);
 
   return auth;

@@ -18,30 +18,53 @@ export async function POST(request: NextRequest) {
     const { schoolId } = await requireSchoolContext();
     const body = await request.json();
 
+    const email = String(body.email ?? '').trim().toLowerCase();
+
+    // 1. DUPLICATE CHECK: Prevent identical email profiles within the same system
+    const existingTeacher = await prisma.teacher.findFirst({
+      where: {
+        email,
+        schoolId, // Checks inside your specific school context
+      },
+    });
+
+    if (existingTeacher) {
+      return NextResponse.json(
+        { error: 'A teacher profile with this email address already exists.' },
+        { status: 400 } // Clean client bad request error status instead of crashing with a 500
+      );
+    }
+
     const requestSubjects = normalizeStringArray(body.subjects);
-    const subjectSpecialtyId =
+    let subjectSpecialtyId =
       typeof body.subjectSpecialtyId === 'string' && body.subjectSpecialtyId
         ? body.subjectSpecialtyId
         : requestSubjects[0];
 
-    const fallbackSubject = await prisma.subject.findFirst({
+    // Look for an existing subject
+    let fallbackSubject = await prisma.subject.findFirst({
       where: schoolWhere(schoolId),
       orderBy: { name: 'asc' },
     });
 
+    // If zero subjects exist in the database, fallback dynamically
     if (!subjectSpecialtyId && !fallbackSubject) {
-      return NextResponse.json(
-        { error: 'At least one subject must exist before creating a teacher.' },
-        { status: 400 }
-      );
+      fallbackSubject = await prisma.subject.create({
+        data: {
+          name: 'General / Unassigned',
+          code: 'GEN-01',
+          schoolId,
+        },
+      });
     }
 
-    const resolvedSubjectSpecialtyId = subjectSpecialtyId ?? fallbackSubject!.id;
+    const resolvedSubjectSpecialtyId = subjectSpecialtyId || fallbackSubject!.id;
 
+    // 2. CREATE RECORD safely since email validation passed
     const teacher = await prisma.teacher.create({
       data: {
         name: String(body.name ?? '').trim(),
-        email: String(body.email ?? '').trim().toLowerCase(),
+        email,
         phone: String(body.phone ?? '').trim(),
         qualifications: normalizeStringArray(body.qualifications),
         subjects:
@@ -52,7 +75,9 @@ export async function POST(request: NextRequest) {
         joinDate: String(body.joinDate ?? new Date().toISOString().split('T')[0]),
         maxPeriodsPerWeek: Number(body.maxPeriodsPerWeek ?? 24),
         subjectSpecialtyId: resolvedSubjectSpecialtyId,
-        schoolId,
+        school: {
+          connect: { id: schoolId }
+        }
       },
     });
 

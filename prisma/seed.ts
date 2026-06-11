@@ -1,21 +1,36 @@
 import bcrypt from 'bcryptjs';
 import { prisma } from '../lib/prisma';
+import { defaultSaaSPlans } from '../lib/saas-plan';
 
 async function main() {
   const passwordHash = await bcrypt.hash('password', 10);
 
   // ── Plans ─────────────────────────────────────────────────────────────────
-  const basicPlan = await prisma.saaSPlan.upsert({
-    where: { id: 'plan-basic' },
-    update: {},
-    create: {
-      id: 'plan-basic',
-      name: 'Basic (0-30)',
-      teacherMin: 0,
-      teacherMax: 30,
-      priceMonthly: 49.99,
-    },
-  });
+  await Promise.all(
+    defaultSaaSPlans.map((plan) =>
+      prisma.saaSPlan.upsert({
+        where: { id: plan.id },
+        update: {
+          name: plan.name,
+          teacherMin: plan.teacherMin,
+          teacherMax: plan.teacherMax,
+          priceMonthly: plan.priceMonthly,
+        },
+        create: {
+          id: plan.id,
+          name: plan.name,
+          teacherMin: plan.teacherMin,
+          teacherMax: plan.teacherMax,
+          priceMonthly: plan.priceMonthly,
+        },
+      })
+    )
+  );
+
+  const basicPlan = await prisma.saaSPlan.findUnique({ where: { id: 'plan-basic' } });
+  if (!basicPlan) {
+    throw new Error('Default basic plan was not created during seed.');
+  }
 
   // ── School ────────────────────────────────────────────────────────────────
   const school = await prisma.school.upsert({

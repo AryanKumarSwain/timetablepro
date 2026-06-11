@@ -7,7 +7,6 @@ import {
   TrendingUp,
   Users,
   Server,
-  CheckCircle2,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
@@ -22,33 +21,6 @@ import {
   getPlatformSummary,
   type PlatformSummary,
 } from '@/lib/api-services';
-
-const pricingTiers = [
-  {
-    name: 'Basic',
-    price: '$29',
-    period: '/month',
-    features: ['Up to 50 teachers', 'Basic scheduling', 'Email support', '5GB storage'],
-    color: 'from-blue-500/20 to-blue-600/10',
-    borderColor: 'border-blue-500/30',
-  },
-  {
-    name: 'Growth',
-    price: '$79',
-    period: '/month',
-    features: ['Up to 200 teachers', 'Advanced scheduling', 'Priority support', '25GB storage', 'API access'],
-    color: 'from-emerald-500/20 to-emerald-600/10',
-    borderColor: 'border-emerald-500/30',
-  },
-  {
-    name: 'Enterprise Pro',
-    price: '$199',
-    period: '/month',
-    features: ['Unlimited teachers', 'Custom integrations', '24/7 dedicated support', 'Unlimited storage', 'White-label options'],
-    color: 'from-purple-500/20 to-purple-600/10',
-    borderColor: 'border-purple-500/30',
-  },
-];
 
 export default function SuperAdminDashboardPage() {
   useRequireAuth('super-admin');
@@ -173,31 +145,30 @@ export default function SuperAdminDashboardPage() {
             </GlassCard>
           </div>
 
-          {/* Subscription Pricing Tier Deck */}
           <GlassCard className='p-6'>
-            <h3 className='font-semibold mb-6'>Subscription Tiers</h3>
-            <div className='grid md:grid-cols-3 gap-6'>
-              {pricingTiers.map((tier) => (
-                <motion.div
-                  key={tier.name}
-                  whileHover={{ y: -4 }}
-                  className={`rounded-xl border p-6 bg-gradient-to-br ${tier.color} ${tier.borderColor}`}
-                >
-                  <h4 className='text-lg font-semibold mb-2'>{tier.name}</h4>
-                  <div className='flex items-baseline gap-1 mb-4'>
-                    <span className='text-3xl font-bold'>{tier.price}</span>
-                    <span className='text-sm text-muted-foreground'>{tier.period}</span>
+            <div className='flex items-center justify-between mb-4'>
+              <h3 className='font-semibold'>Current subscription tiers</h3>
+              <span className='text-sm text-muted-foreground'>Updated from active plan data</span>
+            </div>
+            <div className='grid gap-4'>
+              {summary?.planMix?.length ? (
+                summary.planMix.map((plan) => (
+                  <div key={plan.plan} className='flex items-center justify-between gap-4 rounded-xl border border-border/40 bg-muted/20 p-4'>
+                    <div>
+                      <p className='font-medium'>{plan.plan}</p>
+                      <p className='text-sm text-muted-foreground'>{plan.count} school{plan.count === 1 ? '' : 's'}</p>
+                    </div>
+                    <div className='text-right'>
+                      <p className='text-sm text-muted-foreground'>Adoption</p>
+                      <p className='font-semibold'>{plan.count}</p>
+                    </div>
                   </div>
-                  <ul className='space-y-2'>
-                    {tier.features.map((feature) => (
-                      <li key={feature} className='flex items-center gap-2 text-sm'>
-                        <CheckCircle2 className='w-4 h-4 text-emerald-500 flex-shrink-0' />
-                        <span>{feature}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </motion.div>
-              ))}
+                ))
+              ) : (
+                <div className='rounded-xl border border-border/50 bg-muted/20 p-5 text-center text-sm text-muted-foreground'>
+                  No pricing plan distribution data available.
+                </div>
+              )}
             </div>
           </GlassCard>
         </>

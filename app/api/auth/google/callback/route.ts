@@ -43,7 +43,8 @@ export async function GET(request: NextRequest) {
           onboardingDone: false,
         },
       });
-    } else if (profile.name && !user.name) {
+    }
+    else if (profile.name && !user.name) {
       user = await prisma.user.update({
         where: { id: user.id },
         data: { name: profile.name },

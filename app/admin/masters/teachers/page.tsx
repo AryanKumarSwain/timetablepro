@@ -23,7 +23,7 @@ import {
 } from '@/components/enterprise/data-grid';
 import { PageSkeleton } from '@/components/enterprise/page-skeleton';
 import { BulkCsvImportModal } from '@/components/enterprise/bulk-csv-import-modal';
-import { Upload } from 'lucide-react';
+import { Upload, AlertCircle } from 'lucide-react';
 
 type TeacherFormState = Omit<Teacher, 'id'>;
 
@@ -46,6 +46,9 @@ export default function TeachersPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState<TeacherFormState>(createEmptyTeacherForm);
   const [importOpen, setImportOpen] = useState(false);
+  
+  // NEW: State to hold explicit API backend validation error messages
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   useEffect(() => {
     loadTeachers();
@@ -65,6 +68,8 @@ export default function TeachersPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setErrorMsg(null); // Clear previous errors before submission request runs
+    
     try {
       if (editingId) {
         await updateTeacher(editingId, formData);
@@ -72,8 +77,6 @@ export default function TeachersPage() {
       } else {
         await createTeacher(formData);
         
-        // --- SMTP Dispatch Simulation Hook ---
-        // Note: Replace this placeholder block with your global API nodemailer microservice
         console.log('---------------------------------------------------------');
         console.log(`[SMTP Dispatch Simulation Check]`);
         console.log(`TO: ${formData.email}`);
@@ -83,12 +86,22 @@ export default function TeachersPage() {
       }
       await loadTeachers();
       resetForm();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to save teacher record setup:', error);
+      
+      // NEW: Parse error fields returned from apiFetch client layers
+      if (error?.message) {
+        setErrorMsg(error.message);
+      } else if (typeof error === 'string') {
+        setErrorMsg(error);
+      } else {
+        setErrorMsg('An unexpected error occurred while saving the teacher record.');
+      }
     }
   };
 
   const handleEdit = (teacher: Teacher) => {
+    setErrorMsg(null); // Clear errors when initiating an edit pipeline
     setFormData({
       name: teacher.name ?? '',
       email: teacher.email ?? '',
@@ -117,6 +130,7 @@ export default function TeachersPage() {
     setFormData(createEmptyTeacherForm());
     setEditingId(null);
     setShowForm(false);
+    setErrorMsg(null); // Clear feedback strings upon structural manual escape route
   };
 
   if (loading) {
@@ -149,7 +163,10 @@ export default function TeachersPage() {
                 Import CSV
               </Button>
               <Button
-                onClick={() => setShowForm(true)}
+                onClick={() => {
+                  setErrorMsg(null);
+                  setShowForm(true);
+                }}
                 className='rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600'
               >
                 Add Teacher
@@ -160,10 +177,21 @@ export default function TeachersPage() {
       />
 
       {showForm && (
-        <Card className='p-6 mb-6 border-border'>
+        <Card className='p-6 mb-6 border-border animate-in fade-in duration-200'>
           <h2 className='text-xl font-semibold text-foreground mb-4'>
             {editingId ? 'Edit Teacher' : 'Add New Teacher'}
           </h2>
+          
+          {/* NEW: Dynamic Contextual Alert Banner Elements */}
+          {errorMsg && (
+            <div className='mb-4 p-3.5 bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 text-sm rounded-xl flex items-start gap-2.5'>
+              <AlertCircle className='h-5 w-5 shrink-0 mt-0.5' />
+              <div>
+                <span className='font-semibold'>Submission Failed:</span> {errorMsg}
+              </div>
+            </div>
+          )}
+
           <form onSubmit={handleSubmit} className='space-y-4'>
             <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
               <div>
@@ -217,7 +245,6 @@ export default function TeachersPage() {
                 />
               </div>
               
-              {/* Added Interactive Status Switch/Checkbox Field Element */}
               <div className='flex items-center space-x-3 pt-4 md:col-span-2'>
                 <input
                   type='checkbox'

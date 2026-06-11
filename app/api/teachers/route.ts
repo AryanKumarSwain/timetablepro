@@ -40,19 +40,14 @@ export async function POST(request: NextRequest) {
         ? body.subjectSpecialtyId
         : requestSubjects[0];
 
+    // Attempt to find a fallback subject, but do not crash or block if it doesn't exist
     const fallbackSubject = await prisma.subject.findFirst({
       where: schoolWhere(schoolId),
       orderBy: { name: 'asc' },
     });
 
-    if (!subjectSpecialtyId && !fallbackSubject) {
-      return NextResponse.json(
-        { error: 'At least one subject must exist before creating a teacher.' },
-        { status: 400 }
-      );
-    }
-
-    const resolvedSubjectSpecialtyId = subjectSpecialtyId ?? fallbackSubject!.id;
+    // Resolve specialty if available, otherwise set it to null
+    const resolvedSubjectSpecialtyId = subjectSpecialtyId || (fallbackSubject ? fallbackSubject.id : null);
 
     const teacher = await prisma.teacher.create({
       data: {
@@ -60,14 +55,11 @@ export async function POST(request: NextRequest) {
         email: String(body.email ?? '').trim().toLowerCase(),
         phone: String(body.phone ?? '').trim(),
         qualifications: normalizeStringArray(body.qualifications),
-        subjects:
-          requestSubjects.length > 0
-            ? requestSubjects
-            : [resolvedSubjectSpecialtyId],
+        subjects: requestSubjects.length > 0 ? requestSubjects : (resolvedSubjectSpecialtyId ? [resolvedSubjectSpecialtyId] : []),
         active: typeof body.active === 'boolean' ? body.active : true,
         joinDate: String(body.joinDate ?? new Date().toISOString().split('T')[0]),
         maxPeriodsPerWeek: Number(body.maxPeriodsPerWeek ?? 24),
-        subjectSpecialtyId: resolvedSubjectSpecialtyId,
+        subjectSpecialtyId: resolvedSubjectSpecialtyId, // This will now accept null gracefully
         schoolId,
       },
     });

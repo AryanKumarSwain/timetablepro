@@ -1,165 +1,68 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import {
-  requireSchoolContext,
-  handleApiError,
-  schoolWhere,
-} from '@/lib/auth-server';
+import { requireSchoolContext, handleApiError, schoolWhere } from '@/lib/auth-server';
 import { getDayOfWeekFromDate } from '@/lib/timetable-source';
 import { mapTeacherAttendance } from '@/lib/mappers';
 
-// Prevent Next.js from caching the midnight date check across page changes
 export const dynamic = 'force-dynamic';
-export const revalidate = 0;
 
 export async function GET(request: NextRequest) {
   try {
     const { schoolId } = await requireSchoolContext();
-    
-    // Generates a real-time 'YYYY-MM-DD' string that changes exactly at midnight IST
-    const safeLocalDate = new Date().toLocaleDateString('en-CA', {
-      timeZone: 'Asia/Kolkata',
-    });
-
-    const date = request.nextUrl.searchParams.get('date') ?? safeLocalDate;
+    const date = request.nextUrl.searchParams.get('date') ?? new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
     const dayOfWeek = getDayOfWeekFromDate(date);
 
-    // 1. Locate the active PUBLISHED timetable
     const activeTimetable = await prisma.timetable.findFirst({
-      where: {
-        schoolId,
-        status: 'PUBLISHED',
-      },
+      where: { schoolId, status: 'PUBLISHED' },
     });
 
     if (!activeTimetable) {
-      return NextResponse.json({
-        date,
-        dayOfWeek,
-        classes: [],
-        periods: [],
-        grid: [],
-        attendance: [],
-        replacements: [],
-        message: "No published timetable found."
-      });
+      return NextResponse.json({ date, dayOfWeek, grid: [], hasActiveSlots: false });
     }
 
-    // 2. Fetch specific layout periods for this active published timetable instance
-    const [periods, classes, subjects, teachers, attendance, replacements] =
-      await Promise.all([
-        prisma.period.findMany({
-          where: { schoolId, timetableId: activeTimetable.id },
-          orderBy: { startTime: 'asc' },
-        }),
-        prisma.classRoom.findMany({
-          where: schoolWhere(schoolId),
-          orderBy: { name: 'asc' },
-        }),
-        prisma.subject.findMany({ where: schoolWhere(schoolId) }),
-        prisma.teacher.findMany({ where: schoolWhere(schoolId) }),
-        prisma.teacherAttendance.findMany({
-          where: { ...schoolWhere(schoolId), date },
-        }),
-        prisma.replacementAssignment.findMany({
-          where: { ...schoolWhere(schoolId), date },
-        }),
-      ]);
+    const [periods, classes, subjects, teachers, attendance, replacements] = await Promise.all([
+      prisma.period.findMany({ where: { schoolId, timetableId: activeTimetable.id }, orderBy: { startTime: 'asc' } }),
+      prisma.classRoom.findMany({ where: schoolWhere(schoolId), orderBy: { name: 'asc' } }),
+      prisma.subject.findMany({ where: schoolWhere(schoolId) }),
+      prisma.teacher.findMany({ where: schoolWhere(schoolId) }),
+      prisma.teacherAttendance.findMany({ where: { ...schoolWhere(schoolId), date } }),
+      prisma.replacementAssignment.findMany({ 
+        where: { ...schoolWhere(schoolId), date },
+        include: { replacementTeacher: true } // Ensure we have teacher data
+      }),
+    ]);
 
-    let activePeriods = periods;
-    if (activePeriods.length === 0) {
-      activePeriods = await prisma.period.findMany({
-        where: { schoolId, timetableId: null },
-        orderBy: { startTime: 'asc' },
-      });
-    }
-
-    // 3. Fetch slot rows using the discovered active period identifiers
     const slots = await prisma.timetableSlot.findMany({
-      where: {
-        schoolId,
-        timetableId: activeTimetable.id,
-        dayOfWeek,
-        periodId: { in: activePeriods.map(p => p.id) }
-      },
+      where: { schoolId, timetableId: activeTimetable.id, dayOfWeek, periodId: { in: periods.map(p => p.id) } },
     });
     
     const teacherMap = new Map(teachers.map((t) => [t.id, t.name]));
     const subjectMap = new Map(subjects.map((s) => [s.id, s.name]));
 
-    // 4. Form grid array map layouts
-    const grid = activePeriods.map((period) => ({
+    const grid = periods.map((period) => ({
       periodId: period.id,
       periodNumber: period.periodNumber,
       label: period.isBreak ? (period.label || 'BREAK') : `Period ${period.periodNumber}`,
-      startTime: period.startTime,
-      endTime: period.endTime,
       cells: classes.map((cls) => {
-        const slot = slots.find(
-          (s) => s.periodId === period.id && s.classId === cls.id
-        );
-        
-        if (!slot) {
-          return { classId: cls.id, className: cls.name, empty: true as const };
-        }
+        const slot = slots.find((s) => s.periodId === period.id && s.classId === cls.id);
+        if (!slot) return { classId: cls.id, className: cls.name, empty: true };
 
-        const originalTeacherAtt = attendance.find((a) => a.teacherId === slot.teacherId);
-        const originalTeacherAbsent = originalTeacherAtt?.status === 'ABSENT';
-
-        const replacement = replacements.find(
-          (r) =>
-            r.periodId === slot.periodId &&
-            r.classId === slot.classId &&
-            r.originalTeacherId === slot.teacherId
-        );
-
-        // --- CASCADING ABSENCE CHECK ---
-        let isReplacementAbsent = false;
-        if (replacement && replacement.status.toLowerCase() === 'confirmed') {
-          const replacementAtt = attendance.find((a) => a.teacherId === replacement.replacementTeacherId);
-          if (replacementAtt?.status === 'ABSENT') {
-            isReplacementAbsent = true;
-          }
-        }
+        const replacement = replacements.find((r) => r.periodId === slot.periodId && r.classId === slot.classId);
 
         return {
           classId: cls.id,
-          className: cls.name,
-          empty: false as const,
           slotId: slot.id,
-          subjectId: slot.subjectId,
-          subjectName: subjectMap.get(slot.subjectId) ?? 'Unknown',
-          teacherId: slot.teacherId,
-          teacherName: teacherMap.get(slot.teacherId) ?? 'Unknown',
-          isAbsent: originalTeacherAbsent,
-          isReplacementAbsent: isReplacementAbsent,
-          replacement: replacement
-            ? {
-                id: replacement.id,
-                replacementTeacherId: replacement.replacementTeacherId,
-                replacementTeacherName: teacherMap.get(replacement.replacementTeacherId) ?? 'Unknown',
-                status: replacement.status.toLowerCase(),
-              }
-            : null,
+          subjectName: subjectMap.get(slot.subjectId),
+          teacherName: teacherMap.get(slot.teacherId),
+          replacement: replacement ? {
+            replacementTeacherName: replacement.replacementTeacher?.name || 'Unknown',
+            status: replacement.status.toLowerCase()
+          } : null
         };
       }),
     }));
 
-    return NextResponse.json({
-      date,
-      dayOfWeek,
-      classes: classes.map((c) => ({ id: c.id, name: c.name })),
-      periods: activePeriods.map((p) => ({
-        id: p.id,
-        periodNumber: p.periodNumber,
-        startTime: p.startTime,
-        endTime: p.endTime,
-        isBreak: p.isBreak,
-      })),
-      grid,
-      attendance: attendance.map((a) => mapTeacherAttendance(a)),
-      replacements,
-    });
+    return NextResponse.json({ grid, date, dayOfWeek, hasActiveSlots: slots.length > 0 });
   } catch (error) {
     return handleApiError(error);
   }

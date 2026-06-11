@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getSession } from '@/lib/session';
+import { ensureDefaultPlans } from '@/lib/saas-plan';
 
 const INSTITUTE_TYPES = [
   'School',
@@ -53,9 +54,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true });
     }
 
-    const defaultPlan = await prisma.saaSPlan.findFirst({
+    let defaultPlan = await prisma.saaSPlan.findFirst({
       orderBy: { teacherMin: 'asc' },
     });
+
+    if (!defaultPlan) {
+      await ensureDefaultPlans();
+      defaultPlan = await prisma.saaSPlan.findFirst({
+        orderBy: { teacherMin: 'asc' },
+      });
+    }
 
     if (!defaultPlan) {
       return NextResponse.json(

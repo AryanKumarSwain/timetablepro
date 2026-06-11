@@ -11,8 +11,10 @@ import type {
   AuthSession,
   TodayScheduleItem,
   SubstituteCandidate,
+  SaasPlan,
 } from './types';
 import type { CsvImportEntity, CsvImportResult, ParsedCsvRow } from './csv-import/types';
+
 
 // ============================================================================
 // Authentication
@@ -422,6 +424,35 @@ export async function getPlatformHealthDetail(): Promise<{
   return apiFetch('/api/super-admin/platform?panel=health');
 }
 
+export async function getSuperAdminPlans(): Promise<SaasPlan[]> {
+  return apiFetch('/api/super-admin/plans');
+}
+
+export async function createSuperAdminPlan(
+  data: Pick<SaasPlan, 'name' | 'teacherMin' | 'teacherMax' | 'priceMonthly'>
+): Promise<SaasPlan> {
+  return apiFetch('/api/super-admin/plans', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function updateSuperAdminPlan(
+  id: string,
+  data: Pick<SaasPlan, 'name' | 'teacherMin' | 'teacherMax' | 'priceMonthly'>
+): Promise<SaasPlan> {
+  return apiFetch(`/api/super-admin/plans/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteSuperAdminPlan(id: string): Promise<void> {
+  await apiFetch(`/api/super-admin/plans/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  });
+}
+
 export async function getTodayScheduleForTeacher(
   teacherId?: string
 ): Promise<TodayScheduleItem[]> {
@@ -574,9 +605,8 @@ export type DailyDeskGrid = {
   replacements: Replacement[];
 };
 
-export async function getDailyDeskGrid(date?: string): Promise<DailyDeskGrid> {
-  const qs = date ? `?date=${encodeURIComponent(date)}` : '';
-  return apiFetch(`/api/admin/daily-desk${qs}`);
+export async function getDailyDeskGrid(date: string): Promise<any> {
+  return apiFetch(`/api/admin/daily-desk?date=${encodeURIComponent(date)}`);
 }
 
 // ============================================================================

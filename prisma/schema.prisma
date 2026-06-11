@@ -99,6 +99,18 @@ model Notification {
   @@index([scope])
 }
 
+model EmailVerification {
+  id          String   @id @default(uuid())
+  email       String   @unique
+  fullName    String
+  phone       String
+  countryCode String
+  password    String
+  otp         String
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+}
+
 model NotificationRead {
   id             String       @id @default(uuid())
   notificationId String
@@ -136,7 +148,7 @@ model Teacher {
   active               Boolean                 @default(true)
   joinDate             String
   maxPeriodsPerWeek    Int                     @default(24)
-  subjectSpecialtyId   String
+  subjectSpecialtyId   String?
   weeklySlots          WeeklyTimetableSlot[]
   timetableSlots       TimetableSlot[]
   dailyReports         DailyReport[]
@@ -246,6 +258,8 @@ model ReplacementAssignment {
   replacementTeacher   Teacher          @relation("ReplacementTeacher", fields: [replacementTeacherId], references: [id])
   reason               LeaveReason      @default(CASUAL_LEAVE)
   status               AssignmentStatus @default(PENDING)
+  slotId               String
+  slot                 TimetableSlot    @relation(fields: [slotId], references: [id], onDelete: Cascade)
 
   @@index([schoolId])
   @@index([date, periodId, classId])
@@ -343,6 +357,7 @@ model TimetableSlot {
   subject     Subject   @relation(fields: [subjectId], references: [id])
   teacherId   String
   teacher     Teacher   @relation(fields: [teacherId], references: [id])
+  replacements ReplacementAssignment[]
 
   @@unique([timetableId, dayOfWeek, periodId, classId])
   @@index([timetableId])

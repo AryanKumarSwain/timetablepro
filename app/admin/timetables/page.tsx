@@ -62,16 +62,48 @@ function formatDate(iso: string) {
 
 function TimetableRow({
   item,
-  onPublish,
-  onUnpublish,
+  onActivate,
+  onDeactivate,
   onDelete,
 }: {
   item: TimetableSummary;
-  onPublish: () => void;
-  onUnpublish: () => void;
+  onActivate: () => void;
+  onDeactivate: () => void;
   onDelete: () => void;
 }) {
-  const isPublished = item.status === 'PUBLISHED';
+  const isActive = item.status === 'PUBLISHED';
+
+  // Fixed: Points to a dedicated public path bypassing auth middleware rules
+  const handleShareClick = async () => {
+    if (typeof window === 'undefined') return;
+
+    const publicShareUrl = `${window.location.origin}/public/share/timetables/${item.id}`;
+    const shareData = {
+      title: `${item.name} — Public Timetable`,
+      text: 'Open this timetable in the public viewer.',
+      url: publicShareUrl,
+    };
+
+    if (navigator.share) {
+      try {
+        await navigator.share(shareData);
+        return;
+      } catch (err) {
+        if ((err as { name?: string }).name === 'AbortError') {
+          return;
+        }
+        console.error('Native share failed:', err);
+      }
+    }
+
+    try {
+      await navigator.clipboard.writeText(publicShareUrl);
+      window.alert('📋 Public access link successfully copied to clipboard!');
+    } catch (err) {
+      console.error('Failed to copy text: ', err);
+      window.alert(`Unable to copy link automatically. Please use this URL manually:\n${publicShareUrl}`);
+    }
+  };
 
   return (
     <div className='flex items-center gap-4 p-4 rounded-xl border border-border/60 bg-card/50 hover:bg-muted/20 transition-colors'>
@@ -97,36 +129,32 @@ function TimetableRow({
       <Badge
         variant='outline'
         className={cn(
-          isPublished
+          isActive
             ? 'border-emerald-500/30 text-emerald-600 bg-emerald-500/10'
             : 'border-amber-500/30 text-amber-600 bg-amber-500/10'
         )}
       >
-        {item.status}
+        {isActive ? 'ACTIVATED' : 'INACTIVE'}
       </Badge>
       <div className='flex items-center gap-2 shrink-0'>
-        {isPublished ? (
+        {isActive ? (
           <>
-            <Button size='sm' variant='outline' className='rounded-lg' onClick={onUnpublish}>
-              Unpublish
+            <Button size='sm' variant='outline' className='rounded-lg text-amber-600 hover:text-amber-700' onClick={onDeactivate}>
+              Deactivate
             </Button>
             <Button
               size='sm'
               variant='outline'
               className='rounded-lg'
-              onClick={() =>
-                navigator.clipboard.writeText(
-                  `${window.location.origin}/admin/timetables/${item.id}/edit`
-                )
-              }
+              onClick={handleShareClick}
             >
               <Share2 className='h-3.5 w-3.5 mr-1' />
               Share
             </Button>
           </>
         ) : (
-          <Button size='sm' className='rounded-lg' onClick={onPublish}>
-            Publish
+          <Button size='sm' className='rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white' onClick={onActivate}>
+            Activate
           </Button>
         )}
         <DropdownMenu>
@@ -176,11 +204,11 @@ export default function TimetablesPage() {
     void load();
   }, [load]);
 
-  const published = useMemo(
+  const activeTimetables = useMemo(
     () => timetables.filter((t) => t.status === 'PUBLISHED'),
     [timetables]
   );
-  const drafts = useMemo(
+  const inactiveTimetables = useMemo(
     () => timetables.filter((t) => t.status === 'DRAFT'),
     [timetables]
   );
@@ -237,15 +265,15 @@ export default function TimetablesPage() {
           index={0}
         />
         <StatCard
-          label='Published'
-          value={published.length}
+          label='Active'
+          value={activeTimetables.length}
           icon={Calendar}
           variant='success'
           index={1}
         />
         <StatCard
-          label='Drafts'
-          value={drafts.length}
+          label='Inactive'
+          value={inactiveTimetables.length}
           variant='warning'
           index={2}
         />
@@ -253,18 +281,18 @@ export default function TimetablesPage() {
 
       <GlassCard className='p-6 mb-6'>
         <h2 className='text-lg font-semibold mb-4 text-foreground'>
-          Published Timetables [{published.length}]
+          Activated Timetables [{activeTimetables.length}]
         </h2>
-        {published.length === 0 ? (
-          <p className='text-sm text-muted-foreground'>No published timetables yet.</p>
+        {activeTimetables.length === 0 ? (
+          <p className='text-sm text-muted-foreground'>No active timetables found.</p>
         ) : (
           <div className='space-y-3'>
-            {published.map((t) => (
+            {activeTimetables.map((t) => (
               <TimetableRow
                 key={t.id}
                 item={t}
-                onPublish={() => void updateTimetable(t.id, { status: 'PUBLISHED' }).then(load)}
-                onUnpublish={() => void updateTimetable(t.id, { status: 'DRAFT' }).then(load)}
+                onActivate={() => void updateTimetable(t.id, { status: 'PUBLISHED' }).then(load)}
+                onDeactivate={() => void updateTimetable(t.id, { status: 'DRAFT' }).then(load)}
                 onDelete={() => {
                   if (window.confirm('Delete this timetable?')) {
                     void deleteTimetable(t.id).then(load);
@@ -278,18 +306,18 @@ export default function TimetablesPage() {
 
       <GlassCard className='p-6'>
         <h2 className='text-lg font-semibold mb-4 text-foreground'>
-          Draft Timetables [{drafts.length}]
+          Inactive Timetables [{inactiveTimetables.length}]
         </h2>
-        {drafts.length === 0 ? (
-          <p className='text-sm text-muted-foreground'>No draft timetables.</p>
+        {inactiveTimetables.length === 0 ? (
+          <p className='text-sm text-muted-foreground'>No inactive timetables.</p>
         ) : (
           <div className='space-y-3'>
-            {drafts.map((t) => (
+            {inactiveTimetables.map((t) => (
               <TimetableRow
                 key={t.id}
                 item={t}
-                onPublish={() => void updateTimetable(t.id, { status: 'PUBLISHED' }).then(load)}
-                onUnpublish={() => void updateTimetable(t.id, { status: 'DRAFT' }).then(load)}
+                onActivate={() => void updateTimetable(t.id, { status: 'PUBLISHED' }).then(load)}
+                onDeactivate={() => void updateTimetable(t.id, { status: 'DRAFT' }).then(load)}
                 onDelete={() => {
                   if (window.confirm('Delete this timetable?')) {
                     void deleteTimetable(t.id).then(load);
