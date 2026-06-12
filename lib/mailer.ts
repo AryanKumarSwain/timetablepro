@@ -28,7 +28,7 @@ export async function sendVerificationCode(
   code: string
 ): Promise<{ sent: boolean; error?: string }> {
   const transporter = getTransporter();
-  const from = process.env.SMTP_FROM ?? 'noreply@school.com';
+  const from = process.env.SMTP_FROM ?? process.env.MAIL_FROM ?? 'noreply@school.com';
 
   const html = `
 <!DOCTYPE html>
@@ -88,7 +88,7 @@ export async function sendTeacherCredentials(
   loginUrl: string
 ): Promise<{ sent: boolean; error?: string }> {
   const transporter = getTransporter();
-  const from = process.env.SMTP_FROM ?? 'noreply@school.com';
+  const from = process.env.SMTP_FROM ?? process.env.MAIL_FROM ?? 'noreply@school.com';
 
   const html = `
 <!DOCTYPE html>

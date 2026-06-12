@@ -23,7 +23,7 @@ import {
 } from '@/components/enterprise/data-grid';
 import { PageSkeleton } from '@/components/enterprise/page-skeleton';
 import { BulkCsvImportModal } from '@/components/enterprise/bulk-csv-import-modal';
-import { Upload } from 'lucide-react';
+import { Upload, CheckCircle2 } from 'lucide-react';
 
 export default function ClassesPage() {
   useRequireAuth('admin');
@@ -34,6 +34,8 @@ export default function ClassesPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [importOpen, setImportOpen] = useState(false);
   
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
+
   // Cleaned up form state containing only Name, Section, and Room Number
   const [formData, setFormData] = useState<Omit<Class, 'id' | 'strength' | 'classTeacher'>>({
     name: '',
@@ -44,6 +46,15 @@ export default function ClassesPage() {
   useEffect(() => {
     loadData();
   }, []);
+
+  // 2-second auto-dismiss timer for notifications
+  useEffect(() => {
+    if (!successMsg) return;
+    const timer = setTimeout(() => {
+      setSuccessMsg(null);
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [successMsg]);
 
   const loadData = async () => {
     try {
@@ -59,20 +70,35 @@ export default function ClassesPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const currentFormData = { ...formData };
+    
     try {
       if (editingId) {
-        await updateClass(editingId, formData);
+        setSuccessMsg(`Class ${currentFormData.name} updated successfully.`);
+        resetForm();
+        await updateClass(editingId, currentFormData);
+        loadData(); // Runs quietly in background
       } else {
-        await createClass(formData);
+        // Optimistic UI clear and response toast
+        setSuccessMsg(`Class ${currentFormData.name} has been created successfully.`);
+        resetForm();
+        await createClass(currentFormData);
+        loadData(); // Runs quietly in background
       }
-      loadData();
-      resetForm();
     } catch (error) {
       console.error('Failed to save class:', error);
+      setShowForm(true);
+      setFormData(currentFormData);
     }
   };
 
+  const handleBulkUploadSuccess = () => {
+    setSuccessMsg('Bulk import successful! All new classes have been saved.');
+    loadData();
+  };
+
   const handleEdit = (cls: Class) => {
+    setSuccessMsg(null);
     setFormData({
       name: cls.name,
       section: cls.section,
@@ -85,6 +111,7 @@ export default function ClassesPage() {
   const handleDelete = async (id: string) => {
     if (window.confirm('Are you sure?')) {
       try {
+        setSuccessMsg('Class record removed successfully.');
         await deleteClass(id);
         loadData();
       } catch (error) {
@@ -112,7 +139,7 @@ export default function ClassesPage() {
   }
 
   return (
-    <div className='max-w-7xl mx-auto'>
+    <div className='max-w-7xl mx-auto relative'>
       <PageHeader
         title='Classes'
         description='Manage school classes'
@@ -133,7 +160,10 @@ export default function ClassesPage() {
                 Import CSV
               </Button>
               <Button
-                onClick={() => setShowForm(true)}
+                onClick={() => {
+                  setSuccessMsg(null);
+                  setShowForm(true);
+                }}
                 className='rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600'
               >
                 Add Class
@@ -143,8 +173,19 @@ export default function ClassesPage() {
         }
       />
 
+      {/* TOP-RIGHT POPUP TOAST BOX */}
+      {successMsg && (
+        <div className='fixed top-6 right-6 z-50 max-w-sm p-4 bg-white dark:bg-zinc-900 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-sm rounded-xl shadow-xl flex items-start gap-3 animate-in slide-in-from-top-4 fade-in duration-300'>
+          <CheckCircle2 className='h-5 w-5 shrink-0 text-emerald-500 mt-0.5' />
+          <div>
+            <p className='font-semibold mb-0.5'>Action Successful</p>
+            <p className='text-zinc-600 dark:text-zinc-400 text-xs leading-relaxed'>{successMsg}</p>
+          </div>
+        </div>
+      )}
+
       {showForm && (
-        <Card className='p-6 mb-6 border-border'>
+        <Card className='p-6 mb-6 border-border animate-in fade-in duration-200'>
           <h2 className='text-xl font-semibold text-foreground mb-4'>
             {editingId ? 'Edit Class' : 'Add New Class'}
           </h2>
@@ -214,7 +255,7 @@ export default function ClassesPage() {
         open={importOpen}
         onOpenChange={setImportOpen}
         entity='classes'
-        onSuccess={() => void loadData()}
+        onSuccess={handleBulkUploadSuccess}
       />
 
       <DataGrid title='Classes list' empty={classes.length === 0}>

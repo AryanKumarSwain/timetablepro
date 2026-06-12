@@ -23,7 +23,7 @@ import {
 } from '@/components/enterprise/data-grid';
 import { PageSkeleton } from '@/components/enterprise/page-skeleton';
 import { BulkCsvImportModal } from '@/components/enterprise/bulk-csv-import-modal';
-import { Upload } from 'lucide-react';
+import { Upload, CheckCircle2 } from 'lucide-react';
 
 export default function SubjectsPage() {
   useRequireAuth('admin');
@@ -34,6 +34,8 @@ export default function SubjectsPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [importOpen, setImportOpen] = useState(false);
   
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
+
   // Kept only Name and Code properties
   const [formData, setFormData] = useState<Omit<Subject, 'id' | 'credits' | 'description'>>({
     name: '',
@@ -43,6 +45,15 @@ export default function SubjectsPage() {
   useEffect(() => {
     loadSubjects();
   }, []);
+
+  // 2-second auto-dismiss timer for notifications
+  useEffect(() => {
+    if (!successMsg) return;
+    const timer = setTimeout(() => {
+      setSuccessMsg(null);
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [successMsg]);
 
   const loadSubjects = async () => {
     try {
@@ -58,20 +69,35 @@ export default function SubjectsPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const currentFormData = { ...formData };
+    
     try {
       if (editingId) {
-        await updateSubject(editingId, formData);
+        setSuccessMsg(`Subject parameters for ${currentFormData.name} customized successfully.`);
+        resetForm();
+        await updateSubject(editingId, currentFormData);
+        loadSubjects(); // Runs quietly in background
       } else {
-        await createSubject(formData);
+        // Optimistic instant response mapping layout
+        setSuccessMsg(`Subject catalog listing ${currentFormData.name} logged successfully.`);
+        resetForm();
+        await createSubject(currentFormData);
+        loadSubjects(); // Runs quietly in background
       }
-      loadSubjects();
-      resetForm();
     } catch (error) {
       console.error('Failed to save subject:', error);
+      setShowForm(true);
+      setFormData(currentFormData);
     }
   };
 
+  const handleBulkUploadSuccess = () => {
+    setSuccessMsg('Bulk import successful! All curriculum course subjects initialized successfully.');
+    loadSubjects();
+  };
+
   const handleEdit = (subject: Subject) => {
+    setSuccessMsg(null);
     setFormData({
       name: subject.name,
       code: subject.code,
@@ -83,6 +109,7 @@ export default function SubjectsPage() {
   const handleDelete = async (id: string) => {
     if (window.confirm('Are you sure?')) {
       try {
+        setSuccessMsg('Subject catalog listing removed successfully.');
         await deleteSubject(id);
         loadSubjects();
       } catch (error) {
@@ -109,7 +136,7 @@ export default function SubjectsPage() {
   }
 
   return (
-    <div className='max-w-7xl mx-auto'>
+    <div className='max-w-7xl mx-auto relative'>
       <PageHeader
         title='Subjects'
         description='Manage course subjects'
@@ -130,7 +157,10 @@ export default function SubjectsPage() {
                 Import CSV
               </Button>
               <Button
-                onClick={() => setShowForm(true)}
+                onClick={() => {
+                  setSuccessMsg(null);
+                  setShowForm(true);
+                }}
                 className='rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600'
               >
                 Add Subject
@@ -140,8 +170,19 @@ export default function SubjectsPage() {
         }
       />
 
+      {/* TOP-RIGHT POPUP TOAST BOX */}
+      {successMsg && (
+        <div className='fixed top-6 right-6 z-50 max-w-sm p-4 bg-white dark:bg-zinc-900 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-sm rounded-xl shadow-xl flex items-start gap-3 animate-in slide-in-from-top-4 fade-in duration-300'>
+          <CheckCircle2 className='h-5 w-5 shrink-0 text-emerald-500 mt-0.5' />
+          <div>
+            <p className='font-semibold mb-0.5'>Action Successful</p>
+            <p className='text-zinc-600 dark:text-zinc-400 text-xs leading-relaxed'>{successMsg}</p>
+          </div>
+        </div>
+      )}
+
       {showForm && (
-        <Card className='p-6 mb-6 border-border'>
+        <Card className='p-6 mb-6 border-border animate-in fade-in duration-200'>
           <h2 className='text-xl font-semibold text-foreground mb-4'>
             {editingId ? 'Edit Subject' : 'Add New Subject'}
           </h2>
@@ -199,7 +240,7 @@ export default function SubjectsPage() {
         open={importOpen}
         onOpenChange={setImportOpen}
         entity='subjects'
-        onSuccess={() => void loadSubjects()}
+        onSuccess={handleBulkUploadSuccess}
       />
 
       <DataGrid title='Subjects list' empty={subjects.length === 0}>

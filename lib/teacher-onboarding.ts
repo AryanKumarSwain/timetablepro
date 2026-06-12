@@ -61,4 +61,19 @@ export async function provisionTeacherUserAccount(
     plainPassword,
     loginUrl.endsWith('/login') ? loginUrl : `${loginUrl.replace(/\/$/, '')}/login`
   );
+  // Log send result to help debug SMTP issues during teacher provisioning
+  try {
+    const result = await sendTeacherCredentials(
+      teacher.email,
+      teacher.name,
+      schoolName,
+      plainPassword,
+      loginUrl.endsWith('/login') ? loginUrl : `${loginUrl.replace(/\/$/, '')}/login`
+    );
+    if (!result.sent) {
+      console.warn('[provisionTeacherUserAccount] Credentials email not sent:', result.error ?? 'unknown');
+    }
+  } catch (err) {
+    console.error('[provisionTeacherUserAccount] sendTeacherCredentials threw error:', err);
+  }
 }
