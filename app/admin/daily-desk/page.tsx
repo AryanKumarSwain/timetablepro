@@ -17,18 +17,18 @@ import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/enterprise/page-header';
 import { GlassCard } from '@/components/enterprise/glass-card';
 import { PageSkeleton } from '@/components/enterprise/page-skeleton';
-import { 
-  AlertTriangle, 
-  UserPlus, 
-  Radio, 
-  Download, 
-  CheckCircle2, 
-  CalendarX, 
-  Link2, 
-  ZoomIn, 
-  ZoomOut, 
-  History, 
-  ChevronRight 
+import {
+  AlertTriangle,
+  UserPlus,
+  Radio,
+  Download,
+  CheckCircle2,
+  CalendarX,
+  Share2,
+  ZoomIn,
+  ZoomOut,
+  History,
+  ChevronRight
 } from 'lucide-react';
 import { cn, isTeacherActive } from '@/lib/utils';
 
@@ -227,13 +227,13 @@ export default function DailyDeskPage() {
 
   const handleCopyShareableLink = async () => {
     if (typeof window === 'undefined') return;
-    const publicUrl = `${window.location.origin}${window.location.pathname}?public=true`;
+    const publicUrl = `${window.location.origin}/public/share/daily-desk?date=${today}`;
 
     if (navigator.share) {
       try {
         await navigator.share({
-          title: 'Daily Desk Live View',
-          text: 'Open the live daily desk schedule.',
+          title: 'Daily Desk — Public View',
+          text: 'Open this daily desk in the public viewer.',
           url: publicUrl,
         });
         return;
@@ -245,7 +245,7 @@ export default function DailyDeskPage() {
 
     try {
       await navigator.clipboard.writeText(publicUrl);
-      window.alert('📋 Live view access link successfully copied to clipboard!');
+      window.alert('📋 Public access link successfully copied to clipboard!');
     } catch (err) {
       window.alert(`Unable to copy link automatically. Please use this URL manually:\n${publicUrl}`);
     }
@@ -417,8 +417,8 @@ export default function DailyDeskPage() {
                     disabled={isTimetableEmpty}
                     className="rounded-xl text-xs font-bold h-9 border-indigo-500/20 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-500/20 shadow-sm"
                   >
-                    <Link2 className="h-3.5 w-3.5 mr-1.5 text-indigo-500" />
-                    Copy Live Link
+                    <Share2 className="h-3.5 w-3.5 mr-1.5 text-indigo-500" />
+                    Share
                   </Button>
                 )}
                 <Button
