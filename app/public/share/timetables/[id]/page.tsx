@@ -3,12 +3,15 @@ import { notFound } from 'next/navigation';
 import { TimetableGrid } from '@/components/timetable-builder/timetable-grid';
 import { GlassCard } from '@/components/enterprise/glass-card';
 import { Lock } from 'lucide-react';
+import PublicTimetableView from './public-timetable-view';
 
 async function getTimetable(id: string) {
   return prisma.timetable.findUnique({
     where: { id },
     include: {
-      periods: true,
+      periods: {
+        orderBy: { periodNumber: 'asc' },
+      },
       slots: {
         include: {
           period: true,
@@ -21,14 +24,20 @@ async function getTimetable(id: string) {
   });
 }
 
+async function getClasses() {
+  return prisma.classRoom.findMany({
+    orderBy: { name: 'asc' },
+  });
+}
+
 export default async function PublicShareTimetablePage({
-  params
+  params,
 }: {
-  params: Promise<{ id: string }>
+  params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
 
-  const timetable = await getTimetable(id);
+  const [timetable, classes] = await Promise.all([getTimetable(id), getClasses()]);
 
   if (!timetable) {
     notFound();
@@ -83,22 +92,15 @@ export default async function PublicShareTimetablePage({
         </div>
       </GlassCard>
 
-      <GlassCard className='p-5'>
-        <div className='space-y-5'>
-          <div>
-            <h2 className='text-lg font-bold'>{timetable.name}</h2>
-            <p className='text-sm text-muted-foreground'>Anyone with this link can view the timetable.</p>
-          </div>
-
-          <TimetableGrid
-            periods={periods}
-            slots={slots}
-            workingDays={workingDays}
-            baseStartTime={timetable.baseStartTime || '08:00'}
-            periodDuration={timetable.periodDuration || 45}
-          />
-        </div>
-      </GlassCard>
+      <PublicTimetableView
+        timetable={timetable}
+        classes={classes}
+        periods={periods}
+        slots={slots}
+        workingDays={workingDays}
+        baseStartTime={timetable.baseStartTime || '08:00'}
+        periodDuration={timetable.periodDuration || 45}
+      />
     </div>
   );
 }
