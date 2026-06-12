@@ -95,13 +95,20 @@ export default function AdminDashboard() {
     const loadData = async () => {
       try {
         const today = new Date().toISOString().split('T')[0];
-        const schoolId = (auth.session.user as any)?.schoolId || 'default-id';
+        const schoolId = (auth.session?.user as any)?.schoolId || 'default-id';
+
+        // Prevent un-scoped runtime requests
+        if (!schoolId || schoolId === 'default-id') {
+          console.warn('School context missing, skipping data load');
+          setLoading(false);
+          return;
+        }
 
         const [statsData, attendanceData, replacementData, teachersList, periodsList] = await Promise.all([
           getAdminDashboardStats().catch(() => null),
           getDailyAttendance(today).catch(() => []),
-          getReplacements({ date: today }).catch(() => []),
-          getTeachers().catch(() => []),
+          getReplacements({ date: today }, schoolId).catch(() => []),
+          getTeachers(schoolId).catch(() => []),
           getPeriods().catch(() => []),
         ]);
 

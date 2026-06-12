@@ -122,6 +122,8 @@ export default function SignupPage() {
           return;
         }
 
+        console.log('Google auth user data:', user);
+
         if (user.onboardingDone) {
           router.replace('/admin/dashboard');
           return;
@@ -130,12 +132,16 @@ export default function SignupPage() {
         setGoogleEmail(user.email);
         setGoogleFullName(user.name || '');
 
-        if (!user.phone) {
+        // Force step 3 for Google auth users to collect phone number
+        if (!user.phone || user.phone === null) {
+          console.log('Phone missing, setting step to 3');
           setStep(3);
         } else {
+          console.log('Phone exists, setting step to 4');
           setStep(4);
         }
-      } catch {
+      } catch (error) {
+        console.error('Session check error:', error);
         // stay on step 1
       } finally {
         setCheckingSession(false);

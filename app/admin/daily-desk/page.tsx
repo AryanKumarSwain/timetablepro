@@ -42,7 +42,7 @@ export default function DailyDeskPage() {
   const isPublicView = searchParams?.get('public') === 'true';
 
   // 2. Unconditional Hook Initialization 
-  useRequireAuth(isPublicView ? null : 'admin');
+  const auth = useRequireAuth(isPublicView ? null : 'admin');
   const router = useRouter();
 
   // 3. Component Core Reactive States
@@ -72,10 +72,19 @@ export default function DailyDeskPage() {
   // 4. Data Loading Protocols
   const loadData = useCallback(async () => {
     try {
+      // Get schoolId from auth context
+      const schoolId = (auth.session?.user as any)?.schoolId;
+      
+      // Prevent un-scoped runtime requests
+      if (!schoolId) {
+        console.warn('School context missing, skipping data load');
+        return;
+      }
+
       const [desk, teachersData, replacementData] = await Promise.all([
-        getDailyDeskGrid(today),
-        getTeachers(),
-        getReplacements({ date: today }),
+        getDailyDeskGrid(today, schoolId),
+        getTeachers(schoolId),
+        getReplacements({ date: today }, schoolId),
       ]);
       setGridData(desk);
       setTeachers(teachersData);
@@ -83,7 +92,7 @@ export default function DailyDeskPage() {
     } catch (error) {
       console.error('Failed to load daily desk operational matrix data:', error);
     }
-  }, [today]);
+  }, [today, auth.session?.user]);
 
   const loadHistory = useCallback(async () => {
     if (isPublicView) return;

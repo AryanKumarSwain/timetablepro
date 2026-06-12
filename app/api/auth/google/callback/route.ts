@@ -45,12 +45,20 @@ export async function GET(request: NextRequest) {
           countryCode: null,
         },
       });
-    }
-    else if (profile.name && !user.name) {
+    } else if (user.role === 'ADMIN') {
+      // For existing admin users, reset onboarding to ensure they complete the flow
       user = await prisma.user.update({
         where: { id: user.id },
-        data: { name: profile.name },
+        data: {
+          name: profile.name || user.name,
+          onboardingDone: false,
+          phone: null,
+          countryCode: null,
+        },
       });
+    } else {
+      signupUrl.searchParams.set('error', 'account_exists');
+      return NextResponse.redirect(signupUrl);
     }
 
     const session = await getSession();

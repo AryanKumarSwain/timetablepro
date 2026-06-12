@@ -10,12 +10,43 @@ function buildApiUrl(path: string) {
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const url = buildApiUrl(path);
+  
+  // Fetch current session to get school context
+  let schoolId: string | null = null;
+  try {
+    const sessionRes = await fetch('/api/auth/me', {
+      credentials: 'include',
+      cache: 'no-store',
+    });
+    if (sessionRes.ok) {
+      const sessionData = await sessionRes.json();
+      schoolId = sessionData.user?.schoolId || null;
+    }
+  } catch (error) {
+    console.warn('[apiFetch] Failed to fetch session for school context:', error);
+  }
+
+  const headers = new Headers();
+  if (init?.body) {
+    headers.set('Content-Type', 'application/json');
+  }
+  
+  // Copy any existing headers
+  if (init?.headers) {
+    const existingHeaders = init.headers as Record<string, string>;
+    Object.entries(existingHeaders).forEach(([key, value]) => {
+      headers.set(key, value);
+    });
+  }
+
+  // Inject school context header if available
+  if (schoolId) {
+    headers.set('x-school-id', schoolId);
+  }
+
   const res = await fetch(url, {
     ...init,
-    headers: {
-      ...(init?.body ? { 'Content-Type': 'application/json' } : {}),
-      ...init?.headers,
-    },
+    headers,
     credentials: 'include',
   });
 
@@ -43,6 +74,7 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
       status: res.status,
       errorMessage,
       parsed,
+      schoolId,
     });
 
     throw new Error(errorMessage);

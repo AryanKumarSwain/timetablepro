@@ -57,8 +57,9 @@ export async function logoutUser(): Promise<void> {
 // ============================================================================
 // Teachers
 // ============================================================================
-export async function getTeachers(): Promise<Teacher[]> {
-  return apiFetch('/api/teachers');
+export async function getTeachers(schoolId?: string): Promise<Teacher[]> {
+  const url = schoolId ? `/api/teachers?schoolId=${encodeURIComponent(schoolId)}` : '/api/teachers';
+  return apiFetch(url);
 }
 
 export async function getTeacher(id: string): Promise<Teacher | null> {
@@ -241,10 +242,11 @@ export async function markAttendance(
 export async function getReplacements(filters?: {
   date?: string;
   status?: string;
-}): Promise<Replacement[]> {
+}, schoolId?: string): Promise<Replacement[]> {
   const params = new URLSearchParams();
   if (filters?.date) params.set('date', filters.date);
   if (filters?.status) params.set('status', filters.status);
+  if (schoolId) params.set('schoolId', schoolId);
   const qs = params.toString();
   return apiFetch(`/api/replacements${qs ? `?${qs}` : ''}`);
 }
@@ -605,8 +607,11 @@ export type DailyDeskGrid = {
   replacements: Replacement[];
 };
 
-export async function getDailyDeskGrid(date: string): Promise<any> {
-  return apiFetch(`/api/admin/daily-desk?date=${encodeURIComponent(date)}`);
+export async function getDailyDeskGrid(date: string, schoolId?: string): Promise<any> {
+  const url = schoolId 
+    ? `/api/admin/daily-desk?date=${encodeURIComponent(date)}&schoolId=${encodeURIComponent(schoolId)}`
+    : `/api/admin/daily-desk?date=${encodeURIComponent(date)}`;
+  return apiFetch(url);
 }
 
 // ============================================================================
