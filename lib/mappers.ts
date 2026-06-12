@@ -21,7 +21,6 @@ function normalizeStringArray(value: unknown): string[] {
   if (Array.isArray(value)) {
     return value.filter((item): item is string => typeof item === 'string');
   }
-
   return [];
 }
 
@@ -101,7 +100,13 @@ export function mapTeacherAttendance(
   };
 }
 
-export function mapReplacement(r: ReplacementAssignment): Replacement {
+export function mapReplacement(
+  r: ReplacementAssignment & { 
+    replacementTeacher?: { name: string } | null;
+    slot?: { subjectId: string } | null;
+    subjectId?: string | null;
+  }
+): Replacement {
   const reasonMap: Record<string, Replacement['reason']> = {
     CASUAL_LEAVE: 'Leave',
     MEDICAL_LEAVE: 'Medical',
@@ -118,7 +123,8 @@ export function mapReplacement(r: ReplacementAssignment): Replacement {
     periodId: r.periodId,
     originalTeacherId: r.originalTeacherId,
     replacementTeacherId: r.replacementTeacherId,
-    subjectId: r.subjectId ?? '',
+    replacementTeacherName: r.replacementTeacher?.name,
+    subjectId: r.slot?.subjectId ?? r.subjectId ?? '',
     reason: reasonMap[r.reason] ?? 'Leave',
     status: statusMap[r.status] ?? 'pending',
     createdAt: r.date,

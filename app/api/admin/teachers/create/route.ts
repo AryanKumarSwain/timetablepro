@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
     if (existingTeacher) {
       return NextResponse.json(
         { error: 'A teacher profile with this email address already exists.' },
-        { status: 400 } // Clean client bad request error status instead of crashing with a 500
+        { status: 400 }
       );
     }
 
@@ -41,13 +41,14 @@ export async function POST(request: NextRequest) {
         ? body.subjectSpecialtyId
         : requestSubjects[0];
 
-    // Look for an existing subject
+    // 💡 FIXED: Strictly query a fallback subject that belongs ONLY to this school context
     let fallbackSubject = await prisma.subject.findFirst({
-      where: schoolWhere(schoolId),
+      where: { schoolId },
       orderBy: { name: 'asc' },
     });
 
-    // If zero subjects exist in the database, fallback dynamically
+    // 💡 FIXED: Re-architected fallback conditional execution logic block 
+    // If no specialty ID was passed in, and no subject exists for THIS school, create a safe default.
     if (!subjectSpecialtyId && !fallbackSubject) {
       fallbackSubject = await prisma.subject.create({
         data: {
@@ -58,9 +59,10 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // Resolve the ID cleanly
     const resolvedSubjectSpecialtyId = subjectSpecialtyId || fallbackSubject!.id;
 
-    // 2. CREATE RECORD safely since email validation passed
+    // 2. CREATE RECORD safely since email validation and relations are confirmed
     const teacher = await prisma.teacher.create({
       data: {
         name: String(body.name ?? '').trim(),
@@ -86,7 +88,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(mapTeacher(teacher));
   } catch (error) {
-    console.error('[POST /api/admin/teachers/create]', error);
+    console.error('[POST /api/admin/teachers/create Execution Failure]:', error);
     return handleApiError(error);
   }
 }

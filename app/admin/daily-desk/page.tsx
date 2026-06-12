@@ -1,8 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { useRouter } from 'with-next-link';
-import { useRouter as useNextRouter } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { useRequireAuth } from '@/lib/auth-context';
 import {
   getDailyDeskGrid,
@@ -10,7 +9,6 @@ import {
   markAttendance,
   getReplacements,
   createReplacement,
-  updateReplacementStatus,
   type DailyDeskGrid,
 } from '@/lib/api-services';
 import type { Teacher, Replacement } from '@/lib/types';
@@ -19,25 +17,40 @@ import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/enterprise/page-header';
 import { GlassCard } from '@/components/enterprise/glass-card';
 import { PageSkeleton } from '@/components/enterprise/page-skeleton';
-import { AlertTriangle, UserPlus, Radio, Share2, Download, CheckCircle2, CalendarX, Link2 } from 'lucide-react';
+import { 
+  AlertTriangle, 
+  UserPlus, 
+  Radio, 
+  Download, 
+  CheckCircle2, 
+  CalendarX, 
+  Link2, 
+  ZoomIn, 
+  ZoomOut, 
+  History, 
+  ChevronRight 
+} from 'lucide-react';
 import { cn, isTeacherActive } from '@/lib/utils';
 
+const ZOOM_MIN = 0.6;
+const ZOOM_MAX = 1.4;
+const ZOOM_STEP = 0.1;
+
 export default function DailyDeskPage() {
-  // 1. Intercept URL parameter matrix to identify if reader arrived via public token share
+  // 1. Setup layout configurations & identify view contexts
   const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
   const isPublicView = searchParams?.get('public') === 'true';
 
-  // 2. Fall back to safety route shield ONLY if it is not designated as a public viewing link
-  if (!isPublicView) {
-    useRequireAuth('admin');
-  }
+  // 2. Unconditional Hook Initialization 
+  useRequireAuth(isPublicView ? null : 'admin');
+  const router = useRouter();
 
-  const router = useNextRouter();
-
+  // 3. Component Core Reactive States
   const [gridData, setGridData] = useState<DailyDeskGrid | null>(null);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
-  const [replacements, setReplacements] = useState<Replacement[]>([]);
+  const [, setReplacements] = useState<Replacement[]>([]);
   const [loading, setLoading] = useState(true);
+  
   const [showReplacementForm, setShowReplacementForm] = useState(false);
   const [submittingReplacement, setSubmittingReplacement] = useState(false);
   const [replacementForm, setReplacementForm] = useState({
@@ -48,9 +61,15 @@ export default function DailyDeskPage() {
     reason: 'Leave',
   });
 
+  const [zoomLevel, setZoomLevel] = useState(1);
+  const [freeTeachersPeriodId, setFreeTeachersPeriodId] = useState('');
+  const [history, setHistory] = useState<{ date: string; replacementCount: number }[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+
   const localeDate = new Date();
   const today = `${localeDate.getFullYear()}-${String(localeDate.getMonth() + 1).padStart(2, '0')}-${String(localeDate.getDate()).padStart(2, '0')}`;
 
+  // 4. Data Loading Protocols
   const loadData = useCallback(async () => {
     try {
       const [desk, teachersData, replacementData] = await Promise.all([
@@ -66,6 +85,36 @@ export default function DailyDeskPage() {
     }
   }, [today]);
 
+  const loadHistory = useCallback(async () => {
+    if (isPublicView) return;
+    setLoadingHistory(true);
+    try {
+      const days: { date: string; replacementCount: number }[] = [];
+      for (let i = 1; i <= 7; i++) {
+        const d = new Date();
+        d.setDate(d.getDate() - i);
+        const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        days.push({ date: dateStr, replacementCount: 0 });
+      }
+
+      const results = await Promise.all(
+        days.map(async (day) => {
+          try {
+            const reps = await getReplacements({ date: day.date });
+            return { date: day.date, replacementCount: reps?.length ?? 0 };
+          } catch {
+            return { date: day.date, replacementCount: 0 };
+          }
+        })
+      );
+      setHistory(results);
+    } catch (error) {
+      console.error('Failed to load daily desk history:', error);
+    } finally {
+      setLoadingHistory(false);
+    }
+  }, [isPublicView]);
+
   useEffect(() => {
     let isMounted = true;
 
@@ -73,6 +122,7 @@ export default function DailyDeskPage() {
       if (isMounted) setLoading(true);
       await loadData();
       if (isMounted) setLoading(false);
+      void loadHistory();
     }
 
     void init();
@@ -87,18 +137,25 @@ export default function DailyDeskPage() {
       isMounted = false;
       window.removeEventListener('focus', handleFocus);
     };
-  }, [loadData, router]);
+  }, [loadData, loadHistory, router]);
 
+  useEffect(() => {
+    if (!freeTeachersPeriodId && gridData?.periods?.length) {
+      const firstPeriod = gridData.periods.find((p) => !p.isBreak) || gridData.periods[0];
+      if (firstPeriod) setFreeTeachersPeriodId(firstPeriod.id);
+    }
+  }, [gridData, freeTeachersPeriodId]);
+
+  // 5. Operational Action Drivers
   const handleMarkAttendance = async (
     classId: string,
     periodId: string,
     teacherId: string,
     isAbsent: boolean
   ) => {
-    // Optimistic UI update: set the cell's isAbsent locally first
     setGridData((prev) => {
       if (!prev) return prev;
-      const newGrid = {
+      return {
         ...prev,
         grid: prev.grid.map((row) => ({
           ...row,
@@ -110,7 +167,6 @@ export default function DailyDeskPage() {
           }),
         })),
       } as DailyDeskGrid;
-      return newGrid;
     });
 
     try {
@@ -119,7 +175,6 @@ export default function DailyDeskPage() {
       router.refresh();
     } catch (error) {
       console.error('Failed to update attendance status markers:', error);
-      // Revert optimistic update on error by reloading data
       await loadData();
     }
   };
@@ -161,6 +216,7 @@ export default function DailyDeskPage() {
         reason: 'Leave',
       });
       await loadData();
+      void loadHistory();
       router.refresh();
     } catch (error) {
       console.error('Failed to register substitute tracking records:', error);
@@ -169,25 +225,20 @@ export default function DailyDeskPage() {
     }
   };
 
-  // Safe Clipboard Copy Operation for public generation link distribution
   const handleCopyShareableLink = async () => {
     if (typeof window === 'undefined') return;
-
     const publicUrl = `${window.location.origin}${window.location.pathname}?public=true`;
-    const shareData = {
-      title: 'Daily Desk Live View',
-      text: 'Open the live daily desk schedule.',
-      url: publicUrl,
-    };
 
     if (navigator.share) {
       try {
-        await navigator.share(shareData);
+        await navigator.share({
+          title: 'Daily Desk Live View',
+          text: 'Open the live daily desk schedule.',
+          url: publicUrl,
+        });
         return;
       } catch (err) {
-        if ((err as { name?: string }).name === 'AbortError') {
-          return;
-        }
+        if ((err as { name?: string }).name === 'AbortError') return;
         console.error('Native share failed:', err);
       }
     }
@@ -196,32 +247,45 @@ export default function DailyDeskPage() {
       await navigator.clipboard.writeText(publicUrl);
       window.alert('📋 Live view access link successfully copied to clipboard!');
     } catch (err) {
-      console.error('Link generation capture failure:', err);
       window.alert(`Unable to copy link automatically. Please use this URL manually:\n${publicUrl}`);
     }
   };
 
   const handlePrintPDF = () => {
-    if (typeof window !== 'undefined') {
-      window.print();
-    }
+    if (typeof window !== 'undefined') window.print();
   };
+
+  const handleZoomIn = () => setZoomLevel((prev) => Math.min(ZOOM_MAX, Math.round((prev + ZOOM_STEP) * 100) / 100));
+  const handleZoomOut = () => setZoomLevel((prev) => Math.max(ZOOM_MIN, Math.round((prev - ZOOM_STEP) * 100) / 100));
+  const handleZoomReset = () => setZoomLevel(1);
 
   const openCoverForm = (classId: string, periodId: string, originalTeacherId: string) => {
     setReplacementForm({
       periodId,
       classId,
-      // If the original teacher is a sub who is now absent, 
-      // originalTeacherId passed here will be the sub's ID.
-      originalTeacherId: originalTeacherId,
+      originalTeacherId,
       replacementTeacherId: '',
       reason: 'Leave',
     });
     setShowReplacementForm(true);
   };
 
-  const getTeacherName = (id: string) =>
-    teachers.find((t) => t.id === id)?.name || 'Unknown Faculty';
+  const getFreeTeachers = (periodId: string) => {
+    if (!periodId || !gridData) return [];
+    const absentTeacherIds = new Set(
+      (gridData.attendance ?? [])
+        .filter((a) => a.status === 'ABSENT')
+        .map((a) => a.teacherId)
+    );
+    const busyInPeriod = new Set(gridData.busyTeachersByPeriod?.[periodId] ?? []);
+
+    return teachers.filter(
+      (t) =>
+        isTeacherActive(t.active) &&
+        !absentTeacherIds.has(t.id) &&
+        !busyInPeriod.has(t.id)
+    );
+  };
 
   const getSubjectClass = (subjectName: string): string => {
     if (!subjectName) return '';
@@ -236,6 +300,11 @@ export default function DailyDeskPage() {
     if (name.includes('computer') || name.includes('cs') || name.includes('it')) return 'sub-computer-science';
     if (name.includes('physics') || name.includes('phy')) return 'sub-physics';
     return '';
+  };
+
+  const formatHistoryDate = (dateStr: string) => {
+    const d = new Date(`${dateStr}T12:00:00`);
+    return d.toLocaleDateString('en-IN', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' });
   };
 
   if (loading || !gridData) {
@@ -257,9 +326,16 @@ export default function DailyDeskPage() {
     !gridData.periods || gridData.periods.length === 0 ||
     (!gridData.grid || gridData.grid.length === 0 && totalRealSlotsScheduled === 0);
 
+  const absentTeacherIds = new Set(
+    (gridData.attendance ?? [])
+      .filter((a) => a.status === 'ABSENT')
+      .map((a) => a.teacherId)
+  );
+  const busyInSelectedPeriod = new Set(gridData.busyTeachersByPeriod?.[replacementForm.periodId] ?? []);
+
   return (
     <div className='max-w-[1600px] mx-auto space-y-6 px-4 py-2 print:p-0 print:max-w-full'>
-      {/* HEADER SECTION - Completely completely hidden to public view links */}
+      {/* HEADER SECTION */}
       {!isPublicView && (
         <div className="print:hidden">
           <PageHeader
@@ -282,13 +358,13 @@ export default function DailyDeskPage() {
         </div>
       )}
 
-      {/* DYNAMIC GRID LAYOUT MATRICES CONTAINER */}
+      {/* OPERATIONAL RESPONSIVE CANVAS */}
       <div className={cn(
         'grid grid-cols-1 gap-6 items-start print:block print:w-full',
         !isPublicView ? 'xl:grid-cols-[1fr_360px]' : 'xl:grid-cols-1'
       )}>
 
-        {/* TIMETABLE VIEW CONTAINER */}
+        {/* TIMETABLE MAIN CARD CONTAINER */}
         <div className='min-w-0 w-full overflow-visible print:border-none print:p-0'>
           <GlassCard className='p-5 print:bg-transparent print:border-none print:p-0 print:shadow-none'>
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-5 print:mb-8">
@@ -301,9 +377,39 @@ export default function DailyDeskPage() {
                 </p>
               </div>
 
-              {/* ACTION MODULE CONTROLS */}
+              {/* CONTROLS BAR */}
               <div className="flex items-center gap-2 self-start sm:self-center print:hidden">
-                {!isPublicView ? (
+                <div className="flex items-center gap-1 rounded-xl border border-border/80 bg-muted/40 p-1">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={handleZoomOut}
+                    disabled={zoomLevel <= ZOOM_MIN || isTimetableEmpty}
+                    className="h-7 w-7 p-0 rounded-lg hover:bg-background"
+                    title="Zoom out"
+                  >
+                    <ZoomOut className="h-3.5 w-3.5" />
+                  </Button>
+                  <button
+                    onClick={handleZoomReset}
+                    className="text-[11px] font-bold text-muted-foreground px-1.5 min-w-[42px] text-center hover:text-foreground transition-colors"
+                    title="Reset zoom"
+                  >
+                    {Math.round(zoomLevel * 100)}%
+                  </button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={handleZoomIn}
+                    disabled={zoomLevel >= ZOOM_MAX || isTimetableEmpty}
+                    className="h-7 w-7 p-0 rounded-lg hover:bg-background"
+                    title="Zoom in"
+                  >
+                    <ZoomIn className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+
+                {!isPublicView && (
                   <Button
                     size="sm"
                     variant="outline"
@@ -314,7 +420,7 @@ export default function DailyDeskPage() {
                     <Link2 className="h-3.5 w-3.5 mr-1.5 text-indigo-500" />
                     Copy Live Link
                   </Button>
-                ) : null}
+                )}
                 <Button
                   size="sm"
                   variant="outline"
@@ -328,7 +434,7 @@ export default function DailyDeskPage() {
               </div>
             </div>
 
-            {/* CONDITIONAL TIMETABLE VIEW REGION */}
+            {/* GRID DATA RENDER ENGINE */}
             {isTimetableEmpty ? (
               <div className="flex flex-col items-center justify-center text-center py-16 px-4 border border-dashed border-border/60 bg-muted/10 rounded-2xl">
                 <div className="p-3 bg-rose-500/10 text-rose-500 rounded-full mb-3 dark:bg-rose-500/20">
@@ -344,7 +450,10 @@ export default function DailyDeskPage() {
                 id="timetable-capture"
                 className='timetable-matrix-scroll w-full overflow-x-auto rounded-xl border border-border/60 bg-background p-4 scrollbar-thin scrollbar-thumb-accent print:overflow-visible print:border-none print:bg-transparent'
               >
-                <div className='timetable-inner-container print:min-w-full'>
+                <div
+                  className='timetable-inner-container print:min-w-full origin-top-left transition-transform duration-150 ease-out'
+                  style={{ transform: `scale(${zoomLevel})`, width: zoomLevel !== 1 ? `${100 / zoomLevel}%` : undefined }}
+                >
                   <table className='w-full border-collapse text-left min-w-[800px] print:min-w-full print:table-layout-fixed'>
                     <thead>
                       <tr className='bg-muted/80 backdrop-blur border-b border-border/40 print:bg-gray-100 print:border-b-2 print:border-gray-300'>
@@ -352,10 +461,7 @@ export default function DailyDeskPage() {
                           Timetable
                         </th>
                         {gridData.periods.map((p) => (
-                          <th
-                            key={p.id}
-                            className='p-3 border-l border-border/40 text-center min-w-[180px] w-[200px] print:border-gray-300 print:p-2'
-                          >
+                          <th key={p.id} className='p-3 border-l border-border/40 text-center min-w-[180px] w-[200px] print:border-gray-300 print:p-2'>
                             <div className='text-xs font-bold text-foreground uppercase tracking-wider print:text-black print:text-[11px]'>
                               {p.isBreak ? (p.label || 'BREAK') : `P${p.periodNumber}`}
                             </div>
@@ -379,10 +485,7 @@ export default function DailyDeskPage() {
 
                             if (!cell || cell.empty) {
                               return (
-                                <td
-                                  key={`${cls.id}-${period.id}`}
-                                  className='p-3 border-l border-border/40 text-center text-muted-foreground/20 bg-background/5 vertical-middle min-h-[115px] print:border-gray-300 print:p-1'
-                                >
+                                <td key={`${cls.id}-${period.id}`} className='p-3 border-l border-border/40 text-center text-muted-foreground/20 bg-background/5 min-h-[115px] print:border-gray-300 print:p-1'>
                                   <span className="text-xs font-semibold tracking-widest print:text-gray-300">—</span>
                                 </td>
                               );
@@ -446,11 +549,9 @@ export default function DailyDeskPage() {
                                               <AlertTriangle className='h-3 w-3 shrink-0' />
                                               <span className="text-[10px] font-bold uppercase">Sub Absent!</span>
                                             </div>
-
                                             <p className="text-[11px] font-medium text-muted-foreground bg-rose-500/5 px-1.5 py-1 rounded border border-rose-500/20 line-through truncate">
                                               Sub: {cell.replacement?.replacementTeacherName}
                                             </p>
-
                                             <Button
                                               size='sm'
                                               variant='secondary'
@@ -458,7 +559,6 @@ export default function DailyDeskPage() {
                                               onClick={() => openCoverForm(
                                                 cell.classId,
                                                 period.id,
-                                                // Targeting the current (absent) sub's ID for replacement
                                                 cell.replacement?.replacementTeacherId || cell.teacherId
                                               )}
                                             >
@@ -473,17 +573,13 @@ export default function DailyDeskPage() {
                                               <AlertTriangle className='h-3 w-3 shrink-0 text-rose-500 print:hidden' />
                                               <span className="text-[9px] font-bold uppercase tracking-wide print:text-[8px]">ABSENT</span>
                                             </div>
-
-                                            {/* Hide action trigger inputs from general public users */}
                                             {!isPublicView && (
                                               <div className="grid grid-cols-2 gap-1 print:hidden">
                                                 <Button
                                                   size='sm'
                                                   variant='outline'
                                                   className='h-6 text-[10px] font-bold rounded border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/10 transition-colors px-1'
-                                                  onClick={() =>
-                                                    void handleMarkAttendance(cell.classId, period.id, cell.teacherId, false)
-                                                  }
+                                                  onClick={() => void handleMarkAttendance(cell.classId, period.id, cell.teacherId, false)}
                                                 >
                                                   Present
                                                 </Button>
@@ -501,15 +597,12 @@ export default function DailyDeskPage() {
                                         )}
                                       </>
                                     ) : (
-                                      /* Hide edit states from public readers */
                                       !isPublicView && (
                                         <Button
                                           size='sm'
                                           variant='outline'
                                           className='h-6 text-[10px] font-bold rounded border-rose-500/20 text-rose-600 hover:bg-rose-500/10 transition-colors w-full print:hidden'
-                                          onClick={() =>
-                                            void handleMarkAttendance(cell.classId, period.id, cell.teacherId, true)
-                                          }
+                                          onClick={() => void handleMarkAttendance(cell.classId, period.id, cell.teacherId, true)}
                                         >
                                           Mark Absent
                                         </Button>
@@ -528,11 +621,60 @@ export default function DailyDeskPage() {
               </div>
             )}
           </GlassCard>
+
+          {/* HISTORICAL TIMELINE SNAPSHOT LOG */}
+          {!isPublicView && (
+            <GlassCard className='p-5 mt-6 print:hidden'>
+              <div className='flex items-center justify-between pb-3 mb-3 border-b border-border/40'>
+                <div className='flex items-center gap-2'>
+                  <div className='p-1.5 rounded-lg bg-indigo-500/10 text-indigo-500'>
+                    <History className='h-4 w-4' />
+                  </div>
+                  <div>
+                    <h2 className='text-sm font-bold uppercase tracking-wider text-foreground'>Recent Daily Desk Snapshots</h2>
+                    <p className='text-[11px] text-muted-foreground mt-0.5'>Past 7 days substitution activity</p>
+                  </div>
+                </div>
+              </div>
+
+              {loadingHistory ? (
+                <div className='py-6 text-center text-xs text-muted-foreground'>Loading history…</div>
+              ) : history.length === 0 ? (
+                <div className='py-6 text-center text-xs text-muted-foreground'>No historical records found.</div>
+              ) : (
+                <div className='divide-y divide-border/40'>
+                  {history.map((item) => (
+                    <button
+                      key={item.date}
+                      onClick={() => router.push(`/admin/daily-desk?date=${item.date}`)}
+                      className='w-full flex items-center justify-between py-2.5 px-2 rounded-lg hover:bg-muted/40 transition-colors text-left group'
+                    >
+                      <div className='flex items-center gap-3'>
+                        <span className='text-xs font-bold text-foreground'>{formatHistoryDate(item.date)}</span>
+                      </div>
+                      <div className='flex items-center gap-3'>
+                        {item.replacementCount > 0 ? (
+                          <span className='text-[10px] font-bold uppercase tracking-wide px-2 py-1 rounded-full bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20'>
+                            {item.replacementCount} cover{item.replacementCount === 1 ? '' : 's'}
+                          </span>
+                        ) : (
+                          <span className='text-[10px] font-medium uppercase tracking-wide px-2 py-1 rounded-full bg-muted text-muted-foreground border border-border/40'>
+                            No covers
+                          </span>
+                        )}
+                        <ChevronRight className='h-3.5 w-3.5 text-muted-foreground group-hover:text-foreground transition-colors' />
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </GlassCard>
+          )}
         </div>
 
-        {/* SIDE BAR: CONTROL ENGINE - Completely skipped if accessed via shared public URL hook */}
+        {/* SIDEBAR DASHBOARD DISPATCH CONTROL PANEL */}
         {!isPublicView && (
-          <div className='w-full max-w-[360px] ml-auto print:hidden'>
+          <div className='w-full max-w-[360px] ml-auto print:hidden space-y-6'>
             <GlassCard className='p-5 sticky top-6 space-y-4'>
               <div className='flex items-center justify-between pb-2 border-b border-border/40'>
                 <div>
@@ -556,7 +698,7 @@ export default function DailyDeskPage() {
                     <label className='block text-[11px] font-bold uppercase text-muted-foreground mb-1'>Period</label>
                     <select
                       value={replacementForm.periodId}
-                      onChange={(e) => setReplacementForm({ ...replacementForm, periodId: e.target.value })}
+                      onChange={(e) => setReplacementForm({ ...replacementForm, periodId: e.target.value, replacementTeacherId: '' })}
                       className='w-full text-xs p-2 rounded-xl bg-background border border-border/60 focus:outline-none focus:border-indigo-500 transition-colors'
                     >
                       <option value=''>Select Period</option>
@@ -592,7 +734,11 @@ export default function DailyDeskPage() {
                       <option value=''>Select Teacher</option>
                       {(() => {
                         const activeTeachers = teachers.filter((t) => isTeacherActive(t.active));
-                        return activeTeachers.map((t) => (
+                        const eligible = activeTeachers.filter(
+                          (t) => absentTeacherIds.has(t.id) || t.id === replacementForm.originalTeacherId
+                        );
+                        const list = eligible.length > 0 ? eligible : activeTeachers;
+                        return list.map((t) => (
                           <option key={t.id} value={t.id}>
                             {t.name}
                           </option>
@@ -609,7 +755,12 @@ export default function DailyDeskPage() {
                     >
                       <option value=''>Select Replacement</option>
                       {(() => {
-                        const activeTeachers = teachers.filter((t) => isTeacherActive(t.active));
+                        const activeTeachers = teachers.filter(
+                          (t) =>
+                            isTeacherActive(t.active) &&
+                            !absentTeacherIds.has(t.id) &&
+                            !busyInSelectedPeriod.has(t.id)
+                        );
                         return activeTeachers.map((t) => (
                           <option key={t.id} value={t.id}>
                             {t.name}
@@ -617,6 +768,9 @@ export default function DailyDeskPage() {
                         ));
                       })()}
                     </select>
+                    {!replacementForm.periodId && (
+                      <p className='text-[10px] text-muted-foreground mt-1'>Select a period first to filter available substitutes.</p>
+                    )}
                   </div>
                   <div>
                     <label className='block text-[11px] font-bold uppercase text-muted-foreground mb-1'>Absence Trigger Reason</label>
@@ -640,9 +794,54 @@ export default function DailyDeskPage() {
                 </div>
               )}
 
-              {/* REPLACEMENT LIST / HISTORIC ACCORDION REGION */}
               <div className="space-y-3 max-h-[calc(100vh-240px)] overflow-y-auto">
-                {/* Remaining replacement stack UI items go here under admin visibility */}
+                {/* Custom pipeline metrics lists can render here */}
+              </div>
+            </GlassCard>
+
+            {/* LIVE AVAILABLE TEACHERS MODULE */}
+            <GlassCard className='p-5 space-y-3'>
+              <div className='flex items-center justify-between pb-2 border-b border-border/40'>
+                <div>
+                  <h2 className='text-sm font-bold uppercase tracking-wider text-foreground'>Free Teachers</h2>
+                  <p className='text-[11px] text-muted-foreground mt-0.5'>Present &amp; unassigned this period</p>
+                </div>
+              </div>
+
+              <select
+                value={freeTeachersPeriodId}
+                onChange={(e) => setFreeTeachersPeriodId(e.target.value)}
+                className='w-full text-xs p-2 rounded-xl bg-background border border-border/60 focus:outline-none focus:border-indigo-500 transition-colors'
+              >
+                {gridData.periods.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.isBreak ? (p.label || 'BREAK') : `Period ${p.periodNumber} (${p.startTime}–${p.endTime})`}
+                  </option>
+                ))}
+              </select>
+
+              <div className='space-y-1.5 max-h-[280px] overflow-y-auto'>
+                {(() => {
+                  const freeTeachers = getFreeTeachers(freeTeachersPeriodId);
+                  if (freeTeachers.length === 0) {
+                    return (
+                      <p className='text-xs text-muted-foreground text-center py-4'>
+                        No free teachers available for this period.
+                      </p>
+                    );
+                  }
+                  return freeTeachers.map((t) => (
+                    <div
+                      key={t.id}
+                      className='flex items-center justify-between px-3 py-2 rounded-lg bg-emerald-500/5 border border-emerald-500/15 text-xs'
+                    >
+                      <span className='font-semibold text-foreground'>{t.name}</span>
+                      <span className='text-[10px] font-bold uppercase tracking-wide text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full'>
+                        Free
+                      </span>
+                    </div>
+                  ));
+                })()}
               </div>
             </GlassCard>
           </div>

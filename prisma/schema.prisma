@@ -258,8 +258,8 @@ model ReplacementAssignment {
   replacementTeacher   Teacher          @relation("ReplacementTeacher", fields: [replacementTeacherId], references: [id])
   reason               LeaveReason      @default(CASUAL_LEAVE)
   status               AssignmentStatus @default(PENDING)
-  slotId               String
-  slot                 TimetableSlot    @relation(fields: [slotId], references: [id], onDelete: Cascade)
+  slotId               String?
+  slot                 TimetableSlot?    @relation(fields: [slotId], references: [id], onDelete: Cascade)
 
   @@index([schoolId])
   @@index([date, periodId, classId])

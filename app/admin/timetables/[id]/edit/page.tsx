@@ -269,16 +269,19 @@ export default function TimetableEditPage() {
     updatedStartTime = baseStartTime,
     updatedDuration = periodDuration
   ) => {
+    if (!detail) return;
     try {
       const response = await fetch(`/api/admin/timetables/${timetableId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          name: detail.name,
+          status: detail.status,
           baseStartTime: updatedStartTime,
           periodDuration: updatedDuration,
           workingDays: updatedWorkingDays,
           periods: updatedPeriods.map(p => ({
-            id: p.id, // Keep ID unchanged so the server knows if it's new or existing
+            id: p.id,
             periodNumber: p.periodNumber,
             startTime: p.startTime,
             endTime: p.endTime,

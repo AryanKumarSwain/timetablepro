@@ -79,14 +79,19 @@ export function TimetableGrid({
     0: 'Sunday', 1: 'Monday', 2: 'Tuesday', 3: 'Wednesday', 4: 'Thursday', 5: 'Friday', 6: 'Saturday',
   };
 
+  // Safe wrapper parsing for array checking
+  const safeWorkingDays = Array.isArray(workingDays) ? workingDays : [1, 2, 3, 4, 5];
+
   const toggleDay = (dayIndex: number) => {
-    const days = Array.isArray(workingDays) ? workingDays : [1, 2, 3, 4, 5];
-    if (days.includes(dayIndex)) {
-      if (days.length > 1) {
-        onWorkingDaysChange(days.filter((d) => d !== dayIndex).sort());
+    if (safeWorkingDays.includes(dayIndex)) {
+      if (safeWorkingDays.length > 1) {
+        // Unselect day: remove item and keep array sorted numerically
+        const filtered = safeWorkingDays.filter((d) => d !== dayIndex);
+        onWorkingDaysChange([...filtered].sort((a, b) => a - b));
       }
     } else {
-      onWorkingDaysChange([...days, dayIndex].sort());
+      // Select day: add item and sort array layout numerically
+      onWorkingDaysChange([...safeWorkingDays, dayIndex].sort((a, b) => a - b));
     }
   };
 
@@ -94,28 +99,28 @@ export function TimetableGrid({
     <div className="space-y-6 w-full">
       {/* GLOBAL CONTROLS TOOLBAR */}
       <div className="w-full border border-border/60 bg-muted/10 rounded-2xl p-5 flex flex-col xl:flex-row gap-6 xl:items-center justify-between overflow-x-auto shadow-sm">
-        <div className="flex flex-col gap-2 min-w-0 shrink-0">
+        <div className="flex flex-col gap-2 min-w-0 shrink-0 w-full xl:w-auto">
           <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Working Days</span>
           <div className="flex flex-nowrap items-center gap-2 whitespace-nowrap overflow-x-auto py-0.5 no-scrollbar">
-            {(() => {
-              const days = Array.isArray(workingDays) ? workingDays : [1, 2, 3, 4, 5];
-              return days.map((dayIndex) => {
-                const isActive = Array.isArray(workingDays) ? workingDays.includes(dayIndex) : false;
-                return (
-                  <button
-                    key={dayIndex}
-                    type="button"
-                    onClick={() => toggleDay(dayIndex)}
-                    className={cn(
-                      "px-4 py-2 text-xs font-semibold rounded-xl border transition-all duration-200 select-none",
-                      isActive ? "bg-indigo-600 border-indigo-600 text-white shadow-sm shadow-indigo-600/10" : "bg-background border-border text-muted-foreground hover:bg-muted/60"
-                    )}
-                  >
-                    {dayLabels[dayIndex]}
-                  </button>
-                );
-              });
-            })()}
+            {/* FIXED: Loop over the static complete index array, not the state itself */}
+            {DAY_INDICES.map((dayIndex) => {
+              const isActive = safeWorkingDays.includes(dayIndex);
+              return (
+                <button
+                  key={dayIndex}
+                  type="button"
+                  onClick={() => toggleDay(dayIndex)}
+                  className={cn(
+                    "px-4 py-2 text-xs font-semibold rounded-xl border transition-all duration-200 select-none cursor-pointer",
+                    isActive 
+                      ? "bg-indigo-600 border-indigo-600 text-white shadow-sm shadow-indigo-600/10 font-bold" 
+                      : "bg-background border-border text-muted-foreground hover:bg-muted/60"
+                  )}
+                >
+                  {dayLabels[dayIndex]}
+                </button>
+              );
+            })}
           </div>
         </div>
 
@@ -150,7 +155,7 @@ export function TimetableGrid({
       <div className="w-full overflow-x-auto rounded-2xl border border-border/60 bg-background shadow-sm">
         <div
           className="grid min-w-[1000px]"
-          style={{ gridTemplateColumns: `260px repeat(${workingDays.length}, minmax(140px, 1fr))` }}
+          style={{ gridTemplateColumns: `260px repeat(${safeWorkingDays.length}, minmax(140px, 1fr))` }}
         >
           <div className="p-4 border-b bg-muted/30 font-semibold flex flex-col gap-2.5 justify-center">
             <span className="text-[11px] tracking-wider font-bold text-muted-foreground uppercase">Timetable Engine</span>
@@ -164,14 +169,14 @@ export function TimetableGrid({
             </div>
           </div>
 
-          {workingDays.map((day) => (
+          {safeWorkingDays.map((day) => (
             <div key={day} className="p-4 border-b border-l text-center font-bold bg-muted/10 text-foreground text-xs flex items-center justify-center tracking-widest uppercase">
               {dayLabels[day]?.slice(0, 3)}
             </div>
           ))}
 
           {periods.length === 0 && (
-            <div className="py-16 text-center text-sm text-muted-foreground font-medium border-t flex flex-col items-center justify-center gap-1" style={{ gridColumn: `1 / span ${workingDays.length + 1}` }}>
+            <div className="py-16 text-center text-sm text-muted-foreground font-medium border-t flex flex-col items-center justify-center gap-1" style={{ gridColumn: `1 / span ${safeWorkingDays.length + 1}` }}>
               <span className="font-semibold text-foreground/80">Timeline Canvas is Empty</span>
               <p className="text-xs text-muted-foreground/70 max-w-md">Click "+ Period" to assign structured slots or "+ Break" to append timeline rest blocks.</p>
             </div>
@@ -196,7 +201,6 @@ export function TimetableGrid({
                   </Button>
                 </div>
 
-                {/* FIXED: Uses unique key mappings, true inputs, and updates entirely on onBlur to completely prevent overlap jumps */}
                 <div className="flex items-center gap-1 text-xs text-muted-foreground">
                   <Input 
                     type="time" 
@@ -224,7 +228,7 @@ export function TimetableGrid({
                 </div>
               </div>
 
-              {(Array.isArray(workingDays) ? workingDays : [1, 2, 3, 4, 5]).map((day) => {
+              {safeWorkingDays.map((day) => {
                 const slot = findSlot(day, period.id);
                 if (period.isBreak) {
                   return (

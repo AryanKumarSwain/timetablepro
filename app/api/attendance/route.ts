@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireSchoolContext, handleApiError, schoolWhere } from '@/lib/auth-server';
 import { mapTeacherAttendance } from '@/lib/mappers';
+import { getDayOfWeekFromDate } from '@/lib/timetable-source';
 
 export async function GET(request: NextRequest) {
   try {
@@ -15,13 +16,18 @@ export async function GET(request: NextRequest) {
     });
 
     if (classId && periodId && date) {
-      const dayOfWeek =
-        new Date(`${date}T12:00:00`).getDay() === 0
-          ? 7
-          : new Date(`${date}T12:00:00`).getDay();
-      const slot = await prisma.weeklyTimetableSlot.findFirst({
-        where: { schoolId, classId, periodId, dayOfWeek },
+      const dayOfWeek = getDayOfWeekFromDate(date);
+
+      const activeTimetable = await prisma.timetable.findFirst({
+        where: { schoolId, status: 'PUBLISHED' },
       });
+
+      const slot = activeTimetable
+        ? await prisma.timetableSlot.findFirst({
+            where: { schoolId, timetableId: activeTimetable.id, classId, periodId, dayOfWeek },
+          })
+        : null;
+
       return NextResponse.json(
         rows
           .filter((r) => r.teacherId === slot?.teacherId)
@@ -67,13 +73,18 @@ export async function POST(request: NextRequest) {
 
     let subjectId: string | undefined;
     if (classId && periodId) {
-      const dayOfWeek =
-        new Date(`${date}T12:00:00`).getDay() === 0
-          ? 7
-          : new Date(`${date}T12:00:00`).getDay();
-      const slot = await prisma.weeklyTimetableSlot.findFirst({
-        where: { schoolId, classId, periodId, dayOfWeek },
+      const dayOfWeek = getDayOfWeekFromDate(date);
+
+      const activeTimetable = await prisma.timetable.findFirst({
+        where: { schoolId, status: 'PUBLISHED' },
       });
+
+      const slot = activeTimetable
+        ? await prisma.timetableSlot.findFirst({
+            where: { schoolId, timetableId: activeTimetable.id, classId, periodId, dayOfWeek },
+          })
+        : null;
+
       subjectId = slot?.subjectId;
     }
 

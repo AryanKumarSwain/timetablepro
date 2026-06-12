@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireSchoolContext, handleApiError, schoolWhere } from '@/lib/auth-server';
 import { mapReplacement, mapLeaveReason } from '@/lib/mappers';
+import { getDayOfWeekFromDate } from '@/lib/timetable-source';
 
 export async function GET(request: NextRequest) {
   try {
@@ -16,6 +17,10 @@ export async function GET(request: NextRequest) {
         ...(status
           ? { status: status.toUpperCase() as 'PENDING' | 'CONFIRMED' }
           : {}),
+      },
+      include: {
+        replacementTeacher: true,
+        slot: true,
       },
       orderBy: { date: 'desc' },
     });
@@ -40,17 +45,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No active published timetable found for school' }, { status: 400 });
     }
 
+    const dayOfWeek = getDayOfWeekFromDate(String(body.date));
+
     const slot = await prisma.timetableSlot.findFirst({
       where: {
         schoolId,
         timetableId: activeTimetable.id,
         classId: String(body.classId),
         periodId: String(body.periodId),
+        dayOfWeek,
       },
     });
 
     if (!slot) {
-      return NextResponse.json({ error: 'Could not resolve timetable slot for given classId and periodId' }, { status: 400 });
+      return NextResponse.json({ error: 'Could not resolve timetable slot for given classId, periodId, and dayOfWeek' }, { status: 400 });
     }
 
     const row = await prisma.replacementAssignment.create({
@@ -69,7 +77,11 @@ export async function POST(request: NextRequest) {
     });
 
     // Fetch created row including slot relation so mapper can surface subjectId
-    const created = await prisma.replacementAssignment.findUnique({ where: { id: row.id }, include: { slot: true, replacementTeacher: true } });
+    const created = await prisma.replacementAssignment.findUnique({ 
+      where: { id: row.id }, 
+      include: { slot: true, replacementTeacher: true } 
+    });
+    
     return NextResponse.json(mapReplacement(created as any), { status: 201 });
   } catch (error) {
     console.error('[POST /api/replacements]', error);

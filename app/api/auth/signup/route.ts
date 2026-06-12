@@ -97,10 +97,22 @@ export async function POST(request: NextRequest) {
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
-
     const otp = generateOtp();
 
-    await prisma.emailVerification.upsert({
+    // 💡 FIX: Accessing Prisma client properties conditionally to avoid 'undefined' crashes.
+    // This safely resolves the correct model name mapping dynamically.
+    const verificationModel = 
+      (prisma as any).emailVerification || 
+      (prisma as any).email_verification || 
+      (prisma as any).emailVerifications;
+
+    if (!verificationModel) {
+      throw new Error(
+        "Could not discover an explicit matching 'EmailVerification' model definition inside your current prisma schema client context properties."
+      );
+    }
+
+    await verificationModel.upsert({
       where: {
         email,
       },
@@ -123,19 +135,14 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    const emailResult = await sendVerificationCode(
-      email,
-      otp
-    );
+    const emailResult = await sendVerificationCode(email, otp);
 
     if (!emailResult.sent) {
       return NextResponse.json(
         {
           success: false,
           errors: {
-            email:
-              emailResult.error ??
-              'Unable to send verification email',
+            email: emailResult.error ?? 'Unable to send verification email',
           },
         },
         { status: 500 }
@@ -146,8 +153,7 @@ export async function POST(request: NextRequest) {
       success: true,
       requiresVerification: true,
       email,
-      message:
-        'Verification code sent successfully',
+      message: 'Verification code sent successfully',
     });
   } catch (error) {
     console.error('[auth/signup]', error);
@@ -156,8 +162,7 @@ export async function POST(request: NextRequest) {
       {
         success: false,
         errors: {
-          _form:
-            'Unable to create account. Please try again.',
+          _form: 'Unable to create account. Please try again.',
         },
       },
       { status: 500 }
