@@ -77,7 +77,7 @@ export async function GET() {
       onboardingDone,
       role: user.role.toLowerCase().replace('_', '-') as 'super-admin' | 'admin' | 'teacher',
       schoolId: user.schoolId,
-      school: schoolPayload, // 👈 Successfully maps to your custom layout shell definitions!
+      school: schoolPayload,
       teacherId,
       active: true,
     },

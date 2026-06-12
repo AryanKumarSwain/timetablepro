@@ -41,6 +41,8 @@ export async function GET(request: NextRequest) {
           name: profile.name,
           role: 'ADMIN',
           onboardingDone: false,
+          phone: null,
+          countryCode: null,
         },
       });
     }
@@ -58,6 +60,8 @@ export async function GET(request: NextRequest) {
       role: user.role,
       schoolId: user.schoolId,
       onboardingDone: user.onboardingDone,
+      phone: user.phone,
+      countryCode: user.countryCode,
     };
     session.isLoggedIn = true;
     await session.save();

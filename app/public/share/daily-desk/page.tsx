@@ -4,9 +4,9 @@ import { GlassCard } from '@/components/enterprise/glass-card';
 import { Lock } from 'lucide-react';
 import DailyDeskPublicView from './daily-desk-public-view';
 
-async function getDailyDeskData(date: string) {
+async function getDailyDeskData(date: string, schoolId?: string) {
   const timetable = await prisma.timetable.findFirst({
-    where: { status: 'PUBLISHED' },
+    where: schoolId ? { status: 'PUBLISHED', schoolId } : { status: 'PUBLISHED' },
     include: {
       periods: {
         orderBy: { periodNumber: 'asc' },
@@ -26,16 +26,23 @@ async function getDailyDeskData(date: string) {
     return null;
   }
 
+  const actualSchoolId = timetable.schoolId;
+
   const classes = await prisma.classRoom.findMany({
+    where: { schoolId: actualSchoolId },
     orderBy: { name: 'asc' },
   });
 
   const teachers = await prisma.teacher.findMany({
+    where: { schoolId: actualSchoolId },
     orderBy: { name: 'asc' },
   });
 
   const replacements = await prisma.replacementAssignment.findMany({
-    where: { date },
+    where: { 
+      date,
+      classId: { in: classes.map(c => c.id) },
+    },
     include: {
       originalTeacher: true,
       replacementTeacher: true,
@@ -44,7 +51,10 @@ async function getDailyDeskData(date: string) {
   });
 
   const attendance = await prisma.teacherAttendance.findMany({
-    where: { date },
+    where: { 
+      date,
+      teacher: { schoolId: actualSchoolId },
+    },
   });
 
   // Build grid data
@@ -129,12 +139,13 @@ async function getDailyDeskData(date: string) {
 export default async function PublicShareDailyDeskPage({
   searchParams,
 }: {
-  searchParams: Promise<{ date?: string }>;
+  searchParams: Promise<{ date?: string; schoolId?: string }>;
 }) {
   const params = await searchParams;
   const date = params.date || new Date().toISOString().split('T')[0];
+  const schoolId = params.schoolId;
 
-  const data = await getDailyDeskData(date);
+  const data = await getDailyDeskData(date, schoolId);
 
   if (!data) {
     notFound();

@@ -146,6 +146,15 @@ export default function DailyDeskPage() {
     }
   }, [gridData, freeTeachersPeriodId]);
 
+  // Early loading return - before any layout evaluations
+  if (loading || !gridData) {
+    return (
+      <div className='max-w-[1600px] mx-auto p-4'>
+        <PageSkeleton />
+      </div>
+    );
+  }
+
   // 5. Operational Action Drivers
   const handleMarkAttendance = async (
     classId: string,
@@ -227,7 +236,9 @@ export default function DailyDeskPage() {
 
   const handleCopyShareableLink = async () => {
     if (typeof window === 'undefined') return;
-    const publicUrl = `${window.location.origin}/public/share/daily-desk?date=${today}`;
+    // Extract schoolId from the first class ID (format: schoolId-classNumber)
+    const schoolId = gridData?.classes?.[0]?.id ? gridData.classes[0].id.split('-')[0] : '';
+    const publicUrl = `${window.location.origin}/public/share/daily-desk?date=${today}&schoolId=${schoolId}`;
 
     if (navigator.share) {
       try {
@@ -307,31 +318,23 @@ export default function DailyDeskPage() {
     return d.toLocaleDateString('en-IN', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' });
   };
 
-  if (loading || !gridData) {
-    return (
-      <div className='max-w-[1600px] mx-auto p-4'>
-        <PageSkeleton />
-      </div>
-    );
-  }
-
-  const totalRealSlotsScheduled = gridData.grid?.reduce((total, row) => {
+  const totalRealSlotsScheduled = gridData?.grid?.reduce((total, row) => {
     if (!row || !row.cells) return total;
     const filledCellsInRow = row.cells.filter(cell => cell && (cell.empty === false || !!cell.subjectName || !!cell.teacherId)).length;
     return total + filledCellsInRow;
   }, 0) || 0;
 
   const isTimetableEmpty =
-    !gridData.classes || gridData.classes.length === 0 ||
-    !gridData.periods || gridData.periods.length === 0 ||
-    (!gridData.grid || gridData.grid.length === 0 && totalRealSlotsScheduled === 0);
+    !gridData?.classes || gridData.classes.length === 0 ||
+    !gridData?.periods || gridData.periods.length === 0 ||
+    (!gridData?.grid || gridData.grid.length === 0 && totalRealSlotsScheduled === 0);
 
   const absentTeacherIds = new Set(
-    (gridData.attendance ?? [])
-      .filter((a) => a.status === 'ABSENT')
-      .map((a) => a.teacherId)
+    (gridData?.attendance ?? [])
+      .filter((a) => a?.status === 'ABSENT')
+      .map((a) => a?.teacherId)
   );
-  const busyInSelectedPeriod = new Set(gridData.busyTeachersByPeriod?.[replacementForm.periodId] ?? []);
+  const busyInSelectedPeriod = new Set(gridData?.busyTeachersByPeriod?.[replacementForm.periodId] ?? []);
 
   return (
     <div className='max-w-[1600px] mx-auto space-y-6 px-4 py-2 print:p-0 print:max-w-full'>
@@ -460,7 +463,7 @@ export default function DailyDeskPage() {
                         <th className='p-4 text-xs font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400 w-[140px] sticky left-0 bg-muted z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] border-r border-border/40 print:static print:bg-gray-100 print:text-black print:shadow-none'>
                           Timetable
                         </th>
-                        {gridData.periods.map((p) => (
+                        {(gridData.periods ?? []).map((p) => (
                           <th key={p.id} className='p-3 border-l border-border/40 text-center min-w-[180px] w-[200px] print:border-gray-300 print:p-2'>
                             <div className='text-xs font-bold text-foreground uppercase tracking-wider print:text-black print:text-[11px]'>
                               {p.isBreak ? (p.label || 'BREAK') : `P${p.periodNumber}`}
@@ -473,15 +476,15 @@ export default function DailyDeskPage() {
                       </tr>
                     </thead>
                     <tbody className='divide-y divide-border/40 bg-background/40 print:bg-transparent print:divide-gray-300'>
-                      {gridData.classes.map((cls) => (
+                      {(gridData.classes ?? []).map((cls) => (
                         <tr key={cls.id} className='hover:bg-muted/10 transition-colors print:hover:bg-transparent print:break-inside-avoid'>
                           <td className='p-4 font-bold text-sm text-foreground bg-background/90 sticky left-0 z-10 border-r border-border/40 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] print:static print:bg-transparent print:text-black print:shadow-none print:p-2 print:border-r print:border-gray-300'>
                             {cls.name}
                           </td>
 
-                          {gridData.periods.map((period) => {
-                            const periodRow = gridData.grid.find((row) => row.periodId === period.id);
-                            const cell = periodRow?.cells.find((c) => c.classId === cls.id);
+                          {(gridData.periods ?? []).map((period) => {
+                            const periodRow = (gridData.grid ?? []).find((row) => row.periodId === period.id);
+                            const cell = periodRow?.cells?.find((c) => c.classId === cls.id);
 
                             if (!cell || cell.empty) {
                               return (
@@ -702,7 +705,7 @@ export default function DailyDeskPage() {
                       className='w-full text-xs p-2 rounded-xl bg-background border border-border/60 focus:outline-none focus:border-indigo-500 transition-colors'
                     >
                       <option value=''>Select Period</option>
-                      {gridData.periods.map((p) => (
+                      {(gridData?.periods ?? []).map((p) => (
                         <option key={p.id} value={p.id}>
                           {p.isBreak ? (p.label || 'BREAK') : `Period ${p.periodNumber} (${p.startTime})`}
                         </option>
@@ -717,7 +720,7 @@ export default function DailyDeskPage() {
                       className='w-full text-xs p-2 rounded-xl bg-background border border-border/60 focus:outline-none focus:border-indigo-500 transition-colors'
                     >
                       <option value=''>Select Class</option>
-                      {gridData.classes.map((c) => (
+                      {(gridData?.classes ?? []).map((c) => (
                         <option key={c.id} value={c.id}>
                           {c.name}
                         </option>
@@ -813,7 +816,7 @@ export default function DailyDeskPage() {
                 onChange={(e) => setFreeTeachersPeriodId(e.target.value)}
                 className='w-full text-xs p-2 rounded-xl bg-background border border-border/60 focus:outline-none focus:border-indigo-500 transition-colors'
               >
-                {gridData.periods.map((p) => (
+                {(gridData?.periods ?? []).map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.isBreak ? (p.label || 'BREAK') : `Period ${p.periodNumber} (${p.startTime}–${p.endTime})`}
                   </option>

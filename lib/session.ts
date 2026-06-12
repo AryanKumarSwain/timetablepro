@@ -8,6 +8,8 @@ export interface SessionUser {
   role: UserRole;
   schoolId: string | null;
   onboardingDone?: boolean;
+  phone?: string | null;
+  countryCode?: string | null;
 }
 
 export interface AppSessionData {

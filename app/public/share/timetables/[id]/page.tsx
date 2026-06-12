@@ -24,8 +24,9 @@ async function getTimetable(id: string) {
   });
 }
 
-async function getClasses() {
+async function getClasses(schoolId: string) {
   return prisma.classRoom.findMany({
+    where: { schoolId },
     orderBy: { name: 'asc' },
   });
 }
@@ -37,11 +38,13 @@ export default async function PublicShareTimetablePage({
 }) {
   const { id } = await params;
 
-  const [timetable, classes] = await Promise.all([getTimetable(id), getClasses()]);
+  const timetable = await getTimetable(id);
 
   if (!timetable) {
     notFound();
   }
+
+  const classes = await getClasses(timetable.schoolId);
 
   const workingDays = Array.isArray(timetable.workingDays)
     ? timetable.workingDays.filter((day): day is number => typeof day === 'number')
