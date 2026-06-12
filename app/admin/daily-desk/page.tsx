@@ -245,8 +245,14 @@ export default function DailyDeskPage() {
 
   const handleCopyShareableLink = async () => {
     if (typeof window === 'undefined') return;
-    // Extract schoolId from the first class ID (format: schoolId-classNumber)
-    const schoolId = gridData?.classes?.[0]?.id ? gridData.classes[0].id.split('-')[0] : '';
+    // Get schoolId from auth context instead of extracting from class ID
+    const schoolId = (auth.session?.user as any)?.schoolId;
+    
+    if (!schoolId) {
+      console.error('School context missing, cannot generate share link');
+      return;
+    }
+    
     const publicUrl = `${window.location.origin}/public/share/daily-desk?date=${today}&schoolId=${schoolId}`;
 
     if (navigator.share) {

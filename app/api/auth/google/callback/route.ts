@@ -46,16 +46,14 @@ export async function GET(request: NextRequest) {
         },
       });
     } else if (user.role === 'ADMIN') {
-      // For existing admin users, reset onboarding to ensure they complete the flow
-      user = await prisma.user.update({
-        where: { id: user.id },
-        data: {
-          name: profile.name || user.name,
-          onboardingDone: false,
-          phone: null,
-          countryCode: null,
-        },
-      });
+      // For existing admin users, just update name if needed and log them in
+      // Don't reset onboarding - let them continue with their existing account
+      if (profile.name && !user.name) {
+        user = await prisma.user.update({
+          where: { id: user.id },
+          data: { name: profile.name },
+        });
+      }
     } else {
       signupUrl.searchParams.set('error', 'account_exists');
       return NextResponse.redirect(signupUrl);

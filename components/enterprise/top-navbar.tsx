@@ -205,7 +205,7 @@ export function TopNavbar({
         {/* ACTIVE WORKSPACE SCOPED SCHOOL CARD DROP-DOWN */}
         <div className="hidden lg:flex items-center gap-2 rounded-xl px-3 py-2 border">
           <Building2 className="h-4 w-4 text-indigo-500" />
-          <span className="max-w-[140px] truncate">{schoolName}</span>
+          <span className="font-medium text-sm">{schoolName}</span>
         </div>
 
         <div className='ml-auto flex items-center gap-1'>
