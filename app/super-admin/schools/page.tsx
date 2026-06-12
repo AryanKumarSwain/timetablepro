@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { getPlatformSchools, type PlatformSchoolRow } from '@/lib/api-services';
 import { getStatusBadgeClass, formatDate } from '@/lib/super-admin-utils';
+import { cn } from '@/lib/utils';
 
 export default function SchoolsPage() {
   useRequireAuth('super-admin');
@@ -84,7 +85,30 @@ export default function SchoolsPage() {
             <Button variant='outline' size='icon' onClick={fetchSchools} disabled={loading}>
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             </Button>
-            <Button variant='outline' size='icon'>
+            <Button variant='outline' size='icon' onClick={() => {
+              if (typeof window !== 'undefined') {
+                const csvContent = [
+                  ['School', 'Plan', 'Status', 'Created', 'Admin Emails'],
+                  ...filteredSchools.map(s => [
+                    typeof s.name === 'string' ? s.name : '-',
+                    typeof s.planName === 'string' ? s.planName : '-',
+                    typeof s.licenseStatus === 'string' ? s.licenseStatus : '-',
+                    formatDate(s.licenseDate),
+                    Array.isArray(s.adminEmails) ? s.adminEmails.join('; ') : '-'
+                  ])
+                ].map(row => row.join(',')).join('\n');
+                
+                const blob = new Blob([csvContent], { type: 'text/csv' });
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `schools-${new Date().toISOString().split('T')[0]}.csv`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(url);
+              }
+            }}>
               <Download className='w-4 h-4' />
             </Button>
           </div>
@@ -129,7 +153,7 @@ export default function SchoolsPage() {
                       <td className='p-3 font-medium'>{typeof school.name === 'string' ? school.name : '-'}</td>
                       <td className='p-3'>{typeof school.planName === 'string' ? school.planName : '-'}</td>
                       <td className='p-3'>
-                        <span className='px-2 py-1 rounded-full text-xs font-medium border'>
+                        <span className={cn('px-2 py-1 rounded-full text-xs font-medium border', getStatusBadgeClass(school.licenseStatus))}>
                           {typeof school.licenseStatus === 'string' ? school.licenseStatus : '-'}
                         </span>
                       </td>
