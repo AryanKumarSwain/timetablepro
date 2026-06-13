@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireSchoolContext, handleApiError, schoolWhere } from '@/lib/auth-server';
+import { provisionTeacherUserAccount } from '@/lib/teacher-onboarding';
 import type { CsvImportEntity, CsvImportResult, ParsedCsvRow } from '@/lib/csv-import/types';
 
 function parseBoolean(value: string | undefined, defaultValue: boolean): boolean {
@@ -156,6 +157,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const school = await client.school.findUnique({
+      where: { id: schoolId },
+      select: { name: true },
+    });
+    const schoolName = school?.name ?? 'Your School';
+
     for (let i = 0; i < rows.length; i++) {
       const rowNumber = i + 2;
       const row = rows[i];
@@ -206,7 +213,7 @@ export async function POST(request: NextRequest) {
           continue;
         }
 
-        await client.teacher.create({
+        const teacher = await client.teacher.create({
           data: {
             schoolId,
             name,
@@ -222,6 +229,8 @@ export async function POST(request: NextRequest) {
             subjectSpecialtyId,
           },
         });
+
+        await provisionTeacherUserAccount(teacher, schoolName);
         result.imported++;
       } catch (error) {
         result.failed++;
