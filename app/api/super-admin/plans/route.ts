@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { requireSuperAdmin, handleApiError } from '@/lib/auth-server';
+import { requireSuperAdmin, requireRole, handleApiError } from '@/lib/auth-server';
 
 function validatePlanPayload(body: any) {
   const errors: Record<string, string> = {};
@@ -30,10 +30,11 @@ function validatePlanPayload(body: any) {
 
 export async function GET() {
   try {
-    await requireSuperAdmin();
+    // Allow both SUPER_ADMIN and ADMIN to read plans
+    await requireRole('SUPER_ADMIN', 'ADMIN');
 
     const plans = await prisma.saaSPlan.findMany({
-      orderBy: { teacherMin: 'asc' },
+      orderBy: { priceMonthly: 'asc' },
       include: {
         _count: {
           select: {
@@ -71,10 +72,7 @@ export async function POST(request: NextRequest) {
 
     const existing = await prisma.saaSPlan.findFirst({
       where: {
-        name: {
-          equals: payload.name,
-          mode: 'insensitive',
-        },
+        name: payload.name,
       },
     });
 

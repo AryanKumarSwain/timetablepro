@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireSchoolContext, handleApiError, schoolWhere } from '@/lib/auth-server';
 import { provisionTeacherUserAccount } from '@/lib/teacher-onboarding';
+import { checkTeacherLimit, getTeacherLimit, PlanLimitError } from '@/lib/plan-limits';
 import type { CsvImportEntity, CsvImportResult, ParsedCsvRow } from '@/lib/csv-import/types';
 
 function parseBoolean(value: string | undefined, defaultValue: boolean): boolean {
@@ -163,6 +164,22 @@ export async function POST(request: NextRequest) {
     });
     const schoolName = school?.name ?? 'Your School';
 
+    // Check plan limit before starting import
+    const teacherLimit = await getTeacherLimit(schoolId);
+    const currentTeacherCount = await client.teacher.count({
+      where: { schoolId },
+    });
+    const availableSlots = teacherLimit - currentTeacherCount;
+
+    if (availableSlots <= 0) {
+      return NextResponse.json(
+        {
+          error: `Teacher limit reached. Your current plan allows a maximum of ${teacherLimit} teachers. Please upgrade your plan to add more teachers.`,
+        },
+        { status: 403 }
+      );
+    }
+
     for (let i = 0; i < rows.length; i++) {
       const rowNumber = i + 2;
       const row = rows[i];
@@ -175,6 +192,16 @@ export async function POST(request: NextRequest) {
         result.errors.push({
           row: rowNumber,
           message: 'name, email, and phone are required.',
+        });
+        continue;
+      }
+
+      // Check if we've reached the limit during import
+      if (result.imported >= availableSlots) {
+        result.failed++;
+        result.errors.push({
+          row: rowNumber,
+          message: `Teacher limit reached. Your current plan allows a maximum of ${teacherLimit} teachers. Please upgrade your plan to add more teachers.`,
         });
         continue;
       }

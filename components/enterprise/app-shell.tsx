@@ -30,12 +30,33 @@ export function AppShell({ role, roleLabel, children }: AppShellProps) {
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
   const [commandOpen, setCommandOpen] = useState(false);
+  const [schoolName, setSchoolName] = useState<string | undefined>();
 
   const navItems = getNavForRole(role);
 
   // Cast user to our relational type to safely extract the school name
   const extendedUser = user as unknown as PrismaUserWithSchool;
-  const schoolName = extendedUser?.school?.name ?? undefined;
+
+  // Fetch school name dynamically to reflect updates from settings
+  const fetchSchoolName = async () => {
+    try {
+      const res = await fetch('/api/admin/school');
+      if (res.ok) {
+        const data = await res.json();
+        setSchoolName(data.name);
+      }
+    } catch (error) {
+      console.error('Failed to fetch school name:', error);
+    }
+  };
+
+  useEffect(() => {
+    // Initialize school name from user object
+    setSchoolName(extendedUser?.school?.name ?? undefined);
+    
+    // Fetch fresh school name from API
+    fetchSchoolName();
+  }, [extendedUser?.school?.name]);
 
   const handleLogout = async () => {
     await logout();

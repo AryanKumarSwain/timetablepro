@@ -24,8 +24,9 @@ model School {
   studentsRange  String?
   facultyRange   String?
   licenseStatus  LicenseStatus           @default(ACTIVE)
-  planId         String
-  plan           SaaSPlan                @relation(fields: [planId], references: [id])
+  planId         String?
+  plan           SaaSPlan?                @relation(fields: [planId], references: [id])
+  trialEndsAt    DateTime?
   createdAt      DateTime                @default(now())
   users          User[]
   teachers       Teacher[]
@@ -43,6 +44,7 @@ model School {
 enum LicenseStatus {
   ACTIVE
   SUSPENDED
+  TRIAL
   TRAIL_EXPIRED
 }
 
@@ -284,6 +286,23 @@ enum DailyReportStatus {
 enum TimetableStatus {
   DRAFT
   PUBLISHED
+}
+
+model TrialRequest {
+  id              String        @id @default(uuid())
+  schoolId        String
+  schoolName      String
+  contactName     String
+  phone           String
+  expectedFaculty Int
+  status          RequestStatus @default(PENDING)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+}
+enum RequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
 }
 
 model DailyReport {

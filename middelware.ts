@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getIronSession } from 'iron-session';
 import { sessionOptions, type AppSessionData } from '@/lib/session';
+import { prisma } from '@/lib/prisma';
 
-const PUBLIC_PATHS = ['/', '/login', '/signup', '/unauthorized', '/public/share', '/public/share/timetables'];
+const PUBLIC_PATHS = ['/', '/login', '/signup', '/unauthorized', '/license-restricted', '/public/share', '/public/share/timetables'];
 
 function isPublicPath(pathname: string) {
   return (
@@ -20,6 +21,43 @@ function needsAuthCheck(pathname: string) {
     pathname.startsWith('/super-admin') ||
     (pathname.startsWith('/api') && !pathname.startsWith('/api/auth'))
   );
+}
+
+async function checkLicenseStatus(userId: string, schoolId: string | null) {
+  if (!schoolId) return null;
+
+  try {
+    const school = await prisma.school.findUnique({
+      where: { id: schoolId },
+      select: {
+        licenseStatus: true,
+        trialEndsAt: true,
+      },
+    });
+
+    if (!school) return null;
+
+    if (school.licenseStatus === 'TRAIL_EXPIRED') {
+      return 'EXPIRED';
+    }
+
+    if (school.licenseStatus === 'TRIAL' && school.trialEndsAt) {
+      const now = new Date();
+      const trialEnd = new Date(school.trialEndsAt);
+      if (now > trialEnd) {
+        await prisma.school.update({
+          where: { id: schoolId },
+          data: { licenseStatus: 'TRAIL_EXPIRED' },
+        });
+        return 'EXPIRED';
+      }
+    }
+
+    return null;
+  } catch (error) {
+    console.error('License check error:', error);
+    return null;
+  }
 }
 
 export async function middleware(request: NextRequest) {
@@ -41,7 +79,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  const { role, onboardingDone } = session.user;
+  const { role, onboardingDone, schoolId } = session.user;
 
   if (role === 'ADMIN' && onboardingDone === false && pathname.startsWith('/admin')) {
     return NextResponse.redirect(new URL('/signup', request.url));
@@ -57,6 +95,16 @@ export async function middleware(request: NextRequest) {
   }
   if (pathname.startsWith('/api/admin') && role !== 'ADMIN') {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
+  if ((role === 'ADMIN' || role === 'TEACHER') && schoolId) {
+    const licenseStatus = await checkLicenseStatus(session.user.id, schoolId);
+    if (licenseStatus === 'EXPIRED' && pathname !== '/license-restricted') {
+      if (pathname.startsWith('/api')) {
+        return NextResponse.json({ error: 'License expired' }, { status: 403 });
+      }
+      return NextResponse.redirect(new URL('/license-restricted', request.url));
+    }
   }
 
   return response;

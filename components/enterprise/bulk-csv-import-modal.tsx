@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   AlertCircle,
   CheckCircle2,
@@ -17,6 +17,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
 import { downloadTemplateCsv, getCsvImportConfig } from '@/lib/csv-import/config';
 import { csvRowsToRecords, validateCsvRows } from '@/lib/csv-import/parse';
@@ -50,6 +51,7 @@ export function BulkCsvImportModal({
   const [importResult, setImportResult] = useState<CsvImportResult | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [importProgress, setImportProgress] = useState(0);
 
   const resetState = useCallback(() => {
     setPhase('idle');
@@ -60,6 +62,7 @@ export function BulkCsvImportModal({
     setImportResult(null);
     setIsDragging(false);
     setLoadError(null);
+    setImportProgress(0);
     if (inputRef.current) inputRef.current.value = '';
   }, []);
 
@@ -99,12 +102,26 @@ export function BulkCsvImportModal({
     if (parsedRows.length === 0 || parseErrors.length > 0) return;
 
     setPhase('importing');
+    setImportProgress(0);
+
+    // Simulate progress during import
+    const progressInterval = setInterval(() => {
+      setImportProgress((prev) => {
+        if (prev >= 90) return prev;
+        return prev + Math.random() * 10;
+      });
+    }, 200);
+
     try {
       const result = await bulkImportCsv(entity, parsedRows);
+      clearInterval(progressInterval);
+      setImportProgress(100);
       setImportResult(result);
       setPhase('done');
       if (result.imported > 0) onSuccess?.();
     } catch (error) {
+      clearInterval(progressInterval);
+      setImportProgress(0);
       setImportResult({
         imported: 0,
         failed: parsedRows.length,
@@ -214,6 +231,16 @@ export function BulkCsvImportModal({
             <div className='flex items-start gap-2 rounded-lg border border-rose-500/30 bg-rose-500/10 p-3 text-sm text-rose-700 dark:text-rose-300'>
               <AlertCircle className='h-4 w-4 shrink-0 mt-0.5' />
               <span>{loadError}</span>
+            </div>
+          )}
+
+          {phase === 'importing' && (
+            <div className='space-y-2'>
+              <div className='flex items-center justify-between text-xs'>
+                <span className='text-muted-foreground'>Importing records...</span>
+                <span className='font-medium'>{Math.round(importProgress)}%</span>
+              </div>
+              <Progress value={importProgress} className='h-2' />
             </div>
           )}
 

@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { KeyRound, RefreshCw, ShieldCheck, Mail, CheckCircle2 } from 'lucide-react';
+import { KeyRound, RefreshCw, ShieldCheck, Mail, CheckCircle2, Building2 } from 'lucide-react';
 
 async function fetchClient<T>(url: string, { method = 'GET', body }: { method?: string; body?: any } = {}): Promise<T> {
   const res = await fetch(url, {
@@ -30,6 +30,7 @@ interface UserProfile {
   email: string;
   phone?: string;
   role: string;
+  schoolId?: string;
 }
 
 interface SettingsPageContentProps {
@@ -57,11 +58,13 @@ export function SettingsPageContent({ initialUser }: SettingsPageContentProps) {
 
   const [name, setName] = useState(initialUser?.name ?? '');
   const [phone, setPhone] = useState(initialUser?.phone ?? '');
+  const [instituteName, setInstituteName] = useState('');
 
   // Operation Pendings
   const [profilePending, setProfilePending] = useState(false);
   const [passwordPending, setPasswordPending] = useState(false);
   const [sendOtpPending, setSendOtpPending] = useState(false);
+  const [institutePending, setInstitutePending] = useState(false);
 
   // Flow State for Teachers
   const [otpStep, setOtpStep] = useState<'idle' | 'sent' | 'done'>('idle');
@@ -79,14 +82,32 @@ export function SettingsPageContent({ initialUser }: SettingsPageContentProps) {
     }
   }, [initialUser]);
 
+  useEffect(() => {
+    if (initialUser?.schoolId && !isTeacher) {
+      fetchInstituteName();
+    }
+  }, [initialUser?.schoolId, isTeacher]);
+
+  const fetchInstituteName = async () => {
+    try {
+      const res = await fetch('/api/admin/school');
+      if (res.ok) {
+        const data = await res.json();
+        setInstituteName(data.name || '');
+      }
+    } catch (error) {
+      console.error('Failed to fetch institute name:', error);
+    }
+  };
+
   const handleProfileSave = async () => {
     if (!name.trim()) return toast.error('Name parameter is mandatory');
-    
+
     setProfilePending(true);
     try {
-      await fetchClient<UserProfile>('/api/auth/me', { 
-        method: 'PATCH', 
-        body: { name: name.trim(), phone: phone.trim() || undefined } 
+      await fetchClient<UserProfile>('/api/auth/me', {
+        method: 'PATCH',
+        body: { name: name.trim(), phone: phone.trim() || undefined }
       });
       toast.success('Profile configurations successfully updated');
       setTimeout(() => window.location.reload(), 800);
@@ -94,6 +115,24 @@ export function SettingsPageContent({ initialUser }: SettingsPageContentProps) {
       toast.error(e.message || 'Failed saving profile info');
     } finally {
       setProfilePending(false);
+    }
+  };
+
+  const handleInstituteNameSave = async () => {
+    if (!instituteName.trim()) return toast.error('Institute name is required');
+
+    setInstitutePending(true);
+    try {
+      await fetchClient('/api/admin/school', {
+        method: 'PATCH',
+        body: { name: instituteName.trim() }
+      });
+      toast.success('Institute name updated successfully');
+      setTimeout(() => window.location.reload(), 800);
+    } catch (e: any) {
+      toast.error(e.message || 'Failed to update institute name');
+    } finally {
+      setInstitutePending(false);
     }
   };
 
@@ -175,6 +214,41 @@ export function SettingsPageContent({ initialUser }: SettingsPageContentProps) {
           </CardContent>
         </Card>
       </motion.div>
+
+      {/* Institute Name Settings (Admin Only) */}
+      {!isTeacher && (
+        <motion.div variants={cardVariants}>
+          <Card className="border border-border/60 shadow-sm">
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <Building2 className="h-4 w-4 text-indigo-500" />
+                <CardTitle className="text-lg font-bold tracking-tight">Institute Settings</CardTitle>
+              </div>
+              <CardDescription>Update your school or institute name</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="instituteName" className="text-xs font-bold">Institute Name</Label>
+                <Input
+                  id="instituteName"
+                  value={instituteName}
+                  onChange={(e) => setInstituteName(e.target.value)}
+                  placeholder="E.g., Delhi Public School"
+                  className="rounded-xl border-border/80 text-xs focus-visible:ring-indigo-500"
+                />
+              </div>
+              <Button
+                onClick={handleInstituteNameSave}
+                disabled={institutePending}
+                className="w-full rounded-xl text-xs font-bold shadow-md bg-indigo-600 hover:bg-indigo-700 text-white flex items-center justify-center gap-2 transition-all"
+              >
+                {institutePending && <RefreshCw className="h-3 w-3 animate-spin" />}
+                {institutePending ? 'Updating Institute Name...' : 'Update Institute Name'}
+              </Button>
+            </CardContent>
+          </Card>
+        </motion.div>
+      )}
 
       {/* Edit Profile Info */}
       <motion.div variants={cardVariants}>

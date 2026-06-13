@@ -54,10 +54,7 @@ export async function PATCH(
 
     const duplicate = await prisma.saaSPlan.findFirst({
       where: {
-        name: {
-          equals: payload.name,
-          mode: 'insensitive',
-        },
+        name: payload.name,
         NOT: { id: planId },
       },
     });

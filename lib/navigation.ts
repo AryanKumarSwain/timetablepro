@@ -43,7 +43,8 @@ export const ADMIN_NAV: NavItem[] = [
   { label: 'Timetables', href: '/admin/timetables', icon: Table2 },
   { label: 'Daily Desk', href: '/admin/daily-desk', icon: ClipboardList },
   { label: 'Reports', href: '/admin/reports', icon: FileText },
-  { label: 'Settings', href: '/admin/settings', icon: Settings }, // Added Admin Settings
+  { label: 'Settings', href: '/admin/settings', icon: Settings },
+  { label: 'Billing & Upgrade', href: '/admin/upgrade', icon: CreditCard },
 ];
 
 export const TEACHER_NAV: NavItem[] = [

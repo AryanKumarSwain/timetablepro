@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Edit, Plus, Trash2 } from 'lucide-react';
+import { Edit, Plus, Trash2, Check, X } from 'lucide-react';
 
 import { useRequireAuth } from '@/lib/auth-context';
 import { PageHeader } from '@/components/enterprise/page-header';
@@ -19,8 +19,20 @@ import {
   deleteSuperAdminPlan,
   getSuperAdminPlans,
   updateSuperAdminPlan,
+  type SaasPlan,
 } from '@/lib/api-services';
-import type { SaasPlan } from '@/lib/types';
+
+type TrialRequest = {
+  id: string;
+  schoolId: string;
+  schoolName: string;
+  contactName: string;
+  phone: string;
+  expectedFaculty: number;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  createdAt: string;
+  updatedAt: string;
+};
 
 const emptyForm = {
   name: '',
@@ -43,6 +55,7 @@ export default function PlansPage() {
 
   const { toast } = useToast();
   const [plans, setPlans] = useState<SaasPlan[]>([]);
+  const [trialRequests, setTrialRequests] = useState<TrialRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -67,8 +80,21 @@ export default function PlansPage() {
     }
   };
 
+  const fetchTrialRequests = async () => {
+    try {
+      const res = await fetch('/api/super-admin/trial-requests');
+      if (res.ok) {
+        const data = await res.json();
+        setTrialRequests(data);
+      }
+    } catch (err) {
+      console.error('Failed to load trial requests:', err);
+    }
+  };
+
   useEffect(() => {
     fetchPlans();
+    fetchTrialRequests();
   }, []);
 
   const planRows = useMemo(() => plans, [plans]);
@@ -172,6 +198,29 @@ export default function PlansPage() {
     }
   };
 
+  const handleTrialAction = async (requestId: string, action: 'APPROVE' | 'REJECT') => {
+    setSaving(true);
+    try {
+      const res = await fetch('/api/super-admin/trial-requests', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ requestId, action }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to process trial request');
+      }
+
+      toast({ title: 'Success', description: `Trial request ${action.toLowerCase()}d` });
+      await fetchTrialRequests();
+    } catch (err) {
+      toast({ title: 'Error', description: err instanceof Error ? err.message : 'Failed to process trial request', variant: 'destructive' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className='max-w-7xl mx-auto space-y-6'>
       <PageHeader
@@ -190,6 +239,47 @@ export default function PlansPage() {
           New plan
         </Button>
       </div>
+
+      {trialRequests.length > 0 && (
+        <GlassCard className='p-6 bg-gradient-to-r from-amber-500/10 to-orange-500/10 border-amber-500/20'>
+          <div className='flex items-center justify-between mb-4'>
+            <h3 className='font-semibold text-amber-700 dark:text-amber-400'>Pending Trial Requests ({trialRequests.length})</h3>
+          </div>
+          <div className='space-y-3'>
+            {trialRequests.map((request) => (
+              <div key={request.id} className='flex items-center justify-between p-4 rounded-lg bg-background/50 border border-border/40'>
+                <div>
+                  <p className='font-medium'>{request.schoolName}</p>
+                  <p className='text-sm text-muted-foreground'>
+                    {request.contactName} • {request.phone} • {request.expectedFaculty} faculty
+                  </p>
+                </div>
+                <div className='flex gap-2'>
+                  <Button
+                    size='sm'
+                    variant='outline'
+                    onClick={() => handleTrialAction(request.id, 'REJECT')}
+                    disabled={saving}
+                    className='text-rose-600 hover:text-rose-700 hover:bg-rose-50'
+                  >
+                    <X className='w-4 h-4 mr-1' />
+                    Reject
+                  </Button>
+                  <Button
+                    size='sm'
+                    onClick={() => handleTrialAction(request.id, 'APPROVE')}
+                    disabled={saving}
+                    className='bg-emerald-600 hover:bg-emerald-700'
+                  >
+                    <Check className='w-4 h-4 mr-1' />
+                    Approve
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </GlassCard>
+      )}
 
       {fetchError && (
         <div className='rounded-lg border border-rose-500/20 bg-rose-500/10 p-4 text-sm text-rose-600'>

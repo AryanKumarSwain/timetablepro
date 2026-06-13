@@ -7,6 +7,7 @@ import {
 } from '@/lib/auth-server';
 import { mapTeacher } from '@/lib/mappers';
 import { provisionTeacherUserAccount } from '@/lib/teacher-onboarding';
+import { checkTeacherLimit, PlanLimitError } from '@/lib/plan-limits';
 
 function normalizeStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
@@ -19,6 +20,16 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
 
     const email = String(body.email ?? '').trim().toLowerCase();
+
+    // 0. PLAN LIMIT CHECK: Enforce teacher limit based on school's plan
+    try {
+      await checkTeacherLimit(schoolId);
+    } catch (limitError) {
+      if (limitError instanceof PlanLimitError) {
+        return NextResponse.json({ error: limitError.message }, { status: 403 });
+      }
+      throw limitError;
+    }
 
     // 1. DUPLICATE CHECK: Prevent identical email profiles within the same system
     const existingTeacher = await prisma.teacher.findFirst({

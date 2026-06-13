@@ -11,8 +11,16 @@ import type {
   AuthSession,
   TodayScheduleItem,
   SubstituteCandidate,
-  SaasPlan,
 } from './types';
+
+export type SaasPlan = {
+  id: string;
+  name: string;
+  teacherMin: number;
+  teacherMax: number;
+  priceMonthly: number;
+  schoolCount: number;
+};
 import type { CsvImportEntity, CsvImportResult, ParsedCsvRow } from './csv-import/types';
 
 
@@ -428,6 +436,30 @@ export async function getPlatformHealthDetail(): Promise<{
 
 export async function getSuperAdminPlans(): Promise<SaasPlan[]> {
   return apiFetch('/api/super-admin/plans');
+}
+
+export async function fetchSaasPlans(): Promise<SaasPlan[]> {
+  return apiFetch('/api/super-admin/plans');
+}
+
+export async function switchPlan(planId: string): Promise<{ success: boolean }> {
+  return apiFetch('/api/admin/plan', {
+    method: 'PATCH',
+    body: JSON.stringify({ planId }),
+  });
+}
+
+export async function submitTrialRequest(data: {
+  reason: string;
+  instituteName: string;
+  contactNo: string;
+  email: string;
+  noOfTeachers: string;
+}): Promise<{ success: boolean; message: string }> {
+  return apiFetch('/api/trial-request', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
 }
 
 export async function createSuperAdminPlan(

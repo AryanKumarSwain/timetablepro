@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getSession } from '@/lib/session';
-import { ensureDefaultPlans } from '@/lib/saas-plan';
 
 const INSTITUTE_TYPES = [
   'School',
@@ -54,24 +53,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true });
     }
 
-    let defaultPlan = await prisma.saaSPlan.findFirst({
-      orderBy: { teacherMin: 'asc' },
-    });
-
-    if (!defaultPlan) {
-      await ensureDefaultPlans();
-      defaultPlan = await prisma.saaSPlan.findFirst({
-        orderBy: { teacherMin: 'asc' },
-      });
-    }
-
-    if (!defaultPlan) {
-      return NextResponse.json(
-        { success: false, error: 'No subscription plan configured. Contact support.' },
-        { status: 500 }
-      );
-    }
-
     const result = await prisma.$transaction(async (tx) => {
       const school = await tx.school.create({
         data: {
@@ -81,8 +62,19 @@ export async function POST(request: NextRequest) {
           country,
           studentsRange,
           facultyRange,
-          planId: defaultPlan.id,
           licenseStatus: 'ACTIVE',
+          plan: {
+            connectOrCreate: {
+              where: { id: "baseline-free-tier" },
+              create: {
+                id: "baseline-free-tier",
+                name: "Baseline Tier",
+                teacherMin: 0,
+                teacherMax: 15,
+                priceMonthly: 0
+              }
+            }
+          }
         },
       });
 
