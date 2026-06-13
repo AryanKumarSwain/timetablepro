@@ -30,14 +30,33 @@ export async function GET(request: NextRequest) {
 
     const school = await prisma.school.findUnique({
       where: { id: schoolId },
-      select: { name: true },
+      include: {
+        plan: {
+          select: {
+            id: true,
+            name: true,
+            teacherMin: true,
+            teacherMax: true,
+            priceMonthly: true,
+          },
+        },
+      },
     });
 
     if (!school) {
       return NextResponse.json({ error: 'School not found' }, { status: 404 });
     }
 
-    return NextResponse.json({ name: school.name });
+    return NextResponse.json({
+      name: school.name,
+      plan: school.plan ? {
+        id: school.plan.id,
+        name: school.plan.name,
+        teacherMin: school.plan.teacherMin,
+        teacherMax: school.plan.teacherMax,
+        priceMonthly: Number(school.plan.priceMonthly),
+      } : null,
+    });
   } catch (error) {
     return handleApiError(error);
   }
