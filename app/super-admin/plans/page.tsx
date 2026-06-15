@@ -29,9 +29,22 @@ type TrialRequest = {
   contactName: string;
   phone: string;
   expectedFaculty: number;
+  planId: string | null;
   status: 'PENDING' | 'APPROVED' | 'REJECTED';
   createdAt: string;
   updatedAt: string;
+};
+
+type SchoolTrialRequest = {
+  id: string;
+  schoolId: string;
+  schoolName: string;
+  trialPlanId: string | null;
+  trialPlanName: string | null;
+  currentPlanName: string | null;
+  trialStatus: 'NONE' | 'PENDING' | 'APPROVED' | 'REJECTED' | 'EXPIRED';
+  trialEndsAt: string | null;
+  createdAt: string;
 };
 
 const emptyForm = {
@@ -55,7 +68,7 @@ export default function PlansPage() {
 
   const { toast } = useToast();
   const [plans, setPlans] = useState<SaasPlan[]>([]);
-  const [trialRequests, setTrialRequests] = useState<TrialRequest[]>([]);
+  const [trialRequests, setTrialRequests] = useState<SchoolTrialRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -246,14 +259,16 @@ export default function PlansPage() {
             <h3 className='font-semibold text-amber-700 dark:text-amber-400'>Pending Trial Requests ({trialRequests.length})</h3>
           </div>
           <div className='space-y-3'>
-            {trialRequests.map((request) => (
-              <div key={request.id} className='flex items-center justify-between p-4 rounded-lg bg-background/50 border border-border/40'>
-                <div>
-                  <p className='font-medium'>{request.schoolName}</p>
-                  <p className='text-sm text-muted-foreground'>
-                    {request.contactName} • {request.phone} • {request.expectedFaculty} faculty
-                  </p>
-                </div>
+            {trialRequests.map((request) => {
+              const selectedPlan = plans.find(p => p.id === request.planId);
+              return (
+                <div key={request.id} className='flex items-center justify-between p-4 rounded-lg bg-background/50 border border-border/40'>
+                  <div>
+                    <p className='font-medium'>{request.schoolName}</p>
+                    <p className='text-sm text-muted-foreground'>
+                      Current: {request.currentPlanName || 'No plan'} → Trial: {request.trialPlanName || 'No plan selected'}
+                    </p>
+                  </div>
                 <div className='flex gap-2'>
                   <Button
                     size='sm'
@@ -276,7 +291,8 @@ export default function PlansPage() {
                   </Button>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         </GlassCard>
       )}
@@ -317,7 +333,7 @@ export default function PlansPage() {
                   <TableRow key={plan.id}>
                     <TableCell>{plan.name}</TableCell>
                     <TableCell>{formatTeacherRange(plan.teacherMin, plan.teacherMax)}</TableCell>
-                    <TableCell>${plan.priceMonthly.toFixed(2)}</TableCell>
+                    <TableCell>₹{plan.priceMonthly.toFixed(2)}</TableCell>
                     <TableCell>{plan.schoolCount}</TableCell>
                     <TableCell className='text-right space-x-2'>
                       <Button variant='outline' size='sm' onClick={() => openEdit(plan)}>

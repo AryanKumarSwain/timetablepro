@@ -27,15 +27,21 @@ export async function GET(request: NextRequest) {
   try {
     const profile = await exchangeGoogleCode(code);
 
-    let user = await prisma.user.findUnique({ where: { email: profile.email } });
+    const user = await prisma.user.findUnique({ where: { email: profile.email } });
 
-    if (user && user.role !== 'ADMIN') {
-      signupUrl.searchParams.set('error', 'account_exists');
-      return NextResponse.redirect(signupUrl);
-    }
+    // Check if this is a signup flow (callbackUrl contains /signup)
+    const isSignupFlow = callbackUrl.includes('/signup');
 
     if (!user) {
-      user = await prisma.user.create({
+      // Only block if this is a login flow
+      if (!isSignupFlow) {
+        const loginUrl = new URL('/login', request.url);
+        loginUrl.searchParams.set('error', 'AccountNotFound');
+        return NextResponse.redirect(loginUrl);
+      }
+      
+      // Allow user creation during signup
+      const newUser = await prisma.user.create({
         data: {
           email: profile.email,
           name: profile.name,
@@ -45,18 +51,38 @@ export async function GET(request: NextRequest) {
           countryCode: null,
         },
       });
-    } else if (user.role === 'ADMIN') {
-      // For existing admin users, just update name if needed and log them in
-      // Don't reset onboarding - let them continue with their existing account
-      if (profile.name && !user.name) {
-        user = await prisma.user.update({
-          where: { id: user.id },
-          data: { name: profile.name },
-        });
-      }
-    } else {
+      
+      const session = await getSession();
+      session.user = {
+        id: newUser.id,
+        email: newUser.email,
+        role: newUser.role,
+        schoolId: newUser.schoolId,
+        onboardingDone: newUser.onboardingDone,
+        phone: newUser.phone,
+        countryCode: newUser.countryCode,
+      };
+      session.isLoggedIn = true;
+      await session.save();
+
+      const response = NextResponse.redirect(signupUrl);
+      response.cookies.delete('google_oauth_state');
+      response.cookies.delete('google_oauth_callback');
+      return response;
+    }
+
+    if (user.role !== 'ADMIN') {
       signupUrl.searchParams.set('error', 'account_exists');
       return NextResponse.redirect(signupUrl);
+    }
+
+    // For existing admin users, just update name if needed and log them in
+    // Don't reset onboarding - let them continue with their existing account
+    if (profile.name && !user.name) {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { name: profile.name },
+      });
     }
 
     const session = await getSession();

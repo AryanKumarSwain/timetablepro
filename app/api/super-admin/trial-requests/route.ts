@@ -7,12 +7,33 @@ export async function GET() {
   try {
     await requireSuperAdmin();
 
-    const trialRequests = await prisma.trialRequest.findMany({
-      where: { status: 'PENDING' },
+    // Get schools with pending trial requests
+    const trialRequests = await prisma.school.findMany({
+      where: { trialStatus: 'PENDING' } as any,
+      include: { 
+        plan: true,
+        trialPlan: true,
+      } as any,
       orderBy: { createdAt: 'desc' },
     });
 
-    return NextResponse.json(trialRequests);
+    // Transform to match expected format
+    const formattedRequests = trialRequests.map((school: any) => ({
+      id: school.id,
+      schoolId: school.id,
+      schoolName: school.name,
+      contactName: school.name, // Using school name as contact name for now
+      phone: 'N/A', // Phone not available in School model
+      expectedFaculty: 0, // Not available in School model
+      planId: school.trialPlanId,
+      status: school.trialStatus,
+      createdAt: school.createdAt,
+      updatedAt: school.createdAt,
+      trialPlanName: school.trialPlan?.name || null,
+      currentPlanName: school.plan?.name || null,
+    }));
+
+    return NextResponse.json(formattedRequests);
   } catch (error) {
     return handleApiError(error);
   }
@@ -29,43 +50,48 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
     }
 
-    const trialRequest = await prisma.trialRequest.findUnique({
+    const school = await prisma.school.findUnique({
       where: { id: requestId },
-    });
+      include: { plan: true, trialPlan: true } as any,
+    }) as any;
 
-    if (!trialRequest) {
-      return NextResponse.json({ error: 'Trial request not found' }, { status: 404 });
+    if (!school) {
+      return NextResponse.json({ error: 'School not found' }, { status: 404 });
+    }
+
+    if (school.trialStatus !== 'PENDING') {
+      return NextResponse.json({ error: 'Trial request is not pending' }, { status: 400 });
     }
 
     if (action === 'APPROVE') {
       const trialEndsAt = new Date();
       trialEndsAt.setDate(trialEndsAt.getDate() + 7);
 
-      await prisma.$transaction([
-        prisma.trialRequest.update({
-          where: { id: requestId },
-          data: { status: 'APPROVED' },
-        }),
-        prisma.school.update({
-          where: { id: trialRequest.schoolId },
-          data: {
-            licenseStatus: LicenseStatus.TRIAL,
-            trialEndsAt,
-          },
-        }),
-      ]);
+      await prisma.school.update({
+        where: { id: requestId },
+        data: {
+          trialStatus: 'APPROVED',
+          trialEndsAt,
+          hasUsedTrial: true,
+          planId: school.trialPlanId, // Upgrade to the trial plan
+          licenseStatus: LicenseStatus.TRIAL,
+          hasNotifiedTrialEnding: false,
+        },
+      } as any);
 
       // TODO: Send email notification to the school
-      // This would require an email service integration (e.g., Resend, SendGrid, etc.)
-      // For now, we'll log that the email should be sent
-      console.log(`[Trial Approval] Email should be sent to ${trialRequest.schoolName} - Trial started, ends at ${trialEndsAt.toISOString()}`);
+      console.log(`[Trial Approval] Trial approved for ${school.name} - Trial ends at ${trialEndsAt.toISOString()}`);
 
       return NextResponse.json({ success: true, trialEndsAt });
     } else {
-      await prisma.trialRequest.update({
+      await prisma.school.update({
         where: { id: requestId },
-        data: { status: 'REJECTED' },
-      });
+        data: {
+          trialStatus: 'REJECTED',
+          trialPlanId: null,
+          originalPlanId: null,
+        },
+      } as any);
 
       return NextResponse.json({ success: true });
     }

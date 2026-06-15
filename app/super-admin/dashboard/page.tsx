@@ -57,7 +57,7 @@ export default function SuperAdminDashboardPage() {
           <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4'>
             <StatCard
               label='Monthly Recurring Revenue'
-              value={`$${summary?.monthlyRecurringRevenueRaw?.toFixed(2) ?? '0.00'}`}
+              value={`₹${summary?.monthlyRecurringRevenueRaw?.toFixed(2) ?? '0.00'}`}
               trend='+8.2%'
               variant='primary'
               icon={TrendingUp}

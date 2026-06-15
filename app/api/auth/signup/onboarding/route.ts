@@ -68,9 +68,9 @@ export async function POST(request: NextRequest) {
               where: { id: "baseline-free-tier" },
               create: {
                 id: "baseline-free-tier",
-                name: "Baseline Tier",
+                name: "Free",
                 teacherMin: 0,
-                teacherMax: 15,
+                teacherMax: 5,
                 priceMonthly: 0
               }
             }

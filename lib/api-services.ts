@@ -29,13 +29,14 @@ import type { CsvImportEntity, CsvImportResult, ParsedCsvRow } from './csv-impor
 // ============================================================================
 export async function loginUser(
   email: string,
-  password: string
+  password: string,
+  role?: string
 ): Promise<AuthSession & { redirectTo: string }> {
   const res = await fetch('/api/auth/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({ email, password, role }),
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
@@ -454,7 +455,7 @@ export async function submitTrialRequest(data: {
   instituteName: string;
   contactNo: string;
   email: string;
-  noOfTeachers: string;
+  planId: string;
 }): Promise<{ success: boolean; message: string }> {
   return apiFetch('/api/trial-request', {
     method: 'POST',
@@ -484,6 +485,7 @@ export async function updateSuperAdminPlan(
 export async function deleteSuperAdminPlan(id: string): Promise<void> {
   await apiFetch(`/api/super-admin/plans/${encodeURIComponent(id)}`, {
     method: 'DELETE',
+    body: JSON.stringify({ force: true }),
   });
 }
 

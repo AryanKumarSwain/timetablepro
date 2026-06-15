@@ -13,32 +13,41 @@ model SaaSPlan {
   teacherMax   Int
   priceMonthly Decimal  @db.Decimal(10, 2)
   schools      School[]
+  trialSchools School[] @relation("SchoolTrialPlan")
+  originalSchools School[] @relation("SchoolOriginalPlan")
 }
 
 model School {
-  id             String                  @id @default(uuid())
-  name           String
-  type           String?
-  city           String?
-  country        String?
-  studentsRange  String?
-  facultyRange   String?
-  licenseStatus  LicenseStatus           @default(ACTIVE)
-  planId         String?
-  plan           SaaSPlan?                @relation(fields: [planId], references: [id])
-  trialEndsAt    DateTime?
-  createdAt      DateTime                @default(now())
-  users          User[]
-  teachers       Teacher[]
-  classes        ClassRoom[]
-  subjects       Subject[]
-  periods        Period[]
-  weeklySlots    WeeklyTimetableSlot[]
-  attendance     TeacherAttendance[]
-  replacements   ReplacementAssignment[]
-  dailyReports   DailyReport[]
-  timetables     Timetable[]
-  timetableSlots TimetableSlot[]
+  id                      String                  @id @default(uuid())
+  name                    String
+  type                    String?
+  city                    String?
+  country                 String?
+  studentsRange           String?
+  facultyRange            String?
+  licenseStatus           LicenseStatus           @default(ACTIVE)
+  planId                  String?
+  plan                    SaaSPlan?                @relation(fields: [planId], references: [id])
+  trialEndsAt             DateTime?
+  trialPlanId             String?
+  trialPlan               SaaSPlan?                @relation("SchoolTrialPlan", fields: [trialPlanId], references: [id])
+  trialStatus             TrialStatus              @default(NONE)
+  hasNotifiedTrialEnding  Boolean                 @default(false)
+  hasUsedTrial            Boolean                 @default(false)
+  originalPlanId          String?
+  originalPlan            SaaSPlan?                @relation("SchoolOriginalPlan", fields: [originalPlanId], references: [id])
+  createdAt               DateTime                @default(now())
+  users                   User[]
+  teachers                Teacher[]
+  classes                 ClassRoom[]
+  subjects                Subject[]
+  periods                 Period[]
+  weeklySlots             WeeklyTimetableSlot[]
+  attendance              TeacherAttendance[]
+  replacements            ReplacementAssignment[]
+  dailyReports            DailyReport[]
+  timetables              Timetable[]
+  timetableSlots          TimetableSlot[]
 }
 
 enum LicenseStatus {
@@ -46,6 +55,14 @@ enum LicenseStatus {
   SUSPENDED
   TRIAL
   TRAIL_EXPIRED
+}
+
+enum TrialStatus {
+  NONE
+  PENDING
+  APPROVED
+  REJECTED
+  EXPIRED
 }
 
 model User {
@@ -295,6 +312,7 @@ model TrialRequest {
   contactName     String
   phone           String
   expectedFaculty Int
+  planId          String?
   status          RequestStatus @default(PENDING)
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt

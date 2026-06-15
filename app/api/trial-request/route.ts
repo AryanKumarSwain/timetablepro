@@ -8,18 +8,23 @@ export async function POST(request: NextRequest) {
     const { schoolId } = adminData;
 
     const body = await request.json();
-    const { reason, instituteName, contactNo, email, noOfTeachers } = body;
+    const { reason, instituteName, contactNo, email, planId } = body;
 
     if (!reason || !reason.trim()) {
       return NextResponse.json({ error: 'Reason is required' }, { status: 400 });
     }
-    if (!instituteName || !contactNo || !email || !noOfTeachers) {
+    if (!instituteName || !contactNo || !email || !planId) {
       return NextResponse.json({ error: 'All fields are required' }, { status: 400 });
     }
 
     const school = await prisma.school.findUnique({ where: { id: schoolId } });
     if (!school) {
       return NextResponse.json({ error: 'School not found' }, { status: 404 });
+    }
+
+    const plan = await prisma.saaSPlan.findUnique({ where: { id: planId } });
+    if (!plan) {
+      return NextResponse.json({ error: 'Plan not found' }, { status: 404 });
     }
 
     const existingRequest = await prisma.trialRequest.findFirst({
@@ -39,10 +44,21 @@ export async function POST(request: NextRequest) {
         schoolName: instituteName || school.name,
         contactName: adminData.name || 'Admin',
         phone: contactNo,
-        expectedFaculty: Number(noOfTeachers),
+        expectedFaculty: plan.teacherMax,
+        planId: planId,
         status: 'PENDING',
       },
     });
+
+    // Also update the school's trialStatus to PENDING so it shows up in super-admin
+    await prisma.school.update({
+      where: { id: schoolId },
+      data: {
+        trialStatus: 'PENDING',
+        trialPlanId: planId,
+        originalPlanId: school.planId,
+      },
+    } as any);
 
     return NextResponse.json(trialRequest, { status: 201 });
   } catch (error) {

@@ -48,12 +48,14 @@ function StepShell({
   title,
   subtitle,
   children,
+  onBack,
 }: {
   step: Step;
   currentStep: Step;
   title: string;
   subtitle?: string;
   children: React.ReactNode;
+  onBack?: () => void;
 }) {
   const isActive = step === currentStep;
 
@@ -61,7 +63,18 @@ function StepShell({
 
   return (
     <div className='relative w-full'>
-      <div className='mb-6'>
+      {onBack && (
+        <Button
+          type='button'
+          variant='ghost'
+          size='icon'
+          className='absolute -top-2 left-0 text-muted-foreground hover:text-foreground rounded-lg h-8 w-8'
+          onClick={onBack}
+        >
+          ←
+        </Button>
+      )}
+      <div className={cn('mb-6', onBack && 'pt-8')}>
         <h1 className='text-2xl font-bold'>{title}</h1>
         {subtitle && (
           <p className='text-sm text-muted-foreground mt-1'>{subtitle}</p>
@@ -142,7 +155,6 @@ export default function SignupPage() {
         }
       } catch (error) {
         console.error('Session check error:', error);
-        // stay on step 1
       } finally {
         setCheckingSession(false);
       }
@@ -162,7 +174,7 @@ export default function SignupPage() {
 
   const handleEmailSignup = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
+    loading && setLoading(true);
     setFormError('');
     setFieldErrors({});
 
@@ -496,6 +508,7 @@ export default function SignupPage() {
               currentStep={step}
               title='Verify Email'
               subtitle='Enter the 6-digit code sent to your email'
+              onBack={() => setStep(1)}
             >
               <div className='mb-4 text-sm text-muted-foreground'>
                 Verification code sent to:
@@ -505,7 +518,6 @@ export default function SignupPage() {
               <form
                 onSubmit={async (e) => {
                   e.preventDefault();
-
                   setLoading(true);
                   setFormError('');
 
@@ -600,7 +612,12 @@ export default function SignupPage() {
             </StepShell>
 
             {/* Step 3: Google Profile Setup Fallback Completion */}
-            <StepShell step={3} currentStep={step} title='Complete Registration'>
+            <StepShell 
+              step={3} 
+              currentStep={step} 
+              title='Complete Registration'
+              onBack={() => setStep(1)}
+            >
               <div className='flex flex-col items-center mt-6 mb-6 bg-muted/30 border border-border/40 p-4 rounded-xl'>
                 <div className='h-14 w-14 rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center text-white text-xl font-bold shadow-lg'>
                   {googleEmail ? googleEmail.charAt(0).toUpperCase() : 'G'}
@@ -683,6 +700,13 @@ export default function SignupPage() {
               currentStep={step}
               title='One last step!'
               subtitle='Tell us about your institute to personalize your experience'
+              onBack={() => {
+                if (googleEmail) {
+                  setStep(3);
+                } else {
+                  setStep(2);
+                }
+              }}
             >
               <form onSubmit={handleOnboarding} className='mt-6 space-y-4' suppressHydrationWarning>
                 <div>
@@ -819,7 +843,6 @@ export default function SignupPage() {
                     type='submit'
                     disabled={loading}
                     className='w-full h-11 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 text-white'
-                    suppressHydrationWarning
                   >
                     {loading ? 'Completing setup…' : 'Complete Platform Setup'}
                   </Button>
@@ -827,12 +850,6 @@ export default function SignupPage() {
               </form>
             </StepShell>
           </GlassCard>
-
-          <p className='text-center text-sm text-muted-foreground mt-6'>
-            <Link href='/' className='hover:text-foreground transition-colors'>
-              ← Back to home
-            </Link>
-          </p>
         </motion.div>
       </div>
     </div>

@@ -17,9 +17,9 @@ function formatLicenseStatus(status: string): string {
 
 function formatCurrency(value: number): string {
   if (value >= 1000) {
-    return `$${(value / 1000).toFixed(1)}k`;
+    return `₹${(value / 1000).toFixed(1)}k`;
   }
-  return `$${value.toFixed(2)}`;
+  return `₹${value.toFixed(2)}`;
 }
 
 export async function GET(request: NextRequest) {
@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
           name: school.name,
           licenseStatus: formatLicenseStatus(school.licenseStatus),
           licenseDate: school.createdAt.toISOString().split('T')[0],
-          planName: school.plan.name,
+          planName: school.plan?.name || 'No Plan',
           adminEmails: school.users.map((u) => u.email),
         }))
       );
@@ -80,18 +80,19 @@ export async function GET(request: NextRequest) {
         schoolId: school.id,
         schoolName: school.name,
         transactionDate: school.createdAt.toISOString().split('T')[0],
-        planName: school.plan.name,
-        planPrice: Number(school.plan.priceMonthly),
+        planName: school.plan?.name || 'No Plan',
+        planPrice: school.plan ? Number(school.plan.priceMonthly) : 0,
         licenseStatus: formatLicenseStatus(school.licenseStatus),
       }));
 
       const activeMrr = schools
-        .filter((s) => s.licenseStatus === 'ACTIVE')
-        .reduce((sum, s) => sum + Number(s.plan.priceMonthly), 0);
+        .filter((s) => s.licenseStatus === 'ACTIVE' && s.plan)
+        .reduce((sum, s) => sum + Number(s.plan!.priceMonthly), 0);
 
       const tierContributions = schools.reduce<
         Record<string, { planName: string; count: number; subtotal: number }>
       >((acc, school) => {
+        if (!school.plan) return acc;
         const key = school.plan.id;
         if (!acc[key]) {
           acc[key] = {
@@ -165,10 +166,14 @@ export async function GET(request: NextRequest) {
       ]);
 
     // Calculate MRR
-    const activeMrr = activeSchools.reduce((sum, s) => sum + Number(s.plan.priceMonthly), 0);
+    const activeMrr = activeSchools.reduce((sum, s) => {
+      if (!s.plan) return sum;
+      return sum + Number(s.plan.priceMonthly);
+    }, 0);
 
     // 1. Calculate Plan Mix (for Pie Chart)
     const planMix = allSchools.reduce<Record<string, number>>((acc, s) => {
+      if (!s.plan) return acc;
       acc[s.plan.name] = (acc[s.plan.name] || 0) + 1;
       return acc;
     }, {});

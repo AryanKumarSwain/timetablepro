@@ -15,7 +15,7 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   error: string | null;
-  login: (email: string, password: string) => Promise<string>;
+  login: (email: string, password: string, role?: string) => Promise<string>;
   logout: () => Promise<void>;
   isAdmin: boolean;
   isTeacher: boolean;
@@ -37,12 +37,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       .finally(() => setLoading(false));
   }, []);
 
-  const login = useCallback(async (email: string, password: string) => {
+  const login = useCallback(async (email: string, password: string, role?: string) => {
     setLoading(true);
     setError(null);
 
     try {
-      const result = await loginUser(email, password);
+      const result = await loginUser(email, password, role);
       setSession({ user: result.user });
       return result.redirectTo;
     } catch (err) {

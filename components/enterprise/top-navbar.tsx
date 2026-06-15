@@ -49,6 +49,12 @@ interface LiveNotification {
   isRead: boolean;
 }
 
+interface TrialStatus {
+  isActive: boolean;
+  planName: string | null;
+  hoursRemaining: number | null;
+}
+
 interface TopNavbarProps {
   userName?: string;
   userEmail?: string;
@@ -78,6 +84,7 @@ export function TopNavbar({
   const [composeMessage, setComposeMessage] = useState('');
   const [composeType, setComposeType] = useState<'INFO' | 'ALERT' | 'SYSTEM'>('INFO');
   const [sending, setSending] = useState(false);
+  const [trialStatus, setTrialStatus] = useState<TrialStatus>({ isActive: false, planName: null, hoursRemaining: null });
 
   // Formatting strings safely to handle dynamic relational role assertions safely
   const parsedRole = userRole.toLowerCase().replace('-', '_');
@@ -101,13 +108,32 @@ export function TopNavbar({
     }
   };
 
+  // Fetch trial status for school admins
+  const fetchTrialStatus = async () => {
+    if (parsedRole !== 'admin') return;
+    try {
+      const res = await fetch('/api/admin/school/trial-status');
+      if (res.ok) {
+        const data = await res.json();
+        setTrialStatus(data);
+      }
+    } catch (e) {
+      console.error('Failed fetching trial status.', e);
+    }
+  };
+
   useEffect(() => {
     setMounted(true);
     syncNotifications();
+    fetchTrialStatus();
 
     // Auto-refresh dynamic data blocks every 45 seconds to keep tabs accurate
     const loopTracker = setInterval(syncNotifications, 45000);
-    return () => clearInterval(loopTracker);
+    const trialStatusTracker = setInterval(fetchTrialStatus, 60000); // Check trial status every minute
+    return () => {
+      clearInterval(loopTracker);
+      clearInterval(trialStatusTracker);
+    };
   }, []);
 
   const unreadCount = notifications.filter(n => !n.isRead).length;
@@ -154,8 +180,21 @@ export function TopNavbar({
   };
 
   return (
-    <header className='sticky top-0 z-40 h-14 border-b border-border/50 bg-background/70 backdrop-blur-xl supports-[backdrop-filter]:bg-background/60'>
-      <div className='flex h-full items-center gap-3 px-4 md:px-6'>
+    <>
+      {/* Trial Warning Banner */}
+      {mounted && trialStatus.isActive && trialStatus.hoursRemaining !== null && trialStatus.hoursRemaining <= 48 && (
+        <div className='sticky top-0 z-50 bg-amber-500/10 border-b border-amber-500/20 px-4 py-2 text-center'>
+          <p className='text-sm font-medium text-amber-700 dark:text-amber-400'>
+            ⚠️ Your 7-day trial for the {trialStatus.planName} plan is ending in less than {trialStatus.hoursRemaining <= 24 ? '24' : '48'} hours!{' '}
+            <Link href='/admin/upgrade' className='underline font-bold hover:text-amber-800 dark:hover:text-amber-300'>
+              Upgrade now
+            </Link>{' '}
+            to keep your advanced features.
+          </p>
+        </div>
+      )}
+      <header className='sticky top-0 z-40 h-14 border-b border-border/50 bg-background/70 backdrop-blur-xl supports-[backdrop-filter]:bg-background/60'>
+        <div className='flex h-full items-center gap-3 px-4 md:px-6'>
         {/* MOBILE SIDE NAVIGATION DRAWERS */}
         <Sheet>
           <SheetTrigger asChild>
@@ -375,5 +414,6 @@ export function TopNavbar({
         </div>
       </div>
     </header>
+    </>
   );
 }

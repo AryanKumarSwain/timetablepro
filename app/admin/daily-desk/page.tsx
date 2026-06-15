@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useRequireAuth } from '@/lib/auth-context';
 import {
@@ -14,6 +14,13 @@ import {
 import type { Teacher, Replacement } from '@/lib/types';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog';
 import { PageHeader } from '@/components/enterprise/page-header';
 import { GlassCard } from '@/components/enterprise/glass-card';
 import { PageSkeleton } from '@/components/enterprise/page-skeleton';
@@ -28,8 +35,12 @@ import {
   ZoomIn,
   ZoomOut,
   History,
-  ChevronRight
+  ChevronRight,
+  X,
+  FileSpreadsheet
 } from 'lucide-react';
+import html2canvas from 'html2canvas';
+import * as XLSX from 'xlsx';
 import { cn, isTeacherActive } from '@/lib/utils';
 
 const ZOOM_MIN = 0.6;
@@ -65,6 +76,11 @@ export default function DailyDeskPage() {
   const [freeTeachersPeriodId, setFreeTeachersPeriodId] = useState('');
   const [history, setHistory] = useState<{ date: string; replacementCount: number }[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
+  const [historyModalOpen, setHistoryModalOpen] = useState(false);
+  const [selectedHistoryDate, setSelectedHistoryDate] = useState<string | null>(null);
+  const [historyGridData, setHistoryGridData] = useState<DailyDeskGrid | null>(null);
+  const [loadingHistoryGrid, setLoadingHistoryGrid] = useState(false);
+  const historyModalRef = useRef<HTMLDivElement>(null);
 
   const localeDate = new Date();
   const today = `${localeDate.getFullYear()}-${String(localeDate.getMonth() + 1).padStart(2, '0')}-${String(localeDate.getDate()).padStart(2, '0')}`;
@@ -123,6 +139,25 @@ export default function DailyDeskPage() {
       setLoadingHistory(false);
     }
   }, [isPublicView]);
+
+  const loadHistoryGrid = useCallback(async (date: string) => {
+    if (!date) return;
+    setLoadingHistoryGrid(true);
+    try {
+      const schoolId = (auth.session?.user as any)?.schoolId;
+      if (!schoolId) {
+        console.warn('School context missing, skipping history grid load');
+        return;
+      }
+
+      const desk = await getDailyDeskGrid(date, schoolId);
+      setHistoryGridData(desk);
+    } catch (error) {
+      console.error('Failed to load historical daily desk data:', error);
+    } finally {
+      setLoadingHistoryGrid(false);
+    }
+  }, [auth.session?.user]);
 
   useEffect(() => {
     let isMounted = true;
@@ -279,6 +314,99 @@ export default function DailyDeskPage() {
 
   const handlePrintPDF = () => {
     if (typeof window !== 'undefined') window.print();
+  };
+
+  const handleDownloadModalPDF = async () => {
+    if (!historyModalRef.current) return;
+    
+    try {
+      // Add print-specific styles to hide everything except the modal content
+      const printStyles = document.createElement('style');
+      printStyles.id = 'modal-print-styles';
+      printStyles.textContent = `
+        @media print {
+          body > *:not(#history-modal-print-container) {
+            display: none !important;
+          }
+          #history-modal-print-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 99999;
+            background: white;
+            padding: 20px;
+            overflow: auto;
+          }
+          #history-modal-print-container > * {
+            display: block !important;
+          }
+        }
+      `;
+      document.head.appendChild(printStyles);
+
+      // Clone the modal content for printing
+      const clonedContent = historyModalRef.current.cloneNode(true) as HTMLElement;
+      clonedContent.id = 'history-modal-print-container';
+      clonedContent.style.transform = 'scale(1)';
+      clonedContent.style.width = '100%';
+      document.body.appendChild(clonedContent);
+
+      // Trigger print
+      window.print();
+
+      // Clean up after printing
+      setTimeout(() => {
+        document.head.removeChild(printStyles);
+        if (clonedContent.parentNode) {
+          clonedContent.parentNode.removeChild(clonedContent);
+        }
+      }, 1000);
+    } catch (error) {
+      console.error('Failed to generate PDF:', error);
+      alert('Failed to generate PDF. Please try using the Excel export instead.');
+    }
+  };
+
+  const handleDownloadExcel = () => {
+    if (!historyGridData) return;
+
+    const worksheetData: any[][] = [];
+    
+    // Add header row
+    const headerRow = ['Class', ...(historyGridData.periods ?? []).map(p => 
+      p.isBreak ? (p.label || 'BREAK') : `P${p.periodNumber} (${p.startTime}-${p.endTime})`
+    )];
+    worksheetData.push(headerRow);
+
+    // Add data rows
+    (historyGridData.classes ?? []).forEach(cls => {
+      const row = [cls.name];
+      
+      (historyGridData.periods ?? []).forEach(period => {
+        const periodRow = (historyGridData.grid ?? []).find((r: any) => r.periodId === period.id);
+        const cell = periodRow?.cells?.find((c: any) => c.classId === cls.id);
+        
+        if (!cell || cell.empty) {
+          row.push('');
+        } else {
+          const cellData = `${cell.subjectName}\n${cell.teacherName}`;
+          if (cell.isAbsent) {
+            row.push(`${cellData} (ABSENT)`);
+          } else {
+            row.push(cellData);
+          }
+        }
+      });
+      
+      worksheetData.push(row);
+    });
+
+    const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Daily Desk');
+    XLSX.writeFile(workbook, `daily-desk-${selectedHistoryDate}.xlsx`);
   };
 
   const handleZoomIn = () => setZoomLevel((prev) => Math.min(ZOOM_MAX, Math.round((prev + ZOOM_STEP) * 100) / 100));
@@ -664,7 +792,11 @@ export default function DailyDeskPage() {
                   {history.map((item) => (
                     <button
                       key={item.date}
-                      onClick={() => router.push(`/admin/daily-desk?date=${item.date}`)}
+                      onClick={() => {
+                        setSelectedHistoryDate(item.date);
+                        setHistoryModalOpen(true);
+                        void loadHistoryGrid(item.date);
+                      }}
                       className='w-full flex items-center justify-between py-2.5 px-2 rounded-lg hover:bg-muted/40 transition-colors text-left group'
                     >
                       <div className='flex items-center gap-3'>
@@ -866,6 +998,220 @@ export default function DailyDeskPage() {
         )}
 
       </div>
+
+      {/* HISTORY MODAL */}
+      <Dialog open={historyModalOpen} onOpenChange={setHistoryModalOpen}>
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Daily Desk - {selectedHistoryDate ? formatHistoryDate(selectedHistoryDate) : ''}</DialogTitle>
+            <DialogDescription>
+              View historical daily desk operations and substitution records
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1 rounded-xl border border-border/80 bg-muted/40 p-1">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={handleZoomOut}
+                  disabled={zoomLevel <= ZOOM_MIN || !historyGridData}
+                  className="h-7 w-7 p-0 rounded-lg hover:bg-background"
+                  title="Zoom out"
+                >
+                  <ZoomOut className="h-3.5 w-3.5" />
+                </Button>
+                <button
+                  onClick={handleZoomReset}
+                  className="text-[11px] font-bold text-muted-foreground px-1.5 min-w-[42px] text-center hover:text-foreground transition-colors"
+                  title="Reset zoom"
+                >
+                  {Math.round(zoomLevel * 100)}%
+                </button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={handleZoomIn}
+                  disabled={zoomLevel >= ZOOM_MAX || !historyGridData}
+                  className="h-7 w-7 p-0 rounded-lg hover:bg-background"
+                  title="Zoom in"
+                >
+                  <ZoomIn className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleDownloadModalPDF}
+                disabled={!historyGridData}
+                className="rounded-xl text-xs font-semibold h-9 border-border/80 hover:bg-muted"
+              >
+                <Download className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
+                Download PDF
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleDownloadExcel}
+                disabled={!historyGridData}
+                className="rounded-xl text-xs font-semibold h-9 border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20"
+              >
+                <FileSpreadsheet className="h-3.5 w-3.5 mr-1.5" />
+                Download Excel
+              </Button>
+            </div>
+          </div>
+
+          {loadingHistoryGrid ? (
+            <div className="flex items-center justify-center py-16">
+              <div className="text-sm text-muted-foreground">Loading historical data...</div>
+            </div>
+          ) : !historyGridData ? (
+            <div className="flex flex-col items-center justify-center text-center py-16 px-4 border border-dashed border-border/60 bg-muted/10 rounded-2xl">
+              <div className="p-3 bg-rose-500/10 text-rose-500 rounded-full mb-3 dark:bg-rose-500/20">
+                <CalendarX className="h-6 w-6" />
+              </div>
+              <h3 className="text-sm font-bold text-foreground uppercase tracking-wide">No data available</h3>
+              <p className="text-xs text-muted-foreground max-w-sm mt-1">
+                There are no scheduled periods or designated classes configured for this historical date.
+              </p>
+            </div>
+          ) : (
+            <div
+              ref={historyModalRef}
+              id="history-timetable-capture"
+              className='w-full overflow-x-auto rounded-xl border border-border/60 bg-background p-4 scrollbar-thin scrollbar-thumb-accent'
+            >
+              <div
+                className='origin-top-left transition-transform duration-150 ease-out'
+                style={{ transform: `scale(${zoomLevel})`, width: zoomLevel !== 1 ? `${100 / zoomLevel}%` : undefined }}
+              >
+                <table className='w-full border-collapse text-left min-w-[800px]'>
+                  <thead>
+                    <tr className='bg-muted/80 backdrop-blur border-b border-border/40'>
+                      <th className='p-4 text-xs font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400 w-[140px] sticky left-0 bg-muted z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] border-r border-border/40'>
+                        Timetable
+                      </th>
+                      {(historyGridData.periods ?? []).map((p) => (
+                        <th key={p.id} className='p-3 border-l border-border/40 text-center min-w-[180px] w-[200px]'>
+                          <div className='text-xs font-bold text-foreground uppercase tracking-wider'>
+                            {p.isBreak ? (p.label || 'BREAK') : `P${p.periodNumber}`}
+                          </div>
+                          <div className='text-[10px] text-muted-foreground font-medium mt-0.5'>
+                            {p.startTime}–{p.endTime}
+                          </div>
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className='divide-y divide-border/40 bg-background/40'>
+                    {(historyGridData.classes ?? []).map((cls) => (
+                      <tr key={cls.id} className='hover:bg-muted/10 transition-colors'>
+                        <td className='p-4 font-bold text-sm text-foreground bg-background/90 sticky left-0 z-10 border-r border-border/40 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]'>
+                          {cls.name}
+                        </td>
+
+                        {(historyGridData.periods ?? []).map((period) => {
+                          const periodRow = (historyGridData.grid ?? []).find((row) => row.periodId === period.id);
+                          const cell = periodRow?.cells?.find((c) => c.classId === cls.id);
+
+                          if (!cell || cell.empty) {
+                            return (
+                              <td key={`${cls.id}-${period.id}`} className='p-3 border-l border-border/40 text-center text-muted-foreground/20 bg-background/5 min-h-[115px]'>
+                                <span className="text-xs font-semibold tracking-widest">—</span>
+                              </td>
+                            );
+                          }
+
+                          const hasServerReplacement = !!cell.replacement;
+                          const isCovered = hasServerReplacement && (cell.replacement?.status === 'confirmed' || cell.replacement?.status === 'approved');
+                          const isCoverMissing = cell.isReplacementAbsent === true;
+                          const subjectColorClass = getSubjectClass(cell.subjectName);
+
+                          return (
+                            <td
+                              key={`${cls.id}-${period.id}`}
+                              className={cn(
+                                'p-2 border-l border-border/40 h-full min-h-[115px] align-top transition-colors',
+                                cell.isAbsent
+                                  ? (isCovered && !isCoverMissing ? 'bg-emerald-50 dark:bg-emerald-950/30' : 'bg-rose-50 dark:bg-rose-950/30')
+                                  : 'bg-background/10'
+                              )}
+                            >
+                              <Card
+                                className={cn(
+                                  'p-3 rounded-lg h-full text-xs flex flex-col justify-between shadow-none transition-all border',
+                                  cell.isAbsent
+                                    ? (isCovered && !isCoverMissing)
+                                      ? 'border-emerald-500/40 bg-emerald-50 dark:bg-emerald-950/20'
+                                      : 'border-rose-500/40 bg-rose-500/5 ring-1 ring-rose-500/10'
+                                    : cn('border-border/60 bg-background hover:border-indigo-500/40', subjectColorClass)
+                                )}
+                              >
+                                <div>
+                                  <div className="flex items-start justify-between gap-1 mb-1">
+                                    <p className='font-bold text-foreground truncate flex-1'>{cell.subjectName}</p>
+                                  </div>
+                                  <p className={cn(
+                                    'font-medium truncate mb-2',
+                                    cell.isAbsent ? 'text-muted-foreground/60 line-through' : 'text-muted-foreground'
+                                  )}>
+                                    {cell.teacherName}
+                                  </p>
+                                </div>
+
+                                <div className='flex flex-col gap-1 mt-auto'>
+                                  {cell.isAbsent ? (
+                                    <>
+                                      {isCovered && !isCoverMissing && (
+                                        <div className="space-y-1.5">
+                                          <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 shadow-sm">
+                                            <CheckCircle2 className='h-3 w-3 shrink-0 text-emerald-500' />
+                                            <span className="text-[10px] font-bold uppercase tracking-wider">Cover Active</span>
+                                          </div>
+                                          <p className="text-[11px] font-medium text-foreground bg-muted/60 px-1.5 py-1 rounded border border-border/40 truncate">
+                                            <span className="text-muted-foreground font-normal">Sub:</span> {cell.replacement?.replacementTeacherName}
+                                          </p>
+                                        </div>
+                                      )}
+
+                                      {isCovered && isCoverMissing && (
+                                        <div className="space-y-1.5">
+                                          <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-amber-500/10 text-amber-600 border border-amber-500/20">
+                                            <AlertTriangle className='h-3 w-3 shrink-0' />
+                                            <span className="text-[10px] font-bold uppercase">Sub Absent!</span>
+                                          </div>
+                                          <p className="text-[11px] font-medium text-muted-foreground bg-rose-500/5 px-1.5 py-1 rounded border border-rose-500/20 line-through truncate">
+                                            Sub: {cell.replacement?.replacementTeacherName}
+                                          </p>
+                                        </div>
+                                      )}
+
+                                      {!isCovered && (
+                                        <div className="flex items-center gap-1.5 px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 mb-1">
+                                          <AlertTriangle className='h-3 w-3 shrink-0 text-rose-500' />
+                                          <span className="text-[9px] font-bold uppercase tracking-wide">ABSENT</span>
+                                        </div>
+                                      )}
+                                    </>
+                                  ) : null}
+                                </div>
+                              </Card>
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -85,7 +85,11 @@ export async function PATCH(
       schoolCount: await prisma.school.count({ where: { planId: updated.id } }),
     });
   } catch (error) {
-    return handleApiError(error);
+    console.error('[PATCH /api/super-admin/plans/[id]]', error);
+    if (error instanceof Error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+    return NextResponse.json({ error: 'Failed to update plan' }, { status: 500 });
   }
 }
 
@@ -101,20 +105,41 @@ export async function DELETE(
       return NextResponse.json({ error: 'Plan ID is required.' }, { status: 400 });
     }
 
+    let body: { force?: boolean } = {};
+    try {
+      body = await request.json();
+    } catch (e) {
+      // If body parsing fails, continue without force parameter
+    }
+    const force = body.force === true;
+
     const assignedSchools = await prisma.school.count({ where: { planId } });
-    if (assignedSchools > 0) {
+    if (assignedSchools > 0 && !force) {
       return NextResponse.json(
         {
           error:
-            'Cannot delete this plan because it is assigned to existing schools. Reassign schools before deleting.',
+            'Cannot delete this plan because it is assigned to existing schools. Use force=true to delete anyway.',
+          assignedSchools,
         },
         { status: 400 }
       );
     }
 
+    // If force delete, unassign schools first
+    if (assignedSchools > 0 && force) {
+      await prisma.school.updateMany({
+        where: { planId },
+        data: { planId: undefined },
+      });
+    }
+
     await prisma.saaSPlan.delete({ where: { id: planId } });
     return NextResponse.json({ success: true });
   } catch (error) {
-    return handleApiError(error);
+    console.error('[DELETE /api/super-admin/plans/[id]]', error);
+    if (error instanceof Error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+    return NextResponse.json({ error: 'Failed to delete plan' }, { status: 500 });
   }
 }

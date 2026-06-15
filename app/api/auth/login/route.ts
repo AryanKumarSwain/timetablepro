@@ -8,6 +8,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const email = String(body.email ?? '').trim().toLowerCase();
     const password = String(body.password ?? '');
+    const requestedRole = String(body.role ?? '').trim();
 
     if (!email || !password) {
       return NextResponse.json({ error: 'Email and password required' }, { status: 400 });
@@ -15,12 +16,26 @@ export async function POST(request: NextRequest) {
 
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user) {
-      return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
+      return NextResponse.json({ error: 'No account found. Please sign up first.' }, { status: 401 });
     }
 
     const valid = user.password ? await bcrypt.compare(password, user.password) : false;
     if (!valid) {
       return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
+    }
+
+    // Validate role if specified
+    if (requestedRole) {
+      const normalizedUserRole = user.role.toLowerCase();
+      const normalizedRequestedRole = requestedRole.toLowerCase();
+      
+      if (normalizedRequestedRole === 'admin' && normalizedUserRole !== 'admin' && normalizedUserRole !== 'super_admin') {
+        return NextResponse.json({ error: 'This login is for administrators only' }, { status: 403 });
+      }
+      
+      if (normalizedRequestedRole === 'teacher' && normalizedUserRole !== 'teacher') {
+        return NextResponse.json({ error: 'This login is for teachers only' }, { status: 403 });
+      }
     }
 
     const session = await getSession();

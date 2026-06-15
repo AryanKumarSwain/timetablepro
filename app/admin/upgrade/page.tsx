@@ -25,7 +25,7 @@ export default function UpgradePage() {
     instituteName: '',
     contactNo: '',
     email: '',
-    noOfTeachers: '',
+    planId: '',
   });
   const [submittingTrial, setSubmittingTrial] = useState(false);
 
@@ -36,7 +36,8 @@ export default function UpgradePage() {
   const loadPlans = async () => {
     try {
       const data = await fetchSaasPlans();
-      setPlans(data);
+      // Filter out the free tier from upgrade options
+      setPlans(data.filter(plan => plan.id !== 'baseline-free-tier'));
       
       // Get current plan from school data
       const schoolRes = await fetch('/api/admin/school');
@@ -70,7 +71,7 @@ export default function UpgradePage() {
       toast.error('Please provide a reason for the trial');
       return;
     }
-    if (!trialForm.instituteName.trim() || !trialForm.contactNo.trim() || !trialForm.email.trim() || !trialForm.noOfTeachers.trim()) {
+    if (!trialForm.instituteName.trim() || !trialForm.contactNo.trim() || !trialForm.email.trim() || !trialForm.planId.trim()) {
       toast.error('Please fill in all required fields');
       return;
     }
@@ -82,12 +83,12 @@ export default function UpgradePage() {
         instituteName: trialForm.instituteName,
         contactNo: trialForm.contactNo,
         email: trialForm.email,
-        noOfTeachers: trialForm.noOfTeachers,
+        planId: trialForm.planId,
       });
       toast.success('Trial request submitted successfully');
       setTrialDialogOpen(false);
       setTrialReason('');
-      setTrialForm({ instituteName: '', contactNo: '', email: '', noOfTeachers: '' });
+      setTrialForm({ instituteName: '', contactNo: '', email: '', planId: '' });
     } catch (error: any) {
       toast.error(error.message || 'Failed to submit trial request');
     } finally {
@@ -340,14 +341,20 @@ export default function UpgradePage() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="noOfTeachers">Number of Teachers *</Label>
-                    <Input
-                      id="noOfTeachers"
-                      type="number"
-                      placeholder="15"
-                      value={trialForm.noOfTeachers}
-                      onChange={(e) => setTrialForm({ ...trialForm, noOfTeachers: e.target.value })}
-                    />
+                    <Label htmlFor="planId">Select Plan *</Label>
+                    <select
+                      id="planId"
+                      value={trialForm.planId}
+                      onChange={(e) => setTrialForm({ ...trialForm, planId: e.target.value })}
+                      className="w-full px-3 py-2 border border-border rounded-md bg-background"
+                    >
+                      <option value="">Choose a plan...</option>
+                      {plans.filter(plan => plan.id !== 'baseline-free-tier').map((plan) => (
+                        <option key={plan.id} value={plan.id}>
+                          {plan.name} - ₹{plan.priceMonthly}/month ({plan.teacherMin}-{plan.teacherMax} teachers)
+                        </option>
+                      ))}
+                    </select>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="reason">Reason for trial *</Label>
@@ -361,7 +368,7 @@ export default function UpgradePage() {
                   </div>
                   <Button
                     onClick={handleTrialSubmit}
-                    disabled={submittingTrial || !trialReason.trim() || !trialForm.instituteName.trim() || !trialForm.contactNo.trim() || !trialForm.email.trim() || !trialForm.noOfTeachers.trim()}
+                    disabled={submittingTrial || !trialReason.trim() || !trialForm.instituteName.trim() || !trialForm.contactNo.trim() || !trialForm.email.trim() || !trialForm.planId.trim()}
                     className="w-full"
                   >
                     {submittingTrial ? 'Submitting...' : 'Submit Request'}

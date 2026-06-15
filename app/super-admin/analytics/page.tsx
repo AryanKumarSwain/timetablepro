@@ -90,7 +90,7 @@ export default function AnalyticsPage() {
             </div>
             <p className='text-sm text-muted-foreground'>Annual Revenue</p>
           </div>
-          <h3 className='text-2xl font-bold'>${annualRevenue.toLocaleString()}</h3>
+          <h3 className='text-2xl font-bold'>₹{annualRevenue.toLocaleString()}</h3>
         </GlassCard>
 
         <GlassCard className='p-6'>
@@ -169,7 +169,7 @@ export default function AnalyticsPage() {
                 <div key={plan.id} className='flex items-center justify-between p-3 rounded-lg bg-muted/20 border border-border/40'>
                   <div>
                     <p className='text-sm font-medium'>{plan.name}</p>
-                    <p className='text-xs text-muted-foreground'>${plan.priceMonthly.toFixed(2)}/mo</p>
+                    <p className='text-xs text-muted-foreground'>₹{plan.priceMonthly.toFixed(2)}/mo</p>
                   </div>
                   <div className='text-right'>
                     <p className='text-lg font-bold'>{plan.schoolCount}</p>
@@ -249,7 +249,7 @@ export default function AnalyticsPage() {
                 <div className='p-4 rounded-lg bg-emerald-500/10 border border-emerald-500/20'>
                   <p className='text-sm text-muted-foreground'>Monthly Recurring Revenue</p>
                   <h3 className='text-2xl font-bold mt-1'>
-                    ${typeof revenueDetail.activeMrr === 'number' ? revenueDetail.activeMrr.toLocaleString() : '0'}
+                    ₹{typeof revenueDetail.activeMrr === 'number' ? revenueDetail.activeMrr.toLocaleString() : '0'}
                   </h3>
                 </div>
                 <div className='p-4 rounded-lg bg-blue-500/10 border border-blue-500/20'>
@@ -274,7 +274,7 @@ export default function AnalyticsPage() {
                       <tr key={`revenue-tier-${index}`} className='border-t border-border/30'>
                         <td className='p-3 font-medium'>{typeof item.planName === 'string' ? item.planName : '-'}</td>
                         <td className='p-3'>{typeof item.count === 'number' ? item.count : 0}</td>
-                        <td className='p-3'>${typeof item.subtotal === 'number' ? item.subtotal.toFixed(2) : '0.00'}</td>
+                        <td className='p-3'>₹{typeof item.subtotal === 'number' ? item.subtotal.toFixed(2) : '0.00'}</td>
                       </tr>
                     ))}
                     {(revenueDetail.tierContributions ?? []).length === 0 && (

@@ -180,6 +180,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Check if bulk upload would exceed plan limit
+    if (rows.length > availableSlots) {
+      return NextResponse.json(
+        {
+          error: `Bulk upload exceeds your plan limit. You are trying to import ${rows.length} teachers, but your current plan only allows ${availableSlots} more teachers (maximum ${teacherLimit} total). Please upgrade your plan or reduce the number of teachers in your CSV file.`,
+        },
+        { status: 403 }
+      );
+    }
+
     for (let i = 0; i < rows.length; i++) {
       const rowNumber = i + 2;
       const row = rows[i];

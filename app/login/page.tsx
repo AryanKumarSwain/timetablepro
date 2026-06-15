@@ -41,6 +41,13 @@ export default function LoginPage() {
 
   useEffect(() => {
     setMounted(true);
+    
+    // Check for AccountNotFound error in URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const error = urlParams.get('error');
+    if (error === 'AccountNotFound') {
+      setError('No account found. Please sign up first.');
+    }
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -49,7 +56,7 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const redirectTo = await auth.login(email, password);
+      const redirectTo = await auth.login(email, password, tab);
       router.push(redirectTo);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Invalid email or password');
