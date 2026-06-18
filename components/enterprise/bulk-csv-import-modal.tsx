@@ -118,18 +118,32 @@ export function BulkCsvImportModal({
       setImportProgress(100);
       setImportResult(result);
       setPhase('done');
-      if (result.imported > 0) onSuccess?.();
+
+      // If the server returned cross-tenant errors, surface a top-level load error and clear parsed rows
+      const crossTenantError = result.errors?.some((err) =>
+        typeof err.message === 'string' && /belongs to another school|cannot be imported|cannot be created here/i.test(err.message)
+      );
+      if (crossTenantError) {
+        setLoadError('Import blocked: one or more emails belong to teachers in another school. Temporary form data cleared.');
+        setParsedRows([]);
+        return;
+      }
+
+      if (result.imported > 0 && onSuccess) onSuccess();
     } catch (error) {
       clearInterval(progressInterval);
       setImportProgress(0);
+
+      // Clear temporary rows on multi-tenant rejection to lock out duplicate import clicks
+      setParsedRows([]);
+
       setImportResult({
         imported: 0,
-        failed: parsedRows.length,
+        failed: rowCount,
         errors: [
           {
             row: 0,
-            message:
-              error instanceof Error ? error.message : 'Import request failed.',
+            message: error instanceof Error ? error.message : 'Import request failed.',
           },
         ],
       });
@@ -270,8 +284,7 @@ export function BulkCsvImportModal({
             <div className='rounded-xl border border-rose-500/30 overflow-hidden'>
               <div className='flex items-center justify-between gap-2 bg-rose-500/10 px-3 py-2 border-b border-rose-500/20'>
                 <p className='text-xs font-semibold uppercase tracking-wider text-rose-700 dark:text-rose-300'>
-                  {phase === 'done' ? 'Import errors' : 'Validation errors'} (
-                  {allErrors.length})
+                  {phase === 'done' ? 'Import errors' : 'Validation errors'} ({allErrors.length})
                 </p>
               </div>
               <div className='max-h-48 overflow-y-auto'>

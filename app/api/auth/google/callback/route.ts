@@ -72,8 +72,12 @@ export async function GET(request: NextRequest) {
     }
 
     if (user.role !== 'ADMIN') {
-      signupUrl.searchParams.set('error', 'account_exists');
-      return NextResponse.redirect(signupUrl);
+      // Clear session cookies completely
+      const response = NextResponse.redirect(new URL('/login?error=account_exists', request.url));
+      response.cookies.delete('google_oauth_state');
+      response.cookies.delete('google_oauth_callback');
+      response.cookies.delete('session');
+      return response;
     }
 
     // For existing admin users, just update name if needed and log them in

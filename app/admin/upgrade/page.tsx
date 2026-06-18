@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -10,15 +10,24 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
-import { Check, CheckCircle2, Zap, Crown, Rocket, ArrowRight, Sparkles } from 'lucide-react';
+import { Check, CheckCircle2, Sparkles, ChevronRight, Zap, Rocket, Crown, X } from 'lucide-react';
 import { fetchSaasPlans, switchPlan, submitTrialRequest } from '@/lib/api-services';
 import type { SaasPlan } from '@/lib/api-services';
 
 export default function UpgradePage() {
+  // Core states
   const [plans, setPlans] = useState<SaasPlan[]>([]);
   const [currentPlanId, setCurrentPlanId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [switchingPlan, setSwitchingPlan] = useState<string | null>(null);
+  
+  // Checkout & UI segment toggles
+  const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
+  const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'annual'>('monthly');
+  const [mobileNumber, setMobileNumber] = useState('');
+  const [state, setState] = useState('');
+  const [switchingPlan, setSwitchingPlan] = useState(false);
+
+  // Trial Modal states
   const [trialDialogOpen, setTrialDialogOpen] = useState(false);
   const [trialReason, setTrialReason] = useState('');
   const [trialForm, setTrialForm] = useState({
@@ -36,10 +45,9 @@ export default function UpgradePage() {
   const loadPlans = async () => {
     try {
       const data = await fetchSaasPlans();
-      // Filter out the free tier from upgrade options
-      setPlans(data.filter(plan => plan.id !== 'baseline-free-tier'));
+      const filteredPlans = data.filter(plan => plan.id !== 'baseline-free-tier');
+      setPlans(filteredPlans);
       
-      // Get current plan from school data
       const schoolRes = await fetch('/api/admin/school');
       if (schoolRes.ok) {
         const schoolData = await schoolRes.json();
@@ -52,27 +60,39 @@ export default function UpgradePage() {
     }
   };
 
-  const handleSwitchPlan = async (planId: string) => {
-    setSwitchingPlan(planId);
+  const selectedPlan = plans.find(p => p.id === selectedPlanId);
+  
+  // Price computation matching standard tier structures
+  const basePricePerMonth = selectedPlan?.priceMonthly || 0;
+  const baseAmount = billingPeriod === 'monthly' 
+    ? basePricePerMonth 
+    : Math.round(basePricePerMonth * 12 * 0.83); // ~17% off applied natively for annual
+
+  const gst = Math.round(baseAmount * 0.18);
+  const total = Math.round(baseAmount + gst);
+
+  const handlePayment = async () => {
+    if (!mobileNumber.trim() || !state.trim()) {
+      toast.error('Please fill in your Contact details and State');
+      return;
+    }
+
+    setSwitchingPlan(true);
     try {
-      await switchPlan(planId);
-      toast.success('Plan switched successfully');
-      setCurrentPlanId(planId);
-      await loadPlans();
+      await switchPlan(selectedPlanId!);
+      toast.success('Plan upgraded successfully');
+      setCurrentPlanId(selectedPlanId);
+      setSelectedPlanId(null); // Close segment screen
     } catch (error: any) {
       toast.error(error.message || 'Failed to switch plan');
     } finally {
-      setSwitchingPlan(null);
+      setSwitchingPlan(false);
     }
   };
 
   const handleTrialSubmit = async () => {
-    if (!trialReason.trim()) {
-      toast.error('Please provide a reason for the trial');
-      return;
-    }
-    if (!trialForm.instituteName.trim() || !trialForm.contactNo.trim() || !trialForm.email.trim() || !trialForm.planId.trim()) {
-      toast.error('Please fill in all required fields');
+    if (!trialReason.trim() || !trialForm.instituteName.trim() || !trialForm.contactNo.trim() || !trialForm.email.trim() || !trialForm.planId.trim()) {
+      toast.error('Please complete all mandatory trial fields');
       return;
     }
 
@@ -85,299 +105,271 @@ export default function UpgradePage() {
         email: trialForm.email,
         planId: trialForm.planId,
       });
-      toast.success('Trial request submitted successfully');
+      toast.success('Trial registration submitted successfully');
       setTrialDialogOpen(false);
       setTrialReason('');
       setTrialForm({ instituteName: '', contactNo: '', email: '', planId: '' });
     } catch (error: any) {
-      toast.error(error.message || 'Failed to submit trial request');
+      toast.error(error.message || 'Failed to register trial context');
     } finally {
       setSubmittingTrial(false);
     }
   };
 
+  const getPlanStyles = (index: number) => {
+    switch (index) {
+      case 0:
+        return { border: 'border-slate-200 dark:border-slate-800', btn: 'bg-slate-900 hover:bg-slate-800 text-white', icon: <Zap className="h-5 w-5 text-amber-500" /> };
+      case 1:
+        return { border: 'border-purple-500 dark:border-purple-600 ring-2 ring-purple-500/20', btn: 'bg-purple-600 hover:bg-purple-700 text-white', icon: <Rocket className="h-5 w-5 text-white" /> };
+      default:
+        return { border: 'border-amber-400 dark:border-amber-600', btn: 'bg-amber-500 hover:bg-amber-600 text-white', icon: <Crown className="h-5 w-5 text-amber-600" /> };
+    }
+  };
+
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600" />
+      <div className="flex items-center justify-center min-h-screen bg-slate-50 dark:bg-slate-950">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-indigo-50/20 to-violet-50/20 dark:from-slate-950 dark:via-indigo-950/20 dark:to-violet-950/20">
-      <div className="container mx-auto px-4 py-8">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          className="max-w-6xl mx-auto"
-        >
-          <div className="text-center mb-12">
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ delay: 0.2 }}
-              className="inline-flex items-center gap-2 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 px-4 py-2 rounded-full text-sm font-medium mb-4"
-            >
-              <Sparkles className="h-4 w-4" />
-              Upgrade Your Plan
-            </motion.div>
-            <h1 className="text-4xl font-bold text-slate-900 dark:text-white mb-4">
-              Choose the Perfect Plan for Your School
-            </h1>
-            <p className="text-lg text-slate-600 dark:text-slate-400 max-w-2xl mx-auto">
-              Scale your timetable management with flexible pricing plans designed for institutions of all sizes
-            </p>
-          </div>
+    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-indigo-50/30 dark:from-slate-950 dark:to-indigo-950/10 py-12 px-4 transition-all duration-300">
+      <div className="max-w-6xl mx-auto">
+        
+        {/* Main Header matching image_49a079.jpg */}
+        <div className="text-center mb-16">
+          <Badge className="bg-indigo-100 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300 border-none px-4 py-1.5 rounded-full mb-4 text-sm font-medium">
+            <Sparkles className="h-3.5 w-3.5 mr-1 inline" /> Upgrade Your Plan
+          </Badge>
+          <h1 className="text-4xl md:text-5xl font-extrabold text-slate-900 dark:text-white tracking-tight mb-4">
+            Choose the Perfect Plan for Your School
+          </h1>
+          <p className="text-slate-600 dark:text-slate-400 text-lg max-w-2xl mx-auto">
+Scale your timetable management with plans for any school size.          </p>
+        </div>
 
-          {/* Current Plan Banner */}
-          {currentPlanId && (() => {
-            const currentPlan = plans.find(p => p.id === currentPlanId);
-            if (!currentPlan) return null;
+        {/* 3-Card Layout Structure */}
+        <div className="grid md:grid-cols-3 gap-8 items-stretch mb-12">
+          {plans.map((plan, index) => {
+            const style = getPlanStyles(index);
+            const isPopular = index === 1;
+
             return (
               <motion.div
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.3 }}
-                className="mb-8"
+                key={plan.id}
+                whileHover={{ y: -6, scale: 1.01 }}
+                transition={{ type: 'spring', stiffness: 300 }}
+                className={`relative bg-white dark:bg-slate-900 rounded-2xl p-8 flex flex-col justify-between shadow-sm border ${style.border}`}
               >
-                <Card className="bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950/20 dark:to-teal-950/20 border-emerald-200 dark:border-emerald-800">
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-4">
-                        <div className="p-3 bg-emerald-100 dark:bg-emerald-900/30 rounded-full">
-                          <CheckCircle2 className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
-                        </div>
-                        <div>
-                          <p className="text-sm text-emerald-700 dark:text-emerald-300 font-medium">Current Plan</p>
-                          <h3 className="text-xl font-bold text-slate-900 dark:text-white">{currentPlan.name}</h3>
-                          <p className="text-sm text-slate-600 dark:text-slate-400">
-                            ₹{currentPlan.priceMonthly}/month • Up to {currentPlan.teacherMax} teachers
-                          </p>
-                        </div>
-                      </div>
-                      <Badge className="bg-emerald-600 text-white px-3 py-1">
-                        Active
-                      </Badge>
-                    </div>
-                  </CardContent>
-                </Card>
+                {isPopular && (
+                  <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-purple-600 text-white text-xs font-bold px-4 py-1 rounded-full uppercase tracking-wider">
+                    Most Popular
+                  </span>
+                )}
+
+                <div>
+                  <div className="flex items-center gap-2 mb-4">
+                    {style.icon}
+                    <h3 className="text-2xl font-bold text-slate-900 dark:text-white">{plan.name}</h3>
+                  </div>
+
+                  <div className="flex items-baseline gap-1 mb-2">
+                    <span className="text-4xl font-extrabold text-slate-900 dark:text-white">₹{plan.priceMonthly}</span>
+                    <span className="text-slate-500 dark:text-slate-400">/month</span>
+                  </div>
+                  <p className="text-slate-500 dark:text-slate-400 text-sm mb-6">
+                    {index === 0 ? 'Ideal for growing institutions' : index === 1 ? 'Ideal for growing institutions' : 'For large schools and districts'}
+                  </p>
+
+                  <hr className="border-slate-100 dark:border-slate-800 my-4" />
+
+                  <ul className="space-y-4 mb-8">
+                    <li className="flex items-start gap-3 text-sm text-slate-600 dark:text-slate-300">
+                      <Check className="h-5 w-5 text-emerald-500 shrink-0" />
+                      <span>Up to <strong className="text-slate-900 dark:text-white">{plan.teacherMax} teachers</strong></span>
+                    </li>
+                    <li className="flex items-start gap-3 text-sm text-slate-600 dark:text-slate-300">
+                      <Check className="h-5 w-5 text-emerald-500 shrink-0" />
+                      <span>Unlimited timetable slots</span>
+                    </li>
+                    <li className="flex items-start gap-3 text-sm text-slate-600 dark:text-slate-300">
+                      <Check className="h-5 w-5 text-emerald-500 shrink-0" />
+                      <span>CSV bulk import</span>
+                    </li>
+                    <li className="flex items-start gap-3 text-sm text-slate-600 dark:text-slate-300">
+                      <Check className="h-5 w-5 text-emerald-500 shrink-0" />
+                      <span>Priority support</span>
+                    </li>
+                  </ul>
+                </div>
+
+                <Button
+                  onClick={() => setSelectedPlanId(plan.id)}
+                  className={`w-full py-6 font-semibold rounded-xl text-base flex items-center justify-center gap-2 transition-all ${style.btn}`}
+                >
+                  Switch to {plan.name} <ChevronRight className="h-4 w-4" />
+                </Button>
               </motion.div>
             );
-          })()}
+          })}
+        </div>
 
-          <div className="grid md:grid-cols-3 gap-6 mb-8">
-            {plans.map((plan, index) => {
-              const isCurrentPlan = plan.id === currentPlanId;
-              const isPopular = index === 1;
-
-              return (
-                <motion.div
-                  key={plan.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.1 }}
-                  className="relative"
-                >
-                  {isPopular && (
-                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 z-10">
-                      <Badge className="bg-gradient-to-r from-indigo-600 to-violet-600 text-white px-3 py-1 text-xs font-bold shadow-lg shadow-indigo-500/30">
-                        Most Popular
-                      </Badge>
-                    </div>
-                  )}
-                  <Card
-                    className={`h-full transition-all duration-300 hover:shadow-2xl ${
-                      isCurrentPlan
-                        ? 'border-indigo-500 shadow-lg shadow-indigo-500/20'
-                        : index === 2
-                        ? 'border-amber-400 shadow-lg shadow-amber-400/30 bg-gradient-to-b from-amber-50/50 to-white dark:from-amber-950/20 dark:to-slate-950'
-                        : isPopular
-                        ? 'border-violet-500 shadow-lg shadow-violet-500/20'
-                        : 'border-slate-200 dark:border-slate-800'
-                    }`}
-                  >
-                    <CardHeader className="pb-4">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                          {index === 0 && <Zap className="h-5 w-5 text-amber-500" />}
-                          {index === 1 && <Rocket className="h-5 w-5 text-violet-500" />}
-                          {index === 2 && <Crown className="h-5 w-5 text-amber-500" />}
-                          <CardTitle className="text-xl">{plan.name}</CardTitle>
-                        </div>
-                        {isCurrentPlan && (
-                          <Badge variant="secondary" className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300">
-                            Current
-                          </Badge>
-                        )}
-                      </div>
-                      <div className="flex items-baseline gap-1">
-                        <span className="text-4xl font-bold text-slate-900 dark:text-white">
-                          ₹{plan.priceMonthly}
-                        </span>
-                        <span className="text-slate-600 dark:text-slate-400">/month</span>
-                      </div>
-                      <CardDescription className="text-sm">
-                        {plan.teacherMin === 0 && plan.teacherMax === 15
-                          ? 'Perfect for small schools getting started'
-                          : plan.teacherMax <= 50
-                          ? 'Ideal for growing institutions'
-                          : 'For large schools and districts'}
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div className="space-y-3">
-                        <div className="flex items-center gap-2 text-sm">
-                          <Check className="h-4 w-4 text-green-500 flex-shrink-0" />
-                          <span className="text-slate-700 dark:text-slate-300">
-                            Up to <strong>{plan.teacherMax}</strong> teachers
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2 text-sm">
-                          <Check className="h-4 w-4 text-green-500 flex-shrink-0" />
-                          <span className="text-slate-700 dark:text-slate-300">
-                            Unlimited timetable slots
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2 text-sm">
-                          <Check className="h-4 w-4 text-green-500 flex-shrink-0" />
-                          <span className="text-slate-700 dark:text-slate-300">
-                            CSV bulk import
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2 text-sm">
-                          <Check className="h-4 w-4 text-green-500 flex-shrink-0" />
-                          <span className="text-slate-700 dark:text-slate-300">
-                            Priority support
-                          </span>
-                        </div>
-                      </div>
-
-                      {isCurrentPlan ? (
-                        <Button
-                          disabled
-                          className="w-full bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 cursor-not-allowed"
-                        >
-                          Current Plan
-                        </Button>
-                      ) : (
-                        <Button
-                          onClick={() => handleSwitchPlan(plan.id)}
-                          disabled={switchingPlan === plan.id}
-                          className={`w-full ${
-                            index === 2
-                              ? 'bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-600 hover:to-yellow-600 text-white shadow-lg shadow-amber-500/30'
-                              : isPopular
-                              ? 'bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700'
-                              : 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-100'
-                          }`}
-                        >
-                          {switchingPlan === plan.id ? (
-                            'Switching...'
-                          ) : (
-                            <>
-                              Switch to {plan.name}
-                              <ArrowRight className="h-4 w-4 ml-2" />
-                            </>
-                          )}
-                        </Button>
-                      )}
-                    </CardContent>
-                  </Card>
-                </motion.div>
-              );
-            })}
-          </div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4 }}
-            className="text-center"
-          >
-            <Dialog open={trialDialogOpen} onOpenChange={setTrialDialogOpen}>
-              <DialogTrigger asChild>
-                <Button variant="outline" size="lg" className="gap-2">
-                  <Sparkles className="h-4 w-4" />
-                  Request 7-Day Free Trial
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Request Free Trial</DialogTitle>
-                  <DialogDescription>
-                    Fill in your details to request a 7-day free trial. We'll review your request and get back to you within 24 hours.
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4 py-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="instituteName">Institute Name *</Label>
-                    <Input
-                      id="instituteName"
-                      placeholder="Your institute name"
-                      value={trialForm.instituteName}
-                      onChange={(e) => setTrialForm({ ...trialForm, instituteName: e.target.value })}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="contactNo">Contact Number *</Label>
-                    <Input
-                      id="contactNo"
-                      type="tel"
-                      placeholder="+91 9876543210"
-                      value={trialForm.contactNo}
-                      onChange={(e) => setTrialForm({ ...trialForm, contactNo: e.target.value })}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="email">Email *</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      placeholder="your@email.com"
-                      value={trialForm.email}
-                      onChange={(e) => setTrialForm({ ...trialForm, email: e.target.value })}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="planId">Select Plan *</Label>
-                    <select
-                      id="planId"
-                      value={trialForm.planId}
-                      onChange={(e) => setTrialForm({ ...trialForm, planId: e.target.value })}
-                      className="w-full px-3 py-2 border border-border rounded-md bg-background"
-                    >
-                      <option value="">Choose a plan...</option>
-                      {plans.filter(plan => plan.id !== 'baseline-free-tier').map((plan) => (
-                        <option key={plan.id} value={plan.id}>
-                          {plan.name} - ₹{plan.priceMonthly}/month ({plan.teacherMin}-{plan.teacherMax} teachers)
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="reason">Reason for trial *</Label>
-                    <Textarea
-                      id="reason"
-                      placeholder="Describe your use case and why you need a trial..."
-                      value={trialReason}
-                      onChange={(e) => setTrialReason(e.target.value)}
-                      rows={3}
-                    />
-                  </div>
-                  <Button
-                    onClick={handleTrialSubmit}
-                    disabled={submittingTrial || !trialReason.trim() || !trialForm.instituteName.trim() || !trialForm.contactNo.trim() || !trialForm.email.trim() || !trialForm.planId.trim()}
-                    className="w-full"
-                  >
-                    {submittingTrial ? 'Submitting...' : 'Submit Request'}
-                  </Button>
+        {/* Free Trial Button Footer */}
+        <div className="flex justify-center items-center mt-8">
+          <Dialog open={trialDialogOpen} onOpenChange={setTrialDialogOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" className="border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 gap-2 px-6 py-5 rounded-xl shadow-sm hover:bg-slate-50">
+                <Sparkles className="h-4 w-4 text-slate-600 dark:text-slate-400" />
+                Request 7-Day Free Trial
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle>Request Free Trial</DialogTitle>
+                <DialogDescription>Fill in details below to test plan functionalities.</DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-2">
+                <div className="space-y-1"><Label>Institute Name *</Label><Input placeholder="Your school" value={trialForm.instituteName} onChange={e => setTrialForm({...trialForm, instituteName: e.target.value})} /></div>
+                <div className="space-y-1"><Label>Contact Number *</Label><Input type="tel" placeholder="+91" value={trialForm.contactNo} onChange={e => setTrialForm({...trialForm, contactNo: e.target.value})} /></div>
+                <div className="space-y-1"><Label>Email *</Label><Input type="email" placeholder="email@school.com" value={trialForm.email} onChange={e => setTrialForm({...trialForm, email: e.target.value})} /></div>
+                <div className="space-y-1">
+                  <Label>Select Target Plan *</Label>
+                  <select className="w-full px-3 py-2 border rounded-md bg-background" value={trialForm.planId} onChange={e => setTrialForm({...trialForm, planId: e.target.value})}>
+                    <option value="">Choose your plan tier...</option>
+                    {plans.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
                 </div>
-              </DialogContent>
-            </Dialog>
-          </motion.div>
-        </motion.div>
+                <div className="space-y-1"><Label>Reason for trial *</Label><Textarea placeholder="Describe requirements..." rows={3} value={trialReason} onChange={e => setTrialReason(e.target.value)} /></div>
+                <Button onClick={handleTrialSubmit} disabled={submittingTrial} className="w-full bg-purple-600 hover:bg-purple-700 text-white mt-2">Submit Trial Claim</Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
+
+        {/* Animated Pop-Up Overlay with Backdrop Blur */}
+        <AnimatePresence>
+          {selectedPlanId && selectedPlan && (
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 bg-slate-950/40 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto"
+            >
+              <motion.div 
+                initial={{ scale: 0.93, y: 15, opacity: 0 }}
+                animate={{ scale: 1, y: 0, opacity: 1 }}
+                exit={{ scale: 0.93, y: 15, opacity: 0 }}
+                transition={{ type: 'spring', damping: 25, stiffness: 350 }}
+                className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-4xl shadow-2xl relative overflow-hidden grid md:grid-cols-12"
+              >
+                {/* Close Button Trigger */}
+                <button 
+                  onClick={() => setSelectedPlanId(null)}
+                  className="absolute top-4 right-4 z-10 p-2 rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 transition-colors"
+                >
+                  <X className="h-4 w-4 text-slate-700 dark:text-slate-300" />
+                </button>
+
+                {/* Left Area Segment - Popped/Increased Active Card view */}
+                <div className="md:col-span-7 p-8 md:p-10 bg-slate-50/50 dark:bg-slate-900/50 flex flex-col justify-between border-b md:border-b-0 md:border-r border-slate-100 dark:border-slate-800">
+                  <div>
+                    <div className="flex items-center gap-2 mb-4">
+                      {getPlanStyles(plans.findIndex(p => p.id === selectedPlanId)).icon}
+                      <Badge variant="outline" className="text-purple-600 dark:text-purple-400 border-purple-200 dark:border-purple-900/50">Selected Plan</Badge>
+                    </div>
+                    
+                    <h2 className="text-3xl font-extrabold text-slate-900 dark:text-white mb-2">{selectedPlan.name}</h2>
+                    <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">Full institutional core breakdown module and allocations list</p>
+
+                    <div className="space-y-4 mb-8">
+                      <div className="flex items-center gap-3 p-3 bg-white dark:bg-slate-950 rounded-xl border border-slate-100 dark:border-slate-800">
+                        <CheckCircle2 className="h-5 w-5 text-purple-600 shrink-0" />
+                        <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Up to {selectedPlan.teacherMax} registered teacher slots</span>
+                      </div>
+                      <div className="flex items-center gap-3 p-3 bg-white dark:bg-slate-950 rounded-xl border border-slate-100 dark:border-slate-800">
+                        <CheckCircle2 className="h-5 w-5 text-purple-600 shrink-0" />
+                        <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Unlimited structural configurations saved live</span>
+                      </div>
+                      <div className="flex items-center gap-3 p-3 bg-white dark:bg-slate-950 rounded-xl border border-slate-100 dark:border-slate-800">
+                        <CheckCircle2 className="h-5 w-5 text-purple-600 shrink-0" />
+                        <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Full CSV/XLSX custom exports & imports system</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Monthly / Yearly Switch segment inside left panel bottom */}
+                  <div className="bg-white dark:bg-slate-950 p-2 rounded-2xl border border-slate-200 dark:border-slate-800 flex gap-2 mt-4">
+                    <button
+                      onClick={() => setBillingPeriod('monthly')}
+                      className={`flex-1 py-3 text-sm font-semibold rounded-xl transition-all ${billingPeriod === 'monthly' ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 shadow-md' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50'}`}
+                    >
+                      Monthly
+                    </button>
+                    <button
+                      onClick={() => setBillingPeriod('annual')}
+                      className={`flex-1 py-3 text-sm font-semibold rounded-xl transition-all relative ${billingPeriod === 'annual' ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 shadow-md' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50'}`}
+                    >
+                      Annual
+                      <span className="absolute -top-2 -right-1 bg-emerald-500 text-white text-[10px] px-2 py-0.5 rounded-full font-bold">Save 17%</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Right Area Segment - Payment & Taxes breakdown */}
+                <div className="md:col-span-5 p-8 md:p-10 flex flex-col justify-between bg-white dark:bg-slate-900">
+                  <div className="space-y-6">
+                    <h3 className="text-xl font-bold text-slate-900 dark:text-white">Payment Details</h3>
+                    
+                    {/* Invoice math items */}
+                    <div className="space-y-3 bg-slate-50 dark:bg-slate-950 p-4 rounded-2xl border border-slate-100 dark:border-slate-800">
+                      <div className="flex justify-between text-sm text-slate-600 dark:text-slate-400">
+                        <span>Base Price ({billingPeriod})</span>
+                        <span className="font-medium text-slate-900 dark:text-white">₹{baseAmount}</span>
+                      </div>
+                      <div className="flex justify-between text-sm text-slate-600 dark:text-slate-400">
+                        <span>GST Tax (18%)</span>
+                        <span className="font-medium text-slate-900 dark:text-white">₹{gst}</span>
+                      </div>
+                      <hr className="border-slate-200 dark:border-slate-800 my-2" />
+                      <div className="flex justify-between items-baseline">
+                        <span className="text-base font-bold text-slate-900 dark:text-white">Total Amount</span>
+                        <span className="text-2xl font-extrabold text-purple-600 dark:text-purple-400">₹{total}</span>
+                      </div>
+                    </div>
+
+                    {/* Form requirements input */}
+                    <div className="space-y-4">
+                      <div className="space-y-1.5">
+                        <Label htmlFor="checkoutPhone" className="text-xs font-semibold uppercase tracking-wider text-slate-500">Mobile Number *</Label>
+                        <Input id="checkoutPhone" type="tel" placeholder="+91 98765-43210" value={mobileNumber} onChange={e => setMobileNumber(e.target.value)} className="rounded-xl py-5" />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="checkoutState" className="text-xs font-semibold uppercase tracking-wider text-slate-500">State *</Label>
+                        <Input id="checkoutState" placeholder="e.g. Maharashtra" value={state} onChange={e => setState(e.target.value)} className="rounded-xl py-5" />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-8">
+                    <Button
+                      onClick={handlePayment}
+                      disabled={switchingPlan || !mobileNumber.trim() || !state.trim()}
+                      className="w-full py-6 font-bold text-base rounded-xl bg-purple-600 hover:bg-purple-700 text-white shadow-lg shadow-purple-600/20 transition-all flex items-center justify-center gap-2"
+                    >
+                      {switchingPlan ? 'Deploying Gateway...' : `Pay & Activate Plan`}
+                    </Button>
+                    <p className="text-[11px] text-center text-slate-400 dark:text-slate-500 mt-3">By activating, your dynamic core configurations automatically scale.</p>
+                  </div>
+                </div>
+
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
       </div>
     </div>
   );

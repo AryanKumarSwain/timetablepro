@@ -17,7 +17,7 @@ import { GlassCard } from '@/components/enterprise/glass-card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, Filter } from 'lucide-react';
+import { ArrowLeft, Filter, AlertTriangle } from 'lucide-react';
 import { cn, isTeacherActive } from '@/lib/utils';
 import {
   TimetableGrid,
@@ -364,12 +364,51 @@ export default function TimetableEditPage() {
     ? detail?.periods.find((p) => p.id === editCell.periodId)?.label ?? ''
     : '';
 
+  const missingData = useMemo(() => {
+    if (!detail) return null;
+    const missing = [];
+    if (detail.subjects.length === 0) missing.push('Subjects');
+    if (detail.teachers.length === 0) missing.push('Teachers');
+    if (detail.classes.length === 0) missing.push('Classes');
+    return missing.length > 0 ? missing : null;
+  }, [detail]);
+
   if (loading || !detail) {
     return <div className='max-w-[1600px] mx-auto'><PageSkeleton /></div>;
   }
 
   return (
-    <div className='max-w-[1600px] mx-auto space-y-6 px-4 py-2'>
+    <div className='max-w-[1600px] mx-auto space-y-6 px-4 py-2 relative'>
+      {missingData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/60 backdrop-blur-sm">
+          <GlassCard className="p-8 max-w-md text-center space-y-4">
+            <AlertTriangle className="h-12 w-12 mx-auto text-amber-500" />
+            <h2 className="text-xl font-bold text-foreground">Required Data Missing</h2>
+            <p className="text-muted-foreground">
+              Please add the following before creating a timetable:
+            </p>
+            <div className="flex flex-wrap justify-center gap-2">
+              {missingData.map((item) => (
+                <span key={item} className="px-3 py-1 bg-amber-500/10 text-amber-600 rounded-full text-sm font-medium">
+                  {item}
+                </span>
+              ))}
+            </div>
+            <div className="pt-4 space-y-2">
+              <Link href="/admin/masters/subjects">
+                <Button className="w-full rounded-xl">Add Subjects</Button>
+              </Link>
+              <Link href="/admin/masters/teachers">
+                <Button variant="outline" className="w-full rounded-xl">Add Teachers</Button>
+              </Link>
+              <Link href="/admin/masters/classes">
+                <Button variant="outline" className="w-full rounded-xl">Add Classes</Button>
+              </Link>
+            </div>
+          </GlassCard>
+        </div>
+      )}
+
       <GlassCard className="p-5">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div className="flex items-center gap-3">

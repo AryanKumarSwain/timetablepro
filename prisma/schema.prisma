@@ -48,6 +48,8 @@ model School {
   dailyReports            DailyReport[]
   timetables              Timetable[]
   timetableSlots          TimetableSlot[]
+  homework                Homework[]
+  leaveRequests           SchoolLeaveRequest[]
 }
 
 enum LicenseStatus {
@@ -155,8 +157,8 @@ model VerificationToken {
 
 model Teacher {
   id                   String                  @id @default(uuid())
-  schoolId             String
-  school               School                  @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  schoolId             String?
+  school               School?                 @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   userId               String?                 @unique
   user                 User?                   @relation(fields: [userId], references: [id], onDelete: SetNull)
   name                 String
@@ -168,12 +170,15 @@ model Teacher {
   joinDate             String
   maxPeriodsPerWeek    Int                     @default(24)
   subjectSpecialtyId   String?
+  leaveRequestStatus   LeaveRequestStatus      @default(NONE)
   weeklySlots          WeeklyTimetableSlot[]
   timetableSlots       TimetableSlot[]
   dailyReports         DailyReport[]
   attendanceRecords    TeacherAttendance[]
   absentCoverRequests  ReplacementAssignment[] @relation("OriginalTeacher")
   fulfilledCoverDuties ReplacementAssignment[] @relation("ReplacementTeacher")
+  homework             Homework[]
+  leaveRequests        SchoolLeaveRequest[]
 
   @@index([schoolId])
 }
@@ -202,6 +207,7 @@ model ClassRoom {
   weeklySlots    WeeklyTimetableSlot[]
   reportEntries  ReportEntry[]
   timetableSlots TimetableSlot[]
+  homework       Homework[]
 
   @@index([schoolId])
 }
@@ -323,6 +329,13 @@ enum RequestStatus {
   REJECTED
 }
 
+enum LeaveRequestStatus {
+  NONE
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 model DailyReport {
   id          String            @id @default(cuid())
   teacherId   String
@@ -399,4 +412,46 @@ model TimetableSlot {
   @@unique([timetableId, dayOfWeek, periodId, classId])
   @@index([timetableId])
   @@index([schoolId])
+}
+
+enum HomeworkStatus {
+  DRAFT
+  SENT_TO_ADMIN
+}
+
+model Homework {
+  id          String         @id @default(uuid())
+  schoolId    String
+  school      School         @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  teacherId   String
+  teacher     Teacher        @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  classId     String
+  class       ClassRoom      @relation(fields: [classId], references: [id], onDelete: Cascade)
+  title       String
+  description String         @db.Text
+  status      HomeworkStatus @default(DRAFT)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@index([schoolId])
+  @@index([teacherId])
+  @@index([classId])
+  @@index([status])
+}
+
+model SchoolLeaveRequest {
+  id          String            @id @default(uuid())
+  teacherId   String
+  teacher     Teacher           @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  schoolId    String
+  school      School            @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  status      LeaveRequestStatus @default(PENDING)
+  requestedAt DateTime          @default(now())
+  reviewedAt  DateTime?
+  reviewedBy  String?
+  reason      String?           @db.Text
+
+  @@index([schoolId])
+  @@index([teacherId])
+  @@index([status])
 }

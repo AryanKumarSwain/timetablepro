@@ -7,13 +7,23 @@ import {
   getReportClassesToday,
   submitReport,
   type DailyReportData,
+  getTeacherHomework,
+  createHomework,
+  updateHomework,
+  deleteHomework,
+  type Homework,
+  getClasses,
 } from '@/lib/api-services';
 import { PageHeader } from '@/components/enterprise/page-header';
 import { PageSkeleton } from '@/components/enterprise/page-skeleton';
 import { GlassCard } from '@/components/enterprise/glass-card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Checkbox } from '@/components/ui/checkbox';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { BookOpen, Plus, Send, Trash2, Edit, AlertCircle } from 'lucide-react';
+import { toast } from 'sonner';
 
 // Helper to separate text from comma-separated items
 function splitDescription(desc = '') {
@@ -26,6 +36,70 @@ function splitDescription(desc = '') {
     description: desc.slice(0, idx),
     tlm: desc.slice(idx + marker.length).trim(),
   };
+}
+
+// Helper to separate homework from description
+function splitHomeworkDescription(desc = '') {
+  const homeworkMarker = '\n\nHomework:';
+  const tlmMarker = '\n\nTLM:';
+  
+  let description = desc;
+  let tlm = '';
+  let homework = '';
+  
+  // Extract TLM first
+  const tlmIdx = desc.indexOf(tlmMarker);
+  if (tlmIdx !== -1) {
+    const homeworkIdx = desc.indexOf(homeworkMarker);
+    if (homeworkIdx !== -1 && homeworkIdx > tlmIdx) {
+      // Both exist, homework comes after TLM
+      tlm = desc.slice(tlmIdx + tlmMarker.length, homeworkIdx).trim();
+      homework = desc.slice(homeworkIdx + homeworkMarker.length).trim();
+      description = desc.slice(0, tlmIdx);
+    } else if (homeworkIdx !== -1 && homeworkIdx < tlmIdx) {
+      // Both exist, TLM comes after homework
+      homework = desc.slice(homeworkIdx + homeworkMarker.length, tlmIdx).trim();
+      tlm = desc.slice(tlmIdx + tlmMarker.length).trim();
+      description = desc.slice(0, homeworkIdx);
+    } else {
+      // Only TLM exists
+      tlm = desc.slice(tlmIdx + tlmMarker.length).trim();
+      description = desc.slice(0, tlmIdx);
+    }
+  } else {
+    // No TLM, check for homework
+    const homeworkIdx = desc.indexOf(homeworkMarker);
+    if (homeworkIdx !== -1) {
+      homework = desc.slice(homeworkIdx + homeworkMarker.length).trim();
+      description = desc.slice(0, homeworkIdx);
+    }
+  }
+  
+  return { description, tlm, homework };
+}
+
+// Color palette for teachers/subjects
+const TEACHER_COLORS = [
+  'bg-[#6366f1]', // indigo
+  'bg-[#8b5cf6]', // violet
+  'bg-[#ec4899]', // pink
+  'bg-[#f43f5e]', // rose
+  'bg-[#f97316]', // orange
+  'bg-[#eab308]', // yellow
+  'bg-[#22c55e]', // green
+  'bg-[#14b8a6]', // teal
+  'bg-[#06b6d4]', // cyan
+  'bg-[#3b82f6]', // blue
+];
+
+// Generate consistent color based on string
+function getColorFromString(str: string): string {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const index = Math.abs(hash) % TEACHER_COLORS.length;
+  return TEACHER_COLORS[index];
 }
 
 // Tag/Pill Input UI Component matching layout requirements
@@ -95,6 +169,7 @@ function TagInput({ tags = [], onChange, readOnly, placeholder = "Add item..." }
 export default function TeacherReportsPage() {
   const auth = useRequireAuth('teacher');
   const [loading, setLoading] = useState(true);
+  const [hasSchoolAssignment, setHasSchoolAssignment] = useState(true);
   const [report, setReport] = useState<DailyReportData | null>(null);
   const [rows, setRows] = useState<Array<{
     entryId?: string;
@@ -102,8 +177,10 @@ export default function TeacherReportsPage() {
     className: string;
     subjectId: string;
     subjectName: string;
+    teacherName?: string;
     description: string;
     tlm: string[];
+    homework: string;
     periodNumber: string | number;
     startTime: string;
     endTime: string;
@@ -117,6 +194,12 @@ export default function TeacherReportsPage() {
 
   useEffect(() => {
     if (!auth.loading && auth.user) {
+      // Check if teacher has school assignment
+      if (!auth.user.schoolId) {
+        setHasSchoolAssignment(false);
+        setLoading(false);
+        return;
+      }
       void load();
     }
   }, [auth.loading, auth.user]);
@@ -145,7 +228,7 @@ export default function TeacherReportsPage() {
             String(e.subjectId) === String(slot.subjectId)
         );
 
-        const { description, tlm } = splitDescription(matchingEntry?.description ?? '');
+        const { description, tlm, homework } = splitHomeworkDescription(matchingEntry?.description ?? '');
 
         return {
           entryId: matchingEntry?.id,
@@ -153,11 +236,13 @@ export default function TeacherReportsPage() {
           className: slot.className || 'N/A',
           subjectId: slot.subjectId,
           subjectName: slot.subjectName || 'N/A',
+          teacherName: auth.user?.name || 'Teacher',
           periodNumber: slot.periodNumber ?? 'N/A',
           startTime: slot.startTime ?? '',
           endTime: slot.endTime ?? '',
           description,
           tlm: tlm ? tlm.split(',').map(t => t.trim()).filter(Boolean) : [],
+          homework,
           isCompleted: matchingEntry?.isCompleted ?? false,
         };
       }).sort((a, b) => String(a.periodNumber).localeCompare(String(b.periodNumber), undefined, { numeric: true }));
@@ -178,7 +263,7 @@ export default function TeacherReportsPage() {
 
   const readOnly = useMemo(() => report?.status === 'SUBMITTED', [report]);
 
-  const updateRow = (idx: number, patch: Partial<{ description: string; tlm: string[]; isCompleted: boolean }>) => {
+  const updateRow = (idx: number, patch: Partial<{ description: string; tlm: string[]; homework: string; isCompleted: boolean }>) => {
     setRows((prev) => {
       const next = [...prev];
       next[idx] = { ...next[idx], ...patch };
@@ -192,7 +277,7 @@ export default function TeacherReportsPage() {
     if (rows.length === 0) return;
     setSubmitSuccess(null);
 
-    // 1. MANDATORY DESCRIPTION VALIDATION: Ensure every row has text in descriptions
+    // MANDATORY DESCRIPTION VALIDATION: Ensure every row has text in descriptions
     const missingDescriptions = rows.filter(r => !r.description || !r.description.trim());
     if (missingDescriptions.length > 0) {
       setValidationError("Please fill out 'What did you cover today?' for all listed periods before submitting.");
@@ -200,10 +285,10 @@ export default function TeacherReportsPage() {
       return;
     }
 
-    // 2. CHECKBOX VALIDATION: Verify lesson completions
-    const missingConfirmations = rows.filter(r => !r.isCompleted);
-    if (missingConfirmations.length > 0) {
-      setValidationError("Please check 'Lesson completed' for all listed periods before submitting your report.");
+    // MANDATORY HOMEWORK VALIDATION: Ensure every row has homework filled
+    const missingHomework = rows.filter(r => !r.homework || !r.homework.trim());
+    if (missingHomework.length > 0) {
+      setValidationError("Please fill out 'Homework' for all listed periods before submitting.");
       setAttemptedSubmit(true);
       return;
     }
@@ -223,8 +308,8 @@ export default function TeacherReportsPage() {
           periodNumber: Number(r.periodNumber) || r.periodNumber,
           startTime: r.startTime,
           endTime: r.endTime,
-          description: `${r.description.trim()}${tlmString ? `\n\nTLM: ${tlmString}` : ''}`,
-          isCompleted: r.isCompleted,
+          description: `${r.description.trim()}${tlmString ? `\n\nTLM: ${tlmString}` : ''}${r.homework ? `\n\nHomework: ${r.homework}` : ''}`,
+          isCompleted: true, // Always mark as completed since we removed the checkbox
         };
       });
 
@@ -257,6 +342,21 @@ export default function TeacherReportsPage() {
     return (
       <div className='max-w-4xl mx-auto px-4 mt-6'>
         <PageSkeleton rows={4} />
+      </div>
+    );
+  }
+
+  if (!hasSchoolAssignment) {
+    return (
+      <div className='max-w-4xl mx-auto px-4 mt-6'>
+        <PageHeader title="Today's Report" description="Friday, June 5, 2026" />
+        <GlassCard className='p-12 text-center'>
+          <AlertCircle className='h-12 w-12 text-muted-foreground mx-auto mb-4' />
+          <h3 className='text-lg font-semibold mb-2'>No School Assignment</h3>
+          <p className='text-muted-foreground'>
+            You are not currently assigned to any school. Please wait for an administrator to add you or input an invitation code.
+          </p>
+        </GlassCard>
       </div>
     );
   }
@@ -297,7 +397,7 @@ export default function TeacherReportsPage() {
                 <span className='px-2 py-0.5 text-xs bg-secondary text-secondary-foreground border rounded-md font-medium ml-1'>
                   {r.className}
                 </span>
-                <span className='px-2.5 py-0.5 text-xs bg-[#008080] text-white rounded-full font-medium ml-0.5'>
+                <span className={`px-2.5 py-0.5 text-xs text-white rounded-full font-medium ml-0.5 ${getColorFromString(r.teacherName || r.subjectName)}`}>
                   {r.subjectName}
                 </span>
               </div>
@@ -331,17 +431,18 @@ export default function TeacherReportsPage() {
                 </div>
               </div>
 
-              {/* Lesson Completion Checkbox Wrapper */}
-              <div className='flex items-center gap-2 mt-4 pt-1 border-t border-muted/40'>
-                <Checkbox
-                  id={`comp-${i}`}
-                  checked={r.isCompleted}
-                  onCheckedChange={(checked) => updateRow(i, { isCompleted: !!checked })}
-                  disabled={readOnly}
-                />
-                <label htmlFor={`comp-${i}`} className='text-sm font-medium selection:bg-transparent cursor-pointer text-muted-foreground select-none'>
-                  Lesson completed
+              {/* Homework Input */}
+              <div className='mt-4 space-y-1.5'>
+                <label className='text-xs font-semibold text-muted-foreground'>
+                  Homework <span className="text-red-500">*</span>
                 </label>
+                <Textarea
+                  value={r.homework}
+                  onChange={(e) => updateRow(i, { homework: e.target.value })}
+                  readOnly={readOnly}
+                  placeholder="Enter homework assignment (Required)"
+                  className='min-h-[60px] resize-none focus-visible:ring-1'
+                />
               </div>
 
             </GlassCard>

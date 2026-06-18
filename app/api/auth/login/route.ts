@@ -38,6 +38,21 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Check teacher leave request status for teachers
+    if (user.role === 'TEACHER') {
+      const teacher = await prisma.teacher.findFirst({
+        where: { email: user.email },
+      });
+      
+      // Block login if leave request was approved and teacher is detached from school
+      if (teacher && teacher.leaveRequestStatus === 'APPROVED' && !teacher.schoolId) {
+        return NextResponse.json(
+          { error: 'Your leave request was approved. This account has been deactivated. Please sign up or register under your new school.' },
+          { status: 403 }
+        );
+      }
+    }
+
     const session = await getSession();
     session.user = {
       id: user.id,

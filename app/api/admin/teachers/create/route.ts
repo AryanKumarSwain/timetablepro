@@ -31,19 +31,23 @@ export async function POST(request: NextRequest) {
       throw limitError;
     }
 
-    // 1. DUPLICATE CHECK: Prevent identical email profiles within the same system
-    const existingTeacher = await prisma.teacher.findFirst({
-      where: {
-        email,
-        schoolId, // Checks inside your specific school context
-      },
-    });
+    // 1. DUPLICATE / CROSS-TENANT CHECK: Prevent identical email profiles across tenants
+    const existingAny = await prisma.teacher.findFirst({ where: { email } });
+    if (existingAny) {
+      if (existingAny.schoolId && existingAny.schoolId !== schoolId) {
+        return NextResponse.json(
+          { error: 'This teacher already belongs to another school and cannot be created here.' },
+          { status: 409 }
+        );
+      }
 
-    if (existingTeacher) {
-      return NextResponse.json(
-        { error: 'A teacher profile with this email address already exists.' },
-        { status: 400 }
-      );
+      // If it exists within this school, block creation
+      if (existingAny.schoolId === schoolId) {
+        return NextResponse.json(
+          { error: 'A teacher profile with this email address already exists.' },
+          { status: 400 }
+        );
+      }
     }
 
     const requestSubjects = normalizeStringArray(body.subjects);
@@ -95,7 +99,16 @@ export async function POST(request: NextRequest) {
     });
 
     const school = await prisma.school.findUnique({ where: { id: schoolId } });
-    await provisionTeacherUserAccount(teacher, school?.name ?? 'Your School');
+    
+    try {
+      await provisionTeacherUserAccount(teacher, school?.name ?? 'Your School');
+    } catch (provisionError: any) {
+      // Catch security violation errors and return clean 400 response
+      if (provisionError.message && provisionError.message.includes('Security violation')) {
+        return NextResponse.json({ error: provisionError.message }, { status: 400 });
+      }
+      throw provisionError;
+    }
 
     return NextResponse.json(mapTeacher(teacher));
   } catch (error) {

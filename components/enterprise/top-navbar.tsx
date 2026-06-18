@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
   Bell,
   Search,
@@ -49,6 +50,15 @@ interface LiveNotification {
   isRead: boolean;
 }
 
+interface AdminLeaveRequest {
+  id: string;
+  teacherId: string;
+  teacherName: string;
+  teacherEmail: string;
+  requestedAt: string;
+  reason?: string | null;
+}
+
 interface TrialStatus {
   isActive: boolean;
   planName: string | null;
@@ -74,11 +84,14 @@ export function TopNavbar({
   onOpenCommand,
   onLogout,
 }: TopNavbarProps) {
+  const router = useRouter();
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
 
   // Real Notification Stream States Data Tracks
   const [notifications, setNotifications] = useState<LiveNotification[]>([]);
+  const [pendingLeaveRequests, setPendingLeaveRequests] = useState<AdminLeaveRequest[]>([]);
+  const [processingLeaveIds, setProcessingLeaveIds] = useState<string[]>([]);
   const [isComposeOpen, setIsComposeOpen] = useState(false);
   const [composeTitle, setComposeTitle] = useState('');
   const [composeMessage, setComposeMessage] = useState('');
@@ -87,8 +100,9 @@ export function TopNavbar({
   const [trialStatus, setTrialStatus] = useState<TrialStatus>({ isActive: false, planName: null, hoursRemaining: null });
 
   // Formatting strings safely to handle dynamic relational role assertions safely
-  const parsedRole = userRole.toLowerCase().replace('-', '_');
+  const parsedRole = (userRole ?? '').toLowerCase().replace('-', '_');
   const canBroadcast = parsedRole === 'super_admin' || parsedRole === 'admin';
+  const canFetchAdminData = parsedRole === 'admin' && Boolean(userEmail && userRole);
 
   const initials =
     userName?.slice(0, 2).toUpperCase() ||
@@ -108,15 +122,29 @@ export function TopNavbar({
     }
   };
 
+  const syncLeaveRequests = async () => {
+    if (!canFetchAdminData) return;
+    try {
+      const res = await fetch('/api/admin/leave-requests');
+      if (res.ok) {
+        const payload = await res.json();
+        setPendingLeaveRequests(payload.data || []);
+      }
+    } catch (e) {
+      console.error('Failed loading pending leave requests.', e);
+    }
+  };
+
   // Fetch trial status for school admins
   const fetchTrialStatus = async () => {
-    if (parsedRole !== 'admin') return;
+    if (!canFetchAdminData) return;
     try {
       const res = await fetch('/api/admin/school/trial-status');
-      if (res.ok) {
-        const data = await res.json();
-        setTrialStatus(data);
+      const payload = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(payload?.error || `Trial status request failed with status ${res.status}`);
       }
+      setTrialStatus(payload);
     } catch (e) {
       console.error('Failed fetching trial status.', e);
     }
@@ -125,12 +153,15 @@ export function TopNavbar({
   useEffect(() => {
     setMounted(true);
     syncNotifications();
+    syncLeaveRequests();
     fetchTrialStatus();
 
     // Auto-refresh dynamic data blocks every 45 seconds to keep tabs accurate
     const loopTracker = setInterval(syncNotifications, 45000);
+    const leaveRequestTracker = setInterval(syncLeaveRequests, 45000);
     const trialStatusTracker = setInterval(fetchTrialStatus, 60000); // Check trial status every minute
     return () => {
+      clearInterval(leaveRequestTracker);
       clearInterval(loopTracker);
       clearInterval(trialStatusTracker);
     };
@@ -149,6 +180,38 @@ export function TopNavbar({
     } catch (e) {
       console.error(e);
     }
+  };
+
+  const handleLeaveRequestAction = async (id: string, action: 'approve' | 'reject') => {
+    if (processingLeaveIds.includes(id)) return;
+    setProcessingLeaveIds((p) => [...p, id]);
+    try {
+      const res = await fetch(`/api/admin/leave-requests/${id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify({ action }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Unable to update leave request');
+      }
+
+      toast.success(`Leave request ${action === 'approve' ? 'approved' : 'declined'} successfully`);
+      syncLeaveRequests();
+      syncNotifications();
+    } catch (e: any) {
+      toast.error(e.message || 'Failed processing leave request');
+    } finally {
+      setProcessingLeaveIds((p) => p.filter((x) => x !== id));
+    }
+  };
+
+  const handleNavigateToLeaveRequests = () => {
+    router.push('/admin/settings?tab=leave-requests');
   };
 
   const handleBroadcastMessage = async (e: React.FormEvent) => {
@@ -342,6 +405,61 @@ export function TopNavbar({
                 {unreadCount > 0 && <Badge variant="secondary" className="bg-indigo-500/10 text-indigo-500 font-bold border-none text-[10px]">{unreadCount} New</Badge>}
               </div>
               <ScrollArea className="max-h-[320px]">
+                {mounted && parsedRole === 'admin' && pendingLeaveRequests.length > 0 && (
+                  <div className="space-y-2">
+                    {pendingLeaveRequests.map((request) => (
+                      <div key={request.id} className="p-3.5 border-b border-border/40 bg-slate-50 dark:bg-slate-900/80 space-y-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <div>
+                            <p className="text-xs font-semibold text-foreground">Leave Request</p>
+                            <p className="text-[11px] text-muted-foreground">{request.teacherName} · {request.teacherEmail}</p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Badge variant="secondary" className="uppercase text-[10px] font-bold">
+                              Pending
+                            </Badge>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleNavigateToLeaveRequests();
+                              }}
+                              className="rounded-full px-2 py-1 text-[10px] font-semibold"
+                            >
+                              View
+                            </Button>
+                          </div>
+                        </div>
+                        {request.reason ? (
+                          <p className="text-[11px] text-muted-foreground line-clamp-3">{request.reason}</p>
+                        ) : (
+                          <p className="text-[11px] text-muted-foreground">No reason supplied.</p>
+                        )}
+                        <div className="flex items-center justify-between gap-2">
+                          <Button
+                            size="sm"
+                            onClick={() => void handleLeaveRequestAction(request.id, 'approve')}
+                            className="flex-1 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700"
+                            disabled={processingLeaveIds.includes(request.id)}
+                          >
+                            {processingLeaveIds.includes(request.id) ? 'Processing…' : 'Yes'}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => void handleLeaveRequestAction(request.id, 'reject')}
+                            className="flex-1 rounded-xl"
+                            disabled={processingLeaveIds.includes(request.id)}
+                          >
+                            {processingLeaveIds.includes(request.id) ? 'Processing…' : 'No'}
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
                 {mounted && notifications.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-8 px-4 text-center text-muted-foreground">
                     <MailCheck className="h-7 w-7 text-muted-foreground/40 mb-1.5" />
@@ -366,17 +484,11 @@ export function TopNavbar({
                       </div>
                       <div className="flex-1 min-w-0 space-y-0.5">
                         <div className="flex items-center justify-between gap-2">
-                          <p className={cn("text-xs font-semibold truncate", !notif.isRead ? "text-foreground" : "text-muted-foreground")}>
-                            {notif.title}
-                          </p>
+                          <p className={cn("text-xs font-semibold truncate", !notif.isRead ? "text-foreground" : "text-muted-foreground")}>{notif.title}</p>
                           {!notif.isRead && <span className="h-1.5 w-1.5 rounded-full bg-indigo-500 flex-shrink-0" />}
                         </div>
-                        <p className="text-[11px] text-muted-foreground leading-relaxed line-clamp-2">
-                          {notif.message}
-                        </p>
-                        <p className="text-[9px] text-muted-foreground/60 font-medium">
-                          {new Date(notif.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                        </p>
+                        <p className="text-[11px] text-muted-foreground leading-relaxed line-clamp-2">{notif.message}</p>
+                        <p className="text-[9px] text-muted-foreground/60 font-medium">{new Date(notif.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
                       </div>
                     </div>
                   ))

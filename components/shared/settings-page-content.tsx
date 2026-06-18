@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useState, useEffect, type ChangeEvent } from 'react';
+import { motion, AnimatePresence, type Variants } from 'framer-motion';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
@@ -31,34 +32,50 @@ interface UserProfile {
   phone?: string;
   role: string;
   schoolId?: string;
+  leaveRequestStatus?: 'NONE' | 'PENDING' | 'APPROVED' | 'REJECTED';
+}
+
+interface AdminLeaveRequest {
+  id: string;
+  teacherId: string;
+  teacherName: string;
+  teacherEmail: string;
+  requestedAt: string;
+  reason?: string | null;
 }
 
 interface SettingsPageContentProps {
   initialUser: UserProfile | null;
+  activeTab?: string;
 }
 
-const containerVariants = {
+const containerVariants: Variants = {
   hidden: { opacity: 0 },
   show: { opacity: 1, transition: { staggerChildren: 0.08 } }
 };
 
-const cardVariants = {
+const cardVariants: Variants = {
   hidden: { opacity: 0, y: 15 },
   show: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 300, damping: 24 } }
 };
 
-const stepVariants = {
+const stepVariants: Variants = {
   initial: { opacity: 0, x: 20 },
-  animate: { opacity: 1, x: 0, transition: { duration: 0.25, ease: 'easeOut' } },
+  animate: { opacity: 1, x: 0, transition: { duration: 0.25, ease: 'easeOut' as const } },
   exit: { opacity: 0, x: -20, transition: { duration: 0.2 } }
 };
 
-export function SettingsPageContent({ initialUser }: SettingsPageContentProps) {
+export function SettingsPageContent({ initialUser, activeTab }: SettingsPageContentProps) {
   const isTeacher = initialUser?.role?.toLowerCase() === 'teacher';
+  const showLeaveRequestsTab = !isTeacher && activeTab === 'leave-requests';
 
   const [name, setName] = useState(initialUser?.name ?? '');
   const [phone, setPhone] = useState(initialUser?.phone ?? '');
   const [instituteName, setInstituteName] = useState('');
+
+  const [pendingLeaveRequests, setPendingLeaveRequests] = useState<AdminLeaveRequest[]>([]);
+  const [leaveRequestsLoading, setLeaveRequestsLoading] = useState(false);
+  const [leaveRequestActionIds, setLeaveRequestActionIds] = useState<string[]>([]);
 
   // Operation Pendings
   const [profilePending, setProfilePending] = useState(false);
@@ -74,11 +91,15 @@ export function SettingsPageContent({ initialUser }: SettingsPageContentProps) {
   const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [leaveRequestStatus, setLeaveRequestStatus] = useState<'NONE' | 'PENDING' | 'APPROVED' | 'REJECTED'>(initialUser?.leaveRequestStatus ?? 'NONE');
+  const [leaveReason, setLeaveReason] = useState('');
+  const [leaveRequestPending, setLeaveRequestPending] = useState(false);
 
   useEffect(() => {
     if (initialUser) {
       setName(initialUser.name || '');
       setPhone(initialUser.phone || '');
+      setLeaveRequestStatus(initialUser.leaveRequestStatus ?? 'NONE');
     }
   }, [initialUser]);
 
@@ -87,6 +108,18 @@ export function SettingsPageContent({ initialUser }: SettingsPageContentProps) {
       fetchInstituteName();
     }
   }, [initialUser?.schoolId, isTeacher]);
+
+  useEffect(() => {
+    if (!isTeacher) {
+      fetchLeaveRequests();
+    }
+  }, [isTeacher]);
+
+  useEffect(() => {
+    if (showLeaveRequestsTab) {
+      document.getElementById('leave-requests-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [showLeaveRequestsTab]);
 
   const fetchInstituteName = async () => {
     try {
@@ -97,6 +130,52 @@ export function SettingsPageContent({ initialUser }: SettingsPageContentProps) {
       }
     } catch (error) {
       console.error('Failed to fetch institute name:', error);
+    }
+  };
+
+  const fetchLeaveRequests = async () => {
+    setLeaveRequestsLoading(true);
+    try {
+      const res = await fetch('/api/admin/leave-requests');
+      if (res.ok) {
+        const data = await res.json();
+        setPendingLeaveRequests(data.data || []);
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        console.error('Failed to fetch leave requests:', errData);
+      }
+    } catch (error) {
+      console.error('Failed to fetch leave requests:', error);
+    } finally {
+      setLeaveRequestsLoading(false);
+    }
+  };
+
+  const handleLeaveRequestAction = async (id: string, action: 'approve' | 'reject') => {
+    if (leaveRequestActionIds.includes(id)) return;
+    setLeaveRequestActionIds((prev) => [...prev, id]);
+
+    try {
+      const res = await fetch(`/api/admin/leave-requests/${id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify({ action }),
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || 'Unable to process leave request');
+      }
+
+      toast.success(`Leave request ${action === 'approve' ? 'approved' : 'declined'} successfully`);
+      await fetchLeaveRequests();
+    } catch (e: any) {
+      toast.error(e.message || 'Failed processing leave request');
+    } finally {
+      setLeaveRequestActionIds((prev) => prev.filter((leaveId) => leaveId !== id));
     }
   };
 
@@ -133,6 +212,26 @@ export function SettingsPageContent({ initialUser }: SettingsPageContentProps) {
       toast.error(e.message || 'Failed to update institute name');
     } finally {
       setInstitutePending(false);
+    }
+  };
+
+  const handleLeaveRequest = async () => {
+    if (leaveRequestStatus === 'PENDING') {
+      return toast.info('You already have a pending leave request.');
+    }
+
+    setLeaveRequestPending(true);
+    try {
+      await fetchClient('/api/teacher/leave-request', {
+        method: 'POST',
+        body: { reason: leaveReason.trim() || undefined },
+      });
+      setLeaveRequestStatus('PENDING');
+      toast.success('Leave request submitted. Your school admin will review it shortly.');
+    } catch (e: any) {
+      toast.error(e.message || 'Failed submitting leave request');
+    } finally {
+      setLeaveRequestPending(false);
     }
   };
 
@@ -215,40 +314,138 @@ export function SettingsPageContent({ initialUser }: SettingsPageContentProps) {
         </Card>
       </motion.div>
 
-      {/* Institute Name Settings (Admin Only) */}
-      {!isTeacher && (
+      {isTeacher && (
         <motion.div variants={cardVariants}>
           <Card className="border border-border/60 shadow-sm">
             <CardHeader>
               <div className="flex items-center gap-2">
-                <Building2 className="h-4 w-4 text-indigo-500" />
-                <CardTitle className="text-lg font-bold tracking-tight">Institute Settings</CardTitle>
+                <ShieldCheck className="h-4 w-4 text-rose-500" />
+                <CardTitle className="text-lg font-bold tracking-tight">Leave School Request</CardTitle>
               </div>
-              <CardDescription>Update your school or institute name</CardDescription>
+              <CardDescription>
+                Submit a formal leave request so your current school administrator can approve or decline your transfer.
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="space-y-1.5">
-                <Label htmlFor="instituteName" className="text-xs font-bold">Institute Name</Label>
-                <Input
-                  id="instituteName"
-                  value={instituteName}
-                  onChange={(e) => setInstituteName(e.target.value)}
-                  placeholder="E.g., Delhi Public School"
-                  className="rounded-xl border-border/80 text-xs focus-visible:ring-indigo-500"
-                />
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-muted-foreground text-xs uppercase tracking-wide">Current status</span>
+                  <Badge variant={leaveRequestStatus === 'PENDING' ? 'outline' : leaveRequestStatus === 'APPROVED' ? 'secondary' : leaveRequestStatus === 'REJECTED' ? 'destructive' : 'secondary'} className="uppercase text-[10px] font-bold">
+                    {leaveRequestStatus}
+                  </Badge>
+                </div>
+                {leaveRequestStatus === 'PENDING' && (
+                  <p className="text-[11px] text-muted-foreground">Your leave request is being reviewed by the school administrator.</p>
+                )}
+                {leaveRequestStatus === 'REJECTED' && (
+                  <p className="text-[11px] text-muted-foreground">Your prior request was declined. You may submit a new request.</p>
+                )}
+                <div className="space-y-1.5">
+                  <Label htmlFor="leaveReason" className="text-xs font-bold">Reason for leaving (optional)</Label>
+                  <Textarea
+                    id="leaveReason"
+                    value={leaveReason}
+                    onChange={(e) => setLeaveReason(e.target.value)}
+                    placeholder="Provide any notes you want the administrator to review"
+                    className="rounded-xl text-xs focus-visible:ring-indigo-500"
+                    rows={3}
+                  />
+                </div>
               </div>
               <Button
-                onClick={handleInstituteNameSave}
-                disabled={institutePending}
-                className="w-full rounded-xl text-xs font-bold shadow-md bg-indigo-600 hover:bg-indigo-700 text-white flex items-center justify-center gap-2 transition-all"
+                onClick={handleLeaveRequest}
+                disabled={leaveRequestPending || leaveRequestStatus === 'PENDING' || leaveRequestStatus === 'APPROVED'}
+                className="w-full rounded-xl text-xs font-bold shadow-md bg-rose-600 hover:bg-rose-700 text-white flex items-center justify-center gap-2 transition-all"
               >
-                {institutePending && <RefreshCw className="h-3 w-3 animate-spin" />}
-                {institutePending ? 'Updating Institute Name...' : 'Update Institute Name'}
+                {leaveRequestPending ? 'Submitting leave request...' : leaveRequestStatus === 'PENDING' ? 'Leave Request Pending' : leaveRequestStatus === 'APPROVED' ? 'Leave Approved' : 'Request to Leave School'}
               </Button>
             </CardContent>
           </Card>
         </motion.div>
       )}
+
+      {/* Leave Requests Panel (Admin Only) */}
+      {!isTeacher && (
+        <motion.div
+          variants={cardVariants}
+          id="leave-requests-panel"
+          className={showLeaveRequestsTab ? 'rounded-3xl ring-2 ring-indigo-500/30 shadow-xl' : ''}
+        >
+          <Card className="border border-border/60 shadow-sm">
+            <CardHeader>
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className="h-4 w-4 text-indigo-500" />
+                  <div>
+                    <CardTitle className="text-lg font-bold tracking-tight">Leave Requests</CardTitle>
+                    <CardDescription>Review and approve pending teacher leave requests.</CardDescription>
+                  </div>
+                </div>
+                {showLeaveRequestsTab && (
+                  <Badge variant="secondary" className="uppercase text-[10px] font-bold">
+                    Focused tab
+                  </Badge>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {leaveRequestsLoading ? (
+                <div className="rounded-xl border border-border/60 bg-muted/80 p-4 text-center text-sm text-muted-foreground">
+                  Loading pending leave requests…
+                </div>
+              ) : pendingLeaveRequests.length === 0 ? (
+                <div className="rounded-xl border border-border/60 bg-muted/80 p-4 text-center text-sm text-muted-foreground">
+                  No pending leave requests found.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {pendingLeaveRequests.map((request) => {
+                    const isProcessing = leaveRequestActionIds.includes(request.id);
+                    return (
+                      <div key={request.id} className="rounded-2xl border border-border/60 bg-background p-4 shadow-sm">
+                        <div className="flex flex-col gap-2">
+                          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                            <div>
+                              <p className="text-sm font-semibold text-foreground">{request.teacherName}</p>
+                              <p className="text-xs text-muted-foreground">{request.teacherEmail}</p>
+                            </div>
+                            <Badge variant="secondary" className="uppercase text-[10px] font-bold">
+                              Pending
+                            </Badge>
+                          </div>
+                          <p className="text-xs text-muted-foreground">Requested at: {new Date(request.requestedAt).toLocaleString()}</p>
+                          <div className="rounded-xl border border-border/60 bg-muted/20 p-3 text-[12px] text-muted-foreground">
+                            {request.reason || 'No reason supplied.'}
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            <Button
+                              onClick={() => void handleLeaveRequestAction(request.id, 'approve')}
+                              disabled={isProcessing}
+                              className="w-full rounded-xl bg-emerald-600 text-white hover:bg-emerald-700"
+                            >
+                              {isProcessing ? 'Processing…' : 'Yes'}
+                            </Button>
+                            <Button
+                              onClick={() => void handleLeaveRequestAction(request.id, 'reject')}
+                              disabled={isProcessing}
+                              variant="outline"
+                              className="w-full rounded-xl"
+                            >
+                              {isProcessing ? 'Processing…' : 'No'}
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </motion.div>
+      )}
+
+      {/* Institute Name Settings (Admin Only) */}
 
       {/* Edit Profile Info */}
       <motion.div variants={cardVariants}>

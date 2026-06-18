@@ -140,22 +140,26 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(result);
     }
 
-    const subjects = await client.subject.findMany({
+    let subjects = await client.subject.findMany({
       where: schoolWhere(schoolId),
     });
     const subjectByCode = new Map(
       subjects.map((subject) => [subject.code.toUpperCase(), subject])
     );
-    const fallbackSubject = subjects[0];
+    let fallbackSubject = subjects[0];
 
+    // If no subjects exist, create a default "General / Unassigned" subject
     if (!fallbackSubject) {
-      return NextResponse.json(
-        {
-          error:
-            'Import at least one subject before importing teachers.',
+      fallbackSubject = await client.subject.create({
+        data: {
+          id: `subject-${crypto.randomUUID()}`,
+          schoolId,
+          name: 'General / Unassigned',
+          code: 'GEN-01',
         },
-        { status: 400 }
-      );
+      });
+      subjects = [fallbackSubject];
+      subjectByCode.set(fallbackSubject.code.toUpperCase(), fallbackSubject);
     }
 
     const school = await client.school.findUnique({
@@ -237,17 +241,31 @@ export async function POST(request: NextRequest) {
         : [fallbackSubject.id];
 
       try {
-        const duplicate = await client.teacher.findFirst({
-          where: { schoolId, email },
-        });
-        if (duplicate) {
-          result.failed++;
-          result.errors.push({
-            row: rowNumber,
-            field: 'email',
-            message: `Teacher with email "${email}" already exists.`,
-          });
-          continue;
+        // STRICT DUPLICATE / CROSS-TENANT CHECK
+        // Always check for any existing teacher with the same email regardless of client state.
+        const existingByEmail = await client.teacher.findFirst({ where: { email } });
+        if (existingByEmail) {
+          if (existingByEmail.schoolId && existingByEmail.schoolId !== schoolId) {
+            // Hard reject imports where the email already belongs to another tenant
+            result.failed++;
+            result.errors.push({
+              row: rowNumber,
+              field: 'email',
+              message: `Teacher with email "${email}" already belongs to another school and cannot be imported.`,
+            });
+            continue;
+          }
+
+          // If an existing teacher exists within this same school, treat as duplicate
+          if (existingByEmail.schoolId === schoolId) {
+            result.failed++;
+            result.errors.push({
+              row: rowNumber,
+              field: 'email',
+              message: `Teacher with email "${email}" already exists.`,
+            });
+            continue;
+          }
         }
 
         const teacher = await client.teacher.create({

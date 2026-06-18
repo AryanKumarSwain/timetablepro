@@ -26,6 +26,16 @@ export async function PATCH(request: NextRequest, { params }: Params) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
 
+    // SECURITY CHECK: Prevent changing schoolId if teacher has a non-APPROVED leave status
+    if (body.schoolId && body.schoolId !== existing.schoolId) {
+      if (existing.leaveRequestStatus !== 'APPROVED' && existing.leaveRequestStatus !== 'NONE') {
+        return NextResponse.json(
+          { error: 'Cannot change school while leave request is pending or rejected.' },
+          { status: 400 }
+        );
+      }
+    }
+
     const nextSubjects = normalizeStringArray(body.subjects);
     const nextQualifications = normalizeStringArray(body.qualifications);
     const nextSubjectSpecialtyId =
@@ -45,9 +55,9 @@ export async function PATCH(request: NextRequest, { params }: Params) {
           typeof body.phone === 'string' ? body.phone.trim() : existing.phone,
         qualifications:
           nextQualifications.length > 0
-            ? nextQualifications
+            ? (nextQualifications as any)
             : existing.qualifications,
-        subjects: nextSubjects.length > 0 ? nextSubjects : existing.subjects,
+        subjects: nextSubjects.length > 0 ? (nextSubjects as any) : existing.subjects,
         active: typeof body.active === 'boolean' ? body.active : existing.active,
         joinDate:
           typeof body.joinDate === 'string' && body.joinDate

@@ -16,6 +16,7 @@ export async function GET() {
   const userWhere = { email: userEmail };
   
   let teacherId: string | undefined;
+  let leaveRequestStatus: 'NONE' | 'PENDING' | 'APPROVED' | 'REJECTED' = 'NONE';
   let phone: string | null = null;
   let countryCode: string | null = null;
   let onboardingDone = true;
@@ -23,11 +24,12 @@ export async function GET() {
   
   // Track school relation data dynamically
   let schoolPayload: { id: string; name: string } | null = null;
+  let latestSchoolId: string | null = null;
 
-  if (user.role === 'TEACHER' && user.schoolId) {
+  if (user.role === 'TEACHER') {
     // 1. Fetch teacher and query school data reactively
     const teacher = await prisma.teacher.findFirst({
-      where: { schoolId: user.schoolId, email: user.email },
+      where: { email: user.email },
       include: {
         school: true // Pull institutional identity variables
       }
@@ -37,6 +39,8 @@ export async function GET() {
     if (teacher) {
       name = teacher.name;
       phone = teacher.phone || null;
+      leaveRequestStatus = (teacher as any).leaveRequestStatus ?? 'NONE';
+      latestSchoolId = teacher.schoolId || null;
       if (teacher.school) {
         schoolPayload = {
           id: teacher.school.id,
@@ -58,6 +62,7 @@ export async function GET() {
       phone = dbUser.phone || null;
       countryCode = dbUser.countryCode || null;
       onboardingDone = dbUser.onboardingDone;
+      latestSchoolId = dbUser.schoolId || null;
       if (dbUser.school) {
         schoolPayload = {
           id: dbUser.school.id,
@@ -65,6 +70,12 @@ export async function GET() {
         };
       }
     }
+  }
+
+  // Force-update session with latest schoolId from database
+  if (latestSchoolId !== user.schoolId) {
+    session.user.schoolId = latestSchoolId;
+    await session.save();
   }
 
   return NextResponse.json({
@@ -76,9 +87,10 @@ export async function GET() {
       countryCode,
       onboardingDone,
       role: user.role.toLowerCase().replace('_', '-') as 'super-admin' | 'admin' | 'teacher',
-      schoolId: user.schoolId,
+      schoolId: latestSchoolId,
       school: schoolPayload,
       teacherId,
+      leaveRequestStatus,
       active: true,
     },
     redirectTo: getRoleRedirectPath(user.role, onboardingDone),
@@ -170,7 +182,7 @@ export async function PATCH(request: Request) {
       });
 
       await prisma.teacher.updateMany({
-        where: { schoolId: user.schoolId, email: user.email },
+        where: { schoolId: user.schoolId ?? undefined, email: user.email },
         data: { name: name.trim(), phone: phone?.trim() || null },
       });
     }

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import {
-  requireSchoolContext,
+  requireSchoolContextOptional,
   handleApiError,
   schoolWhere,
 } from '@/lib/auth-server';
@@ -33,9 +33,18 @@ function getAbsoluteLocalDate() {
 
 export async function GET(request: NextRequest) {
   try {
-    const { schoolId, user } = await requireSchoolContext();
+    const { schoolId, user } = await requireSchoolContextOptional();
     if (user.role !== 'TEACHER') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    // If teacher has no school assignment, return empty data
+    if (!schoolId) {
+      const history = request.nextUrl.searchParams.get('history') === 'true';
+      if (history) {
+        return NextResponse.json([]);
+      }
+      return NextResponse.json({ scheduleSlots: [] });
     }
 
     const teacher = await resolveTeacher(schoolId, user.email);
@@ -191,9 +200,14 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const { schoolId, user } = await requireSchoolContext();
+    const { schoolId, user } = await requireSchoolContextOptional();
     if (user.role !== 'TEACHER') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    // If teacher has no school assignment, return error
+    if (!schoolId) {
+      return NextResponse.json({ error: 'No school assignment' }, { status: 400 });
     }
 
     const teacher = await resolveTeacher(schoolId, user.email);
@@ -202,13 +216,13 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    
+
     // 🔥 THE FIX: Stop string date shifting on the backend
     let reportDate: Date;
     if (!body.date || body.date === 'today') {
       reportDate = getAbsoluteLocalDate();
     } else {
-      // Handles parsing of custom incoming date fields cleanly 
+      // Handles parsing of custom incoming date fields cleanly
       const rawStr = String(body.date).split('T')[0];
       reportDate = new Date(rawStr + 'T00:00:00.000Z');
     }
@@ -224,7 +238,7 @@ export async function POST(request: NextRequest) {
 
     const statusUpdate = body.status === 'SUBMITTED' ? 'SUBMITTED' : 'DRAFT';
 
-    // Check if the report record exists for this specific localized date instance 
+    // Check if the report record exists for this specific localized date instance
     let report = await prisma.dailyReport.findUnique({
       where: { teacherId_reportDate: { teacherId: teacher.id, reportDate } },
     });

@@ -786,3 +786,101 @@ export async function submitReport(data: {
     body: JSON.stringify(data),
   });
 }
+
+// ============================================================================
+// Homework Management
+// ============================================================================
+
+export type Homework = {
+  id: string;
+  schoolId: string;
+  teacherId: string;
+  classId: string;
+  title: string;
+  description: string;
+  status: 'DRAFT' | 'SENT_TO_ADMIN';
+  createdAt: string;
+  updatedAt: string;
+  class: {
+    id: string;
+    name: string;
+    grade: string;
+    section: string;
+  };
+  teacher: {
+    id: string;
+    name: string;
+    email: string;
+  };
+};
+
+export async function getTeacherHomework(): Promise<Homework[]> {
+  return apiFetch('/api/teacher/homework');
+}
+
+export async function createHomework(data: {
+  title: string;
+  description: string;
+  classId: string;
+}): Promise<Homework> {
+  return apiFetch('/api/teacher/homework', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function updateHomework(
+  id: string,
+  data: {
+    title?: string;
+    description?: string;
+    classId?: string;
+    status?: 'DRAFT' | 'SENT_TO_ADMIN';
+  }
+): Promise<Homework> {
+  return apiFetch(`/api/teacher/homework/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteHomework(id: string): Promise<{ success: boolean }> {
+  return apiFetch(`/api/teacher/homework/${id}`, { method: 'DELETE' });
+}
+
+export async function getAdminHomework(status?: 'SENT_TO_ADMIN'): Promise<Record<string, Homework[]>> {
+  const params = status ? `?status=${status}` : '';
+  return apiFetch(`/api/admin/homework${params}`);
+}
+
+export async function createAdminHomework(data: {
+  title: string;
+  description: string;
+  classId: string;
+  teacherId: string;
+}): Promise<Homework> {
+  return apiFetch('/api/admin/homework', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function updateAdminHomework(
+  id: string,
+  data: {
+    title?: string;
+    description?: string;
+    classId?: string;
+    teacherId?: string;
+    status?: 'DRAFT' | 'SENT_TO_ADMIN';
+  }
+): Promise<Homework> {
+  return apiFetch(`/api/admin/homework/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteAdminHomework(id: string): Promise<{ success: boolean }> {
+  return apiFetch(`/api/admin/homework/${id}`, { method: 'DELETE' });
+}

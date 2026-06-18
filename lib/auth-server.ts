@@ -46,6 +46,14 @@ export async function requireSchoolContext(): Promise<{
   return { user, schoolId: user.schoolId };
 }
 
+export async function requireSchoolContextOptional(): Promise<{
+  user: SessionUser;
+  schoolId: string | null;
+}> {
+  const user = await requireSession();
+  return { user, schoolId: user.schoolId || null };
+}
+
 export async function requireSuperAdmin(): Promise<SessionUser> {
   return requireRole('SUPER_ADMIN');
 }

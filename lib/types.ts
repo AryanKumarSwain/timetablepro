@@ -4,6 +4,8 @@
 
 export type UserRole = 'super-admin' | 'admin' | 'teacher';
 
+export type LeaveRequestStatus = 'NONE' | 'PENDING' | 'APPROVED' | 'REJECTED';
+
 // ============================================================================
 // Teacher
 // ============================================================================
@@ -132,6 +134,7 @@ export interface User {
   role: UserRole;
   schoolId?: string | null;
   teacherId?: string;
+  leaveRequestStatus?: LeaveRequestStatus;
   phone?: string | null;
   countryCode?: string | null;
   onboardingDone?: boolean;

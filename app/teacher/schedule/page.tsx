@@ -9,13 +9,14 @@ import { GlassCard } from '@/components/enterprise/glass-card';
 import { PageSkeleton } from '@/components/enterprise/page-skeleton';
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
-import { Clock, Flame } from 'lucide-react';
+import { Clock, Flame, AlertCircle } from 'lucide-react';
 
 export default function TeacherSchedulePage() {
   const auth = useRequireAuth('teacher');
   const [schedule, setSchedule] = useState<TodayScheduleItem[]>([]);
   const [replacements, setReplacements] = useState<Replacement[]>([]);
   const [loading, setLoading] = useState(true);
+  const [hasSchoolAssignment, setHasSchoolAssignment] = useState(true);
 
   useEffect(() => {
     if (auth.user?.teacherId) {
@@ -26,15 +27,22 @@ export default function TeacherSchedulePage() {
  const loadSchedule = async () => {
   try {
     setLoading(true);
+    // Check if teacher has school assignment
+    if (!auth.user?.schoolId) {
+      setHasSchoolAssignment(false);
+      setLoading(false);
+      return;
+    }
+
     const today = new Date().toISOString().split('T')[0];
     const [scheduleData, replacementData] = await Promise.all([
       getTodayScheduleForTeacher(auth.user?.teacherId || ''),
       getReplacements({ date: today }),
     ]);
-    
+
     // Explicit sequential timeline sorting
     const sortedSchedule = [...scheduleData].sort((a, b) => Number(a.periodNumber) - Number(b.periodNumber));
-    
+
     setSchedule(sortedSchedule);
     setReplacements(replacementData);
   } catch (error) {
@@ -65,6 +73,28 @@ export default function TeacherSchedulePage() {
     return (
       <div className='max-w-3xl mx-auto'>
         <PageSkeleton rows={3} />
+      </div>
+    );
+  }
+
+  if (!hasSchoolAssignment) {
+    return (
+      <div className='max-w-3xl mx-auto'>
+        <PageHeader
+          title="Today's Timeline"
+          description={getTodayDate()}
+          breadcrumbs={[
+            { label: 'Teacher', href: '/teacher/schedule' },
+            { label: 'Today' },
+          ]}
+        />
+        <GlassCard className='p-12 text-center'>
+          <AlertCircle className='h-12 w-12 text-muted-foreground mx-auto mb-4' />
+          <h3 className='text-lg font-semibold mb-2'>No School Assignment</h3>
+          <p className='text-muted-foreground'>
+            You are not currently assigned to any school. Please wait for an administrator to add you or input an invitation code.
+          </p>
+        </GlassCard>
       </div>
     );
   }

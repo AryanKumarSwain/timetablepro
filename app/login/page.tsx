@@ -42,11 +42,13 @@ export default function LoginPage() {
   useEffect(() => {
     setMounted(true);
     
-    // Check for AccountNotFound error in URL
+    // Check for error in URL
     const urlParams = new URLSearchParams(window.location.search);
     const error = urlParams.get('error');
     if (error === 'AccountNotFound') {
       setError('No account found. Please sign up first.');
+    } else if (error === 'account_exists') {
+      setError('An account with this email already exists. Please sign in using your original password or account method.');
     }
   }, []);
 

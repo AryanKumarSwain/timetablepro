@@ -41,9 +41,29 @@ export async function DELETE(_request: NextRequest, { params }: Params) {
     if (!existing) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
-    await prisma.classRoom.delete({ where: { id } });
+
+    // Delete dependent rows first to avoid foreign key constraint errors
+    await prisma.$transaction([
+      prisma.timetableSlot.deleteMany({
+        where: { schoolId, classId: id },
+      }),
+      prisma.weeklyTimetableSlot.deleteMany({
+        where: { schoolId, classId: id },
+      }),
+      prisma.classRoom.delete({
+        where: { id },
+      }),
+    ]);
+
     return NextResponse.json({ ok: true });
-  } catch (error) {
+  } catch (error: any) {
+    // Handle foreign key constraint error gracefully
+    if (error.code === 'P2003') {
+      return NextResponse.json(
+        { error: 'Cannot delete class because it has active sections or assignments linked to it.' },
+        { status: 400 }
+      );
+    }
     return handleApiError(error);
   }
 }

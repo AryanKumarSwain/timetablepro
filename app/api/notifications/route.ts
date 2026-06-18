@@ -18,8 +18,9 @@ export async function GET() {
       // Super-Admins read notifications generated directly by fellow Super-Admins
       whereClause.scope = 'ALL_ADMINS';
     } else if (user.role === 'ADMIN') {
-      // Admins see announcements bound for them globally
+      // Admins see global admin notices as well as school-specific messages.
       whereClause.scope = 'ALL_ADMINS';
+      whereClause.OR = [{ schoolId: null }, { schoolId: user.schoolId }];
     } else if (user.role === 'TEACHER') {
       // Teachers retrieve alerts targeted for their specific school ID assignment
       whereClause.scope = 'SCHOOL_TEACHERS';

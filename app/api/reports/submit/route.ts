@@ -74,26 +74,22 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // Delete all existing entries for this report to ensure clean overwrite
+    await prisma.reportEntry.deleteMany({
+      where: { reportId: report.id },
+    });
+
+    // Create new entries for all submitted entries
     for (const entry of body.entries || []) {
-      if (entry.id) {
-        await prisma.reportEntry.updateMany({
-          where: { id: entry.id, reportId: report.id },
-          data: {
-            description: entry.description,
-            isCompleted: entry.isCompleted,
-          },
-        });
-      } else {
-        await prisma.reportEntry.create({
-          data: {
-            reportId: report.id,
-            classId: entry.classId,
-            subjectId: entry.subjectId,
-            description: entry.description,
-            isCompleted: entry.isCompleted,
-          },
-        });
-      }
+      await prisma.reportEntry.create({
+        data: {
+          reportId: report.id,
+          classId: entry.classId,
+          subjectId: entry.subjectId,
+          description: entry.description,
+          isCompleted: entry.isCompleted,
+        },
+      });
     }
 
     const updated = await prisma.dailyReport.update({

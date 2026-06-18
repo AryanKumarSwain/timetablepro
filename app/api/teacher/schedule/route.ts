@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { requireSchoolContext, handleApiError, schoolWhere } from '@/lib/auth-server';
+import { requireSchoolContextOptional, handleApiError, schoolWhere } from '@/lib/auth-server';
 import { mapReplacement } from '@/lib/mappers';
 import { getScheduleSlots, getDayOfWeekFromDate } from '@/lib/timetable-source';
 
@@ -8,7 +8,13 @@ export async function GET(request: NextRequest) {
   const client = prisma;
 
   try {
-    const { schoolId, user } = await requireSchoolContext();
+    const { schoolId, user } = await requireSchoolContextOptional();
+
+    // If teacher has no school assignment, return empty schedule
+    if (!schoolId) {
+      return NextResponse.json([]);
+    }
+
     const teacherIdParam = request.nextUrl.searchParams.get('teacherId');
     const today = new Date().toISOString().split('T')[0];
     const dayOfWeek = getDayOfWeekFromDate(today);
