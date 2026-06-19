@@ -45,7 +45,7 @@ export default function UpgradePage() {
   const loadPlans = async () => {
     try {
       const data = await fetchSaasPlans();
-      const filteredPlans = data.filter(plan => plan.id !== 'baseline-free-tier');
+      const filteredPlans = data.filter(plan => plan.id !== 'plan-free');
       setPlans(filteredPlans);
       
       const schoolRes = await fetch('/api/admin/school');
@@ -83,6 +83,10 @@ export default function UpgradePage() {
       toast.success('Plan upgraded successfully');
       setCurrentPlanId(selectedPlanId);
       setSelectedPlanId(null); // Close segment screen
+      // Reload the page to refresh plan data for feature-gating
+      setTimeout(() => {
+        window.location.reload();
+      }, 1500);
     } catch (error: any) {
       toast.error(error.message || 'Failed to switch plan');
     } finally {

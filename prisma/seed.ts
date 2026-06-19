@@ -8,14 +8,31 @@ async function main() {
   // Clean up old plans to avoid conflicts
   await prisma.saaSPlan.deleteMany({});
 
-  // Create new SaaS plans
+  // Create new SaaS plans with feature flags
   const plans = [
+    {
+      id: 'plan-free',
+      name: 'Free',
+      teacherMin: 0,
+      teacherMax: 5,
+      priceMonthly: 0,
+      reportEnabled: false,
+      attendanceEnabled: false,
+      homeworkEnabled: false,
+      exportFormats: ['pdf'],
+      watermarkRequired: true,
+    },
     {
       id: 'plan-standard',
       name: 'Standard',
       teacherMin: 0,
       teacherMax: 20,
       priceMonthly: 199,
+      reportEnabled: true,
+      attendanceEnabled: false,
+      homeworkEnabled: false,
+      exportFormats: ['pdf'],
+      watermarkRequired: true,
     },
     {
       id: 'plan-premium',
@@ -23,6 +40,11 @@ async function main() {
       teacherMin: 21,
       teacherMax: 50,
       priceMonthly: 299,
+      reportEnabled: true,
+      attendanceEnabled: true,
+      homeworkEnabled: false,
+      exportFormats: ['pdf', 'docx'],
+      watermarkRequired: true,
     },
     {
       id: 'plan-elite',
@@ -30,6 +52,11 @@ async function main() {
       teacherMin: 51,
       teacherMax: 100,
       priceMonthly: 399,
+      reportEnabled: true,
+      attendanceEnabled: true,
+      homeworkEnabled: true,
+      exportFormats: ['pdf', 'docx', 'csv'],
+      watermarkRequired: false,
     },
   ];
 

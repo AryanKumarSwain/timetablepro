@@ -9,6 +9,8 @@ import { PageSkeleton } from '@/components/enterprise/page-skeleton';
 import { Calendar, RefreshCw, CheckCircle, XCircle, Search, FileText, Download, Users, SlidersHorizontal, Check, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { LockedFeatureModal } from '@/components/locked-feature-modal';
+import { getSchoolDetails } from '@/lib/api-services';
 
 type StatusFilter = 'ALL' | 'PRESENT' | 'ABSENT';
 
@@ -27,6 +29,8 @@ export default function AdminAttendancePage() {
   const [gridData, setGridData] = useState<any>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [lockedModalOpen, setLockedModalOpen] = useState(false);
+  const [featureEnabled, setFeatureEnabled] = useState(true);
 
   // Filter States
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -53,6 +57,19 @@ export default function AdminAttendancePage() {
   const loadDataRegistry = useCallback(async (silent = false) => {
     try {
       if (!silent) setLoading(true);
+      
+      // Check if attendance feature is enabled
+      const schoolData = await getSchoolDetails();
+      const plan = schoolData.plan;
+      const attendanceEnabled = plan?.attendanceEnabled || false;
+      setFeatureEnabled(attendanceEnabled);
+      
+      if (!attendanceEnabled) {
+        setLockedModalOpen(true);
+        setLoading(false);
+        return;
+      }
+      
       const [teachersList, deskGrid] = await Promise.all([
         getTeachers(),
         getDailyDeskGrid(selectedDate),
@@ -172,9 +189,18 @@ export default function AdminAttendancePage() {
   }, [teachers, getTeacherCurrentStatus]);
 
   // Clean Matrix CSV Compiler matching the image fix
-  const exportToExcel = () => {
+  const exportToExcel = async () => {
     try {
       const hasRangeData = uniqueDates.length > 0;
+      
+      // Fetch school plan to check watermark requirement
+      let showWatermark = true;
+      try {
+        const schoolData = await getSchoolDetails();
+        showWatermark = schoolData.watermarkRequired !== false;
+      } catch (e) {
+        console.error('Failed to fetch plan for watermark check:', e);
+      }
       
       // Dynamic clean headers 
       let headers = ['Faculty Name', 'Email Address', `Status (${selectedDate})`];
@@ -200,7 +226,13 @@ export default function AdminAttendancePage() {
       });
 
       const csvContent = [headers, ...rows].map(e => e.map(val => `"${val}"`).join(",")).join("\n");
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      
+      // Add watermark if required
+      const finalContent = showWatermark 
+        ? csvContent + '\n\n"Generated via Timetable Pro"' 
+        : csvContent;
+      
+      const blob = new Blob([finalContent], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.setAttribute("href", url);
@@ -462,6 +494,11 @@ export default function AdminAttendancePage() {
         </div>
       </div>
 
+      <LockedFeatureModal
+        open={lockedModalOpen}
+        onOpenChange={setLockedModalOpen}
+        featureName="Attendance Management"
+      />
     </div>
   );
 }

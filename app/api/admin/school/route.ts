@@ -31,15 +31,7 @@ export async function GET(request: NextRequest) {
     const school = await prisma.school.findUnique({
       where: { id: schoolId },
       include: {
-        plan: {
-          select: {
-            id: true,
-            name: true,
-            teacherMin: true,
-            teacherMax: true,
-            priceMonthly: true,
-          },
-        },
+        plan: true,
       },
     });
 
@@ -49,12 +41,18 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       name: school.name,
+      planId: school.planId,
       plan: school.plan ? {
         id: school.plan.id,
         name: school.plan.name,
         teacherMin: school.plan.teacherMin,
         teacherMax: school.plan.teacherMax,
         priceMonthly: Number(school.plan.priceMonthly),
+        reportEnabled: school.plan.reportEnabled,
+        attendanceEnabled: school.plan.attendanceEnabled,
+        homeworkEnabled: school.plan.homeworkEnabled,
+        exportFormats: school.plan.exportFormats,
+        watermarkRequired: school.plan.watermarkRequired,
       } : null,
     });
   } catch (error) {

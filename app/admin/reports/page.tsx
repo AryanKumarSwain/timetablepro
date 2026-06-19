@@ -14,6 +14,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Download, Eye, FileSpreadsheet, FileText, User, CalendarSearch } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { LockedFeatureModal } from '@/components/locked-feature-modal';
+import { getSchoolDetails } from '@/lib/api-services';
 
 export default function AdminReportsPage() {
   useRequireAuth('admin');
@@ -25,10 +27,25 @@ export default function AdminReportsPage() {
   const [openDate, setOpenDate] = useState<string | null>(null);
   const [currentGrid, setCurrentGrid] = useState<any | null>(null);
   const [calendarSearchDate, setCalendarSearchDate] = useState('');
+  const [lockedModalOpen, setLockedModalOpen] = useState(false);
+  const [featureEnabled, setFeatureEnabled] = useState(true);
 
   const load = useCallback(async () => {
     try {
       setLoading(true);
+      
+      // Check if reports feature is enabled
+      const schoolData = await getSchoolDetails();
+      const plan = schoolData.plan;
+      const reportsEnabled = plan?.reportEnabled || false;
+      setFeatureEnabled(reportsEnabled);
+      
+      if (!reportsEnabled) {
+        setLockedModalOpen(true);
+        setLoading(false);
+        return;
+      }
+      
       const r = await getAdminReports({
         teacherName: teacherName || undefined,
       });
@@ -385,6 +402,12 @@ export default function AdminReportsPage() {
           </div>
         </DialogContent>
       </Dialog>
+      
+      <LockedFeatureModal
+        open={lockedModalOpen}
+        onOpenChange={setLockedModalOpen}
+        featureName="Reports Management"
+      />
     </div>
   );
 }

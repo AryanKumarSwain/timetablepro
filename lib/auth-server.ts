@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { UserRole } from '@prisma/client';
 import { getSession, type SessionUser } from '@/lib/session';
+import { prisma } from './prisma';
 
 export class AuthError extends Error {
   constructor(
@@ -68,4 +69,47 @@ export function handleApiError(error: unknown) {
   }
   console.error(error);
   return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+}
+
+export async function checkFeatureAccess(feature: 'reports' | 'attendance' | 'homework'): Promise<boolean> {
+  const session = await getSession();
+  if (!session.isLoggedIn || !session.user || !session.user.schoolId) return false;
+
+  const school = await prisma.school.findUnique({
+    where: { id: session.user.schoolId },
+    include: { plan: true },
+  });
+
+  if (!school || !school.plan) return false;
+
+  const plan = school.plan as any;
+  switch (feature) {
+    case 'reports':
+      return plan.reportEnabled || false;
+    case 'attendance':
+      return plan.attendanceEnabled || false;
+    case 'homework':
+      return plan.homeworkEnabled || false;
+    default:
+      return false;
+  }
+}
+
+export async function requireFeatureAccess(feature: 'reports' | 'attendance' | 'homework'): Promise<void> {
+  const hasAccess = await checkFeatureAccess(feature);
+  if (!hasAccess) {
+    throw new AuthError(`This feature is locked under your active plan. Upgrade your plan subscription to gain instant access.`, 403);
+  }
+}
+
+export async function getSchoolPlan() {
+  const session = await getSession();
+  if (!session.isLoggedIn || !session.user || !session.user.schoolId) return null;
+
+  const school = await prisma.school.findUnique({
+    where: { id: session.user.schoolId },
+    include: { plan: true },
+  });
+
+  return school?.plan || null;
 }

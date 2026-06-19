@@ -42,6 +42,7 @@ import {
 import html2canvas from 'html2canvas';
 import * as XLSX from 'xlsx';
 import { cn, isTeacherActive } from '@/lib/utils';
+import { getSchoolDetails } from '@/lib/api-services';
 
 const ZOOM_MIN = 0.6;
 const ZOOM_MAX = 1.4;
@@ -337,14 +338,76 @@ export default function DailyDeskPage() {
     }
   };
 
-  const handlePrintPDF = () => {
-    if (typeof window !== 'undefined') window.print();
+  const handlePrintPDF = async () => {
+    if (typeof window !== 'undefined') {
+      // Fetch school plan to check watermark requirement
+      let showWatermark = true;
+      try {
+        const schoolData = await getSchoolDetails();
+        showWatermark = schoolData.watermarkRequired !== false;
+      } catch (e) {
+        console.error('Failed to fetch plan for watermark check:', e);
+      }
+      
+      // Add watermark if required
+      if (showWatermark) {
+        const watermarkDiv = document.createElement('div');
+        watermarkDiv.id = 'print-watermark';
+        watermarkDiv.style.cssText = `
+          position: fixed;
+          bottom: 10px;
+          right: 10px;
+          color: #9ca3af;
+          font-size: 12px;
+          font-style: italic;
+          z-index: 9999;
+        `;
+        watermarkDiv.textContent = 'Generated via Timetable Pro';
+        document.body.appendChild(watermarkDiv);
+        
+        // Add print-specific styles
+        const printStyles = document.createElement('style');
+        printStyles.id = 'watermark-print-styles';
+        printStyles.textContent = `
+          @media print {
+            #print-watermark {
+              position: fixed;
+              bottom: 10px;
+              right: 10px;
+              color: #9ca3af !important;
+              font-size: 12px !important;
+              font-style: italic !important;
+            }
+          }
+        `;
+        document.head.appendChild(printStyles);
+        
+        // Clean up after print
+        setTimeout(() => {
+          const watermark = document.getElementById('print-watermark');
+          const styles = document.getElementById('watermark-print-styles');
+          if (watermark) watermark.remove();
+          if (styles) styles.remove();
+        }, 1000);
+      }
+      
+      window.print();
+    }
   };
 
   const handleDownloadModalPDF = async () => {
     if (!historyModalRef.current) return;
     
     try {
+      // Fetch school plan to check watermark requirement
+      let showWatermark = true;
+      try {
+        const schoolData = await getSchoolDetails();
+        showWatermark = schoolData.watermarkRequired !== false;
+      } catch (e) {
+        console.error('Failed to fetch plan for watermark check:', e);
+      }
+      
       // Add print-specific styles to hide everything except the modal content
       const printStyles = document.createElement('style');
       printStyles.id = 'modal-print-styles';
@@ -367,6 +430,14 @@ export default function DailyDeskPage() {
           #history-modal-print-container > * {
             display: block !important;
           }
+          #modal-watermark {
+            position: fixed;
+            bottom: 10px;
+            right: 10px;
+            color: #9ca3af !important;
+            font-size: 12px !important;
+            font-style: italic !important;
+          }
         }
       `;
       document.head.appendChild(printStyles);
@@ -377,6 +448,23 @@ export default function DailyDeskPage() {
       clonedContent.style.transform = 'scale(1)';
       clonedContent.style.width = '100%';
       document.body.appendChild(clonedContent);
+      
+      // Add watermark if required
+      if (showWatermark) {
+        const watermarkDiv = document.createElement('div');
+        watermarkDiv.id = 'modal-watermark';
+        watermarkDiv.style.cssText = `
+          position: fixed;
+          bottom: 10px;
+          right: 10px;
+          color: #9ca3af;
+          font-size: 12px;
+          font-style: italic;
+          z-index: 99999;
+        `;
+        watermarkDiv.textContent = 'Generated via Timetable Pro';
+        clonedContent.appendChild(watermarkDiv);
+      }
 
       // Trigger print
       window.print();
@@ -394,8 +482,17 @@ export default function DailyDeskPage() {
     }
   };
 
-  const handleDownloadExcel = () => {
+  const handleDownloadExcel = async () => {
     if (!historyGridData) return;
+
+    // Fetch school plan to check watermark requirement
+    let showWatermark = true;
+    try {
+      const schoolData = await getSchoolDetails();
+      showWatermark = schoolData.watermarkRequired !== false;
+    } catch (e) {
+      console.error('Failed to fetch plan for watermark check:', e);
+    }
 
     const worksheetData: any[][] = [];
     
@@ -427,6 +524,12 @@ export default function DailyDeskPage() {
       
       worksheetData.push(row);
     });
+
+    // Add watermark row if required
+    if (showWatermark) {
+      worksheetData.push([]);
+      worksheetData.push(['Generated via Timetable Pro']);
+    }
 
     const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
     const workbook = XLSX.utils.book_new();

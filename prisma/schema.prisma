@@ -7,14 +7,19 @@ generator client {
 }
 
 model SaaSPlan {
-  id           String   @id @default(uuid())
-  name         String
-  teacherMin   Int
-  teacherMax   Int
-  priceMonthly Decimal  @db.Decimal(10, 2)
-  schools      School[]
-  trialSchools School[] @relation("SchoolTrialPlan")
-  originalSchools School[] @relation("SchoolOriginalPlan")
+  id               String   @id @default(uuid())
+  name             String
+  teacherMin       Int
+  teacherMax       Int
+  priceMonthly     Decimal  @db.Decimal(10, 2)
+  reportEnabled    Boolean  @default(false)
+  attendanceEnabled Boolean  @default(false)
+  homeworkEnabled  Boolean  @default(false)
+  exportFormats    Json     @default("[]")
+  watermarkRequired Boolean  @default(true)
+  schools          School[]
+  trialSchools     School[] @relation("SchoolTrialPlan")
+  originalSchools  School[] @relation("SchoolOriginalPlan")
 }
 
 model School {

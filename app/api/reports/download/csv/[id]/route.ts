@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { requireSchoolAdmin, handleApiError, schoolWhere } from '@/lib/auth-server';
+import { requireSchoolAdmin, handleApiError, schoolWhere, getSchoolPlan } from '@/lib/auth-server';
 
 function parseDescription(desc = '') {
   const marker = '\n\nTLM:';
@@ -90,8 +90,17 @@ export async function GET(_request: Request, context: RouteContext) {
       }))
     );
 
+    // Check if watermark is required based on plan
+    const plan = await getSchoolPlan();
+    const watermarkRequired = plan?.watermarkRequired !== false;
+    
+    // Add watermark if required
+    const finalCsv = watermarkRequired 
+      ? csv + '\n\n"Generated via Timetable Pro"' 
+      : csv;
+
     const filename = `reports-${cleanId}.csv`;
-    return new NextResponse(csv, {
+    return new NextResponse(finalCsv, {
       headers: {
         'Content-Type': 'text/csv; charset=utf-8',
         'Content-Disposition': `attachment; filename="${filename}"`,

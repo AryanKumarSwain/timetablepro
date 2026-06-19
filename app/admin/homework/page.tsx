@@ -22,6 +22,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { LockedFeatureModal } from '@/components/locked-feature-modal';
 import { Plus, Edit, Trash2, BookOpen, Send, Download, ChevronDown, ChevronRight, FileText, MoreVertical } from 'lucide-react';
 import { toast } from 'sonner';
 import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, WidthType, HeadingLevel, AlignmentType, BorderStyle } from 'docx';
@@ -47,6 +48,8 @@ export default function AdminHomeworkPage() {
   const [form, setForm] = useState({ title: '', description: '', classId: '', teacherId: '' });
   const [submitting, setSubmitting] = useState(false);
   const [expandedClasses, setExpandedClasses] = useState<Record<string, boolean>>({});
+  const [lockedModalOpen, setLockedModalOpen] = useState(false);
+  const [featureEnabled, setFeatureEnabled] = useState(true);
 
   useEffect(() => {
     if (!auth.loading && auth.user) {
@@ -64,6 +67,18 @@ export default function AdminHomeworkPage() {
         getAdminReports(),
         getSchoolDetails(),
       ]);
+      
+      // Check if homework feature is enabled
+      const plan = schoolData.plan;
+      const homeworkEnabled = plan?.homeworkEnabled || false;
+      setFeatureEnabled(homeworkEnabled);
+      
+      if (!homeworkEnabled) {
+        setLockedModalOpen(true);
+        setLoading(false);
+        return;
+      }
+      
       setHomework(homeworkData);
       setClasses(classesData);
       setTeachers(teachersData);
@@ -212,6 +227,18 @@ export default function AdminHomeworkPage() {
       // Collect all homework for this class
       const classHomework = [...(homework[className] || []), ...(reportHomework[className] || [])];
       
+      // Fetch school plan to check watermark requirement
+      let showWatermark = true;
+      try {
+        const planResponse = await fetch('/api/admin/school');
+        if (planResponse.ok) {
+          const planData = await planResponse.json();
+          showWatermark = planData.watermarkRequired !== false;
+        }
+      } catch (e) {
+        console.error('Failed to fetch plan for watermark check:', e);
+      }
+      
       // Create a printable HTML template
       const printWindow = window.open('', '_blank');
       if (!printWindow) {
@@ -345,7 +372,7 @@ export default function AdminHomeworkPage() {
               }).join('')}
             </tbody>
           </table>
-          <div class="footer">Generated via Timetable Pro</div>
+          ${showWatermark ? '<div class="footer">Generated via Timetable Pro</div>' : ''}
         </body>
         </html>
       `;
@@ -370,145 +397,164 @@ export default function AdminHomeworkPage() {
       // Collect all homework for this class
       const classHomework = [...(homework[className] || []), ...(reportHomework[className] || [])];
       
+      // Fetch school plan to check watermark requirement
+      let showWatermark = true;
+      try {
+        const planResponse = await fetch('/api/admin/school');
+        if (planResponse.ok) {
+          const planData = await planResponse.json();
+          showWatermark = planData.watermarkRequired !== false;
+        }
+      } catch (e) {
+        console.error('Failed to fetch plan for watermark check:', e);
+      }
+      
       // Use dynamic school name from state
       const currentSchoolName = schoolName || 'School';
       const currentDate = new Date().toLocaleDateString();
+
+      // Build document children
+      const documentChildren = [
+        // School Header - Bold, Uppercase, Centered
+        new Paragraph({
+          text: currentSchoolName.toUpperCase(),
+          heading: HeadingLevel.HEADING_1,
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 200 },
+        }),
+        
+        // Divider
+        new Paragraph({
+          text: '',
+          border: { bottom: { color: '000000', space: 1, style: 'single', size: 6 } },
+          spacing: { after: 200 },
+        }),
+        
+        // Metadata row - Left: Date, Right: Class
+        new Paragraph({
+          children: [
+            new TextRun({ text: `Date: ${currentDate}`, size: 22 }),
+          ],
+          tabStops: [
+            { type: 'right', position: 8000 },
+          ],
+          spacing: { after: 100 },
+        }),
+        new Paragraph({
+          children: [
+            new TextRun({ text: `Class: ${className}`, size: 22 }),
+          ],
+          tabStops: [
+            { type: 'right', position: 8000 },
+          ],
+          spacing: { after: 400 },
+        }),
+        
+        // Homework Table with proper structure
+        new Table({
+          width: { size: 100, type: WidthType.PERCENTAGE },
+          rows: [
+            // Table Header
+            new TableRow({
+              children: [
+                new TableCell({
+                  width: { size: 10, type: WidthType.PERCENTAGE },
+                  shading: { fill: 'F3F4F6' },
+                  children: [new Paragraph({
+                    children: [new TextRun({ text: 'S.No.', bold: true, size: 22 })],
+                    alignment: AlignmentType.CENTER,
+                  })],
+                }),
+                new TableCell({
+                  width: { size: 20, type: WidthType.PERCENTAGE },
+                  shading: { fill: 'F3F4F6' },
+                  children: [new Paragraph({
+                    children: [new TextRun({ text: 'Subject', bold: true, size: 22 })],
+                  })],
+                }),
+                new TableCell({
+                  width: { size: 50, type: WidthType.PERCENTAGE },
+                  shading: { fill: 'F3F4F6' },
+                  children: [new Paragraph({
+                    children: [new TextRun({ text: 'Homework Task', bold: true, size: 22 })],
+                  })],
+                }),
+                new TableCell({
+                  width: { size: 20, type: WidthType.PERCENTAGE },
+                  shading: { fill: 'F3F4F6' },
+                  children: [new Paragraph({
+                    children: [new TextRun({ text: 'Assigned By', bold: true, size: 22 })],
+                  })],
+                }),
+              ],
+            }),
+            // Table Rows
+            ...classHomework.map((hw: any, index: number) => {
+              const subjectName = hw.subject?.name || 'General';
+              const capitalizedSubject = subjectName.charAt(0).toUpperCase() + subjectName.slice(1).toLowerCase();
+              return new TableRow({
+                children: [
+                  new TableCell({
+                    width: { size: 10, type: WidthType.PERCENTAGE },
+                    children: [new Paragraph({
+                      children: [new TextRun({ text: String(index + 1), size: 20 })],
+                      alignment: AlignmentType.CENTER,
+                    })],
+                  }),
+                  new TableCell({
+                    width: { size: 20, type: WidthType.PERCENTAGE },
+                    children: [new Paragraph({
+                      children: [new TextRun({ text: capitalizedSubject, size: 20 })],
+                    })],
+                  }),
+                  new TableCell({
+                    width: { size: 50, type: WidthType.PERCENTAGE },
+                    children: [new Paragraph({
+                      children: [new TextRun({ text: hw.description, size: 20 })],
+                    })],
+                  }),
+                  new TableCell({
+                    width: { size: 20, type: WidthType.PERCENTAGE },
+                    children: [new Paragraph({
+                      children: [new TextRun({ text: hw.teacher.name, size: 20 })],
+                    })],
+                  }),
+                ],
+              });
+            }),
+          ],
+          borders: {
+            top: { style: BorderStyle.SINGLE, size: 1, color: 'E5E7EB' },
+            bottom: { style: BorderStyle.SINGLE, size: 1, color: 'E5E7EB' },
+            left: { style: BorderStyle.SINGLE, size: 1, color: 'E5E7EB' },
+            right: { style: BorderStyle.SINGLE, size: 1, color: 'E5E7EB' },
+          },
+        }),
+      ];
+
+      // Add footer watermark only if required
+      if (showWatermark) {
+        documentChildren.push(
+          new Paragraph({
+            children: [
+              new TextRun({ 
+                text: 'Generated via Timetable Pro', 
+                size: 18, 
+                color: '9CA3AF',
+                italics: true 
+              }),
+            ],
+            alignment: AlignmentType.RIGHT,
+            spacing: { before: 800 },
+          })
+        );
+      }
 
       // Create professional Word document with table structure
       const doc = new Document({
         sections: [{
           properties: {},
-          children: [
-            // School Header - Bold, Uppercase, Centered
-            new Paragraph({
-              text: currentSchoolName.toUpperCase(),
-              heading: HeadingLevel.HEADING_1,
-              alignment: AlignmentType.CENTER,
-              spacing: { after: 200 },
-            }),
-            
-            // Divider
-            new Paragraph({
-              text: '',
-              border: { bottom: { color: '000000', space: 1, style: 'single', size: 6 } },
-              spacing: { after: 200 },
-            }),
-            
-            // Metadata row - Left: Date, Right: Class
-            new Paragraph({
-              children: [
-                new TextRun({ text: `Date: ${currentDate}`, size: 22 }),
-              ],
-              tabStops: [
-                { type: 'right', position: 8000 },
-              ],
-              spacing: { after: 100 },
-            }),
-            new Paragraph({
-              children: [
-                new TextRun({ text: `Class: ${className}`, size: 22 }),
-              ],
-              tabStops: [
-                { type: 'right', position: 8000 },
-              ],
-              spacing: { after: 400 },
-            }),
-            
-            // Homework Table with proper structure
-            new Table({
-              width: { size: 100, type: WidthType.PERCENTAGE },
-              rows: [
-                // Table Header
-                new TableRow({
-                  children: [
-                    new TableCell({
-                      width: { size: 10, type: WidthType.PERCENTAGE },
-                      shading: { fill: 'F3F4F6' },
-                      children: [new Paragraph({
-                        children: [new TextRun({ text: 'S.No.', bold: true, size: 22 })],
-                        alignment: AlignmentType.CENTER,
-                      })],
-                    }),
-                    new TableCell({
-                      width: { size: 20, type: WidthType.PERCENTAGE },
-                      shading: { fill: 'F3F4F6' },
-                      children: [new Paragraph({
-                        children: [new TextRun({ text: 'Subject', bold: true, size: 22 })],
-                      })],
-                    }),
-                    new TableCell({
-                      width: { size: 50, type: WidthType.PERCENTAGE },
-                      shading: { fill: 'F3F4F6' },
-                      children: [new Paragraph({
-                        children: [new TextRun({ text: 'Homework Task', bold: true, size: 22 })],
-                      })],
-                    }),
-                    new TableCell({
-                      width: { size: 20, type: WidthType.PERCENTAGE },
-                      shading: { fill: 'F3F4F6' },
-                      children: [new Paragraph({
-                        children: [new TextRun({ text: 'Assigned By', bold: true, size: 22 })],
-                      })],
-                    }),
-                  ],
-                }),
-                // Table Rows
-                ...classHomework.map((hw: any, index: number) => {
-                  const subjectName = hw.subject?.name || 'General';
-                  const capitalizedSubject = subjectName.charAt(0).toUpperCase() + subjectName.slice(1).toLowerCase();
-                  return new TableRow({
-                    children: [
-                      new TableCell({
-                        width: { size: 10, type: WidthType.PERCENTAGE },
-                        children: [new Paragraph({
-                          children: [new TextRun({ text: String(index + 1), size: 20 })],
-                          alignment: AlignmentType.CENTER,
-                        })],
-                      }),
-                      new TableCell({
-                        width: { size: 20, type: WidthType.PERCENTAGE },
-                        children: [new Paragraph({
-                          children: [new TextRun({ text: capitalizedSubject, size: 20 })],
-                        })],
-                      }),
-                      new TableCell({
-                        width: { size: 50, type: WidthType.PERCENTAGE },
-                        children: [new Paragraph({
-                          children: [new TextRun({ text: hw.description, size: 20 })],
-                        })],
-                      }),
-                      new TableCell({
-                        width: { size: 20, type: WidthType.PERCENTAGE },
-                        children: [new Paragraph({
-                          children: [new TextRun({ text: hw.teacher.name, size: 20 })],
-                        })],
-                      }),
-                    ],
-                  });
-                }),
-              ],
-              borders: {
-                top: { style: BorderStyle.SINGLE, size: 1, color: 'E5E7EB' },
-                bottom: { style: BorderStyle.SINGLE, size: 1, color: 'E5E7EB' },
-                left: { style: BorderStyle.SINGLE, size: 1, color: 'E5E7EB' },
-                right: { style: BorderStyle.SINGLE, size: 1, color: 'E5E7EB' },
-              },
-            }),
-            
-            // Footer watermark
-            new Paragraph({
-              children: [
-                new TextRun({ 
-                  text: 'Generated via Timetable Pro', 
-                  size: 18, 
-                  color: '9CA3AF',
-                  italics: true 
-                }),
-              ],
-              alignment: AlignmentType.RIGHT,
-              spacing: { before: 800 },
-            }),
-          ],
+          children: documentChildren,
         }],
       });
 
@@ -796,6 +842,12 @@ export default function AdminHomeworkPage() {
           </div>
         </DialogContent>
       </Dialog>
+      
+      <LockedFeatureModal
+        open={lockedModalOpen}
+        onOpenChange={setLockedModalOpen}
+        featureName="Homework Management"
+      />
     </div>
   );
 }
