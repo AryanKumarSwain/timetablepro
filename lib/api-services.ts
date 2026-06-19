@@ -668,6 +668,7 @@ export type DailyReportData = {
     subjectName: string;
     description: string;
     isCompleted: boolean;
+    isProxy?: boolean;
   }[];
   scheduleSlots?: {
     periodId: string;
@@ -679,8 +680,11 @@ export type DailyReportData = {
     subjectId: string;
     subjectName: string;
     entryId?: string;
+    isProxy?: boolean;
   }[];
   entryCount?: number;
+  proxyCount?: number;
+  totalSessions?: number;
 };
 
 export async function getTeacherReport(date = 'today'): Promise<DailyReportData> {
@@ -851,6 +855,10 @@ export async function deleteHomework(id: string): Promise<{ success: boolean }> 
 export async function getAdminHomework(status?: 'SENT_TO_ADMIN'): Promise<Record<string, Homework[]>> {
   const params = status ? `?status=${status}` : '';
   return apiFetch(`/api/admin/homework${params}`);
+}
+
+export async function getSchoolDetails(): Promise<{ name: string; plan: any }> {
+  return apiFetch('/api/admin/school');
 }
 
 export async function createAdminHomework(data: {

@@ -59,11 +59,40 @@ export async function GET(request: NextRequest) {
         include: reportInclude,
         orderBy: { reportDate: 'desc' },
       });
+
+      // Fetch all proxy assignments for this teacher to include in historical counts
+      const allProxyAssignments = await prisma.replacementAssignment.findMany({
+        where: {
+          schoolId,
+          replacementTeacherId: teacher.id,
+          status: 'CONFIRMED',
+        },
+        orderBy: { date: 'desc' },
+      });
+
+      // Group proxy assignments by date for easy lookup
+      const proxyAssignmentsByDate = new Map<string, typeof allProxyAssignments>();
+      allProxyAssignments.forEach((assignment) => {
+        const dateStr = assignment.date;
+        if (!proxyAssignmentsByDate.has(dateStr)) {
+          proxyAssignmentsByDate.set(dateStr, []);
+        }
+        proxyAssignmentsByDate.get(dateStr)!.push(assignment);
+      });
+
       return NextResponse.json(
-        reports.map((r) => ({
-          ...mapReportResponse(r),
-          entryCount: r.entries.length,
-        }))
+        reports.map((r) => {
+          const reportDateStr = r.reportDate.toISOString().split('T')[0];
+          const proxyAssignmentsForDate = proxyAssignmentsByDate.get(reportDateStr) || [];
+          const proxyCount = proxyAssignmentsForDate.length;
+          
+          return {
+            ...mapReportResponse(r),
+            entryCount: r.entries.length,
+            proxyCount,
+            totalSessions: r.entries.length + proxyCount,
+          };
+        })
       );
     }
 

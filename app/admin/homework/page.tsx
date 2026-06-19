@@ -11,6 +11,7 @@ import {
   getClasses,
   getTeachers,
   getAdminReports,
+  getSchoolDetails,
 } from '@/lib/api-services';
 import { PageHeader } from '@/components/enterprise/page-header';
 import { PageSkeleton } from '@/components/enterprise/page-skeleton';
@@ -20,8 +21,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Plus, Edit, Trash2, BookOpen, Send, Download, ChevronDown, ChevronRight } from 'lucide-react';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Plus, Edit, Trash2, BookOpen, Send, Download, ChevronDown, ChevronRight, FileText, MoreVertical } from 'lucide-react';
 import { toast } from 'sonner';
+import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, WidthType, HeadingLevel, AlignmentType, BorderStyle } from 'docx';
 
 // Helper to extract homework from description
 function extractHomeworkFromDescription(desc = '') {
@@ -38,6 +41,7 @@ export default function AdminHomeworkPage() {
   const [reportHomework, setReportHomework] = useState<Record<string, any[]>>({});
   const [classes, setClasses] = useState<any[]>([]);
   const [teachers, setTeachers] = useState<any[]>([]);
+  const [schoolName, setSchoolName] = useState<string>('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingHomework, setEditingHomework] = useState<Homework | (any & { isFromReport?: boolean }) | null>(null);
   const [form, setForm] = useState({ title: '', description: '', classId: '', teacherId: '' });
@@ -53,15 +57,17 @@ export default function AdminHomeworkPage() {
   const load = async () => {
     try {
       setLoading(true);
-      const [homeworkData, classesData, teachersData, reportsData] = await Promise.all([
+      const [homeworkData, classesData, teachersData, reportsData, schoolData] = await Promise.all([
         getAdminHomework('SENT_TO_ADMIN'),
         getClasses(),
         getTeachers(),
         getAdminReports(),
+        getSchoolDetails(),
       ]);
       setHomework(homeworkData);
       setClasses(classesData);
       setTeachers(teachersData);
+      setSchoolName(schoolData.name || 'School');
 
       // Extract homework from reports
       const homeworkFromReports: Record<string, any[]> = {};
@@ -75,7 +81,7 @@ export default function AdminHomeworkPage() {
             }
             homeworkFromReports[className].push({
               id: `report-${entry.id}`,
-              title: `Homework from Report`,
+              title: entry.subjectName || 'Homework',
               description: homeworkText,
               teacher: { name: report.teacherName, email: report.teacherEmail },
               class: { name: entry.className, id: entry.classId },
@@ -202,73 +208,324 @@ export default function AdminHomeworkPage() {
 
   const handleDownloadPDF = async (className: string) => {
     try {
-      toast.info('Generating PDF...');
+      toast.info('Preparing PDF for print...');
       // Collect all homework for this class
       const classHomework = [...(homework[className] || []), ...(reportHomework[className] || [])];
       
-      // Create a simple text-based PDF content
-      const content = classHomework.map((hw: any) => `
-        Title: ${hw.title}
-        Teacher: ${hw.teacher.name}
-        Subject: ${hw.subject?.name || 'N/A'}
-        Description: ${hw.description}
-        Submitted: ${new Date(hw.createdAt).toLocaleDateString()}
-        ${hw.isFromReport ? '(From Daily Report)' : ''}
-        ---
-      `).join('\n');
+      // Create a printable HTML template
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) {
+        toast.error('Failed to open print window');
+        return;
+      }
 
-      // Create a blob and download
-      const blob = new Blob([content], { type: 'text/plain' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `homework-${className}.txt`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      const currentDate = new Date().toLocaleDateString();
       
-      toast.success('Downloaded successfully');
+      const htmlContent = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Homework Agenda - ${className}</title>
+          <style>
+            body {
+              font-family: Arial, sans-serif;
+              max-width: 900px;
+              margin: 0 auto;
+              padding: 40px 20px;
+              line-height: 1.6;
+            }
+            .header {
+              text-align: center;
+              margin-bottom: 30px;
+            }
+            .school-name {
+              font-size: 28px;
+              font-weight: bold;
+              text-transform: uppercase;
+              margin-bottom: 10px;
+            }
+            .divider {
+              border-top: 2px solid #333;
+              margin: 20px 0;
+            }
+            .meta-row {
+              display: flex;
+              justify-content: space-between;
+              font-size: 14px;
+              color: #666;
+              margin-top: 10px;
+            }
+            .meta-left {
+              text-align: left;
+            }
+            .meta-right {
+              text-align: right;
+            }
+            table {
+              width: 100%;
+              border-collapse: collapse;
+              margin-top: 30px;
+            }
+            th {
+              background-color: #f3f4f6;
+              border: 1px solid #e5e7eb;
+              padding: 12px;
+              text-align: left;
+              font-weight: bold;
+              font-size: 14px;
+            }
+            td {
+              border: 1px solid #e5e7eb;
+              padding: 12px;
+              font-size: 13px;
+              vertical-align: top;
+            }
+            .sno {
+              width: 50px;
+              text-align: center;
+            }
+            .subject {
+              width: 150px;
+            }
+            .task {
+              width: 400px;
+            }
+            .assigned-by {
+              width: 200px;
+            }
+            .footer {
+              position: fixed;
+              bottom: 20px;
+              right: 20px;
+              color: #9ca3af;
+              font-size: 12px;
+            }
+            @media print {
+              body {
+                padding: 20px;
+              }
+              .footer {
+                position: fixed;
+                bottom: 10px;
+                right: 10px;
+              }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div class="school-name">${schoolName}</div>
+            <div class="divider"></div>
+            <div class="meta-row">
+              <div class="meta-left">Date: ${currentDate}</div>
+              <div class="meta-right">Class: ${className}</div>
+            </div>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th class="sno">S.No.</th>
+                <th class="subject">Subject</th>
+                <th class="task">Homework Task</th>
+                <th class="assigned-by">Assigned By</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${classHomework.map((hw: any, index: number) => {
+                const subjectName = hw.subject?.name || 'General';
+                const capitalizedSubject = subjectName.charAt(0).toUpperCase() + subjectName.slice(1).toLowerCase();
+                return `
+                  <tr>
+                    <td class="sno">${index + 1}</td>
+                    <td class="subject">${capitalizedSubject}</td>
+                    <td class="task">${hw.description}</td>
+                    <td class="assigned-by">${hw.teacher.name}</td>
+                  </tr>
+                `;
+              }).join('')}
+            </tbody>
+          </table>
+          <div class="footer">Generated via Timetable Pro</div>
+        </body>
+        </html>
+      `;
+
+      printWindow.document.write(htmlContent);
+      printWindow.document.close();
+      
+      // Wait for the content to load then trigger print
+      setTimeout(() => {
+        printWindow.print();
+        toast.success('Print dialog opened');
+      }, 250);
     } catch (error) {
-      toast.error('Failed to download');
+      console.error('PDF generation error:', error);
+      toast.error('Failed to prepare PDF');
     }
   };
 
-  const handleDownloadExcel = async (className: string) => {
+  const handleDownloadWord = async (className: string) => {
     try {
-      toast.info('Generating Excel...');
+      toast.info('Generating Word document...');
       // Collect all homework for this class
       const classHomework = [...(homework[className] || []), ...(reportHomework[className] || [])];
       
-      // Create CSV content
-      const headers = ['Title', 'Teacher', 'Subject', 'Description', 'Submitted', 'Source'];
-      const rows = classHomework.map((hw: any) => [
-        hw.title,
-        hw.teacher.name,
-        hw.subject?.name || 'N/A',
-        hw.description.replace(/\n/g, ' '),
-        new Date(hw.createdAt).toLocaleDateString(),
-        hw.isFromReport ? 'Daily Report' : 'Homework Table',
-      ]);
-      
-      const csvContent = [headers, ...rows]
-        .map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
-        .join('\n');
+      // Use dynamic school name from state
+      const currentSchoolName = schoolName || 'School';
+      const currentDate = new Date().toLocaleDateString();
 
-      // Create a blob and download
-      const blob = new Blob([csvContent], { type: 'text/csv' });
+      // Create professional Word document with table structure
+      const doc = new Document({
+        sections: [{
+          properties: {},
+          children: [
+            // School Header - Bold, Uppercase, Centered
+            new Paragraph({
+              text: currentSchoolName.toUpperCase(),
+              heading: HeadingLevel.HEADING_1,
+              alignment: AlignmentType.CENTER,
+              spacing: { after: 200 },
+            }),
+            
+            // Divider
+            new Paragraph({
+              text: '',
+              border: { bottom: { color: '000000', space: 1, style: 'single', size: 6 } },
+              spacing: { after: 200 },
+            }),
+            
+            // Metadata row - Left: Date, Right: Class
+            new Paragraph({
+              children: [
+                new TextRun({ text: `Date: ${currentDate}`, size: 22 }),
+              ],
+              tabStops: [
+                { type: 'right', position: 8000 },
+              ],
+              spacing: { after: 100 },
+            }),
+            new Paragraph({
+              children: [
+                new TextRun({ text: `Class: ${className}`, size: 22 }),
+              ],
+              tabStops: [
+                { type: 'right', position: 8000 },
+              ],
+              spacing: { after: 400 },
+            }),
+            
+            // Homework Table with proper structure
+            new Table({
+              width: { size: 100, type: WidthType.PERCENTAGE },
+              rows: [
+                // Table Header
+                new TableRow({
+                  children: [
+                    new TableCell({
+                      width: { size: 10, type: WidthType.PERCENTAGE },
+                      shading: { fill: 'F3F4F6' },
+                      children: [new Paragraph({
+                        children: [new TextRun({ text: 'S.No.', bold: true, size: 22 })],
+                        alignment: AlignmentType.CENTER,
+                      })],
+                    }),
+                    new TableCell({
+                      width: { size: 20, type: WidthType.PERCENTAGE },
+                      shading: { fill: 'F3F4F6' },
+                      children: [new Paragraph({
+                        children: [new TextRun({ text: 'Subject', bold: true, size: 22 })],
+                      })],
+                    }),
+                    new TableCell({
+                      width: { size: 50, type: WidthType.PERCENTAGE },
+                      shading: { fill: 'F3F4F6' },
+                      children: [new Paragraph({
+                        children: [new TextRun({ text: 'Homework Task', bold: true, size: 22 })],
+                      })],
+                    }),
+                    new TableCell({
+                      width: { size: 20, type: WidthType.PERCENTAGE },
+                      shading: { fill: 'F3F4F6' },
+                      children: [new Paragraph({
+                        children: [new TextRun({ text: 'Assigned By', bold: true, size: 22 })],
+                      })],
+                    }),
+                  ],
+                }),
+                // Table Rows
+                ...classHomework.map((hw: any, index: number) => {
+                  const subjectName = hw.subject?.name || 'General';
+                  const capitalizedSubject = subjectName.charAt(0).toUpperCase() + subjectName.slice(1).toLowerCase();
+                  return new TableRow({
+                    children: [
+                      new TableCell({
+                        width: { size: 10, type: WidthType.PERCENTAGE },
+                        children: [new Paragraph({
+                          children: [new TextRun({ text: String(index + 1), size: 20 })],
+                          alignment: AlignmentType.CENTER,
+                        })],
+                      }),
+                      new TableCell({
+                        width: { size: 20, type: WidthType.PERCENTAGE },
+                        children: [new Paragraph({
+                          children: [new TextRun({ text: capitalizedSubject, size: 20 })],
+                        })],
+                      }),
+                      new TableCell({
+                        width: { size: 50, type: WidthType.PERCENTAGE },
+                        children: [new Paragraph({
+                          children: [new TextRun({ text: hw.description, size: 20 })],
+                        })],
+                      }),
+                      new TableCell({
+                        width: { size: 20, type: WidthType.PERCENTAGE },
+                        children: [new Paragraph({
+                          children: [new TextRun({ text: hw.teacher.name, size: 20 })],
+                        })],
+                      }),
+                    ],
+                  });
+                }),
+              ],
+              borders: {
+                top: { style: BorderStyle.SINGLE, size: 1, color: 'E5E7EB' },
+                bottom: { style: BorderStyle.SINGLE, size: 1, color: 'E5E7EB' },
+                left: { style: BorderStyle.SINGLE, size: 1, color: 'E5E7EB' },
+                right: { style: BorderStyle.SINGLE, size: 1, color: 'E5E7EB' },
+              },
+            }),
+            
+            // Footer watermark
+            new Paragraph({
+              children: [
+                new TextRun({ 
+                  text: 'Generated via Timetable Pro', 
+                  size: 18, 
+                  color: '9CA3AF',
+                  italics: true 
+                }),
+              ],
+              alignment: AlignmentType.RIGHT,
+              spacing: { before: 800 },
+            }),
+          ],
+        }],
+      });
+
+      const blob = await Packer.toBlob(doc);
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `homework-${className}.csv`;
+      a.download = `homework-${className}.docx`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
       
-      toast.success('Downloaded successfully');
+      toast.success('Word document downloaded successfully');
     } catch (error) {
-      toast.error('Failed to download');
+      console.error('Word generation error:', error);
+      toast.error('Failed to generate Word document');
     }
   };
 
@@ -337,31 +594,32 @@ export default function AdminHomeworkPage() {
                       <ChevronRight className='h-5 w-5 text-slate-600 dark:text-slate-400' />
                     )}
                     <h3 className='text-lg font-bold text-slate-900 dark:text-white'>
-                      Class {className}
+                     {className}
                     </h3>
                     <span className='text-sm text-slate-600 dark:text-slate-400'>
                       ({classHomeworkCount} {classHomeworkCount === 1 ? 'homework' : 'homeworks'})
                     </span>
                   </div>
                   <div className='flex gap-2' onClick={(e) => e.stopPropagation()}>
-                    <Button
-                      size='sm'
-                      variant='outline'
-                      onClick={() => handleDownloadPDF(className)}
-                      className='gap-1'
-                    >
-                      <Download className='h-3 w-3' />
-                      PDF
-                    </Button>
-                    <Button
-                      size='sm'
-                      variant='outline'
-                      onClick={() => handleDownloadExcel(className)}
-                      className='gap-1'
-                    >
-                      <Download className='h-3 w-3' />
-                      Excel
-                    </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button size='sm' variant='outline' className='gap-1'>
+                          <Download className='h-3 w-3' />
+                          Export
+                          <ChevronDown className='h-3 w-3' />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align='end'>
+                        <DropdownMenuItem onClick={() => handleDownloadPDF(className)} className='gap-2'>
+                          <FileText className='h-4 w-4' />
+                          Export as PDF
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleDownloadWord(className)} className='gap-2'>
+                          <FileText className='h-4 w-4' />
+                          Export as Word Document
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 </div>
                 {isExpanded && (
@@ -418,9 +676,6 @@ export default function AdminHomeworkPage() {
                         <p className='text-xs text-slate-600 dark:text-slate-400 mb-2'>
                           Submitted: {new Date(hw.createdAt).toLocaleDateString()}
                         </p>
-                        <span className='inline-block mt-2 px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded-full'>
-                          From Daily Report
-                        </span>
                       </div>
                       <div className='flex gap-2'>
                         <Button

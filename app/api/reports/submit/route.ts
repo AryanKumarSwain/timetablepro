@@ -88,6 +88,7 @@ export async function POST(request: NextRequest) {
           subjectId: entry.subjectId,
           description: entry.description,
           isCompleted: entry.isCompleted,
+          
         },
       });
     }

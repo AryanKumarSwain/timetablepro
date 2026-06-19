@@ -36,9 +36,9 @@ export const SUPER_ADMIN_NAV: NavItem[] = [
 ];
 export const ADMIN_NAV: NavItem[] = [
   { label: 'Dashboard', href: '/admin/dashboard', icon: LayoutDashboard },
-  { label: 'Teachers', href: '/admin/masters/teachers', icon: Users },
-  { label: 'Classes', href: '/admin/masters/classes', icon: GraduationCap },
-  { label: 'Subjects', href: '/admin/masters/subjects', icon: BookOpen },
+  { label: 'Teachers', href: '/admin/teachers', icon: Users },
+  { label: 'Classes', href: '/admin/classes', icon: GraduationCap },
+  { label: 'Subjects', href: '/admin/subjects', icon: BookOpen },
    { label: 'Attendance', href: '/admin/attendance', icon: UserCheck },
   { label: 'Timetables', href: '/admin/timetables', icon: Table2 },
   { label: 'Daily Desk', href: '/admin/daily-desk', icon: ClipboardList },
@@ -53,7 +53,6 @@ export const TEACHER_NAV: NavItem[] = [
   { label: 'Weekly Routine', href: '/teacher/weekly-schedule', icon: CalendarRange },
   { label: "Today's Report", href: '/teacher/report/today', icon: FileText },
   { label: 'Report History', href: '/teacher/report/history', icon: History },
-  { label: 'Profile', href: '/teacher/schedule', icon: UserCircle },
   { label: 'Settings', href: '/teacher/settings', icon: Settings }, // Added Teacher Settings
 ];
 

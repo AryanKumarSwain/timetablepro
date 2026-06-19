@@ -62,11 +62,45 @@ export async function GET(request: NextRequest) {
 
     // Now 'request' is correctly defined and won't throw a ReferenceError
     const queryDay = parseDayValue(request.nextUrl.searchParams.get('day') ?? request.nextUrl.searchParams.get('dayOfWeek'));
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const dayOfWeek = queryDay ?? getDayOfWeekFromDate(today.toISOString().split('T')[0]);
+    const todayDate = new Date();
+    todayDate.setHours(0, 0, 0, 0);
+    const dayOfWeek = queryDay ?? getDayOfWeekFromDate(todayDate.toISOString().split('T')[0]);
+    // Use local date format to match database storage
+    const year = todayDate.getFullYear();
+    const month = String(todayDate.getMonth() + 1).padStart(2, '0');
+    const day = String(todayDate.getDate()).padStart(2, '0');
+    const todayString = `${year}-${month}-${day}`;
 
     const { slots } = await getScheduleSlots(schoolId, { teacherId: teacher.id, dayOfWeek });
+
+    // Fetch proxy assignments for the teacher (include both CONFIRMED and PENDING)
+    const proxyAssignments = await prisma.replacementAssignment.findMany({
+      where: {
+        schoolId,
+        replacementTeacherId: teacher.id,
+        date: todayString,
+        status: { in: ['CONFIRMED', 'PENDING'] }
+      },
+    });
+
+    // Fetch related data for proxy assignments
+    const proxySlotIds = proxyAssignments.map(r => r.slotId).filter(Boolean) as string[];
+    const proxyPeriodIds = proxyAssignments.map(r => r.periodId);
+    
+    const [proxySlotsData, proxyPeriodsData] = await Promise.all([
+      proxySlotIds.length > 0 
+        ? prisma.timetableSlot.findMany({
+            where: { id: { in: proxySlotIds } },
+            include: { subject: true }
+          })
+        : Promise.resolve([]),
+      prisma.period.findMany({
+        where: { id: { in: proxyPeriodIds } }
+      })
+    ]);
+
+    const proxySlotMap = new Map(proxySlotsData.map(s => [s.id, s]));
+    const proxyPeriodMap = new Map(proxyPeriodsData.map(p => [p.id, p]));
 
     const classes = await prisma.classRoom.findMany({ where: schoolWhere(schoolId) });
     const subjects = await prisma.subject.findMany({ where: schoolWhere(schoolId) });
@@ -76,22 +110,52 @@ export async function GET(request: NextRequest) {
     const classMap = new Map(classes.map((c) => [c.id, c]));
     const subjectMap = new Map(subjects.map((s) => [s.id, s]));
 
+    // Map regular slots
+    const regularSlots = slots.map((slot) => {
+      const period = periodMap.get(slot.periodId);
+      return {
+        periodId: slot.periodId,
+        periodNumber: period?.periodNumber ?? 0,
+        startTime: period?.startTime ?? '',
+        endTime: period?.endTime ?? '',
+        classId: slot.classId,
+        className: classMap.get(slot.classId)?.name ?? '',
+        subjectId: slot.subjectId,
+        subjectName: subjectMap.get(slot.subjectId)?.name ?? '',
+        isProxy: false,
+      };
+    });
+
+    // Map proxy assignments
+    const proxySlots = proxyAssignments.map((replacement) => {
+      const period = proxyPeriodMap.get(replacement.periodId);
+      const slot = replacement.slotId ? proxySlotMap.get(replacement.slotId) : null;
+      // Try to get class info from slot first, then fall back to replacement.classId
+      const classObj = slot ? classMap.get(slot.classId) : classMap.get(replacement.classId);
+      const className = classObj?.name || 'Unknown Class';
+      // Try to get subject info from slot first, then fall back to empty
+      const subjectObj = slot?.subject ? subjectMap.get(slot.subjectId) : null;
+      const subjectName = subjectObj?.name || 'Unknown Subject';
+      const subjectId = slot?.subjectId || '';
+
+      return {
+        periodId: replacement.periodId,
+        periodNumber: period?.periodNumber ?? 0,
+        startTime: period?.startTime ?? '',
+        endTime: period?.endTime ?? '',
+        classId: replacement.classId,
+        className,
+        subjectId,
+        subjectName,
+        isProxy: true,
+      };
+    });
+
+    // Merge and sort by period number
+    const allSlots = [...regularSlots, ...proxySlots].sort((a, b) => a.periodNumber - b.periodNumber);
+
     return NextResponse.json({
-      scheduleSlots: slots
-        .map((slot) => {
-          const period = periodMap.get(slot.periodId);
-          return {
-            periodId: slot.periodId,
-            periodNumber: period?.periodNumber ?? 0,
-            startTime: period?.startTime ?? '',
-            endTime: period?.endTime ?? '',
-            classId: slot.classId,
-            className: classMap.get(slot.classId)?.name ?? '',
-            subjectId: slot.subjectId,
-            subjectName: subjectMap.get(slot.subjectId)?.name ?? '',
-          };
-        })
-        .sort((a, b) => a.periodNumber - b.periodNumber),
+      scheduleSlots: allSlots,
     });
   } catch (error) {
     return handleApiError(error);

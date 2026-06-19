@@ -258,7 +258,7 @@ export default function DailyDeskPage() {
         replacementTeacherId: replacementForm.replacementTeacherId,
         subjectId: '',
         reason: replacementForm.reason as 'Leave' | 'Medical' | 'Other',
-        status: 'confirmed',
+        status: 'pending',
       });
       setShowReplacementForm(false);
       setReplacementForm({
@@ -271,10 +271,35 @@ export default function DailyDeskPage() {
       await loadData();
       void loadHistory();
       router.refresh();
+      
+      // Trigger refetch for teacher schedule if it's open
+      if (typeof window !== 'undefined' && (window as any).refetchTeacherSchedule) {
+        (window as any).refetchTeacherSchedule();
+      }
     } catch (error) {
       console.error('Failed to register substitute tracking records:', error);
     } finally {
       setSubmittingReplacement(false);
+    }
+  };
+
+  const handleConfirmReplacement = async (replacementId: string) => {
+    try {
+      // Update replacement status to confirmed
+      await fetch(`/api/replacements/${replacementId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'confirmed' }),
+      });
+      await loadData();
+      router.refresh();
+      
+      // Trigger refetch for teacher schedule if it's open
+      if (typeof window !== 'undefined' && (window as any).refetchTeacherSchedule) {
+        (window as any).refetchTeacherSchedule();
+      }
+    } catch (error) {
+      console.error('Failed to confirm replacement:', error);
     }
   };
 
@@ -639,6 +664,7 @@ export default function DailyDeskPage() {
 
                             const hasServerReplacement = !!cell.replacement;
                             const isCovered = hasServerReplacement && (cell.replacement?.status === 'confirmed' || cell.replacement?.status === 'approved');
+                            const isPendingCover = hasServerReplacement && cell.replacement?.status === 'pending';
                             const isCoverMissing = cell.isReplacementAbsent === true;
                             const subjectColorClass = getSubjectClass(cell.subjectName);
 
@@ -677,6 +703,26 @@ export default function DailyDeskPage() {
                                   <div className='flex flex-col gap-1 mt-auto print:mt-0'>
                                     {cell.isAbsent ? (
                                       <>
+                                        {isPendingCover && (
+                                          <div className="space-y-1.5 print:space-y-0.5">
+                                            <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-amber-500/10 text-amber-600 border border-amber-500/20 shadow-sm print:bg-transparent print:border-none print:p-0 print:text-amber-700">
+                                              <AlertTriangle className='h-3 w-3 shrink-0' />
+                                              <span className="text-[10px] font-bold uppercase tracking-wider print:text-[8px]">Pending Cover</span>
+                                            </div>
+                                            <p className="text-[11px] font-medium text-foreground bg-muted/60 px-1.5 py-1 rounded border border-border/40 truncate print:text-[9px] print:bg-gray-50 print:p-0.5">
+                                              <span className="text-muted-foreground font-normal print:text-gray-600">Sub:</span> {cell.replacement?.replacementTeacherName}
+                                            </p>
+                                            <Button
+                                              size='sm'
+                                              variant='secondary'
+                                              className='h-6 text-[10px] font-bold rounded bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 hover:bg-emerald-500/20 w-full'
+                                              onClick={() => handleConfirmReplacement(cell.replacement?.id)}
+                                            >
+                                              Confirm Cover
+                                            </Button>
+                                          </div>
+                                        )}
+
                                         {isCovered && !isCoverMissing && (
                                           <div className="space-y-1.5 print:space-y-0.5">
                                             <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 shadow-sm print:bg-transparent print:border-none print:p-0 print:text-green-700">

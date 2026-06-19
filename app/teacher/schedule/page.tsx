@@ -17,12 +17,14 @@ export default function TeacherSchedulePage() {
   const [replacements, setReplacements] = useState<Replacement[]>([]);
   const [loading, setLoading] = useState(true);
   const [hasSchoolAssignment, setHasSchoolAssignment] = useState(true);
+  const [workload, setWorkload] = useState<{ sessionsToday: number; weekly: { totalSlots: number; assignedSlots: number; burnoutIndex: number } } | null>(null);
+  const [lastUpdate, setLastUpdate] = useState(Date.now());
 
   useEffect(() => {
     if (auth.user?.teacherId) {
       loadSchedule();
     }
-  }, [auth.user?.teacherId]);
+  }, [auth.user?.teacherId, lastUpdate]);
 
  const loadSchedule = async () => {
   try {
@@ -35,16 +37,27 @@ export default function TeacherSchedulePage() {
     }
 
     const today = new Date().toISOString().split('T')[0];
-    const [scheduleData, replacementData] = await Promise.all([
+    const [scheduleResponse, replacementData] = await Promise.all([
       getTodayScheduleForTeacher(auth.user?.teacherId || ''),
       getReplacements({ date: today }),
     ]);
+
+    // Extract schedule array from the new API response structure
+    const scheduleData = Array.isArray(scheduleResponse) 
+      ? scheduleResponse 
+      : (scheduleResponse as any)?.schedule || [];
+
+    // Extract workload data if available
+    const workloadData = !Array.isArray(scheduleResponse) && (scheduleResponse as any)?.workload
+      ? (scheduleResponse as any).workload
+      : null;
 
     // Explicit sequential timeline sorting
     const sortedSchedule = [...scheduleData].sort((a, b) => Number(a.periodNumber) - Number(b.periodNumber));
 
     setSchedule(sortedSchedule);
     setReplacements(replacementData);
+    setWorkload(workloadData);
   } catch (error) {
     console.error('Failed to load schedule:', error);
   } finally {
@@ -67,7 +80,18 @@ export default function TeacherSchedulePage() {
     });
   };
 
-  const burnoutScore = Math.min(100, schedule.length * 12 + replacements.length * 8);
+  const burnoutScore = workload?.weekly?.burnoutIndex ?? Math.min(100, schedule.length * 12 + replacements.length * 8);
+  const sessionsToday = workload?.sessionsToday ?? schedule.length;
+
+  // Expose refetch function globally for proxy assignment updates
+  useEffect(() => {
+    (window as any).refetchTeacherSchedule = () => {
+      setLastUpdate(Date.now());
+    };
+    return () => {
+      delete (window as any).refetchTeacherSchedule;
+    };
+  }, []);
 
   if (loading) {
     return (
@@ -124,7 +148,7 @@ export default function TeacherSchedulePage() {
         </GlassCard>
         <GlassCard className='p-5'>
           <p className='text-xs text-muted-foreground mb-1'>Sessions today</p>
-          <p className='text-3xl font-bold'>{schedule.length}</p>
+          <p className='text-3xl font-bold'>{sessionsToday}</p>
           <p className='text-xs text-muted-foreground mt-1'>
             {replacements.length} cover events
           </p>
@@ -149,16 +173,19 @@ export default function TeacherSchedulePage() {
                 <div
                   className={cn(
                     'absolute left-3 top-5 h-3 w-3 rounded-full ring-4 ring-background',
-                    replacement?.status === 'confirmed'
+                    (item as any).isProxy
                       ? 'bg-indigo-500'
-                      : item.isAbsent
-                        ? 'bg-rose-500'
-                        : 'bg-emerald-500'
+                      : replacement?.status === 'confirmed'
+                        ? 'bg-indigo-500'
+                        : item.isAbsent
+                          ? 'bg-rose-500'
+                          : 'bg-emerald-500'
                   )}
                 />
                 <GlassCard
                   className={cn(
                     'p-5 transition-all hover:shadow-lg',
+                    (item as any).isProxy && 'border-indigo-500/30 bg-indigo-500/5',
                     replacement?.status === 'confirmed' && 'border-indigo-500/30',
                     item.isAbsent && 'border-rose-500/30 bg-rose-500/5'
                   )}
@@ -178,6 +205,11 @@ export default function TeacherSchedulePage() {
                   </div>
 
                   <div className='flex flex-wrap gap-2 mt-4'>
+                    {(item as any).isProxy && (
+                      <span className='px-3 py-1 rounded-full text-xs font-medium bg-indigo-500/15 text-indigo-600'>
+                        Proxy/Substitution
+                      </span>
+                    )}
                     {item.isAbsent && (
                       <span className='px-3 py-1 rounded-full text-xs font-medium bg-rose-500/15 text-rose-600'>
                         Marked absent
@@ -199,7 +231,7 @@ export default function TeacherSchedulePage() {
                           {replacement.status}
                         </span>
                       </>
-                    ) : (
+                    ) : !(item as any).isProxy && (
                       <span className='px-3 py-1 rounded-full text-xs font-medium bg-emerald-500/15 text-emerald-600'>
                         Scheduled
                       </span>

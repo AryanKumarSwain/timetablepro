@@ -368,6 +368,7 @@ model ReportEntry {
   subject     Subject     @relation(fields: [subjectId], references: [id], onDelete: Cascade)
   description String      @db.Text
   isCompleted Boolean     @default(false)
+  isProxy     Boolean     @default(false)
   createdAt   DateTime    @default(now())
 
   @@index([reportId])

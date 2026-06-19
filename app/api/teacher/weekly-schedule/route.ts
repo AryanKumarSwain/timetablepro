@@ -2,12 +2,22 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireSchoolContext, handleApiError, schoolWhere } from '@/lib/auth-server';
 import { mapWeeklySlot } from '@/lib/mappers';
+import { getDayOfWeekFromDate } from '@/lib/timetable-source';
 
 export async function GET(request: NextRequest) {
   try {
-    const { schoolId } = await requireSchoolContext();
+    const { schoolId, user } = await requireSchoolContext();
     const classId = request.nextUrl.searchParams.get('classId');
-    const teacherId = request.nextUrl.searchParams.get('teacherId');
+    const teacherIdParam = request.nextUrl.searchParams.get('teacherId');
+
+    // Resolve teacher ID from authenticated user if not provided
+    let teacherId: string | null = teacherIdParam || null;
+    if (!teacherId && user.role === 'TEACHER') {
+      const teacher = await prisma.teacher.findFirst({
+        where: { schoolId, email: user.email },
+      });
+      teacherId = teacher?.id || null;
+    }
 
     const publishedTimetable = await prisma.timetable.findFirst({
       where: {
@@ -18,27 +28,51 @@ export async function GET(request: NextRequest) {
     });
 
     if (publishedTimetable) {
-      const rows = await prisma.timetableSlot.findMany({
-        where: {
-          ...schoolWhere(schoolId),
-          timetableId: publishedTimetable.id,
-          ...(classId ? { classId } : {}),
-          ...(teacherId ? { teacherId } : {}),
-        },
-      });
+      const [rows, replacements] = await Promise.all([
+        prisma.timetableSlot.findMany({
+          where: {
+            ...schoolWhere(schoolId),
+            timetableId: publishedTimetable.id,
+            ...(classId ? { classId } : {}),
+            ...(teacherId ? { teacherId } : {}),
+          },
+        }),
+        // Always fetch proxy assignments if teacherId is available
+        teacherId ? prisma.replacementAssignment.findMany({
+          where: {
+            ...schoolWhere(schoolId),
+            replacementTeacherId: teacherId,
+            status: 'CONFIRMED',
+          },
+          include: { period: true, slot: { include: { subject: true } } },
+        }) : Promise.resolve([]),
+      ]);
 
-      return NextResponse.json(
-        rows.map((row) => ({
-          id: row.id,
-          classId: row.classId,
-          dayOfWeek: row.dayOfWeek,
-          periodId: row.periodId,
-          teacherId: row.teacherId,
-          subjectId: row.subjectId,
-          createdAt: '',
-          updatedAt: '',
-        }))
-      );
+      const regularSlots = rows.map((row) => ({
+        id: row.id,
+        classId: row.classId,
+        dayOfWeek: row.dayOfWeek,
+        periodId: row.periodId,
+        teacherId: row.teacherId,
+        subjectId: row.subjectId,
+        createdAt: '',
+        updatedAt: '',
+        isProxy: false,
+      }));
+
+      const proxySlots = replacements.map((replacement) => ({
+        id: `proxy-${replacement.id}`,
+        classId: replacement.classId,
+        dayOfWeek: getDayOfWeekFromDate(replacement.date),
+        periodId: replacement.periodId,
+        teacherId: replacement.replacementTeacherId,
+        subjectId: replacement.slot?.subjectId || '',
+        createdAt: '',
+        updatedAt: '',
+        isProxy: true,
+      }));
+
+      return NextResponse.json([...regularSlots, ...proxySlots]);
     }
 
     const rows = await prisma.weeklyTimetableSlot.findMany({

@@ -185,6 +185,7 @@ export default function TeacherReportsPage() {
     startTime: string;
     endTime: string;
     isCompleted: boolean;
+    isProxy?: boolean;
   }>>([]);
   const [submitting, setSubmitting] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
@@ -229,6 +230,7 @@ export default function TeacherReportsPage() {
         );
 
         const { description, tlm, homework } = splitHomeworkDescription(matchingEntry?.description ?? '');
+        const isProxy = (slot as any).isProxy === true;
 
         return {
           entryId: matchingEntry?.id,
@@ -244,6 +246,7 @@ export default function TeacherReportsPage() {
           tlm: tlm ? tlm.split(',').map(t => t.trim()).filter(Boolean) : [],
           homework,
           isCompleted: matchingEntry?.isCompleted ?? false,
+          isProxy,
         };
       }).sort((a, b) => String(a.periodNumber).localeCompare(String(b.periodNumber), undefined, { numeric: true }));
 
@@ -329,7 +332,9 @@ export default function TeacherReportsPage() {
       });
 
       setSubmitSuccess("Report submitted successfully!");
-      void load();
+      // Update report status locally to SUBMITTED without reloading data
+      // This keeps the entered text visible in readOnly mode
+      setReport(prev => prev ? { ...prev, status: 'SUBMITTED' } : null);
     } catch (e) {
       console.error(e);
       setValidationError("Failed to submit the report. Please try again.");
@@ -394,6 +399,11 @@ export default function TeacherReportsPage() {
                   Period {r.periodNumber}
                   {r.startTime && r.endTime ? ` · ${r.startTime}–${r.endTime}` : ''}
                 </span>
+                {r.isProxy && (
+                  <span className='px-2 py-0.5 text-xs bg-indigo-500/15 text-indigo-600 border border-indigo-500/30 rounded-md font-medium'>
+                    Proxy/Substitution
+                  </span>
+                )}
                 <span className='px-2 py-0.5 text-xs bg-secondary text-secondary-foreground border rounded-md font-medium ml-1'>
                   {r.className}
                 </span>

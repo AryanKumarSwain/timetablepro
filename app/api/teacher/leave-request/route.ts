@@ -61,13 +61,13 @@ export async function POST(request: NextRequest) {
       data: { leaveRequestStatus: 'PENDING' },
     });
 
-    // Create notification for school admin
+    // Create notification for school admin only
     await prisma.notification.create({
       data: {
         title: 'Leave Request',
         message: `${teacher.name} has requested to leave the school.`,
         type: 'ALERT',
-        scope: 'ALL_ADMINS',
+        scope: 'SCHOOL_TEACHERS',
         schoolId,
         senderId: user.id,
       },

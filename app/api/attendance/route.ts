@@ -59,17 +59,43 @@ export async function POST(request: NextRequest) {
     const classId = body.classId ? String(body.classId) : undefined;
     const periodId = body.periodId ? String(body.periodId) : undefined;
 
-    const row = await prisma.teacherAttendance.upsert({
-      where: { teacherId_date: { teacherId, date } },
-      create: {
+    // Delete existing attendance record for this teacher/date
+    await prisma.teacherAttendance.deleteMany({
+      where: { schoolId, teacherId, date }
+    });
+
+    // Delete pending replacement assignments for this teacher/date
+    await prisma.replacementAssignment.deleteMany({
+      where: { schoolId, originalTeacherId: teacherId, date, status: 'PENDING' }
+    });
+
+    let row;
+    if (isAbsent) {
+      // Create new attendance record as ABSENT
+      row = await prisma.teacherAttendance.create({
+        data: {
+          id: `attendance-${crypto.randomUUID()}`,
+          schoolId,
+          teacherId,
+          date,
+          status: 'ABSENT',
+        }
+      });
+
+      // Do not automatically create replacement assignments
+      // Substitutions should be manually assigned via the daily desk
+    } else {
+      // When marking as PRESENT, don't create a record - absence is the default state
+      // Return a dummy record for API compatibility
+      row = {
         id: `attendance-${crypto.randomUUID()}`,
         schoolId,
         teacherId,
         date,
-        status: isAbsent ? 'ABSENT' : 'PRESENT',
-      },
-      update: { status: isAbsent ? 'ABSENT' : 'PRESENT' },
-    });
+        status: 'PRESENT',
+        createdAt: new Date(),
+      } as any;
+    }
 
     let subjectId: string | undefined;
     if (classId && periodId) {

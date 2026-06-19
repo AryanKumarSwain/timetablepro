@@ -8,8 +8,6 @@ import {
 
 type RouteContext = { params: Promise<{ id: string }> };
 
-const DAYS_PER_WEEK = 6;
-
 export async function GET(_request: Request, context: RouteContext) {
   try {
     const { schoolId } = await requireSchoolAdmin();
@@ -24,17 +22,27 @@ export async function GET(_request: Request, context: RouteContext) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
 
-    const [periods, classes, teachers] = await Promise.all([
+    const [timetablePeriods, classes, teachers, replacements] = await Promise.all([
       prisma.period.findMany({
-        where: schoolWhere(schoolId),
-        orderBy: { periodNumber: 'asc' },
+        where: { schoolId, timetableId: timetableId },
+        orderBy: { startTime: 'asc' },
       }),
       prisma.classRoom.findMany({ where: schoolWhere(schoolId) }),
       prisma.teacher.findMany({ where: schoolWhere(schoolId) }),
+      prisma.replacementAssignment.findMany({
+        where: schoolWhere(schoolId),
+      }),
     ]);
 
-    const totalCellsPerClass = periods.length * DAYS_PER_WEEK;
-    const totalCellsPerTeacher = periods.length * DAYS_PER_WEEK;
+    // Use actual working days from timetable configuration, default to 5 if not set
+    const workingDays = timetable.workingDays && Array.isArray(timetable.workingDays) 
+      ? timetable.workingDays.length 
+      : 5;
+    
+    // Exclude break periods from the calculation
+    const activePeriods = timetablePeriods.filter(p => !p.isBreak);
+    const totalCellsPerClass = activePeriods.length * workingDays;
+    const totalCellsPerTeacher = activePeriods.length * workingDays;
 
     const classWorkload = classes.map((cls) => {
       const assigned = timetable.slots.filter((s) => s.classId === cls.id).length;
@@ -53,19 +61,30 @@ export async function GET(_request: Request, context: RouteContext) {
       };
     });
 
-    const teacherWorkload = teachers.map((teacher) => {
-      const assigned = timetable.slots.filter(
+    const teacherWorkload = teachers.map((teacher: any) => {
+      // Count standard timetable slots
+      const assignedSlots = timetable.slots.filter(
         (s) => s.teacherId === teacher.id
       ).length;
-      const maxLoad = teacher.maxPeriodsPerWeek;
+      
+      // Count active proxy/substitution assignments (confirmed status)
+      const proxyAssignments = replacements.filter(
+        (r: any) => r.replacementTeacherId === teacher.id && r.status === 'CONFIRMED'
+      ).length;
+      
+      // Total workload = standard slots + proxy assignments
+      const totalAssigned = assignedSlots + proxyAssignments;
+      
+      // Use dynamic total based on active periods and working days
       const utilization =
-        maxLoad > 0 ? Math.round((assigned / maxLoad) * 100) : 0;
+        totalCellsPerTeacher > 0 ? Math.round((totalAssigned / totalCellsPerTeacher) * 100) : 0;
+      
       return {
         teacherId: teacher.id,
         name: teacher.name,
-        assigned,
-        total: maxLoad,
-        remaining: Math.max(0, maxLoad - assigned),
+        assigned: totalAssigned,
+        total: totalCellsPerTeacher,
+        remaining: Math.max(0, totalCellsPerTeacher - totalAssigned),
         utilization,
       };
     });

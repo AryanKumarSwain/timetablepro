@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { requireSchoolContext, handleApiError, schoolWhere } from '@/lib/auth-server';
 import { mapReplacement, mapLeaveReason } from '@/lib/mappers';
 import { getDayOfWeekFromDate } from '@/lib/timetable-source';
+import { revalidatePath } from 'next/cache';
 
 export async function GET(request: NextRequest) {
   try {
@@ -77,11 +78,17 @@ export async function POST(request: NextRequest) {
     });
 
     // Fetch created row including slot relation so mapper can surface subjectId
-    const created = await prisma.replacementAssignment.findUnique({ 
-      where: { id: row.id }, 
-      include: { slot: true, replacementTeacher: true } 
+    const created = await prisma.replacementAssignment.findUnique({
+      where: { id: row.id },
+      include: { slot: true, replacementTeacher: true }
     });
-    
+
+    // Revalidate cache for all teacher pages that display proxy data
+    revalidatePath('/teacher/schedule');
+    revalidatePath('/teacher/weekly-schedule');
+    revalidatePath('/teacher/report/today');
+    revalidatePath('/teacher/report/history');
+
     return NextResponse.json(mapReplacement(created as any), { status: 201 });
   } catch (error) {
     console.error('[POST /api/replacements]', error);

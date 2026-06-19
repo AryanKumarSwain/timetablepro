@@ -103,31 +103,8 @@ export async function POST(request: NextRequest) {
         }
       });
 
-      const dateObj = new Date(formattedDate);
-      const dayOfWeek = dateObj.getDay(); 
-
-      const assignedSlots = await prisma.weeklyTimetableSlot.findMany({
-        where: { schoolId, teacherId, dayOfWeek }
-      });
-
-      if (assignedSlots.length > 0) {
-        const replacementPromises = assignedSlots.map((slot) => {
-          return prisma.replacementAssignment.create({
-            data: {
-              schoolId,
-              date: formattedDate,
-              periodId: slot.periodId,
-              classId: slot.classId,
-              originalTeacherId: teacherId,
-              replacementTeacherId: teacherId, 
-              reason: 'CASUAL_LEAVE',          
-              status: 'PENDING'                 
-            }
-          });
-        });
-
-        await Promise.all(replacementPromises);
-      }
+      // Do not automatically create replacement assignments
+      // Substitutions should be manually assigned via the daily desk
     }
 
     return NextResponse.json({ success: true, message: `Status updated to ${status}` });

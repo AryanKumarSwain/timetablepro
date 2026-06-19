@@ -4,11 +4,11 @@ import { requireSchoolContext } from '@/lib/auth-server';
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { schoolId } = await requireSchoolContext();
-    const { id } = params;
+    const { id } = await params;
     const body = await request.json();
     const { title, description, classId, teacherId, status } = body;
 
@@ -49,11 +49,11 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { schoolId } = await requireSchoolContext();
-    const { id } = params;
+    const { id } = await params;
 
     // Verify the homework belongs to this school
     const existingHomework = await prisma.homework.findUnique({

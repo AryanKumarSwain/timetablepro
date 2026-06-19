@@ -304,6 +304,15 @@ export async function DELETE(_request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
 
+    // Delete associated slots and periods
+    await prisma.timetableSlot.deleteMany({
+      where: { timetableId: id }
+    });
+    
+    await prisma.period.deleteMany({
+      where: { timetableId: id }
+    });
+
     await prisma.timetable.delete({ where: { id } });
     return NextResponse.json({ ok: true });
   } catch (error) {

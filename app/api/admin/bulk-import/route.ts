@@ -148,14 +148,14 @@ export async function POST(request: NextRequest) {
     );
     let fallbackSubject = subjects[0];
 
-    // If no subjects exist, create a default "General / Unassigned" subject
+    // If no subjects exist, create a default "Activity" subject
     if (!fallbackSubject) {
       fallbackSubject = await client.subject.create({
         data: {
           id: `subject-${crypto.randomUUID()}`,
           schoolId,
-          name: 'General / Unassigned',
-          code: 'GEN-01',
+          name: 'Activity',
+          code: 'ACT-01',
         },
       });
       subjects = [fallbackSubject];

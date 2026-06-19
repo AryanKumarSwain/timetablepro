@@ -38,7 +38,7 @@ export default function TeacherWeeklySchedulePage() {
         setLoading(true);
         const [timetableData, periodsData, classesData, subjectsData] =
           await Promise.all([
-            getPublishedWeeklyTimetable(),
+            getPublishedWeeklyTimetable(undefined, auth.user?.teacherId),
             getPeriods(),
             getClasses(),
             getSubjects(),
@@ -220,26 +220,39 @@ export default function TeacherWeeklySchedulePage() {
                         (s) => s.teacherId === currentTeacherId
                       );
 
+                      const isProxySlot = teacherSpecificSlot && (teacherSpecificSlot as any).isProxy === true;
+
                       return (
                         <td
                           key={`${dayIndex}-${period.id}`}
                           className={cn(
                             'p-3 border-l border-border/40 align-top min-h-[105px]',
-                            teacherSpecificSlot ? 'bg-emerald-500/[0.06]' : 'bg-transparent'
+                            teacherSpecificSlot ? (isProxySlot ? 'bg-indigo-500/[0.06]' : 'bg-emerald-500/[0.06]') : 'bg-transparent'
                           )}
                         >
                           {teacherSpecificSlot ? (
-                            <Card className="p-3 bg-emerald-600 dark:bg-emerald-700 border border-emerald-700 dark:border-emerald-800 shadow-md flex flex-col justify-between min-h-[85px] rounded-xl group hover:bg-emerald-700 dark:hover:bg-emerald-600 transition-colors">
+                            <Card className={cn(
+                              "p-3 border shadow-md flex flex-col justify-between min-h-[85px] rounded-xl group transition-colors",
+                              isProxySlot 
+                                ? "bg-indigo-600 dark:bg-indigo-700 border-indigo-700 dark:border-indigo-800 hover:bg-indigo-700 dark:hover:bg-indigo-600"
+                                : "bg-emerald-600 dark:bg-emerald-700 border-emerald-700 dark:border-emerald-800 hover:bg-emerald-700 dark:hover:bg-emerald-600"
+                            )}>
                               <div>
-                                <span className="inline-block px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-background text-emerald-500 mb-2 shadow-sm">
-                                  {getSubjectName(teacherSpecificSlot.subjectId)}
+                                <span className={cn(
+                                  "inline-block px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider mb-2 shadow-sm",
+                                  isProxySlot ? "bg-background text-indigo-500" : "bg-background text-emerald-500"
+                                )}>
+                                  {isProxySlot ? 'PROXY' : getSubjectName(teacherSpecificSlot.subjectId)}
                                 </span>
                                 <p className="font-extrabold text-sm text-white tracking-wide">
                                   Class {getClassName(teacherSpecificSlot.classId)}
                                 </p>
                               </div>
-                              <div className="text-[10px] text-emerald-100 font-bold uppercase tracking-wider pt-1.5 border-t border-emerald-500/40 mt-2 flex items-center gap-1">
-                                <BookOpen className="h-2.5 w-2.5 text-white" /> Active Session
+                              <div className={cn(
+                                "text-[10px] font-bold uppercase tracking-wider pt-1.5 border-t mt-2 flex items-center gap-1",
+                                isProxySlot ? "text-indigo-100 border-indigo-500/40" : "text-emerald-100 border-emerald-500/40"
+                              )}>
+                                <BookOpen className="h-2.5 w-2.5 text-white" /> {isProxySlot ? 'Substitution' : 'Active Session'}
                               </div>
                             </Card>
                           ) : (

@@ -17,7 +17,7 @@ import { GlassCard } from '@/components/enterprise/glass-card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, Filter, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Filter, AlertTriangle, Plus, Minus, Layers, CheckCircle } from 'lucide-react';
 import { cn, isTeacherActive } from '@/lib/utils';
 import {
   TimetableGrid,
@@ -55,6 +55,7 @@ export default function TimetableEditPage() {
   const [workingDays, setWorkingDays] = useState<number[]>([1, 2, 3, 4, 5]);
   const [baseStartTime, setBaseStartTime] = useState<string>("08:00");
   const [periodDuration, setPeriodDuration] = useState<number>(45);
+  const [zoom, setZoom] = useState<number>(100);
 
   const [editCell, setEditCell] = useState<{
     dayOfWeek: number;
@@ -152,15 +153,12 @@ export default function TimetableEditPage() {
     if (!detail || detail.periods.length === 0) return;
 
     const updatedPeriods = recalculateTimetableTimes(detail.periods, baseStartTime, periodDuration);
-
     const isGlobalSettingsChange = detail.periods.some((p, i) => {
       const target = updatedPeriods[i];
       return target && (p.startTime !== target.startTime || p.endTime !== target.endTime);
     });
 
-    const hasLengthChanged = detail.periods.length !== updatedPeriods.length;
-
-    if (isGlobalSettingsChange && !hasLengthChanged) {
+    if (isGlobalSettingsChange && detail.periods.length === updatedPeriods.length) {
       const hasUnsavedRows = detail.periods.some(p => p.id.startsWith('row-'));
       if (!hasUnsavedRows) {
         setDetail(prev => prev ? { ...prev, periods: updatedPeriods } : null);
@@ -173,6 +171,35 @@ export default function TimetableEditPage() {
     detail?.subjects.forEach((s) => m.set(s.id, s.color));
     return m;
   }, [detail?.subjects]);
+
+  // Helper calculation function to check if all available standard slots are filled for a target entity
+  const fullyFilledEntities = useMemo(() => {
+    const filledMap = new Set<string>();
+    if (!detail || detail.periods.length === 0) return filledMap;
+
+    const activePeriods = detail.periods.filter(p => !p.isBreak);
+    const totalExpectedSlotsCount = activePeriods.length * workingDays.length;
+    if (totalExpectedSlotsCount === 0) return filledMap;
+
+    if (view === 'section' || view === 'room') {
+      detail.classes.forEach(c => {
+        const slotsForClass = detail.slots.filter(s => s.classId === c.id);
+        const filledValidSlots = slotsForClass.filter(s => activePeriods.some(p => p.id === s.periodId));
+        if (filledValidSlots.length >= totalExpectedSlotsCount) {
+          filledMap.add(c.id);
+        }
+      });
+    } else if (view === 'faculty') {
+      detail.teachers.forEach(t => {
+        const slotsForTeacher = detail.slots.filter(s => s.teacherId === t.id);
+        const filledValidSlots = slotsForTeacher.filter(s => activePeriods.some(p => p.id === s.periodId));
+        if (filledValidSlots.length >= totalExpectedSlotsCount) {
+          filledMap.add(t.id);
+        }
+      });
+    }
+    return filledMap;
+  }, [detail, workingDays, view]);
 
   const sidebarItems = useMemo(() => {
     if (!detail) return [];
@@ -188,9 +215,7 @@ export default function TimetableEditPage() {
 
   const filteredSlots = useMemo(() => {
     if (!detail) return [];
-    if (view === 'section') return detail.slots.filter((s) => s.classId === selectedId);
-    if (view === 'faculty') return detail.slots.filter((s) => s.teacherId === selectedId);
-    return detail.slots.filter((s) => s.classId === selectedId);
+    return detail.slots.filter((s) => s.classId === selectedId || (view === 'faculty' && s.teacherId === selectedId));
   }, [detail, view, selectedId]);
 
   const classCurrentlyEditing = useMemo(() => {
@@ -202,6 +227,10 @@ export default function TimetableEditPage() {
     const currentClass = detail.classes.find((c) => c.id === selectedId);
     return currentClass ? currentClass.name : (detail.targetClassName || null);
   }, [detail, view, selectedId]);
+
+  const isCurrentSelectionFullyFilled = useMemo(() => {
+    return fullyFilledEntities.has(selectedId);
+  }, [fullyFilledEntities, selectedId]);
 
   const availableTeachersForCell = useMemo(() => {
     if (!detail || !editCell) return [];
@@ -271,7 +300,7 @@ export default function TimetableEditPage() {
   ) => {
     if (!detail) return;
     try {
-      const response = await fetch(`/api/admin/timetables/${timetableId}`, {
+      await fetch(`/api/admin/timetables/${timetableId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -290,9 +319,6 @@ export default function TimetableEditPage() {
           }))
         }),
       });
-      if (response.ok) {
-        router.refresh();
-      }
     } catch (e) {
       console.error("Failed persisting configuration updates:", e);
     }
@@ -321,25 +347,11 @@ export default function TimetableEditPage() {
 
   const handleRemoveRow = async (id: string) => {
     if (!detail) return;
-
     const remaining = detail.periods.filter((p) => p.id !== id);
     const updatedPeriods = recalculateTimetableTimes(remaining, baseStartTime, periodDuration);
-    const updatedSlots = detail.slots.filter((s) => s.periodId !== id);
-
-    setDetail({
-      ...detail,
-      periods: updatedPeriods,
-      slots: updatedSlots,
-    });
-
-    try {
-      await persistGridSettings(updatedPeriods);
-      await load();
-      router.refresh();
-    } catch (error) {
-      console.error("Failed to sync deletion with server:", error);
-      await load();
-    }
+    setDetail({ ...detail, periods: updatedPeriods });
+    await persistGridSettings(updatedPeriods);
+    await load();
   };
 
   const handleUpdateRowLabel = async (id: string, label: string) => {
@@ -351,19 +363,12 @@ export default function TimetableEditPage() {
 
   const handleUpdateRowTime = async (id: string, startTime: string, endTime: string) => {
     if (!detail) return;
-
-    const updatedPeriods = detail.periods.map((p) =>
-      p.id === id ? { ...p, startTime, endTime } : p
-    );
-
+    const updatedPeriods = detail.periods.map((p) => p.id === id ? { ...p, startTime, endTime } : p);
     setDetail({ ...detail, periods: updatedPeriods });
     await persistGridSettings(updatedPeriods);
   };
 
-  const periodLabel = editCell
-    ? detail?.periods.find((p) => p.id === editCell.periodId)?.label ?? ''
-    : '';
-
+  const periodLabel = editCell ? detail?.periods.find((p) => p.id === editCell.periodId)?.label ?? '' : '';
   const missingData = useMemo(() => {
     if (!detail) return null;
     const missing = [];
@@ -378,160 +383,186 @@ export default function TimetableEditPage() {
   }
 
   return (
-    <div className='max-w-[1600px] mx-auto space-y-6 px-4 py-2 relative'>
+    <div className='max-w-[1600px] mx-auto space-y-4 px-2 sm:px-4 py-2 relative'>
       {missingData && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/60 backdrop-blur-sm">
           <GlassCard className="p-8 max-w-md text-center space-y-4">
             <AlertTriangle className="h-12 w-12 mx-auto text-amber-500" />
             <h2 className="text-xl font-bold text-foreground">Required Data Missing</h2>
-            <p className="text-muted-foreground">
-              Please add the following before creating a timetable:
+            <p className="text-sm text-muted-foreground">
+              The following data is required to create a timetable:
             </p>
-            <div className="flex flex-wrap justify-center gap-2">
-              {missingData.map((item) => (
-                <span key={item} className="px-3 py-1 bg-amber-500/10 text-amber-600 rounded-full text-sm font-medium">
-                  {item}
-                </span>
-              ))}
-            </div>
-            <div className="pt-4 space-y-2">
-              <Link href="/admin/masters/subjects">
-                <Button className="w-full rounded-xl">Add Subjects</Button>
-              </Link>
-              <Link href="/admin/masters/teachers">
-                <Button variant="outline" className="w-full rounded-xl">Add Teachers</Button>
-              </Link>
-              <Link href="/admin/masters/classes">
-                <Button variant="outline" className="w-full rounded-xl">Add Classes</Button>
-              </Link>
+            <div className="pt-2 space-y-2">
+              {missingData.includes('Subjects') && (
+                <Link href="/admin/subjects"><Button className="w-full rounded-xl">Add Subjects</Button></Link>
+              )}
+              {missingData.includes('Teachers') && (
+                <Link href="/admin/teachers"><Button className="w-full rounded-xl">Add Teachers</Button></Link>
+              )}
+              {missingData.includes('Classes') && (
+                <Link href="/admin/classes"><Button className="w-full rounded-xl">Add Classes</Button></Link>
+              )}
             </div>
           </GlassCard>
         </div>
       )}
 
-      <GlassCard className="p-5">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <Button variant="ghost" size="icon" className="rounded-xl" asChild>
-              <Link href="/admin/timetables"><ArrowLeft className="h-4 w-4" /></Link>
-            </Button>
-            <div>
-              <div className="flex items-center gap-3 flex-wrap">
-                <h1 className="text-2xl font-bold tracking-tight">{detail.name}</h1>
-                {classCurrentlyEditing && (
-                  <div className="inline-flex items-center gap-1.5 rounded-full bg-indigo-600 px-4 py-1 text-xs font-bold uppercase tracking-wider text-white shadow-md shadow-indigo-500/20">
-                    <span>{classCurrentlyEditing}</span>
-                  </div>
-                )}
+      {/* Main Header Area */}
+      <GlassCard className="p-4 sm:p-5">
+        <div className="flex flex-col gap-4">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <Button variant="ghost" size="icon" className="rounded-xl h-9 w-9" asChild>
+                <Link href="/admin/timetables"><ArrowLeft className="h-4 w-4" /></Link>
+              </Button>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h1 className="text-lg sm:text-2xl font-bold tracking-tight">{detail.name}</h1>
+                  {classCurrentlyEditing && (
+                    <span className={cn(
+                      "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white shadow-sm transition-colors",
+                      isCurrentSelectionFullyFilled ? "bg-emerald-600 shadow-emerald-500/20" : "bg-indigo-600 shadow-indigo-500/20"
+                    )}>
+                      {classCurrentlyEditing}
+                      {isCurrentSelectionFullyFilled && <CheckCircle className="h-3 w-3 ml-0.5 inline" />}
+                    </span>
+                  )}
+                </div>
               </div>
-              <div className="flex items-center gap-2 mt-1">
-                <span className={cn(
-                  "px-2.5 py-0.5 rounded-full text-[11px] font-bold tracking-wide uppercase",
-                  detail.status === "PUBLISHED" ? "bg-green-500/10 text-green-600" : "bg-yellow-500/10 text-yellow-600"
-                )}>
-                  {detail.status}
-                </span>
-              </div>
+            </div>
+            
+            <div className="flex items-center gap-1 bg-muted/80 p-1 rounded-lg">
+              <Button variant="outline" size="icon" className="h-7 w-7 rounded" onClick={() => setZoom(Math.max(60, zoom - 10))} disabled={zoom <= 60}>
+                <Minus className="h-3 w-3" />
+              </Button>
+              <span className="text-[11px] font-bold w-10 text-center">{zoom}%</span>
+              <Button variant="outline" size="icon" className="h-7 w-7 rounded" onClick={() => setZoom(Math.min(140, zoom + 10))} disabled={zoom >= 140}>
+                <Plus className="h-3 w-3" />
+              </Button>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
-            <Tabs value={view} onValueChange={(v) => setView(v as ViewMode)}>
-              <TabsList className="rounded-xl p-1 bg-muted/80">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-3 border-border/60">
+            <Tabs value={view} onValueChange={(v) => setView(v as ViewMode)} className="w-full sm:w-auto">
+              <TabsList className="rounded-xl p-1 bg-muted/80 w-full sm:w-auto grid grid-cols-3 sm:inline-flex">
                 <TabsTrigger value="section" className="rounded-lg text-xs font-semibold">Section</TabsTrigger>
                 <TabsTrigger value="faculty" className="rounded-lg text-xs font-semibold">Faculty</TabsTrigger>
                 <TabsTrigger value="room" className="rounded-lg text-xs font-semibold">Room</TabsTrigger>
               </TabsList>
             </Tabs>
-            <Button variant="outline" className="rounded-xl text-xs font-semibold"><Filter className="h-4 w-4 mr-2" />Filter</Button>
+            <div className="w-full sm:w-auto flex items-center gap-2">
+              <Input
+                placeholder={`Search ${view}...`}
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className='rounded-xl text-xs bg-muted/40 focus-visible:ring-indigo-500/30 h-9 flex-1 sm:w-48'
+              />
+              <Button variant="outline" size="sm" className="rounded-xl h-9 text-xs font-semibold hidden sm:inline-flex"><Filter className="h-3.5 w-3.5 mr-1.5" />Filter</Button>
+            </div>
           </div>
         </div>
       </GlassCard>
 
-      <div className='grid grid-cols-1 xl:grid-cols-[290px_1fr] gap-6 items-start'>
-        <GlassCard className="p-4 h-[calc(100vh-140px)] max-h-[650px] overflow-hidden flex flex-col sticky top-6">
-          <Input
-            placeholder={`Search ${view}...`}
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className='mb-4 rounded-xl text-sm bg-muted/30 focus-visible:ring-indigo-500/30 w-full shrink-0'
-          />
-          <div className='overflow-y-auto flex-1 pr-1 scrollbar-thin scrollbar-thumb-indigo-500/20 hover:scrollbar-thumb-indigo-500/40 scrollbar-track-transparent'>
+      {/* Dynamic Class Selection List */}
+      <div className="flex flex-col gap-4">
+        <GlassCard className="p-3 w-full">
+          <div className="flex items-center gap-2 mb-2 text-xs font-bold text-muted-foreground uppercase tracking-wider px-1">
+            <Layers className="h-3.5 w-3.5 text-indigo-500" />
+            <span>Select Active {view}</span>
+          </div>
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 max-w-full scrollbar-none snap-x touch-pan-x">
+            {sidebarItems.map((item) => {
+              const isActive = selectedId === item.id;
+              const isFilled = fullyFilledEntities.has(item.id);
+              return (
+                <button
+                  key={item.id}
+                  type='button'
+                  onClick={() => setSelectedId(item.id)}
+                  className={cn(
+                    "px-4 py-2 text-xs font-bold rounded-xl border transition-all shrink-0 uppercase tracking-wider text-center snap-center min-w-[95px] min-h-[40px] flex items-center justify-center gap-1",
+                    isActive
+                      ? isFilled
+                        ? "bg-emerald-600 text-white border-emerald-600 shadow-md shadow-emerald-500/20 font-extrabold scale-102"
+                        : "bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-500/20 font-extrabold scale-102"
+                      : isFilled
+                      ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/20"
+                      : "bg-muted/40 border-muted text-muted-foreground hover:bg-muted hover:text-foreground"
+                  )}
+                >
+                  {item.name}
+                  {isFilled && <CheckCircle className="h-3 w-3 shrink-0" />}
+                </button>
+              );
+            })}
             {sidebarItems.length === 0 && (
-              <div className="text-center py-12 text-xs text-muted-foreground font-medium w-full">No items found</div>
+              <span className="text-xs text-muted-foreground p-1">No items found</span>
             )}
-            <div className="flex flex-wrap gap-2 items-start content-start">
-              {sidebarItems.map((item) => {
-                const isActive = selectedId === item.id;
-                return (
-                  <button
-                    key={item.id}
-                    type='button'
-                    onClick={() => setSelectedId(item.id)}
-                    className={cn(
-                      "px-4 h-8 text-xs font-bold rounded-full transition-all border shrink-0 uppercase tracking-wider text-center",
-                      isActive
-                        ? "bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-500/20 font-extrabold"
-                        : "bg-muted/40 border-transparent text-muted-foreground hover:bg-muted hover:text-foreground"
-                    )}
-                  >
-                    {item.name}
-                  </button>
-                );
-              })}
-            </div>
           </div>
         </GlassCard>
 
-        <div className="min-w-0 w-full">
-          <GlassCard className="p-5 overflow-x-auto">
-            <TimetableGrid
-              periods={detail.periods}
-              slots={filteredSlots}
-              subjectColorMap={subjectColorMap}
-              workingDays={workingDays}
-              baseStartTime={baseStartTime}
-              periodDuration={periodDuration}
-              onWorkingDaysChange={async (days) => {
-                setWorkingDays(days);
-                await persistGridSettings(detail.periods, days, baseStartTime, periodDuration);
-              }}
-              onBaseStartTimeChange={async (time) => {
-                setBaseStartTime(time);
-                const recalculated = recalculateTimetableTimes(detail.periods, time, periodDuration);
-                setDetail({ ...detail, periods: recalculated });
-                await persistGridSettings(recalculated, workingDays, time, periodDuration);
-              }}
-              onPeriodDurationChange={async (dur) => {
-                setPeriodDuration(dur);
-                const recalculated = recalculateTimetableTimes(detail.periods, baseStartTime, dur);
-                setDetail({ ...detail, periods: recalculated });
-                await persistGridSettings(recalculated, workingDays, baseStartTime, dur);
-              }}
-              onAddRow={handleAddRow}
-              onRemoveRow={handleRemoveRow}
-              onUpdateRowLabel={handleUpdateRowLabel}
-              onUpdateRowTime={handleUpdateRowTime}
-              onCellClick={openEditor}
-              renderCell={(_day, _period, slot) => {
-                if (!slot) return null;
-                const color = subjectColorMap.get(slot.subjectId) ?? '#6366f1';
-                return (
-                  <SubjectChip
-                    name={view === 'faculty' ? slot.className : slot.subjectName}
-                    color={color}
-                    sublabel={view === 'faculty' ? slot.subjectName : slot.teacherName}
+        {/* Dynamic Fluid Scale Timetable Engine Container */}
+        <div className="w-full min-w-0">
+          <GlassCard className="p-2 sm:p-4 overflow-hidden relative border-muted/70 shadow-sm">
+            <div className="w-full overflow-x-auto overflow-y-hidden touch-pan-x scrollbar-thin scrollbar-thumb-indigo-500/20">
+              <div 
+                className="transition-all duration-75 origin-top-left"
+                style={{ 
+                  width: `${zoom}%`,
+                  minWidth: '100%', 
+                }}
+              >
+                <div className="w-full [&_table]:w-full [&_td]:p-4 [&_th]:p-3 [&_tr]:min-h-[85px] [&_.subject-chip]:min-h-[55px] [&_.subject-chip]:py-2.5 [&_.subject-chip]:text-xs">
+                  <TimetableGrid
+                    periods={detail.periods}
+                    slots={filteredSlots}
+                    subjectColorMap={subjectColorMap}
+                    workingDays={workingDays}
+                    baseStartTime={baseStartTime}
+                    periodDuration={periodDuration}
+                    onWorkingDaysChange={async (days) => {
+                      setWorkingDays(days);
+                      await persistGridSettings(detail.periods, days, baseStartTime, periodDuration);
+                    }}
+                    onBaseStartTimeChange={async (time) => {
+                      setBaseStartTime(time);
+                      const recalculated = recalculateTimetableTimes(detail.periods, time, periodDuration);
+                      setDetail({ ...detail, periods: recalculated });
+                      await persistGridSettings(recalculated, workingDays, time, periodDuration);
+                    }}
+                    onPeriodDurationChange={async (dur) => {
+                      setPeriodDuration(dur);
+                      const recalculated = recalculateTimetableTimes(detail.periods, baseStartTime, dur);
+                      setDetail({ ...detail, periods: recalculated });
+                      await persistGridSettings(recalculated, workingDays, baseStartTime, dur);
+                    }}
+                    onAddRow={handleAddRow}
+                    onRemoveRow={handleRemoveRow}
+                    onUpdateRowLabel={handleUpdateRowLabel}
+                    onUpdateRowTime={handleUpdateRowTime}
+                    onCellClick={openEditor}
+                    renderCell={(_day, _period, slot) => {
+                      if (!slot) return null;
+                      const color = subjectColorMap.get(slot.subjectId) ?? '#6366f1';
+                      return (
+                        <SubjectChip
+                          name={view === 'faculty' ? slot.className : slot.subjectName}
+                          color={color}
+                          sublabel={view === 'faculty' ? slot.subjectName : slot.teacherName}
+                        />
+                      );
+                    }}
                   />
-                );
-              }}
-            />
+                </div>
+              </div>
+            </div>
           </GlassCard>
         </div>
       </div>
 
       {workload && (
-        <GlassCard className="p-6">
-          <h2 className="text-sm font-bold text-foreground uppercase tracking-widest mb-4">Faculty Optimization Workload</h2>
+        <GlassCard className="p-4 sm:p-6">
+          <h2 className="text-xs font-bold text-foreground uppercase tracking-widest mb-3">Faculty Workload Matrix</h2>
           <WorkloadPanel teacherWorkload={workload.teacherWorkload} />
         </GlassCard>
       )}

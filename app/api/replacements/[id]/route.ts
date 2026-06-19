@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireSchoolContext, handleApiError, schoolWhere } from '@/lib/auth-server';
 import { mapReplacement } from '@/lib/mappers';
+import { revalidatePath } from 'next/cache';
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -27,6 +28,13 @@ export async function PATCH(request: NextRequest, { params }: Params) {
       where: { id },
       data: { status },
     });
+
+    // Revalidate cache for all teacher pages that display proxy data
+    revalidatePath('/teacher/schedule');
+    revalidatePath('/teacher/weekly-schedule');
+    revalidatePath('/teacher/report/today');
+    revalidatePath('/teacher/report/history');
+
     return NextResponse.json(mapReplacement(row));
   } catch (error) {
     return handleApiError(error);
@@ -44,6 +52,13 @@ export async function DELETE(_request: NextRequest, { params }: Params) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
     await prisma.replacementAssignment.delete({ where: { id } });
+
+    // Revalidate cache for all teacher pages that display proxy data
+    revalidatePath('/teacher/schedule');
+    revalidatePath('/teacher/weekly-schedule');
+    revalidatePath('/teacher/report/today');
+    revalidatePath('/teacher/report/history');
+
     return NextResponse.json({ ok: true });
   } catch (error) {
     return handleApiError(error);

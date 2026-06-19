@@ -41,7 +41,12 @@ export function ReportHistoryRow({
           {report.status}
         </Badge>
         <span className='text-sm text-muted-foreground'>
-          {report.entryCount ?? report.entries.length} entries
+          {report.totalSessions ?? report.entryCount ?? report.entries.length} sessions
+          {(report.proxyCount ?? 0) > 0 && (
+            <span className='ml-2 px-2 py-0.5 text-xs bg-indigo-500/15 text-indigo-600 border border-indigo-500/30 rounded-md font-medium'>
+              +{report.proxyCount} proxy
+            </span>
+          )}
         </span>
         <ChevronDown
           className={cn(

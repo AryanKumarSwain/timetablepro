@@ -67,8 +67,8 @@ export async function POST(request: NextRequest) {
     if (!subjectSpecialtyId && !fallbackSubject) {
       fallbackSubject = await prisma.subject.create({
         data: {
-          name: 'General / Unassigned',
-          code: 'GEN-01',
+          name: 'Activity',
+          code: 'ACT-01',
           schoolId,
         },
       });
