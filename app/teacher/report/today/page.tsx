@@ -13,6 +13,7 @@ import {
   deleteHomework,
   type Homework,
   getClasses,
+  getSchoolDetails,
 } from '@/lib/api-services';
 import { PageHeader } from '@/components/enterprise/page-header';
 import { PageSkeleton } from '@/components/enterprise/page-skeleton';
@@ -170,6 +171,7 @@ export default function TeacherReportsPage() {
   const auth = useRequireAuth('teacher');
   const [loading, setLoading] = useState(true);
   const [hasSchoolAssignment, setHasSchoolAssignment] = useState(true);
+  const [homeworkEnabled, setHomeworkEnabled] = useState(true);
   const [report, setReport] = useState<DailyReportData | null>(null);
   const [rows, setRows] = useState<Array<{
     entryId?: string;
@@ -210,6 +212,16 @@ export default function TeacherReportsPage() {
       setLoading(true);
       setLoadMessage(null);
       setAttemptedSubmit(false);
+
+      // Check if homework is enabled in the plan
+      try {
+        const schoolData = await getSchoolDetails();
+        const plan = schoolData.plan;
+        setHomeworkEnabled(plan?.homeworkEnabled || false);
+      } catch (error) {
+        console.warn('Failed to fetch school plan details', error);
+        setHomeworkEnabled(true); // Default to enabled if fetch fails
+      }
 
       const classData = await getReportClassesToday();
       const slots = classData.scheduleSlots ?? [];
@@ -288,12 +300,14 @@ export default function TeacherReportsPage() {
       return;
     }
 
-    // MANDATORY HOMEWORK VALIDATION: Ensure every row has homework filled
-    const missingHomework = rows.filter(r => !r.homework || !r.homework.trim());
-    if (missingHomework.length > 0) {
-      setValidationError("Please fill out 'Homework' for all listed periods before submitting.");
-      setAttemptedSubmit(true);
-      return;
+    // MANDATORY HOMEWORK VALIDATION: Ensure every row has homework filled (only if homework is enabled)
+    if (homeworkEnabled) {
+      const missingHomework = rows.filter(r => !r.homework || !r.homework.trim());
+      if (missingHomework.length > 0) {
+        setValidationError("Please fill out 'Homework' for all listed periods before submitting.");
+        setAttemptedSubmit(true);
+        return;
+      }
     }
 
     setValidationError(null);
@@ -441,19 +455,21 @@ export default function TeacherReportsPage() {
                 </div>
               </div>
 
-              {/* Homework Input */}
-              <div className='mt-4 space-y-1.5'>
-                <label className='text-xs font-semibold text-muted-foreground'>
-                  Homework <span className="text-red-500">*</span>
-                </label>
-                <Textarea
-                  value={r.homework}
-                  onChange={(e) => updateRow(i, { homework: e.target.value })}
-                  readOnly={readOnly}
-                  placeholder="Enter homework assignment (Required)"
-                  className='min-h-[60px] resize-none focus-visible:ring-1'
-                />
-              </div>
+              {/* Homework Input - only shown if homework is enabled in plan */}
+              {homeworkEnabled && (
+                <div className='mt-4 space-y-1.5'>
+                  <label className='text-xs font-semibold text-muted-foreground'>
+                    Homework <span className="text-red-500">*</span>
+                  </label>
+                  <Textarea
+                    value={r.homework}
+                    onChange={(e) => updateRow(i, { homework: e.target.value })}
+                    readOnly={readOnly}
+                    placeholder="Enter homework assignment (Required)"
+                    className='min-h-[60px] resize-none focus-visible:ring-1'
+                  />
+                </div>
+              )}
 
             </GlassCard>
           ))}

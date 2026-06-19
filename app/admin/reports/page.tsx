@@ -12,13 +12,24 @@ import { PageHeader } from '@/components/enterprise/page-header';
 import { PageSkeleton } from '@/components/enterprise/page-skeleton';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Download, Eye, FileSpreadsheet, FileText, User, CalendarSearch } from 'lucide-react';
+import { Card } from '@/components/ui/card';
+import { Download, Eye, FileSpreadsheet, FileText, User, CalendarSearch, CheckCircle2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { LockedFeatureModal } from '@/components/locked-feature-modal';
+import { ProtectedFeature } from '@/components/protected-feature';
 import { getSchoolDetails } from '@/lib/api-services';
+import { useAuth } from '@/lib/auth-context';
+import {
+  DataGrid,
+  DataGridTable,
+  DataGridHead,
+  DataGridRow,
+  DataGridTh,
+  DataGridTd,
+} from '@/components/enterprise/data-grid';
 
 export default function AdminReportsPage() {
   useRequireAuth('admin');
+  const { user } = useAuth();
 
   const [reports, setReports] = useState<DailyReportData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -27,8 +38,8 @@ export default function AdminReportsPage() {
   const [openDate, setOpenDate] = useState<string | null>(null);
   const [currentGrid, setCurrentGrid] = useState<any | null>(null);
   const [calendarSearchDate, setCalendarSearchDate] = useState('');
-  const [lockedModalOpen, setLockedModalOpen] = useState(false);
   const [featureEnabled, setFeatureEnabled] = useState(true);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -39,12 +50,6 @@ export default function AdminReportsPage() {
       const plan = schoolData.plan;
       const reportsEnabled = plan?.reportEnabled || false;
       setFeatureEnabled(reportsEnabled);
-      
-      if (!reportsEnabled) {
-        setLockedModalOpen(true);
-        setLoading(false);
-        return;
-      }
       
       const r = await getAdminReports({
         teacherName: teacherName || undefined,
@@ -60,6 +65,15 @@ export default function AdminReportsPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // 2-second auto-dismiss timer for notifications
+  useEffect(() => {
+    if (!successMsg) return;
+    const timer = setTimeout(() => {
+      setSuccessMsg(null);
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [successMsg]);
 
   const uniqueTeachers = Array.from(
     new Map(
@@ -140,14 +154,35 @@ export default function AdminReportsPage() {
   }
 
   return (
-    <div className='max-w-7xl mx-auto px-4 py-6 space-y-6 text-foreground bg-background'>
+    <div className='max-w-7xl mx-auto relative'>
       <PageHeader
         title='Reports'
         description='Review submitted daily teaching reports'
-        breadcrumbs={[{ label: 'Admin', href: '/admin/dashboard' }, { label: 'Reports' }]}
+        breadcrumbs={[
+          { label: 'Admin', href: '/admin/dashboard' },
+          { label: 'Academic' },
+          { label: 'Reports' },
+        ]}
       />
 
-      <div className='grid grid-cols-1 lg:grid-cols-12 gap-6 items-center'>
+      {/* TOP-RIGHT POPUP TOAST BOX */}
+      {successMsg && (
+        <div className='fixed top-6 right-6 z-50 max-w-sm p-4 bg-white dark:bg-zinc-900 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-sm rounded-xl shadow-xl flex items-start gap-3 animate-in slide-in-from-top-4 fade-in duration-300'>
+          <CheckCircle2 className='h-5 w-5 shrink-0 text-emerald-500 mt-0.5' />
+          <div>
+            <p className='font-semibold mb-0.5'>Action Successful</p>
+            <p className='text-zinc-600 dark:text-zinc-400 text-xs leading-relaxed'>{successMsg}</p>
+          </div>
+        </div>
+      )}
+
+      <ProtectedFeature
+        featureKey='reports'
+        featureName='Reports Management'
+        isEnabled={featureEnabled}
+        schoolId={user?.schoolId || undefined}
+      >
+        <div className='grid grid-cols-1 lg:grid-cols-12 gap-6 items-center'>
         <div className='lg:col-span-9'>
           <div className='max-w-sm'>
             <Input
@@ -402,12 +437,7 @@ export default function AdminReportsPage() {
           </div>
         </DialogContent>
       </Dialog>
-      
-      <LockedFeatureModal
-        open={lockedModalOpen}
-        onOpenChange={setLockedModalOpen}
-        featureName="Reports Management"
-      />
+      </ProtectedFeature>
     </div>
   );
 }

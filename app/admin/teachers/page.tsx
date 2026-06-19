@@ -173,7 +173,6 @@ export default function TeachersPage() {
         description='Manage faculty profiles and specialties'
         breadcrumbs={[
           { label: 'Admin', href: '/admin/dashboard' },
-          { label: 'Masters' },
           { label: 'Teachers' },
         ]}
         actions={

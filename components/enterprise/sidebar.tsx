@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, Sparkles, Crown, Zap, Rocket } from 'lucide-react';
+import { ChevronLeft, Sparkles, Crown, Zap, Rocket, Lock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { NavItem } from '@/lib/navigation';
 import { Button } from '@/components/ui/button';
@@ -30,7 +30,7 @@ export function EnterpriseSidebar({
   roleLabel,
 }: SidebarProps) {
   const pathname = usePathname();
-  const [currentPlan, setCurrentPlan] = useState<{ name: string; priceMonthly: number; id: string } | null>(null);
+  const [currentPlan, setCurrentPlan] = useState<{ name: string; priceMonthly: number; id: string; reportEnabled?: boolean; attendanceEnabled?: boolean; homeworkEnabled?: boolean } | null>(null);
 
   useEffect(() => {
     const fetchCurrentPlan = async () => {
@@ -48,6 +48,21 @@ export function EnterpriseSidebar({
     };
     fetchCurrentPlan();
   }, []);
+
+  // Check if a feature is enabled based on plan
+  const isFeatureEnabled = (featureKey?: 'reports' | 'attendance' | 'homework'): boolean => {
+    if (!featureKey || !currentPlan) return true;
+    switch (featureKey) {
+      case 'reports':
+        return currentPlan.reportEnabled || false;
+      case 'attendance':
+        return currentPlan.attendanceEnabled || false;
+      case 'homework':
+        return currentPlan.homeworkEnabled || false;
+      default:
+        return true;
+    }
+  };
 
   // Get plan-specific colors and icon
   const getPlanTheme = () => {
@@ -169,6 +184,7 @@ export function EnterpriseSidebar({
               (item.href !== '/' && pathname.startsWith(item.href + '/'));
             const Icon = item.icon;
             const itemKey = `${item.href}-${index}`;
+            const isLocked = !isFeatureEnabled(item.featureKey);
 
             const link = (
               <Link
@@ -177,7 +193,8 @@ export function EnterpriseSidebar({
                   'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200',
                   active
                     ? cn('bg-gradient-to-r text-foreground shadow-sm border', theme.accent === 'amber' ? 'from-amber-500/15 to-orange-500/10 border-amber-500/20' : theme.accent === 'indigo' ? 'from-indigo-500/15 to-violet-500/10 border-indigo-500/20' : 'from-amber-500/15 to-yellow-500/10 border-amber-500/20')
-                    : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-muted/50',
+                  isLocked && 'opacity-60'
                 )}
               >
                 <Icon
@@ -187,7 +204,10 @@ export function EnterpriseSidebar({
                   )}
                 />
                 {!collapsed && <span className='truncate'>{item.label}</span>}
-                {!collapsed && item.badge && (
+                {!collapsed && isLocked && (
+                  <Lock className='h-3 w-3 ml-auto text-rose-500' />
+                )}
+                {!collapsed && !isLocked && item.badge && (
                   <span className={cn('ml-auto text-[10px] px-1.5 py-0.5 rounded-full', theme.accent === 'amber' ? 'bg-amber-500/20 text-amber-600 dark:text-amber-400' : theme.accent === 'indigo' ? 'bg-indigo-500/20 text-indigo-600 dark:text-indigo-400' : 'bg-amber-500/20 text-amber-600 dark:text-amber-400')}>
                     {item.badge}
                   </span>

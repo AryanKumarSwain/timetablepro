@@ -22,10 +22,21 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { LockedFeatureModal } from '@/components/locked-feature-modal';
+import { ProtectedFeature } from '@/components/protected-feature';
 import { Plus, Edit, Trash2, BookOpen, Send, Download, ChevronDown, ChevronRight, FileText, MoreVertical } from 'lucide-react';
 import { toast } from 'sonner';
 import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, WidthType, HeadingLevel, AlignmentType, BorderStyle } from 'docx';
+import { useAuth } from '@/lib/auth-context';
+import { Card } from '@/components/ui/card';
+import { CheckCircle2 } from 'lucide-react';
+import {
+  DataGrid,
+  DataGridTable,
+  DataGridHead,
+  DataGridRow,
+  DataGridTh,
+  DataGridTd,
+} from '@/components/enterprise/data-grid';
 
 // Helper to extract homework from description
 function extractHomeworkFromDescription(desc = '') {
@@ -37,6 +48,7 @@ function extractHomeworkFromDescription(desc = '') {
 
 export default function AdminHomeworkPage() {
   const auth = useRequireAuth('admin');
+  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [homework, setHomework] = useState<Record<string, Homework[]>>({});
   const [reportHomework, setReportHomework] = useState<Record<string, any[]>>({});
@@ -48,14 +60,23 @@ export default function AdminHomeworkPage() {
   const [form, setForm] = useState({ title: '', description: '', classId: '', teacherId: '' });
   const [submitting, setSubmitting] = useState(false);
   const [expandedClasses, setExpandedClasses] = useState<Record<string, boolean>>({});
-  const [lockedModalOpen, setLockedModalOpen] = useState(false);
   const [featureEnabled, setFeatureEnabled] = useState(true);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   useEffect(() => {
     if (!auth.loading && auth.user) {
       void load();
     }
   }, [auth.loading, auth.user]);
+
+  // 2-second auto-dismiss timer for notifications
+  useEffect(() => {
+    if (!successMsg) return;
+    const timer = setTimeout(() => {
+      setSuccessMsg(null);
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [successMsg]);
 
   const load = async () => {
     try {
@@ -72,12 +93,6 @@ export default function AdminHomeworkPage() {
       const plan = schoolData.plan;
       const homeworkEnabled = plan?.homeworkEnabled || false;
       setFeatureEnabled(homeworkEnabled);
-      
-      if (!homeworkEnabled) {
-        setLockedModalOpen(true);
-        setLoading(false);
-        return;
-      }
       
       setHomework(homeworkData);
       setClasses(classesData);
@@ -127,7 +142,7 @@ export default function AdminHomeworkPage() {
     setSubmitting(true);
     try {
       await createAdminHomework(form);
-      toast.success('Homework created successfully');
+      setSuccessMsg('Homework assignment created successfully.');
       setDialogOpen(false);
       setForm({ title: '', description: '', classId: '', teacherId: '' });
       setEditingHomework(null);
@@ -154,7 +169,7 @@ export default function AdminHomeworkPage() {
     setSubmitting(true);
     try {
       await updateAdminHomework(editingHomework.id, form);
-      toast.success('Homework updated successfully');
+      setSuccessMsg('Homework assignment updated successfully.');
       setDialogOpen(false);
       setForm({ title: '', description: '', classId: '', teacherId: '' });
       setEditingHomework(null);
@@ -169,7 +184,7 @@ export default function AdminHomeworkPage() {
   const handleDelete = async (id: string) => {
     try {
       await deleteAdminHomework(id);
-      toast.success('Homework deleted successfully');
+      setSuccessMsg('Homework assignment removed successfully.');
       await load();
     } catch (error) {
       toast.error('Failed to delete homework');
@@ -206,7 +221,7 @@ export default function AdminHomeworkPage() {
       });
 
       if (response.ok) {
-        toast.success('Homework updated successfully');
+        setSuccessMsg('Homework assignment updated successfully.');
         setDialogOpen(false);
         setForm({ title: '', description: '', classId: '', teacherId: '' });
         setEditingHomework(null);
@@ -601,27 +616,52 @@ export default function AdminHomeworkPage() {
   const allClassKeys = Array.from(new Set([...classKeys, ...reportClassKeys]));
 
   return (
-    <div className='max-w-6xl mx-auto space-y-6'>
-      <PageHeader title="Homework Management" description="View and manage homework assignments submitted by teachers" />
+    <div className='max-w-7xl mx-auto relative'>
+      <PageHeader
+        title="Homework Management"
+        description="View and manage homework assignments submitted by teachers"
+        breadcrumbs={[
+          { label: 'Admin', href: '/admin/dashboard' },
+          { label: 'Academic' },
+          { label: 'Homework' },
+        ]}
+      />
 
-      <div className='flex justify-between items-center'>
+      {/* TOP-RIGHT POPUP TOAST BOX */}
+      {successMsg && (
+        <div className='fixed top-6 right-6 z-50 max-w-sm p-4 bg-white dark:bg-zinc-900 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-sm rounded-xl shadow-xl flex items-start gap-3 animate-in slide-in-from-top-4 fade-in duration-300'>
+          <CheckCircle2 className='h-5 w-5 shrink-0 text-emerald-500 mt-0.5' />
+          <div>
+            <p className='font-semibold mb-0.5'>Action Successful</p>
+            <p className='text-zinc-600 dark:text-zinc-400 text-xs leading-relaxed'>{successMsg}</p>
+          </div>
+        </div>
+      )}
+
+      <ProtectedFeature
+        featureKey='homework'
+        featureName='Homework Management'
+        isEnabled={featureEnabled}
+        schoolId={user?.schoolId || undefined}
+      >
+        <div className='flex justify-between items-center'>
         <div>
           <h2 className='text-xl font-bold'>Submitted Homework</h2>
           <p className='text-sm text-slate-600'>
             {allClassKeys.length} {allClassKeys.length === 1 ? 'class' : 'classes'} with submitted homework
           </p>
         </div>
-        <Button onClick={openDialog} className='gap-2'>
+        <Button onClick={openDialog} className='gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600'>
           <Plus className='h-4 w-4' />
           Create Homework
         </Button>
       </div>
 
       {allClassKeys.length === 0 ? (
-        <GlassCard className='p-12 text-center'>
+        <Card className='p-12 text-center border-border'>
           <BookOpen className='h-12 w-12 mx-auto mb-4 text-slate-400' />
           <p className='text-slate-600'>No homework assignments have been submitted yet.</p>
-        </GlassCard>
+        </Card>
       ) : (
         <div className='space-y-6'>
           {allClassKeys.map((className) => {
@@ -672,7 +712,7 @@ export default function AdminHomeworkPage() {
                   <div className='space-y-3'>
                 {/* Homework from Homework table */}
                 {homework[className]?.map((hw) => (
-                  <GlassCard key={hw.id} className='p-5'>
+                  <Card key={hw.id} className='p-5 border-border'>
                     <div className='flex justify-between items-start mb-3'>
                       <div className='flex-1'>
                         <h4 className='font-bold text-lg'>{hw.title}</h4>
@@ -705,11 +745,11 @@ export default function AdminHomeworkPage() {
                       </div>
                     </div>
                     <p className='text-slate-700 dark:text-slate-300 text-sm'>{hw.description}</p>
-                  </GlassCard>
+                  </Card>
                 ))}
                 {/* Homework from reports */}
                 {reportHomework[className]?.map((hw) => (
-                  <GlassCard key={hw.id} className='p-5 border-l-4 border-l-blue-500'>
+                  <Card key={hw.id} className='p-5 border-l-4 border-l-blue-500 border-border'>
                     <div className='flex justify-between items-start mb-3'>
                       <div className='flex-1'>
                         <h4 className='font-bold text-lg'>{hw.title}</h4>
@@ -736,7 +776,7 @@ export default function AdminHomeworkPage() {
                       </div>
                     </div>
                     <p className='text-slate-700 dark:text-slate-300 text-sm'>{hw.description}</p>
-                  </GlassCard>
+                  </Card>
                 ))}
                 </div>
                 )}
@@ -842,12 +882,7 @@ export default function AdminHomeworkPage() {
           </div>
         </DialogContent>
       </Dialog>
-      
-      <LockedFeatureModal
-        open={lockedModalOpen}
-        onOpenChange={setLockedModalOpen}
-        featureName="Homework Management"
-      />
+      </ProtectedFeature>
     </div>
   );
 }

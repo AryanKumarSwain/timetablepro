@@ -2,30 +2,50 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireSuperAdmin, handleApiError } from '@/lib/auth-server';
 
+const VALID_EXPORT_FORMATS = ['pdf', 'docx', 'csv'] as const;
+
 function validatePlanPayload(body: any) {
   const errors: Record<string, string> = {};
   const name = String(body.name ?? '').trim();
+  const description = String(body.description ?? '').trim();
   const teacherMin = Number(body.teacherMin);
   const teacherMax = Number(body.teacherMax);
   const priceMonthly = Number(body.priceMonthly);
 
-  if (!name) {
-    errors.name = 'Plan name is required.';
-  }
-  if (!Number.isFinite(teacherMin) || teacherMin < 0) {
+  if (!name) errors.name = 'Plan name is required.';
+  if (!Number.isFinite(teacherMin) || teacherMin < 0)
     errors.teacherMin = 'Teacher minimum must be a valid non-negative number.';
-  }
-  if (!Number.isFinite(teacherMax) || teacherMax < 0) {
+  if (!Number.isFinite(teacherMax) || teacherMax < 0)
     errors.teacherMax = 'Teacher maximum must be a valid non-negative number.';
-  }
-  if (Number.isFinite(teacherMin) && Number.isFinite(teacherMax) && teacherMax < teacherMin) {
+  if (Number.isFinite(teacherMin) && Number.isFinite(teacherMax) && teacherMax < teacherMin)
     errors.teacherMax = 'Maximum teachers must be greater than or equal to minimum teachers.';
-  }
-  if (!Number.isFinite(priceMonthly) || priceMonthly < 0) {
+  if (!Number.isFinite(priceMonthly) || priceMonthly < 0)
     errors.priceMonthly = 'Monthly price must be a valid non-negative number.';
-  }
 
-  return { errors, payload: { name, teacherMin, teacherMax, priceMonthly } };
+  const exportFormats = Array.isArray(body.exportFormats)
+    ? body.exportFormats.filter((f: any) => VALID_EXPORT_FORMATS.includes(f))
+    : [];
+
+  const features = Array.isArray(body.features)
+    ? body.features.filter((f: any) => typeof f === 'string' && f.trim())
+    : [];
+
+  return {
+    errors,
+    payload: {
+      name,
+      description: description || null,
+      teacherMin,
+      teacherMax,
+      priceMonthly,
+      features,
+      reportEnabled:     body.reportEnabled     !== undefined ? Boolean(body.reportEnabled)     : true,
+      attendanceEnabled: body.attendanceEnabled !== undefined ? Boolean(body.attendanceEnabled) : true,
+      homeworkEnabled:   body.homeworkEnabled   !== undefined ? Boolean(body.homeworkEnabled)   : true,
+      watermarkRequired: body.watermarkRequired !== undefined ? Boolean(body.watermarkRequired) : false,
+      exportFormats,
+    },
+  };
 }
 
 export async function PATCH(
@@ -53,42 +73,49 @@ export async function PATCH(
     }
 
     const duplicate = await prisma.saaSPlan.findFirst({
-      where: {
-        name: payload.name,
-        NOT: { id: planId },
-      },
+      where: { name: payload.name, NOT: { id: planId } },
     });
-
     if (duplicate) {
-      return NextResponse.json(
-        { error: 'A plan with this name already exists.' },
-        { status: 409 }
-      );
+      return NextResponse.json({ error: 'A plan with this name already exists.' }, { status: 409 });
     }
 
     const updated = await prisma.saaSPlan.update({
       where: { id: planId },
       data: {
-        name: payload.name,
-        teacherMin: payload.teacherMin,
-        teacherMax: payload.teacherMax,
-        priceMonthly: payload.priceMonthly,
+        name:              payload.name,
+        description:       payload.description,
+        teacherMin:        payload.teacherMin,
+        teacherMax:        payload.teacherMax,
+        priceMonthly:      payload.priceMonthly,
+        features:          payload.features,
+        reportEnabled:     payload.reportEnabled,
+        attendanceEnabled: payload.attendanceEnabled,
+        homeworkEnabled:   payload.homeworkEnabled,
+        watermarkRequired: payload.watermarkRequired,
+        exportFormats:     payload.exportFormats,
       },
     });
 
+    const schoolCount = await prisma.school.count({ where: { planId: updated.id } });
+
     return NextResponse.json({
-      id: updated.id,
-      name: updated.name,
-      teacherMin: updated.teacherMin,
-      teacherMax: updated.teacherMax,
-      priceMonthly: Number(updated.priceMonthly),
-      schoolCount: await prisma.school.count({ where: { planId: updated.id } }),
+      id:                updated.id,
+      name:              updated.name,
+      description:       updated.description,
+      teacherMin:        updated.teacherMin,
+      teacherMax:        updated.teacherMax,
+      priceMonthly:      Number(updated.priceMonthly),
+      features:          updated.features ?? [],
+      reportEnabled:     updated.reportEnabled,
+      attendanceEnabled: updated.attendanceEnabled,
+      homeworkEnabled:   updated.homeworkEnabled,
+      watermarkRequired: updated.watermarkRequired,
+      exportFormats:     updated.exportFormats ?? [],
+      schoolCount,
     });
   } catch (error) {
     console.error('[PATCH /api/super-admin/plans/[id]]', error);
-    if (error instanceof Error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
+    if (error instanceof Error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ error: 'Failed to update plan' }, { status: 500 });
   }
 }
@@ -106,30 +133,24 @@ export async function DELETE(
     }
 
     let body: { force?: boolean } = {};
-    try {
-      body = await request.json();
-    } catch (e) {
-      // If body parsing fails, continue without force parameter
-    }
+    try { body = await request.json(); } catch { /* no body is fine */ }
     const force = body.force === true;
 
     const assignedSchools = await prisma.school.count({ where: { planId } });
     if (assignedSchools > 0 && !force) {
       return NextResponse.json(
         {
-          error:
-            'Cannot delete this plan because it is assigned to existing schools. Use force=true to delete anyway.',
+          error: 'Cannot delete this plan because it is assigned to existing schools. Use force=true to delete anyway.',
           assignedSchools,
         },
         { status: 400 }
       );
     }
 
-    // If force delete, unassign schools first
     if (assignedSchools > 0 && force) {
       await prisma.school.updateMany({
         where: { planId },
-        data: { planId: undefined },
+        data: { planId: null },
       });
     }
 
@@ -137,9 +158,7 @@ export async function DELETE(
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('[DELETE /api/super-admin/plans/[id]]', error);
-    if (error instanceof Error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
+    if (error instanceof Error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ error: 'Failed to delete plan' }, { status: 500 });
   }
 }

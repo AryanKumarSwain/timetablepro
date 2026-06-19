@@ -33,6 +33,9 @@ export default function AdminSettingsPage() {
         <div className='flex flex-wrap gap-2 py-4'>
           {[
             { value: 'profile', label: 'General' },
+            { value: 'institute', label: 'Institute' },
+            { value: 'features', label: 'Features' },
+            { value: 'substitution', label: 'Substitution' },
             { value: 'leave-requests', label: 'Leave Requests' },
           ].map((tab) => (
             <Link

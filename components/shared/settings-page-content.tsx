@@ -9,8 +9,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
-import { KeyRound, RefreshCw, ShieldCheck, Mail, CheckCircle2, Building2 } from 'lucide-react';
+import { KeyRound, RefreshCw, ShieldCheck, Mail, CheckCircle2, Building2, Plus, Trash2, ToggleLeft, ToggleRight } from 'lucide-react';
 
 async function fetchClient<T>(url: string, { method = 'GET', body }: { method?: string; body?: any } = {}): Promise<T> {
   const res = await fetch(url, {
@@ -95,6 +96,30 @@ export function SettingsPageContent({ initialUser, activeTab }: SettingsPageCont
   const [leaveReason, setLeaveReason] = useState('');
   const [leaveRequestPending, setLeaveRequestPending] = useState(false);
 
+  // Institute Details State
+  const [instituteDetails, setInstituteDetails] = useState({
+    name: '',
+    address: '',
+    phone: '',
+    email: '',
+    logo: '',
+  });
+  const [instituteDetailsPending, setInstituteDetailsPending] = useState(false);
+
+  // Feature Toggles State
+  const [featureToggles, setFeatureToggles] = useState({
+    homeworkEnabled: false,
+    reportsEnabled: false,
+    attendanceEnabled: false,
+    dailyDeskEnabled: false,
+  });
+  const [featuresPending, setFeaturesPending] = useState(false);
+
+  // Substitution Settings State
+  const [leaveReasons, setLeaveReasons] = useState<string[]>([]);
+  const [newLeaveReason, setNewLeaveReason] = useState('');
+  const [leaveReasonsPending, setLeaveReasonsPending] = useState(false);
+
   useEffect(() => {
     if (initialUser) {
       setName(initialUser.name || '');
@@ -120,6 +145,75 @@ export function SettingsPageContent({ initialUser, activeTab }: SettingsPageCont
       document.getElementById('leave-requests-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
   }, [showLeaveRequestsTab]);
+
+  // Load institute details when institute tab is active
+  useEffect(() => {
+    if (activeTab === 'institute' && !isTeacher) {
+      fetchInstituteDetails();
+    }
+  }, [activeTab, isTeacher]);
+
+  // Load feature toggles when features tab is active
+  useEffect(() => {
+    if (activeTab === 'features' && !isTeacher) {
+      fetchFeatureToggles();
+    }
+  }, [activeTab, isTeacher]);
+
+  // Load leave reasons when substitution tab is active
+  useEffect(() => {
+    if (activeTab === 'substitution' && !isTeacher) {
+      fetchLeaveReasons();
+    }
+  }, [activeTab, isTeacher]);
+
+  const fetchInstituteDetails = async () => {
+    try {
+      const res = await fetch('/api/admin/school');
+      if (res.ok) {
+        const data = await res.json();
+        setInstituteDetails({
+          name: data.name || '',
+          address: data.address || '',
+          phone: data.phone || '',
+          email: data.email || '',
+          logo: data.logo || '',
+        });
+      }
+    } catch (error) {
+      console.error('Failed to fetch institute details:', error);
+    }
+  };
+
+  const fetchFeatureToggles = async () => {
+    try {
+      const res = await fetch('/api/admin/school');
+      if (res.ok) {
+        const data = await res.json();
+        const plan = data.plan || {};
+        setFeatureToggles({
+          homeworkEnabled: plan.homeworkEnabled || false,
+          reportsEnabled: plan.reportEnabled || false,
+          attendanceEnabled: plan.attendanceEnabled || false,
+          dailyDeskEnabled: plan.dailyDeskEnabled || false,
+        });
+      }
+    } catch (error) {
+      console.error('Failed to fetch feature toggles:', error);
+    }
+  };
+
+  const fetchLeaveReasons = async () => {
+    try {
+      const res = await fetch('/api/admin/substitution/leave-reasons');
+      if (res.ok) {
+        const data = await res.json();
+        setLeaveReasons(data.reasons || []);
+      }
+    } catch (error) {
+      console.error('Failed to fetch leave reasons:', error);
+    }
+  };
 
   const fetchInstituteName = async () => {
     try {
@@ -215,6 +309,87 @@ export function SettingsPageContent({ initialUser, activeTab }: SettingsPageCont
     }
   };
 
+  const handleInstituteDetailsSave = async () => {
+    if (!instituteDetails.name.trim()) return toast.error('Institute name is required');
+
+    setInstituteDetailsPending(true);
+    try {
+      await fetchClient('/api/admin/school', {
+        method: 'PATCH',
+        body: {
+          name: instituteDetails.name.trim(),
+          address: instituteDetails.address.trim() || undefined,
+          phone: instituteDetails.phone.trim() || undefined,
+          email: instituteDetails.email.trim() || undefined,
+          logo: instituteDetails.logo.trim() || undefined,
+        }
+      });
+      toast.success('Institute details updated successfully');
+      setTimeout(() => window.location.reload(), 800);
+    } catch (e: any) {
+      toast.error(e.message || 'Failed to update institute details');
+    } finally {
+      setInstituteDetailsPending(false);
+    }
+  };
+
+  const handleFeatureToggle = async (feature: keyof typeof featureToggles, value: boolean) => {
+    setFeaturesPending(true);
+    try {
+      await fetchClient('/api/admin/school', {
+        method: 'PATCH',
+        body: {
+          plan: {
+            ...featureToggles,
+            [feature]: value,
+          }
+        }
+      });
+      setFeatureToggles(prev => ({ ...prev, [feature]: value }));
+      toast.success(`${feature} ${value ? 'enabled' : 'disabled'} successfully`);
+    } catch (e: any) {
+      toast.error(e.message || 'Failed to update feature toggle');
+    } finally {
+      setFeaturesPending(false);
+    }
+  };
+
+  const handleAddLeaveReason = async () => {
+    if (!newLeaveReason.trim()) return toast.error('Leave reason is required');
+    if (leaveReasons.includes(newLeaveReason.trim())) return toast.error('Leave reason already exists');
+
+    setLeaveReasonsPending(true);
+    try {
+      await fetchClient('/api/admin/substitution/leave-reasons', {
+        method: 'POST',
+        body: { reason: newLeaveReason.trim() }
+      });
+      setLeaveReasons(prev => [...prev, newLeaveReason.trim()]);
+      setNewLeaveReason('');
+      toast.success('Leave reason added successfully');
+    } catch (e: any) {
+      toast.error(e.message || 'Failed to add leave reason');
+    } finally {
+      setLeaveReasonsPending(false);
+    }
+  };
+
+  const handleDeleteLeaveReason = async (reason: string) => {
+    setLeaveReasonsPending(true);
+    try {
+      await fetchClient('/api/admin/substitution/leave-reasons', {
+        method: 'DELETE',
+        body: { reason }
+      });
+      setLeaveReasons(prev => prev.filter(r => r !== reason));
+      toast.success('Leave reason deleted successfully');
+    } catch (e: any) {
+      toast.error(e.message || 'Failed to delete leave reason');
+    } finally {
+      setLeaveReasonsPending(false);
+    }
+  };
+
   const handleLeaveRequest = async () => {
     if (leaveRequestStatus === 'PENDING') {
       return toast.info('You already have a pending leave request.');
@@ -292,29 +467,31 @@ export function SettingsPageContent({ initialUser, activeTab }: SettingsPageCont
   return (
     <motion.div variants={containerVariants} initial="hidden" animate="show" className="mx-auto max-w-2xl space-y-6">
       {/* Account Info */}
-      <motion.div variants={cardVariants}>
-        <Card className="border border-border/60 shadow-sm backdrop-blur-md">
-          <CardHeader>
-            <CardTitle className="text-lg font-bold tracking-tight">Account Overview</CardTitle>
-            <CardDescription>Your registered administrative profile assignments</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3 text-xs">
-            <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">Email Address</span>
-              <span className="font-semibold text-foreground">{initialUser?.email || 'N/A'}</span>
-            </div>
-            <Separator className="bg-border/40" />
-            <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">Functional Assignment Role</span>
-              <Badge variant="secondary" className="uppercase text-[10px] tracking-wide font-bold">
-                {initialUser?.role || 'user'}
-              </Badge>
-            </div>
-          </CardContent>
-        </Card>
-      </motion.div>
+      {activeTab === 'profile' && (
+        <motion.div variants={cardVariants}>
+          <Card className="border border-border/60 shadow-sm backdrop-blur-md">
+            <CardHeader>
+              <CardTitle className="text-lg font-bold tracking-tight">Account Overview</CardTitle>
+              <CardDescription>Your registered administrative profile assignments</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Email Address</span>
+                <span className="font-semibold text-foreground">{initialUser?.email || 'N/A'}</span>
+              </div>
+              <Separator className="bg-border/40" />
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Functional Assignment Role</span>
+                <Badge variant="secondary" className="uppercase text-[10px] tracking-wide font-bold">
+                  {initialUser?.role || 'user'}
+                </Badge>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+      )}
 
-      {isTeacher && (
+      {isTeacher && activeTab === 'profile' && (
         <motion.div variants={cardVariants}>
           <Card className="border border-border/60 shadow-sm">
             <CardHeader>
@@ -365,7 +542,7 @@ export function SettingsPageContent({ initialUser, activeTab }: SettingsPageCont
       )}
 
       {/* Leave Requests Panel (Admin Only) */}
-      {!isTeacher && (
+      {!isTeacher && activeTab === 'leave-requests' && (
         <motion.div
           variants={cardVariants}
           id="leave-requests-panel"
@@ -448,209 +625,411 @@ export function SettingsPageContent({ initialUser, activeTab }: SettingsPageCont
       {/* Institute Name Settings (Admin Only) */}
 
       {/* Edit Profile Info */}
-      <motion.div variants={cardVariants}>
-        <Card className="border border-border/60 shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-lg font-bold tracking-tight">Modify Parameters</CardTitle>
-            <CardDescription>Update identity keys and communication links</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="name" className="text-xs font-bold">Full Identity Name</Label>
-              <Input
-                id="name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="E.g., Dr. Rajesh Kumar"
-                className="rounded-xl border-border/80 text-xs focus-visible:ring-indigo-500"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="phone" className="text-xs font-bold">Telephone Number</Label>
-              <Input
-                id="phone"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="+91 XXXXX XXXXX"
-                className="rounded-xl border-border/80 text-xs focus-visible:ring-indigo-500"
-              />
-            </div>
-            <Button
-              onClick={handleProfileSave}
-              disabled={profilePending}
-              className="w-full rounded-xl text-xs font-bold shadow-md bg-indigo-600 hover:bg-indigo-700 text-white flex items-center justify-center gap-2 transition-all"
-            >
-              {profilePending && <RefreshCw className="h-3 w-3 animate-spin" />}
-              {profilePending ? 'Updating Data Matrices...' : 'Save Updated Dimensions'}
-            </Button>
-          </CardContent>
-        </Card>
-      </motion.div>
+      {(activeTab === 'profile' || !activeTab) && (
+        <motion.div variants={cardVariants}>
+          <Card className="border border-border/60 shadow-sm">
+            <CardHeader>
+              <CardTitle className="text-lg font-bold tracking-tight">Modify Parameters</CardTitle>
+              <CardDescription>Update identity keys and communication links</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="name" className="text-xs font-bold">Full Identity Name</Label>
+                <Input
+                  id="name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="E.g., Dr. Rajesh Kumar"
+                  className="rounded-xl border-border/80 text-xs focus-visible:ring-indigo-500"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="phone" className="text-xs font-bold">Telephone Number</Label>
+                <Input
+                  id="phone"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="+91 XXXXX XXXXX"
+                  className="rounded-xl border-border/80 text-xs focus-visible:ring-indigo-500"
+                />
+              </div>
+              <Button
+                onClick={handleProfileSave}
+                disabled={profilePending}
+                className="w-full rounded-xl text-xs font-bold shadow-md bg-indigo-600 hover:bg-indigo-700 text-white flex items-center justify-center gap-2 transition-all"
+              >
+                {profilePending && <RefreshCw className="h-3 w-3 animate-spin" />}
+                {profilePending ? 'Updating Data Matrices...' : 'Save Updated Dimensions'}
+              </Button>
+            </CardContent>
+          </Card>
+        </motion.div>
+      )}
+
+      {/* Institute Details Tab */}
+      {activeTab === 'institute' && !isTeacher && (
+        <motion.div variants={cardVariants}>
+          <Card className="border border-border/60 shadow-sm">
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <Building2 className="h-4 w-4 text-indigo-500" />
+                <CardTitle className="text-lg font-bold tracking-tight">Institute Details</CardTitle>
+              </div>
+              <CardDescription>Manage your school's information and contact details</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="instituteName" className="text-xs font-bold">Institute Name</Label>
+                <Input
+                  id="instituteName"
+                  value={instituteDetails.name}
+                  onChange={(e) => setInstituteDetails(prev => ({ ...prev, name: e.target.value }))}
+                  placeholder="E.g., Delhi Public School"
+                  className="rounded-xl border-border/80 text-xs focus-visible:ring-indigo-500"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="instituteAddress" className="text-xs font-bold">Address</Label>
+                <Textarea
+                  id="instituteAddress"
+                  value={instituteDetails.address}
+                  onChange={(e) => setInstituteDetails(prev => ({ ...prev, address: e.target.value }))}
+                  placeholder="Full institute address"
+                  className="rounded-xl border-border/80 text-xs focus-visible:ring-indigo-500"
+                  rows={3}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="institutePhone" className="text-xs font-bold">Phone Number</Label>
+                <Input
+                  id="institutePhone"
+                  value={instituteDetails.phone}
+                  onChange={(e) => setInstituteDetails(prev => ({ ...prev, phone: e.target.value }))}
+                  placeholder="+91 XXXXX XXXXX"
+                  className="rounded-xl border-border/80 text-xs focus-visible:ring-indigo-500"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="instituteEmail" className="text-xs font-bold">Email Address</Label>
+                <Input
+                  id="instituteEmail"
+                  value={instituteDetails.email}
+                  onChange={(e) => setInstituteDetails(prev => ({ ...prev, email: e.target.value }))}
+                  placeholder="contact@school.edu"
+                  className="rounded-xl border-border/80 text-xs focus-visible:ring-indigo-500"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="instituteLogo" className="text-xs font-bold">Logo URL</Label>
+                <Input
+                  id="instituteLogo"
+                  value={instituteDetails.logo}
+                  onChange={(e) => setInstituteDetails(prev => ({ ...prev, logo: e.target.value }))}
+                  placeholder="https://example.com/logo.png"
+                  className="rounded-xl border-border/80 text-xs focus-visible:ring-indigo-500"
+                />
+              </div>
+              <Button
+                onClick={handleInstituteDetailsSave}
+                disabled={instituteDetailsPending}
+                className="w-full rounded-xl text-xs font-bold shadow-md bg-indigo-600 hover:bg-indigo-700 text-white flex items-center justify-center gap-2 transition-all"
+              >
+                {instituteDetailsPending && <RefreshCw className="h-3 w-3 animate-spin" />}
+                {instituteDetailsPending ? 'Updating Institute Details...' : 'Save Institute Details'}
+              </Button>
+            </CardContent>
+          </Card>
+        </motion.div>
+      )}
+
+      {/* Feature Toggles Tab */}
+      {activeTab === 'features' && !isTeacher && (
+        <motion.div variants={cardVariants}>
+          <Card className="border border-border/60 shadow-sm">
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <ToggleRight className="h-4 w-4 text-indigo-500" />
+                <CardTitle className="text-lg font-bold tracking-tight">Feature Toggles</CardTitle>
+              </div>
+              <CardDescription>Enable or disable features for your school</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between p-3 rounded-xl border border-border/60 bg-muted/20">
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">Homework Management</p>
+                    <p className="text-xs text-muted-foreground">Allow teachers to create and manage homework assignments</p>
+                  </div>
+                  <Switch
+                    checked={featureToggles.homeworkEnabled}
+                    onCheckedChange={(checked) => handleFeatureToggle('homeworkEnabled', checked)}
+                    disabled={featuresPending}
+                  />
+                </div>
+                <div className="flex items-center justify-between p-3 rounded-xl border border-border/60 bg-muted/20">
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">Reports Management</p>
+                    <p className="text-xs text-muted-foreground">Enable daily teaching reports and analytics</p>
+                  </div>
+                  <Switch
+                    checked={featureToggles.reportsEnabled}
+                    onCheckedChange={(checked) => handleFeatureToggle('reportsEnabled', checked)}
+                    disabled={featuresPending}
+                  />
+                </div>
+                <div className="flex items-center justify-between p-3 rounded-xl border border-border/60 bg-muted/20">
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">Attendance Tracking</p>
+                    <p className="text-xs text-muted-foreground">Track teacher attendance and substitutions</p>
+                  </div>
+                  <Switch
+                    checked={featureToggles.attendanceEnabled}
+                    onCheckedChange={(checked) => handleFeatureToggle('attendanceEnabled', checked)}
+                    disabled={featuresPending}
+                  />
+                </div>
+                <div className="flex items-center justify-between p-3 rounded-xl border border-border/60 bg-muted/20">
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">Daily Desk</p>
+                    <p className="text-xs text-muted-foreground">Enable daily desk grid view and management</p>
+                  </div>
+                  <Switch
+                    checked={featureToggles.dailyDeskEnabled}
+                    onCheckedChange={(checked) => handleFeatureToggle('dailyDeskEnabled', checked)}
+                    disabled={featuresPending}
+                  />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+      )}
+
+      {/* Substitution Settings Tab */}
+      {activeTab === 'substitution' && !isTeacher && (
+        <motion.div variants={cardVariants}>
+          <Card className="border border-border/60 shadow-sm">
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="h-4 w-4 text-indigo-500" />
+                <CardTitle className="text-lg font-bold tracking-tight">Substitution Settings</CardTitle>
+              </div>
+              <CardDescription>Manage leave reasons for teacher substitutions</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label className="text-xs font-bold">Add New Leave Reason</Label>
+                <div className="flex gap-2">
+                  <Input
+                    value={newLeaveReason}
+                    onChange={(e) => setNewLeaveReason(e.target.value)}
+                    placeholder="E.g., Medical Leave, Personal Emergency"
+                    className="rounded-xl border-border/80 text-xs focus-visible:ring-indigo-500"
+                  />
+                  <Button
+                    onClick={handleAddLeaveReason}
+                    disabled={leaveReasonsPending || !newLeaveReason.trim()}
+                    className="rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+              <Separator />
+              <div className="space-y-2">
+                <Label className="text-xs font-bold">Existing Leave Reasons</Label>
+                {leaveReasons.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">No leave reasons configured yet.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {leaveReasons.map((reason) => (
+                      <div key={reason} className="flex items-center justify-between p-2 rounded-lg border border-border/60 bg-muted/20">
+                        <span className="text-xs font-medium text-foreground">{reason}</span>
+                        <Button
+                          onClick={() => handleDeleteLeaveReason(reason)}
+                          disabled={leaveReasonsPending}
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+      )}
 
       {/* Dynamic Authentication Context Card */}
-      <motion.div variants={cardVariants}>
-        <Card className="border border-border/60 shadow-sm overflow-hidden">
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <KeyRound className="h-4 w-4 text-indigo-500" />
-              <CardTitle className="text-lg font-bold tracking-tight">Authentication Update</CardTitle>
-            </div>
-            <CardDescription>
-              {isTeacher 
-                ? `Verification code configuration will dispatch automatically to ${initialUser?.email || 'your email'}.`
-                : 'Direct re-authentication update context for Admin parameters.'}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <AnimatePresence mode="wait" initial={false}>
-              
-              {/* FLOW 1: ADMIN FLOW OR INITIAL TEACHER TRIGGER */}
-              {(!isTeacher || otpStep === 'idle') && (
-                <motion.form key="direct-password-form" variants={stepVariants} initial="initial" animate="animate" exit="exit" onSubmit={handlePasswordUpdate} className="space-y-4">
-                  {!isTeacher && (
+      {(activeTab === 'profile' || !activeTab) && (
+        <motion.div variants={cardVariants}>
+          <Card className="border border-border/60 shadow-sm overflow-hidden">
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <KeyRound className="h-4 w-4 text-indigo-500" />
+                <CardTitle className="text-lg font-bold tracking-tight">Authentication Update</CardTitle>
+              </div>
+              <CardDescription>
+                {isTeacher 
+                  ? `Verification code configuration will dispatch automatically to ${initialUser?.email || 'your email'}.`
+                  : 'Direct re-authentication update context for Admin parameters.'}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <AnimatePresence mode="wait" initial={false}>
+                
+                {/* FLOW 1: ADMIN FLOW OR INITIAL TEACHER TRIGGER */}
+                {(!isTeacher || otpStep === 'idle') && (
+                  <motion.form key="direct-password-form" variants={stepVariants} initial="initial" animate="animate" exit="exit" onSubmit={handlePasswordUpdate} className="space-y-4">
+                    {!isTeacher && (
+                      <div className="space-y-1.5">
+                        <Label htmlFor="oldPassword" className="text-xs font-bold">Current Password</Label>
+                        <Input
+                          id="oldPassword"
+                          type="password"
+                          value={oldPassword}
+                          onChange={(e) => setOldPassword(e.target.value)}
+                          placeholder="••••••••"
+                          className="rounded-xl border-border/80 text-xs focus-visible:ring-indigo-500"
+                        />
+                      </div>
+                    )}
+
+                    {isTeacher ? (
+                      <Button
+                        type="button"
+                        onClick={handleSendOtp}
+                        disabled={sendOtpPending}
+                        variant="outline"
+                        className="w-full rounded-xl text-xs font-bold border-border/80 hover:bg-muted/50 transition-all flex items-center justify-center"
+                      >
+                        <Mail className={`mr-2 h-4 w-4 text-indigo-500 ${sendOtpPending ? 'animate-pulse' : ''}`} />
+                        {sendOtpPending ? 'Generating OTP Credentials...' : 'Send Verification OTP Code'}
+                      </Button>
+                    ) : (
+                      <>
+                        <Separator className="bg-border/40 my-1" />
+                        <div className="space-y-1.5">
+                          <Label htmlFor="newPassword" className="text-xs font-bold">New Password</Label>
+                          <Input
+                            id="newPassword"
+                            type="password"
+                            value={newPassword}
+                            onChange={(e) => setNewPassword(e.target.value)}
+                            placeholder="Minimum 8 characters"
+                            className="rounded-xl text-xs focus-visible:ring-indigo-500"
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label htmlFor="confirmPassword" className="text-xs font-bold">Confirm New Password</Label>
+                          <Input
+                            id="confirmPassword"
+                            type="password"
+                            value={confirmPassword}
+                            onChange={(e) => setConfirmPassword(e.target.value)}
+                            placeholder="Match choice criteria"
+                            className="rounded-xl text-xs focus-visible:ring-indigo-500"
+                          />
+                        </div>
+                        <Button
+                          type="submit"
+                          disabled={passwordPending}
+                          className="w-full rounded-xl text-xs font-bold shadow-md bg-indigo-600 hover:bg-indigo-700 text-white flex items-center justify-center gap-2 transition-all"
+                        >
+                          {passwordPending ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="h-3.5 w-3.5" />}
+                          Save New Password
+                        </Button>
+                      </>
+                    )}
+                  </motion.form>
+                )}
+
+                {/* FLOW 2: TEACHER LIVE OTP ENTRY VIEW */}
+                {isTeacher && otpStep === 'sent' && (
+                  <motion.form key="teacher-otp-form" variants={stepVariants} initial="initial" animate="animate" exit="exit" onSubmit={handlePasswordUpdate} className="space-y-4">
+                    <div className="flex items-center justify-between gap-2 rounded-xl bg-indigo-500/10 border border-indigo-500/20 px-4 py-2.5 text-xs text-indigo-600 dark:text-indigo-400">
+                      <span className="flex items-center gap-2">
+                        <Mail className="h-3.5 w-3.5" /> Code dispatched successfully.
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleSendOtp}
+                        disabled={sendOtpPending}
+                        className="text-xs font-bold underline flex items-center gap-1 hover:opacity-80 transition-opacity"
+                      >
+                        <RefreshCw className={`h-3 w-3 ${sendOtpPending ? 'animate-spin' : ''}`} /> Resend
+                      </button>
+                    </div>
+
                     <div className="space-y-1.5">
-                      <Label htmlFor="oldPassword" className="text-xs font-bold">Current Password</Label>
+                      <Label htmlFor="otp" className="text-xs font-bold">6-Digit Verification Code</Label>
                       <Input
-                        id="oldPassword"
-                        type="password"
-                        value={oldPassword}
-                        onChange={(e) => setOldPassword(e.target.value)}
-                        placeholder="••••••••"
-                        className="rounded-xl border-border/80 text-xs focus-visible:ring-indigo-500"
+                        id="otp"
+                        value={otp}
+                        onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                        placeholder="000000"
+                        className="text-center font-mono text-base tracking-widest rounded-xl focus-visible:ring-indigo-500"
+                        maxLength={6}
                       />
                     </div>
-                  )}
 
-                  {isTeacher ? (
-                    <Button
-                      type="button"
-                      onClick={handleSendOtp}
-                      disabled={sendOtpPending}
-                      variant="outline"
-                      className="w-full rounded-xl text-xs font-bold border-border/80 hover:bg-muted/50 transition-all flex items-center justify-center"
-                    >
-                      <Mail className={`mr-2 h-4 w-4 text-indigo-500 ${sendOtpPending ? 'animate-pulse' : ''}`} />
-                      {sendOtpPending ? 'Generating OTP Credentials...' : 'Send Verification OTP Code'}
-                    </Button>
-                  ) : (
-                    <>
-                      <Separator className="bg-border/40 my-1" />
-                      <div className="space-y-1.5">
-                        <Label htmlFor="newPassword" className="text-xs font-bold">New Password</Label>
-                        <Input
-                          id="newPassword"
-                          type="password"
-                          value={newPassword}
-                          onChange={(e) => setNewPassword(e.target.value)}
-                          placeholder="Minimum 8 characters"
-                          className="rounded-xl text-xs focus-visible:ring-indigo-500"
-                        />
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label htmlFor="confirmPassword" className="text-xs font-bold">Confirm New Password</Label>
-                        <Input
-                          id="confirmPassword"
-                          type="password"
-                          value={confirmPassword}
-                          onChange={(e) => setConfirmPassword(e.target.value)}
-                          placeholder="Match choice criteria"
-                          className="rounded-xl text-xs focus-visible:ring-indigo-500"
-                        />
-                      </div>
-                      <Button
-                        type="submit"
-                        disabled={passwordPending}
-                        className="w-full rounded-xl text-xs font-bold shadow-md bg-indigo-600 hover:bg-indigo-700 text-white flex items-center justify-center gap-2 transition-all"
-                      >
-                        {passwordPending ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="h-3.5 w-3.5" />}
-                        Save New Password
+                    <div className="space-y-1.5">
+                      <Label htmlFor="newPassword" className="text-xs font-bold">New Secure Password</Label>
+                      <Input
+                        id="newPassword"
+                        type="password"
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        placeholder="Minimum 8 characters"
+                        className="rounded-xl text-xs focus-visible:ring-indigo-500"
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label htmlFor="confirmPassword" className="text-xs font-bold">Confirm Password</Label>
+                      <Input
+                        id="confirmPassword"
+                        type="password"
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        placeholder="Verify profile characters choice"
+                        className="rounded-xl text-xs focus-visible:ring-indigo-500"
+                      />
+                    </div>
+
+                    <div className="flex gap-3">
+                      <Button type="button" variant="outline" className="flex-1 rounded-xl text-xs font-bold" onClick={() => { setOtpStep('idle'); setOtp(''); }}>
+                        Cancel
                       </Button>
-                    </>
-                  )}
-                </motion.form>
-              )}
+                      <Button type="submit" disabled={passwordPending} className="flex-1 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white flex items-center justify-center gap-2 transition-all">
+                        {passwordPending ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="h-3.5 w-3.5" />}
+                        Verify & Lock Changes
+                      </Button>
+                    </div>
+                  </motion.form>
+                )}
 
-              {/* FLOW 2: TEACHER LIVE OTP ENTRY VIEW */}
-              {isTeacher && otpStep === 'sent' && (
-                <motion.form key="teacher-otp-form" variants={stepVariants} initial="initial" animate="animate" exit="exit" onSubmit={handlePasswordUpdate} className="space-y-4">
-                  <div className="flex items-center justify-between gap-2 rounded-xl bg-indigo-500/10 border border-indigo-500/20 px-4 py-2.5 text-xs text-indigo-600 dark:text-indigo-400">
-                    <span className="flex items-center gap-2">
-                      <Mail className="h-3.5 w-3.5" /> Code dispatched successfully.
-                    </span>
-                    <button
-                      type="button"
-                      onClick={handleSendOtp}
-                      disabled={sendOtpPending}
-                      className="text-xs font-bold underline flex items-center gap-1 hover:opacity-80 transition-opacity"
-                    >
-                      <RefreshCw className={`h-3 w-3 ${sendOtpPending ? 'animate-spin' : ''}`} /> Resend
-                    </button>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <Label htmlFor="otp" className="text-xs font-bold">6-Digit Verification Code</Label>
-                    <Input
-                      id="otp"
-                      value={otp}
-                      onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                      placeholder="000000"
-                      className="text-center font-mono text-base tracking-widest rounded-xl focus-visible:ring-indigo-500"
-                      maxLength={6}
-                    />
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <Label htmlFor="newPassword" className="text-xs font-bold">New Secure Password</Label>
-                    <Input
-                      id="newPassword"
-                      type="password"
-                      value={newPassword}
-                      onChange={(e) => setNewPassword(e.target.value)}
-                      placeholder="Minimum 8 characters"
-                      className="rounded-xl text-xs focus-visible:ring-indigo-500"
-                    />
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <Label htmlFor="confirmPassword" className="text-xs font-bold">Confirm Password</Label>
-                    <Input
-                      id="confirmPassword"
-                      type="password"
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      placeholder="Verify profile characters choice"
-                      className="rounded-xl text-xs focus-visible:ring-indigo-500"
-                    />
-                  </div>
-
-                  <div className="flex gap-3">
-                    <Button type="button" variant="outline" className="flex-1 rounded-xl text-xs font-bold" onClick={() => { setOtpStep('idle'); setOtp(''); }}>
-                      Cancel
+                {/* FLOW 3: SUCCESS CONFIRMATION DISPLAY */}
+                {isTeacher && otpStep === 'done' && (
+                  <motion.div key="teacher-success-view" variants={stepVariants} initial="initial" animate="animate" exit="exit" className="flex flex-col items-center gap-2 py-4 text-center">
+                    <CheckCircle2 className="h-10 w-10 text-emerald-500 animate-bounce" />
+                    <p className="font-bold text-sm text-foreground">Password Reset Complete</p>
+                    <p className="text-xs text-muted-foreground">Teacher account credentials updated securely.</p>
+                    <Button variant="outline" onClick={() => setOtpStep('idle')} className="mt-2 text-xs rounded-xl">
+                      Back to settings
                     </Button>
-                    <Button type="submit" disabled={passwordPending} className="flex-1 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white flex items-center justify-center gap-2 transition-all">
-                      {passwordPending ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="h-3.5 w-3.5" />}
-                      Verify & Lock Changes
-                    </Button>
-                  </div>
-                </motion.form>
-              )}
+                  </motion.div>
+                )}
 
-              {/* FLOW 3: SUCCESS CONFIRMATION DISPLAY */}
-              {isTeacher && otpStep === 'done' && (
-                <motion.div key="teacher-success-view" variants={stepVariants} initial="initial" animate="animate" exit="exit" className="flex flex-col items-center gap-2 py-4 text-center">
-                  <CheckCircle2 className="h-10 w-10 text-emerald-500 animate-bounce" />
-                  <p className="font-bold text-sm text-foreground">Password Reset Complete</p>
-                  <p className="text-xs text-muted-foreground">Teacher account credentials updated securely.</p>
-                  <Button variant="outline" onClick={() => setOtpStep('idle')} className="mt-2 text-xs rounded-xl">
-                    Back to settings
-                  </Button>
-                </motion.div>
-              )}
-
-            </AnimatePresence>
-          </CardContent>
-        </Card>
-      </motion.div>
+              </AnimatePresence>
+            </CardContent>
+          </Card>
+        </motion.div>
+      )}
     </motion.div>
   );
 }

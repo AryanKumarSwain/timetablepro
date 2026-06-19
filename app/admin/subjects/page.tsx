@@ -142,7 +142,6 @@ export default function SubjectsPage() {
         description='Manage course subjects'
         breadcrumbs={[
           { label: 'Admin', href: '/admin/dashboard' },
-          { label: 'Masters' },
           { label: 'Subjects' },
         ]}
         actions={

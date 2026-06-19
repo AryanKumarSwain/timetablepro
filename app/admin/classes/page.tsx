@@ -145,7 +145,7 @@ export default function ClassesPage() {
         description='Manage school classes'
         breadcrumbs={[
           { label: 'Admin', href: '/admin/dashboard' },
-          { label: 'Masters' },
+        
           { label: 'Classes' },
         ]}
         actions={

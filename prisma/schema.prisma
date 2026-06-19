@@ -9,9 +9,11 @@ generator client {
 model SaaSPlan {
   id               String   @id @default(uuid())
   name             String
+  description      String?  @db.Text
   teacherMin       Int
   teacherMax       Int
   priceMonthly     Decimal  @db.Decimal(10, 2)
+  features         Json     @default("[]")
   reportEnabled    Boolean  @default(false)
   attendanceEnabled Boolean  @default(false)
   homeworkEnabled  Boolean  @default(false)
