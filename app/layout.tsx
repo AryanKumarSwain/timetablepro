@@ -33,6 +33,7 @@ export default function RootLayout({
       <body
         className={`${geist.variable} ${geistMono.variable} font-sans antialiased`}
         suppressHydrationWarning
+        style={{ zoom: 1 }} // GLOBAL 80% ZOOM MATRIX APPLIED HERE
       >
         <ThemeProvider
           attribute='class'

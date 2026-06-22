@@ -19,6 +19,11 @@ export type SaasPlan = {
   teacherMin: number;
   teacherMax: number;
   priceMonthly: number;
+  reportEnabled: boolean;
+  attendanceEnabled: boolean;
+  homeworkEnabled: boolean;
+  exportFormats: string[];
+  watermarkRequired: boolean;
   schoolCount: number;
 };
 import type { CsvImportEntity, CsvImportResult, ParsedCsvRow } from './csv-import/types';

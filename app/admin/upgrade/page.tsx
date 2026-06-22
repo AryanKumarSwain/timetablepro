@@ -122,12 +122,30 @@ export default function UpgradePage() {
                   <p className="text-slate-500 dark:text-slate-400 text-xs leading-relaxed">{style.desc}</p>
                   <hr className="border-slate-100 dark:border-slate-800 my-3" />
                   <ul className="space-y-3">
-                    {(plan.features && plan.features.length > 0 ? plan.features : [`Up to ${plan.teacherMax} teachers`, 'Unlimited timetable slots', 'CSV bulk import', 'Priority support']).map((feat, fIdx) => (
-                      <li key={fIdx} className="flex items-center gap-2.5 text-xs text-slate-600 dark:text-slate-300">
-                        <Check className="h-4 w-4 text-emerald-500 shrink-0" />
-                        <span className="truncate">{typeof feat === 'string' && feat.includes('{teacherMax}') ? <span dangerouslySetInnerHTML={{ __html: feat.replace('{teacherMax}', `<strong class="text-slate-900 dark:text-white">${plan.teacherMax}</strong>`) }} /> : feat}</span>
-                      </li>
-                    ))}
+                    <li className="flex items-center gap-2.5 text-xs text-slate-600 dark:text-slate-300">
+                      <Check className="h-4 w-4 text-emerald-500 shrink-0" />
+                      <span className="truncate"><strong>{plan.teacherMin}-{plan.teacherMax} Teachers</strong></span>
+                    </li>
+                    <li className="flex items-center gap-2.5 text-xs text-slate-600 dark:text-slate-300">
+                      <Check className="h-4 w-4 text-emerald-500 shrink-0" />
+                      <span className="truncate">{plan.reportEnabled ? 'Unlocked' : 'Locked'}: Reports</span>
+                    </li>
+                    <li className="flex items-center gap-2.5 text-xs text-slate-600 dark:text-slate-300">
+                      <Check className="h-4 w-4 text-emerald-500 shrink-0" />
+                      <span className="truncate">{plan.attendanceEnabled ? 'Unlocked' : 'Locked'}: Attendance</span>
+                    </li>
+                    <li className="flex items-center gap-2.5 text-xs text-slate-600 dark:text-slate-300">
+                      <Check className="h-4 w-4 text-emerald-500 shrink-0" />
+                      <span className="truncate">{plan.homeworkEnabled ? 'Unlocked' : 'Locked'}: Homework</span>
+                    </li>
+                    <li className="flex items-center gap-2.5 text-xs text-slate-600 dark:text-slate-300">
+                      <Check className="h-4 w-4 text-emerald-500 shrink-0" />
+                      <span className="truncate">Allowed Exports: {plan.exportFormats && plan.exportFormats.length > 0 ? plan.exportFormats.join(', ').toUpperCase() : 'None'}</span>
+                    </li>
+                    <li className="flex items-center gap-2.5 text-xs text-slate-600 dark:text-slate-300">
+                      <Check className="h-4 w-4 text-emerald-500 shrink-0" />
+                      <span className="truncate">Watermark: {plan.watermarkRequired ? 'True' : 'False'}</span>
+                    </li>
                   </ul>
                 </div>
                 <Button onClick={() => setSelectedPlanId(plan.id)} className={`w-full py-5 font-semibold rounded-lg text-xs flex items-center justify-center gap-1.5 transition-all ${style.btn}`}>

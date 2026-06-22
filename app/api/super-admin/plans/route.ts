@@ -7,7 +7,6 @@ const VALID_EXPORT_FORMATS = ['pdf', 'docx', 'csv'] as const;
 function validatePlanPayload(body: any) {
   const errors: Record<string, string> = {};
   const name = String(body.name ?? '').trim();
-  const description = String(body.description ?? '').trim();
   const teacherMin = Number(body.teacherMin);
   const teacherMax = Number(body.teacherMax);
   const priceMonthly = Number(body.priceMonthly);
@@ -26,19 +25,13 @@ function validatePlanPayload(body: any) {
     ? body.exportFormats.filter((f: any) => VALID_EXPORT_FORMATS.includes(f))
     : [];
 
-  const features = Array.isArray(body.features)
-    ? body.features.filter((f: any) => typeof f === 'string' && f.trim())
-    : [];
-
   return {
     errors,
     payload: {
       name,
-      description: description || null,
       teacherMin,
       teacherMax,
       priceMonthly,
-      features,
       reportEnabled:     body.reportEnabled     !== undefined ? Boolean(body.reportEnabled)     : true,
       attendanceEnabled: body.attendanceEnabled !== undefined ? Boolean(body.attendanceEnabled) : true,
       homeworkEnabled:   body.homeworkEnabled   !== undefined ? Boolean(body.homeworkEnabled)   : true,
@@ -52,12 +45,10 @@ function serializePlan(plan: any, schoolCount: number) {
   return {
     id:                plan.id,
     name:              plan.name,
-    description:       plan.description,
     teacherMin:        plan.teacherMin,
     teacherMax:        plan.teacherMax,
     priceMonthly:      Number(plan.priceMonthly),
     schoolCount,
-    features:          plan.features ?? [],
     reportEnabled:     plan.reportEnabled,
     attendanceEnabled: plan.attendanceEnabled,
     homeworkEnabled:   plan.homeworkEnabled,
@@ -104,11 +95,9 @@ export async function POST(request: NextRequest) {
     const plan = await prisma.saaSPlan.create({
       data: {
         name:              payload.name,
-        description:       payload.description,
         teacherMin:        payload.teacherMin,
         teacherMax:        payload.teacherMax,
         priceMonthly:      payload.priceMonthly,
-        features:          payload.features,
         reportEnabled:     payload.reportEnabled,
         attendanceEnabled: payload.attendanceEnabled,
         homeworkEnabled:   payload.homeworkEnabled,

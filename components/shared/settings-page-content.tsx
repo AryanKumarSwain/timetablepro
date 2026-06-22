@@ -11,7 +11,8 @@ import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
-import { KeyRound, RefreshCw, ShieldCheck, Mail, CheckCircle2, Building2, Plus, Trash2, ToggleLeft, ToggleRight } from 'lucide-react';
+import { useTheme } from 'next-themes';
+import { KeyRound, RefreshCw, ShieldCheck, Mail, CheckCircle2, Building2, Plus, Trash2, ToggleLeft, ToggleRight, Sun, Moon } from 'lucide-react';
 
 async function fetchClient<T>(url: string, { method = 'GET', body }: { method?: string; body?: any } = {}): Promise<T> {
   const res = await fetch(url, {
@@ -69,6 +70,12 @@ const stepVariants: Variants = {
 export function SettingsPageContent({ initialUser, activeTab }: SettingsPageContentProps) {
   const isTeacher = initialUser?.role?.toLowerCase() === 'teacher';
   const showLeaveRequestsTab = !isTeacher && activeTab === 'leave-requests';
+  const { theme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const [name, setName] = useState(initialUser?.name ?? '');
   const [phone, setPhone] = useState(initialUser?.phone ?? '');
@@ -466,6 +473,42 @@ export function SettingsPageContent({ initialUser, activeTab }: SettingsPageCont
 
   return (
     <motion.div variants={containerVariants} initial="hidden" animate="show" className="mx-auto max-w-2xl space-y-6">
+      {/* Theme Toggle */}
+      {(activeTab === 'profile' || !activeTab) && (
+        <motion.div variants={cardVariants}>
+          <Card className="border border-border/60 shadow-sm">
+            <CardHeader>
+              <CardTitle className="text-lg font-bold tracking-tight">Appearance</CardTitle>
+              <CardDescription>Customize your visual experience</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between p-3 rounded-xl border border-border/60 bg-muted/20">
+                <div className="flex items-center gap-3">
+                  {mounted && (
+                    <>
+                      <Sun className="h-4 w-4 text-foreground rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+                      <Moon className="h-4 w-4 text-foreground absolute rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+                    </>
+                  )}
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">Theme Mode</p>
+                    <p className="text-xs text-muted-foreground">Switch between light and dark appearance</p>
+                  </div>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+                  className="rounded-xl"
+                >
+                  {mounted && (theme === 'dark' ? 'Light' : 'Dark')}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+      )}
+
       {/* Account Info */}
       {activeTab === 'profile' && (
         <motion.div variants={cardVariants}>
@@ -486,56 +529,6 @@ export function SettingsPageContent({ initialUser, activeTab }: SettingsPageCont
                   {initialUser?.role || 'user'}
                 </Badge>
               </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-      )}
-
-      {isTeacher && activeTab === 'profile' && (
-        <motion.div variants={cardVariants}>
-          <Card className="border border-border/60 shadow-sm">
-            <CardHeader>
-              <div className="flex items-center gap-2">
-                <ShieldCheck className="h-4 w-4 text-rose-500" />
-                <CardTitle className="text-lg font-bold tracking-tight">Leave School Request</CardTitle>
-              </div>
-              <CardDescription>
-                Submit a formal leave request so your current school administrator can approve or decline your transfer.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex flex-col gap-2">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-muted-foreground text-xs uppercase tracking-wide">Current status</span>
-                  <Badge variant={leaveRequestStatus === 'PENDING' ? 'outline' : leaveRequestStatus === 'APPROVED' ? 'secondary' : leaveRequestStatus === 'REJECTED' ? 'destructive' : 'secondary'} className="uppercase text-[10px] font-bold">
-                    {leaveRequestStatus}
-                  </Badge>
-                </div>
-                {leaveRequestStatus === 'PENDING' && (
-                  <p className="text-[11px] text-muted-foreground">Your leave request is being reviewed by the school administrator.</p>
-                )}
-                {leaveRequestStatus === 'REJECTED' && (
-                  <p className="text-[11px] text-muted-foreground">Your prior request was declined. You may submit a new request.</p>
-                )}
-                <div className="space-y-1.5">
-                  <Label htmlFor="leaveReason" className="text-xs font-bold">Reason for leaving (optional)</Label>
-                  <Textarea
-                    id="leaveReason"
-                    value={leaveReason}
-                    onChange={(e) => setLeaveReason(e.target.value)}
-                    placeholder="Provide any notes you want the administrator to review"
-                    className="rounded-xl text-xs focus-visible:ring-indigo-500"
-                    rows={3}
-                  />
-                </div>
-              </div>
-              <Button
-                onClick={handleLeaveRequest}
-                disabled={leaveRequestPending || leaveRequestStatus === 'PENDING' || leaveRequestStatus === 'APPROVED'}
-                className="w-full rounded-xl text-xs font-bold shadow-md bg-rose-600 hover:bg-rose-700 text-white flex items-center justify-center gap-2 transition-all"
-              >
-                {leaveRequestPending ? 'Submitting leave request...' : leaveRequestStatus === 'PENDING' ? 'Leave Request Pending' : leaveRequestStatus === 'APPROVED' ? 'Leave Approved' : 'Request to Leave School'}
-              </Button>
             </CardContent>
           </Card>
         </motion.div>
@@ -661,6 +654,76 @@ export function SettingsPageContent({ initialUser, activeTab }: SettingsPageCont
                 {profilePending && <RefreshCw className="h-3 w-3 animate-spin" />}
                 {profilePending ? 'Updating Data Matrices...' : 'Save Updated Dimensions'}
               </Button>
+            </CardContent>
+          </Card>
+        </motion.div>
+      )}
+
+      {/* Teacher Leave School Request */}
+      {isTeacher && (activeTab === 'profile' || !activeTab) && (
+        <motion.div variants={cardVariants}>
+          <Card className="border border-border/60 shadow-sm">
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <Building2 className="h-4 w-4 text-indigo-500" />
+                <CardTitle className="text-lg font-bold tracking-tight">Leave School Request</CardTitle>
+              </div>
+              <CardDescription>Submit a request to leave your current school</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-semibold text-foreground">Current Status</span>
+                  <Badge 
+                    variant={leaveRequestStatus === 'PENDING' ? 'secondary' : leaveRequestStatus === 'APPROVED' ? 'default' : leaveRequestStatus === 'REJECTED' ? 'destructive' : 'outline'}
+                    className="uppercase text-[10px] font-bold"
+                  >
+                    {leaveRequestStatus}
+                  </Badge>
+                </div>
+              </div>
+              
+              {leaveRequestStatus === 'NONE' && (
+                <>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="leaveReason" className="text-xs font-bold">Reason for Leaving (Optional)</Label>
+                    <Textarea
+                      id="leaveReason"
+                      value={leaveReason}
+                      onChange={(e) => setLeaveReason(e.target.value)}
+                      placeholder="Please provide a reason for your leave request..."
+                      className="rounded-xl border-border/80 text-xs focus-visible:ring-indigo-500"
+                      rows={3}
+                    />
+                  </div>
+                  <Button
+                    onClick={handleLeaveRequest}
+                    disabled={leaveRequestPending}
+                    className="w-full rounded-xl text-xs font-bold shadow-md bg-orange-600 hover:bg-orange-700 text-white flex items-center justify-center gap-2 transition-all"
+                  >
+                    {leaveRequestPending && <RefreshCw className="h-3 w-3 animate-spin" />}
+                    {leaveRequestPending ? 'Submitting Request...' : 'Submit Leave Request'}
+                  </Button>
+                </>
+              )}
+              
+              {leaveRequestStatus === 'PENDING' && (
+                <div className="rounded-xl border border-border/60 bg-muted/20 p-4 text-center">
+                  <p className="text-sm text-muted-foreground">Your leave request is pending review by the school administrator.</p>
+                </div>
+              )}
+              
+              {leaveRequestStatus === 'APPROVED' && (
+                <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-center">
+                  <p className="text-sm text-emerald-600 dark:text-emerald-400">Your leave request has been approved. You can now join a new school.</p>
+                </div>
+              )}
+              
+              {leaveRequestStatus === 'REJECTED' && (
+                <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-center">
+                  <p className="text-sm text-red-600 dark:text-red-400">Your leave request was declined by the administrator.</p>
+                </div>
+              )}
             </CardContent>
           </Card>
         </motion.div>

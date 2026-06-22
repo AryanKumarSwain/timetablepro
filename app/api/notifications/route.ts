@@ -23,8 +23,12 @@ export async function GET() {
       whereClause.OR = [{ schoolId: null }, { schoolId: user.schoolId }];
     } else if (user.role === 'TEACHER') {
       // Teachers retrieve alerts targeted for their specific school ID assignment
+      // Workaround: Only show notifications where they DON'T have a read entry
+      // This means either it's a general broadcast (no one has read it yet)
+      // OR it's targeted specifically to them (others have read entries, they don't)
       whereClause.scope = 'SCHOOL_TEACHERS';
       whereClause.schoolId = user.schoolId;
+      whereClause.reads = { none: { userId: user.id } };
     }
 
     // 2. Query target parameters from storage array matrix

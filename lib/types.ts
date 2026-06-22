@@ -53,11 +53,9 @@ export interface Class {
 export interface SaasPlan {
   id: string;
   name: string;
-  description?: string;
   teacherMin: number;
   teacherMax: number;
   priceMonthly: number;
-  features: string[];
   reportEnabled: boolean;
   attendanceEnabled: boolean;
   homeworkEnabled: boolean;

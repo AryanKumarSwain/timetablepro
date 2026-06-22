@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useRequireAuth } from '@/lib/auth-context';
 import {
   getAdminHomework,
@@ -23,20 +23,12 @@ import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { ProtectedFeature } from '@/components/protected-feature';
-import { Plus, Edit, Trash2, BookOpen, Send, Download, ChevronDown, ChevronRight, FileText, MoreVertical } from 'lucide-react';
+import { Plus, Edit, Trash2, BookOpen, Send, Download, ChevronDown, ChevronRight, FileText, MoreVertical, Calendar, RefreshCw, SlidersHorizontal, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, WidthType, HeadingLevel, AlignmentType, BorderStyle } from 'docx';
 import { useAuth } from '@/lib/auth-context';
 import { Card } from '@/components/ui/card';
-import { CheckCircle2 } from 'lucide-react';
-import {
-  DataGrid,
-  DataGridTable,
-  DataGridHead,
-  DataGridRow,
-  DataGridTh,
-  DataGridTd,
-} from '@/components/enterprise/data-grid';
+import { cn } from '@/lib/utils';
 
 // Helper to extract homework from description
 function extractHomeworkFromDescription(desc = '') {
@@ -49,6 +41,8 @@ function extractHomeworkFromDescription(desc = '') {
 export default function AdminHomeworkPage() {
   const auth = useRequireAuth('admin');
   const { user } = useAuth();
+  const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
+  
   const [loading, setLoading] = useState(true);
   const [homework, setHomework] = useState<Record<string, Homework[]>>({});
   const [reportHomework, setReportHomework] = useState<Record<string, any[]>>({});
@@ -62,6 +56,12 @@ export default function AdminHomeworkPage() {
   const [expandedClasses, setExpandedClasses] = useState<Record<string, boolean>>({});
   const [featureEnabled, setFeatureEnabled] = useState(true);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  
+  // Date selection states
+  const [selectedDate, setSelectedDate] = useState<string>(todayStr);
+  const [dateHomework, setDateHomework] = useState<any[]>([]);
+  const [isDateLoading, setIsDateLoading] = useState<boolean>(false);
+  const [showHistoryView, setShowHistoryView] = useState(false);
 
   useEffect(() => {
     if (!auth.loading && auth.user) {
@@ -603,6 +603,24 @@ export default function AdminHomeworkPage() {
     }));
   };
 
+  const fetchDateHomework = useCallback(async () => {
+    if (!selectedDate) return;
+    try {
+      setIsDateLoading(true);
+      const response = await fetch(`/api/admin/homework?range=true&start=${selectedDate}&end=${selectedDate}`);
+      if (!response.ok) throw new Error('Failed to fetch homework for date.');
+      const data = await response.json();
+      setDateHomework(data.summary?.[selectedDate] || []);
+      setShowHistoryView(true);
+      setSuccessMsg(`Homework loaded for ${selectedDate}.`);
+    } catch (err) {
+      console.error(err);
+      toast.error('Could not load homework for this date.');
+    } finally {
+      setIsDateLoading(false);
+    }
+  }, [selectedDate]);
+
   if (loading) {
     return (
       <div className='max-w-6xl mx-auto'>
@@ -644,25 +662,92 @@ export default function AdminHomeworkPage() {
         isEnabled={featureEnabled}
         schoolId={user?.schoolId || undefined}
       >
-        <div className='flex justify-between items-center'>
-        <div>
-          <h2 className='text-xl font-bold'>Submitted Homework</h2>
-          <p className='text-sm text-slate-600'>
-            {allClassKeys.length} {allClassKeys.length === 1 ? 'class' : 'classes'} with submitted homework
-          </p>
-        </div>
-        <Button onClick={openDialog} className='gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600'>
-          <Plus className='h-4 w-4' />
-          Create Homework
-        </Button>
+        <div className='space-y-6'>
+          {/* DATE SELECTOR PANEL */}
+          <div className='glass-panel p-4 rounded-xl border border-border/80 space-y-3 pointer-events-auto'>
+            <div className='flex items-center gap-2 text-xs font-black uppercase tracking-wider text-muted-foreground'>
+              <Calendar className='h-3.5 w-3.5 text-primary' />
+              Homework History by Date
+            </div>
+            <div className='flex flex-wrap items-center gap-4'>
+              <div className='flex items-center gap-2'>
+                <span className='text-xs text-muted-foreground font-medium'>Select Date:</span>
+                <input type='date' value={selectedDate} max={todayStr} onChange={(e) => setSelectedDate(e.target.value)} className='bg-card border p-1.5 rounded-lg text-xs font-semibold' />
+              </div>
+              <button onClick={fetchDateHomework} disabled={isDateLoading} className='px-4 py-2 bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 text-xs font-bold rounded-lg disabled:opacity-50'>
+                {isDateLoading ? 'Loading...' : 'Load Homework'}
+              </button>
+              {showHistoryView && (
+                <button onClick={() => setShowHistoryView(false)} className='px-4 py-2 border border-border bg-card text-xs font-bold rounded-lg'>
+                  View Current Homework
+                </button>
+              )}
+            </div>
+          </div>
+
+          {!showHistoryView && (
+            <div className='flex justify-between items-center'>
+              <div>
+                <h2 className='text-xl font-bold'>Submitted Homework</h2>
+                <p className='text-sm text-slate-600'>
+                  {allClassKeys.length} {allClassKeys.length === 1 ? 'class' : 'classes'} with submitted homework
+                </p>
+              </div>
+              <Button onClick={openDialog} className='gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600'>
+                <Plus className='h-4 w-4' />
+                Create Homework
+              </Button>
+            </div>
+          )}
+
+          {/* DATE-SPECIFIC HOMEWORK VIEW */}
+          {showHistoryView && (
+            <div className='space-y-4'>
+              <div className='flex items-center justify-between'>
+                <h2 className='text-xl font-bold'>Homework for {selectedDate}</h2>
+                <p className='text-sm text-slate-600'>
+                  {dateHomework.length} {dateHomework.length === 1 ? 'homework' : 'homeworks'} found
+                </p>
+              </div>
+              
+              {dateHomework.length === 0 ? (
+                <Card className='p-12 text-center border-border'>
+                  <BookOpen className='h-12 w-12 mx-auto mb-4 text-slate-400' />
+                  <p className='text-slate-600'>No homework found for this date.</p>
+                </Card>
+              ) : (
+                <div className='space-y-3'>
+                  {dateHomework.map((hw: any) => (
+                    <Card key={hw.id} className='p-5 border-border'>
+                      <div className='flex justify-between items-start mb-3'>
+                        <div className='flex-1'>
+                          <h4 className='font-bold text-lg'>{hw.title}</h4>
+                          <p className='text-xs text-slate-600 dark:text-slate-400 mb-2'>
+                            Teacher: {hw.teacher.name} ({hw.teacher.email})
+                          </p>
+                          <p className='text-xs text-slate-600 dark:text-slate-400 mb-1'>
+                            Class: {hw.class.name}
+                          </p>
+                          <p className='text-xs text-slate-600 dark:text-slate-400 mb-1'>
+                            Submitted: {new Date(hw.createdAt).toLocaleDateString()}
+                          </p>
+                        </div>
+                      </div>
+                      <p className='text-slate-700 dark:text-slate-300 text-sm'>{hw.description}</p>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
       </div>
 
-      {allClassKeys.length === 0 ? (
+      {!showHistoryView && allClassKeys.length === 0 ? (
         <Card className='p-12 text-center border-border'>
           <BookOpen className='h-12 w-12 mx-auto mb-4 text-slate-400' />
           <p className='text-slate-600'>No homework assignments have been submitted yet.</p>
         </Card>
-      ) : (
+      ) : !showHistoryView && (
         <div className='space-y-6'>
           {allClassKeys.map((className) => {
             const isExpanded = expandedClasses[className] || false;

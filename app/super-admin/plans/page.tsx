@@ -63,11 +63,9 @@ type FeatureFlagField = typeof FEATURE_FLAGS[number]['field'];
 
 const emptyForm = {
   name:              '',
-  description:       '',
   teacherMin:        '0',
   teacherMax:        '0',
   priceMonthly:      '0',
-  features:          [] as string[],
   reportEnabled:     true,
   attendanceEnabled: true,
   homeworkEnabled:   true,
@@ -164,11 +162,9 @@ export default function PlansPage() {
     setSelectedPlan(plan);
     setFormValues({
       name:              plan.name,
-      description:       plan.description ?? '',
       teacherMin:        String(plan.teacherMin),
       teacherMax:        String(plan.teacherMax),
       priceMonthly:      String(plan.priceMonthly),
-      features:          plan.features          ?? [],
       reportEnabled:     plan.reportEnabled     ?? true,
       attendanceEnabled: plan.attendanceEnabled ?? true,
       homeworkEnabled:   plan.homeworkEnabled   ?? true,
@@ -230,11 +226,9 @@ export default function PlansPage() {
 
     const payload = {
       name:              formValues.name.trim(),
-      description:       formValues.description.trim(),
       teacherMin:        parseNumber(formValues.teacherMin),
       teacherMax:        parseNumber(formValues.teacherMax),
       priceMonthly:      parseNumber(formValues.priceMonthly),
-      features:          formValues.features,
       reportEnabled:     formValues.reportEnabled,
       attendanceEnabled: formValues.attendanceEnabled,
       homeworkEnabled:   formValues.homeworkEnabled,
@@ -495,29 +489,16 @@ export default function PlansPage() {
               {formErrors.name && <p className='text-sm text-destructive'>{formErrors.name}</p>}
             </div>
 
-            {/* Description */}
+            {/* Plan Summary Display */}
             <div className='grid gap-2'>
-              <Label htmlFor='plan-description'>Description</Label>
-              <textarea
-                id='plan-description'
-                className='flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50'
-                value={formValues.description}
-                onChange={(e) => setFormValues((c) => ({ ...c, description: e.target.value }))}
-                placeholder='Describe this plan...'
-              />
-            </div>
-
-            {/* Features */}
-            <div className='grid gap-2'>
-              <Label htmlFor='plan-features'>Features (one per line)</Label>
-              <textarea
-                id='plan-features'
-                className='flex min-h-[120px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50'
-                value={formValues.features.join('\n')}
-                onChange={(e) => setFormValues((c) => ({ ...c, features: e.target.value.split('\n').filter(f => f.trim()) }))}
-                placeholder='Up to 20 teachers&#10;Unlimited timetable slots&#10;CSV bulk import&#10;Priority support'
-              />
-              <p className='text-xs text-muted-foreground'>Enter each feature on a new line. These will be displayed on the upgrade page.</p>
+              <Label>Plan Summary</Label>
+              <div className='p-3 bg-slate-50 dark:bg-slate-900 rounded-md border border-slate-200 dark:border-slate-800 text-xs'>
+                <p className='font-semibold mb-1'>{formValues.name || 'Plan Name'}: {formValues.teacherMin}-{formValues.teacherMax} Teachers, ₹{formValues.priceMonthly}</p>
+                <p className='mb-1'>
+                  {formValues.reportEnabled ? 'Unlocked' : 'Locked'}: Reports, {formValues.attendanceEnabled ? 'Unlocked' : 'Locked'}: Attendance, {formValues.homeworkEnabled ? 'Unlocked' : 'Locked'}: Homework
+                </p>
+                <p>Allowed Exports: {formValues.exportFormats.length > 0 ? formValues.exportFormats.join(', ') : 'None'}, Watermark: {formValues.watermarkRequired ? 'True' : 'False'}</p>
+              </div>
             </div>
 
             {/* Teacher range */}

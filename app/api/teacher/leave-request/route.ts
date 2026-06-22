@@ -45,6 +45,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // If teacher has a rejected request, allow them to submit a new one
+    // by updating their status to NONE first
+    if (teacher.leaveRequestStatus === 'REJECTED') {
+      await prisma.teacher.update({
+        where: { id: teacher.id },
+        data: { leaveRequestStatus: 'NONE' },
+      });
+    }
+
     // Create leave request
     const leaveRequest = await prisma.schoolLeaveRequest.create({
       data: {
@@ -62,16 +71,36 @@ export async function POST(request: NextRequest) {
     });
 
     // Create notification for school admin only
-    await prisma.notification.create({
+    const notification = await prisma.notification.create({
       data: {
         title: 'Leave Request',
         message: `${teacher.name} has requested to leave the school.`,
         type: 'ALERT',
-        scope: 'SCHOOL_TEACHERS',
+        scope: 'ALL_ADMINS',
         schoolId,
         senderId: user.id,
       },
     });
+
+    // Mark notification as read for all admins except the school admin
+    const allAdmins = await prisma.user.findMany({
+      where: { 
+        role: 'ADMIN',
+        schoolId,
+        id: { not: user.id }
+      },
+      select: { id: true },
+    });
+
+    if (allAdmins.length > 0) {
+      await prisma.notificationRead.createMany({
+        data: allAdmins.map(admin => ({
+          notificationId: notification.id,
+          userId: admin.id,
+        })),
+        skipDuplicates: true,
+      });
+    }
 
     return NextResponse.json({ success: true, leaveRequest });
   } catch (error) {

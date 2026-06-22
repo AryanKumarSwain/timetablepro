@@ -47,6 +47,43 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const reviewedBy = user.id;
 
     if (action === 'approve') {
+      // Create notification for the specific teacher only
+      // Use workaround: create notification and only mark as read for the target teacher
+      const notification = await prisma.notification.create({
+        data: {
+          title: 'Leave Request Approved',
+          message: 'Your leave request has been approved. You can now join a new school.',
+          type: 'INFO',
+          scope: 'SCHOOL_TEACHERS',
+          schoolId: user.schoolId,
+          senderId: user.id,
+        },
+      });
+
+      // Mark notification as read for all teachers EXCEPT the target teacher
+      // This way only the target teacher will see it as unread
+      if (leaveRequest.teacher.userId) {
+        const allTeachers = await prisma.teacher.findMany({
+          where: { schoolId: user.schoolId, userId: { not: null } },
+          select: { userId: true },
+        });
+
+        const otherTeacherIds = allTeachers
+          .map(t => t.userId)
+          .filter(id => id && id !== leaveRequest.teacher.userId) as string[];
+
+        if (otherTeacherIds.length > 0) {
+          await prisma.notificationRead.createMany({
+            data: otherTeacherIds.map(userId => ({
+              notificationId: notification.id,
+              userId,
+            })),
+            skipDuplicates: true,
+          });
+        }
+      }
+
+      // Now update teacher's schoolId to null
       await prisma.$transaction([
         prisma.schoolLeaveRequest.update({
           where: { id: leaveRequestId },
@@ -73,17 +110,6 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
           : []),
       ]);
 
-      await prisma.notification.create({
-        data: {
-          title: 'Leave Request Approved',
-          message: 'Your leave request has been approved. You can now join a new school.',
-          type: 'INFO',
-          scope: 'SCHOOL_TEACHERS',
-          schoolId: user.schoolId,
-          senderId: user.id,
-        },
-      });
-
       return NextResponse.json({ success: true, status: 'APPROVED' });
     }
 
@@ -104,7 +130,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       }),
     ]);
 
-    await prisma.notification.create({
+    // Create notification for the specific teacher only
+    // Use workaround: create notification and mark as read for all teachers except target
+    const notification = await prisma.notification.create({
       data: {
         title: 'Leave Request Declined',
         message: 'Your leave request has been declined by the administrator.',
@@ -114,6 +142,29 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         senderId: user.id,
       },
     });
+
+    // Mark notification as read for all teachers EXCEPT the target teacher
+    // This way only the target teacher will see it as unread
+    if (leaveRequest.teacher.userId) {
+      const allTeachers = await prisma.teacher.findMany({
+        where: { schoolId: user.schoolId, userId: { not: null } },
+        select: { userId: true },
+      });
+
+      const otherTeacherIds = allTeachers
+        .map(t => t.userId)
+        .filter(id => id && id !== leaveRequest.teacher.userId) as string[];
+
+      if (otherTeacherIds.length > 0) {
+        await prisma.notificationRead.createMany({
+          data: otherTeacherIds.map(userId => ({
+            notificationId: notification.id,
+            userId,
+          })),
+          skipDuplicates: true,
+        });
+      }
+    }
 
     return NextResponse.json({ success: true, status: 'REJECTED' });
   } catch (error) {

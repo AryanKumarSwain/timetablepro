@@ -8,10 +8,25 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status');
+    const range = searchParams.get('range');
+    const startDate = searchParams.get('start');
+    const endDate = searchParams.get('end');
 
     const where: any = { schoolId };
     if (status === 'SENT_TO_ADMIN') {
       where.status = 'SENT_TO_ADMIN';
+    }
+
+    // Add date range filter
+    if (range === 'true' && startDate && endDate) {
+      const start = new Date(startDate);
+      start.setUTCHours(0, 0, 0, 0);
+      const end = new Date(endDate);
+      end.setUTCHours(23, 59, 59, 999);
+      where.createdAt = {
+        gte: start,
+        lte: end,
+      };
     }
 
     const homework = await prisma.homework.findMany({
@@ -32,6 +47,27 @@ export async function GET(request: NextRequest) {
       acc[classKey].push(hw);
       return acc;
     }, {});
+
+    // If range query, return summary grouped by date
+    if (range === 'true') {
+      const summary: Record<string, any[]> = {};
+      homework.forEach((hw: any) => {
+        const dateKey = hw.createdAt.toISOString().split('T')[0];
+        if (!summary[dateKey]) {
+          summary[dateKey] = [];
+        }
+        summary[dateKey].push({
+          id: hw.id,
+          title: hw.title,
+          description: hw.description,
+          teacher: { name: hw.teacher.name, email: hw.teacher.email },
+          class: { name: hw.class.name, id: hw.class.id },
+          subject: hw.subject,
+          createdAt: hw.createdAt,
+        });
+      });
+      return NextResponse.json({ summary, groupedByClass });
+    }
 
     return NextResponse.json(groupedByClass);
   } catch (error) {
