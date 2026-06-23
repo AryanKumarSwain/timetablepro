@@ -41,6 +41,10 @@ model School {
   hasUsedTrial            Boolean                 @default(false)
   originalPlanId          String?
   originalPlan            SaaSPlan?                @relation("SchoolOriginalPlan", fields: [originalPlanId], references: [id])
+  address                 String?
+  phone                   String?
+  email                   String?
+  logo                    String?
   createdAt               DateTime                @default(now())
   users                   User[]
   teachers                Teacher[]
@@ -55,6 +59,7 @@ model School {
   timetableSlots          TimetableSlot[]
   homework                Homework[]
   leaveRequests           SchoolLeaveRequest[]
+  subscriptionTransactions SubscriptionTransaction[]
 }
 
 enum LicenseStatus {
@@ -461,5 +466,34 @@ model SchoolLeaveRequest {
 
   @@index([schoolId])
   @@index([teacherId])
+  @@index([status])
+}
+
+model PlatformSettings {
+  id        String   @id @default(uuid())
+  upiId     String?  @default("example@upi")
+  updatedAt DateTime @updatedAt
+}
+
+enum TransactionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model SubscriptionTransaction {
+  id            String             @id @default(uuid())
+  schoolId      String
+  school        School             @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  planId        String
+  amount        Decimal            @db.Decimal(10, 2)
+  billingCycle  String             // 'monthly' | 'annual'
+  utrNumber     String
+  status        TransactionStatus  @default(PENDING)
+  rejectionReason String?
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  @@index([schoolId])
   @@index([status])
 }

@@ -10,6 +10,7 @@ import {
 } from '@/lib/api-services';
 import { Class } from '@/lib/types';
 import { Button } from '@/components/ui/button';
+import { PlanButton } from '@/components/ui/plan-button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { PageHeader } from '@/components/enterprise/page-header';
@@ -159,15 +160,16 @@ export default function ClassesPage() {
                 <Upload className='h-4 w-4 mr-1.5' />
                 Import CSV
               </Button>
-              <Button
+              <PlanButton
                 onClick={() => {
                   setSuccessMsg(null);
                   setShowForm(true);
                 }}
-                className='rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600'
+                variant="primary"
+                className='rounded-xl'
               >
                 Add Class
-              </Button>
+              </PlanButton>
             </div>
           ) : undefined
         }

@@ -18,6 +18,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import type { TimetableDetail } from '@/lib/api-services';
+import { usePlanTheme } from '@/lib/plan-theme';
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const;
 export const DAY_INDICES = [0, 1, 2, 3, 4, 5, 6] as const;
@@ -72,6 +73,7 @@ export function TimetableGrid({
   renderCell = defaultRenderCell,
   onCellClick = () => {},
 }: TimetableGridProps) {
+  const { theme } = usePlanTheme();
   const findSlot = (day: number, periodId: string) =>
     slots.find((s) => s.dayOfWeek === day && s.periodId === periodId);
 
@@ -113,7 +115,7 @@ export function TimetableGrid({
                   className={cn(
                     "px-4 py-2 text-xs font-semibold rounded-xl border transition-all duration-200 select-none cursor-pointer",
                     isActive 
-                      ? "bg-indigo-600 border-indigo-600 text-white shadow-sm shadow-indigo-600/10 font-bold" 
+                      ? `bg-${theme.primary} border-${theme.primary} text-white shadow-sm shadow-${theme.primary}/10 font-bold` 
                       : "bg-background border-border text-muted-foreground hover:bg-muted/60"
                   )}
                 >
@@ -337,6 +339,7 @@ export function SubjectChip({ name, color, sublabel }: { name: string; color: st
 }
 
 export function WorkloadPanel({ teacherWorkload }: { teacherWorkload: any[] }) {
+  const { theme } = usePlanTheme();
   return (
     <div className='space-y-4'>
       {teacherWorkload.map((t, index) => (
@@ -346,7 +349,7 @@ export function WorkloadPanel({ teacherWorkload }: { teacherWorkload: any[] }) {
             <span className='text-muted-foreground'>{t.remaining} / {t.total} Slots ({t.utilization}% Load)</span>
           </div>
           <div className='h-2 rounded-full bg-muted overflow-hidden'>
-            <div className='h-full bg-indigo-600 rounded-full transition-all duration-300' style={{ width: `${Math.min(100, t.utilization)}%` }} />
+            <div className={`h-full bg-${theme.primary} rounded-full transition-all duration-300`} style={{ width: `${Math.min(100, t.utilization)}%` }} />
           </div>
         </div>
       ))}

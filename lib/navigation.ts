@@ -77,3 +77,16 @@ export const COMMAND_LINKS = [
 ].filter(
   (item, index, arr) => arr.findIndex((x) => x.href === item.href) === index
 );
+
+export function getCommandLinksForRole(role: AppRole): NavItem[] {
+  switch (role) {
+    case 'super-admin':
+      return SUPER_ADMIN_NAV;
+    case 'admin':
+      return ADMIN_NAV;
+    case 'teacher':
+      return TEACHER_NAV;
+    default:
+      return [];
+  }
+}

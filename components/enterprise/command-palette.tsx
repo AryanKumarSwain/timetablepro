@@ -11,14 +11,15 @@ import {
   CommandList,
   CommandSeparator,
 } from '@/components/ui/command';
-import { COMMAND_LINKS } from '@/lib/navigation';
+import { getCommandLinksForRole, type AppRole } from '@/lib/navigation';
 
 interface CommandPaletteProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  userRole?: string;
 }
 
-export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
+export function CommandPalette({ open, onOpenChange, userRole }: CommandPaletteProps) {
   const router = useRouter();
   const [recent, setRecent] = useState<string[]>([]);
 
@@ -35,6 +36,9 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     onOpenChange(false);
   };
 
+  const role = (userRole?.toLowerCase().replace('-', '_') || 'admin') as AppRole;
+  const commandLinks = getCommandLinksForRole(role);
+
   return (
     <CommandDialog open={open} onOpenChange={onOpenChange}>
       <CommandInput placeholder='Search pages, actions…' />
@@ -44,7 +48,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
           <>
             <CommandGroup heading='Recent'>
               {recent.map((label) => {
-                const item = COMMAND_LINKS.find((l) => l.label === label);
+                const item = commandLinks.find((l) => l.label === label);
                 if (!item) return null;
                 const Icon = item.icon;
                 return (
@@ -62,7 +66,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
           </>
         )}
         <CommandGroup heading='Navigation'>
-          {COMMAND_LINKS.map((item, index) => {
+          {commandLinks.map((item, index) => {
             const Icon = item.icon;
             return (
               <CommandItem

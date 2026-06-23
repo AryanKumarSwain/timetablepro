@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { Button } from '@/components/ui/button';
+import { PlanButton } from '@/components/ui/plan-button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import {
@@ -40,6 +41,7 @@ import { Badge } from '@/components/ui/badge';
 import type { NavItem } from '@/lib/navigation';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { usePlanTheme } from '@/lib/plan-theme';
 
 interface LiveNotification {
   id: string;
@@ -57,6 +59,16 @@ interface AdminLeaveRequest {
   teacherEmail: string;
   requestedAt: string;
   reason?: string | null;
+}
+
+interface TrialRequest {
+  id: string;
+  schoolId: string;
+  schoolName: string;
+  trialPlanName: string | null;
+  currentPlanName: string | null;
+  status: string;
+  createdAt: string;
 }
 
 interface TrialStatus {
@@ -86,12 +98,15 @@ export function TopNavbar({
 }: TopNavbarProps) {
   const router = useRouter();
   const { theme, setTheme } = useTheme();
+  const { theme: planTheme } = usePlanTheme();
   const [mounted, setMounted] = useState(false);
 
   // Real Notification Stream States Data Tracks
   const [notifications, setNotifications] = useState<LiveNotification[]>([]);
   const [pendingLeaveRequests, setPendingLeaveRequests] = useState<AdminLeaveRequest[]>([]);
   const [processingLeaveIds, setProcessingLeaveIds] = useState<string[]>([]);
+  const [pendingTrialRequests, setPendingTrialRequests] = useState<TrialRequest[]>([]);
+  const [processingTrialIds, setProcessingTrialIds] = useState<string[]>([]);
   const [isComposeOpen, setIsComposeOpen] = useState(false);
   const [composeTitle, setComposeTitle] = useState('');
   const [composeMessage, setComposeMessage] = useState('');
@@ -135,6 +150,19 @@ export function TopNavbar({
     }
   };
 
+  const syncTrialRequests = async () => {
+    if (parsedRole !== 'super_admin') return;
+    try {
+      const res = await fetch('/api/super-admin/trial-requests');
+      if (res.ok) {
+        const payload = await res.json();
+        setPendingTrialRequests(payload || []);
+      }
+    } catch (e) {
+      console.error('Failed loading pending trial requests.', e);
+    }
+  };
+
   // Fetch trial status for school admins
   const fetchTrialStatus = async () => {
     if (!canFetchAdminData) return;
@@ -154,15 +182,18 @@ export function TopNavbar({
     setMounted(true);
     syncNotifications();
     syncLeaveRequests();
+    syncTrialRequests();
     fetchTrialStatus();
 
     // Auto-refresh dynamic data blocks every 45 seconds to keep tabs accurate
     const loopTracker = setInterval(syncNotifications, 45000);
     const leaveRequestTracker = setInterval(syncLeaveRequests, 45000);
+    const trialRequestTracker = setInterval(syncTrialRequests, 45000);
     const trialStatusTracker = setInterval(fetchTrialStatus, 60000); // Check trial status every minute
     return () => {
       clearInterval(leaveRequestTracker);
       clearInterval(loopTracker);
+      clearInterval(trialRequestTracker);
       clearInterval(trialStatusTracker);
     };
   }, []);
@@ -207,6 +238,34 @@ export function TopNavbar({
       toast.error(e.message || 'Failed processing leave request');
     } finally {
       setProcessingLeaveIds((p) => p.filter((x) => x !== id));
+    }
+  };
+
+  const handleTrialRequestAction = async (id: string, action: 'APPROVE' | 'REJECT') => {
+    if (processingTrialIds.includes(id)) return;
+    setProcessingTrialIds((p) => [...p, id]);
+    try {
+      const res = await fetch('/api/super-admin/trial-requests', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify({ requestId: id, action }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Unable to update trial request');
+      }
+
+      toast.success(`Trial request ${action === 'APPROVE' ? 'approved' : 'declined'} successfully`);
+      syncTrialRequests();
+      syncNotifications();
+    } catch (e: any) {
+      toast.error(e.message || 'Failed processing trial request');
+    } finally {
+      setProcessingTrialIds((p) => p.filter((x) => x !== id));
     }
   };
 
@@ -368,10 +427,10 @@ export function TopNavbar({
                     />
                   </div>
                   <DialogFooter className="pt-2">
-                    <Button type="submit" disabled={sending} className="w-full text-xs font-bold rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white flex items-center gap-2 justify-center">
+                    <PlanButton type="submit" disabled={sending} variant="primary" className="w-full text-xs font-bold rounded-xl flex items-center gap-2 justify-center">
                       {sending ? <span className="h-3 w-3 rounded-full border-2 border-white/20 border-t-white animate-spin" /> : <Send className="h-3.5 w-3.5" />}
                       Fire Target Downstream Broadcast
-                    </Button>
+                    </PlanButton>
                   </DialogFooter>
                 </form>
               </DialogContent>
@@ -391,7 +450,7 @@ export function TopNavbar({
             <DropdownMenuContent align='end' className='w-80 rounded-2xl border-border/80 shadow-xl p-0 overflow-hidden'>
               <div className="p-4 bg-muted/30 border-b border-border/50 flex items-center justify-between">
                 <span className="font-bold text-xs tracking-tight text-foreground">Workspace Comms Stream</span>
-                {unreadCount > 0 && <Badge variant="secondary" className="bg-indigo-500/10 text-indigo-500 font-bold border-none text-[10px]">{unreadCount} New</Badge>}
+                {unreadCount > 0 && <Badge variant="secondary" className={`bg-${planTheme.primary}/10 ${planTheme.primaryText} font-bold border-none text-[10px]`}>{unreadCount} New</Badge>}
               </div>
               <ScrollArea className="max-h-[320px]">
                 {mounted && parsedRole === 'admin' && pendingLeaveRequests.length > 0 && (
@@ -449,6 +508,51 @@ export function TopNavbar({
                   </div>
                 )}
 
+                {mounted && parsedRole === 'super_admin' && pendingTrialRequests.length > 0 && (
+                  <div className="space-y-2">
+                    {pendingTrialRequests.map((request) => (
+                      <div key={request.id} className="p-3.5 border-b border-border/40 bg-slate-50 dark:bg-slate-900/80 space-y-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <div>
+                            <p className="text-xs font-semibold text-foreground">Trial Request</p>
+                            <p className="text-[11px] text-muted-foreground">{request.schoolName}</p>
+                          </div>
+                          <Badge variant="secondary" className="uppercase text-[10px] font-bold">
+                            Pending
+                          </Badge>
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-[11px] text-muted-foreground">
+                            Requesting: {request.trialPlanName || 'Unknown plan'}
+                          </p>
+                          <p className="text-[11px] text-muted-foreground">
+                            Current: {request.currentPlanName || 'No plan'}
+                          </p>
+                        </div>
+                        <div className="flex items-center justify-between gap-2">
+                          <Button
+                            size="sm"
+                            onClick={() => void handleTrialRequestAction(request.id, 'APPROVE')}
+                            className="flex-1 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700"
+                            disabled={processingTrialIds.includes(request.id)}
+                          >
+                            {processingTrialIds.includes(request.id) ? 'Processing…' : 'Approve'}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => void handleTrialRequestAction(request.id, 'REJECT')}
+                            className="flex-1 rounded-xl"
+                            disabled={processingTrialIds.includes(request.id)}
+                          >
+                            {processingTrialIds.includes(request.id) ? 'Processing…' : 'Reject'}
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
                 {mounted && notifications.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-8 px-4 text-center text-muted-foreground">
                     <MailCheck className="h-7 w-7 text-muted-foreground/40 mb-1.5" />
@@ -462,7 +566,7 @@ export function TopNavbar({
                       onClick={() => !notif.isRead && handleMarkAsRead(notif.id)}
                       className={cn(
                         "p-3.5 border-b border-border/40 text-left cursor-pointer transition-all flex items-start gap-2.5 hover:bg-muted/40",
-                        !notif.isRead && "bg-indigo-500/[0.02] dark:bg-indigo-400/[0.01]"
+                        !notif.isRead && `bg-${planTheme.primary}/[0.02] dark:bg-${planTheme.primary}/[0.01]`
                       )}
                     >
                       <div className={cn(
@@ -474,7 +578,7 @@ export function TopNavbar({
                       <div className="flex-1 min-w-0 space-y-0.5">
                         <div className="flex items-center justify-between gap-2">
                           <p className={cn("text-xs font-semibold truncate", !notif.isRead ? "text-foreground" : "text-muted-foreground")}>{notif.title}</p>
-                          {!notif.isRead && <span className="h-1.5 w-1.5 rounded-full bg-indigo-500 flex-shrink-0" />}
+                          {!notif.isRead && <span className={`h-1.5 w-1.5 rounded-full bg-${planTheme.primary} flex-shrink-0`} />}
                         </div>
                         <p className="text-[11px] text-muted-foreground leading-relaxed line-clamp-2">{notif.message}</p>
                         <p className="text-[9px] text-muted-foreground/60 font-medium">{new Date(notif.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>

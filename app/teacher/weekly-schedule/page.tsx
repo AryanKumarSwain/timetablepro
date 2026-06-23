@@ -17,12 +17,14 @@ import {
 import { Card } from '@/components/ui/card';
 import { Eye, Calendar, Layers, BookOpen } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { usePlanTheme } from '@/lib/plan-theme';
 
 const DAYS = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
 const DAY_INDICES = [1, 2, 3, 4, 5, 6];
 
 export default function TeacherWeeklySchedulePage() {
   const auth = useRequireAuth('teacher');
+  const { theme } = usePlanTheme();
   const [allTimetableSlots, setAllTimetableSlots] = useState<WeeklyTimetableEntry[]>([]);
   const [periods, setPeriods] = useState<Period[]>([]);
   const [classes, setClasses] = useState<Class[]>([]);
@@ -227,20 +229,20 @@ export default function TeacherWeeklySchedulePage() {
                           key={`${dayIndex}-${period.id}`}
                           className={cn(
                             'p-3 border-l border-border/40 align-top min-h-[105px]',
-                            teacherSpecificSlot ? (isProxySlot ? 'bg-indigo-500/[0.06]' : 'bg-emerald-500/[0.06]') : 'bg-transparent'
+                            teacherSpecificSlot ? (isProxySlot ? `bg-${theme.primary}/[0.06]` : 'bg-emerald-500/[0.06]') : 'bg-transparent'
                           )}
                         >
                           {teacherSpecificSlot ? (
                             <Card className={cn(
                               "p-3 border shadow-md flex flex-col justify-between min-h-[85px] rounded-xl group transition-colors",
                               isProxySlot 
-                                ? "bg-indigo-600 dark:bg-indigo-700 border-indigo-700 dark:border-indigo-800 hover:bg-indigo-700 dark:hover:bg-indigo-600"
+                                ? `bg-${theme.primary} dark:bg-${theme.primaryDark} border-${theme.primaryDark} dark:border-${theme.primaryBorderDark} hover:bg-${theme.primaryHover} dark:hover:bg-${theme.primary}`
                                 : "bg-emerald-600 dark:bg-emerald-700 border-emerald-700 dark:border-emerald-800 hover:bg-emerald-700 dark:hover:bg-emerald-600"
                             )}>
                               <div>
                                 <span className={cn(
                                   "inline-block px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider mb-2 shadow-sm",
-                                  isProxySlot ? "bg-background text-indigo-500" : "bg-background text-emerald-500"
+                                  isProxySlot ? `bg-background ${theme.primaryText}` : "bg-background text-emerald-500"
                                 )}>
                                   {isProxySlot ? 'PROXY' : getSubjectName(teacherSpecificSlot.subjectId)}
                                 </span>
@@ -250,7 +252,7 @@ export default function TeacherWeeklySchedulePage() {
                               </div>
                               <div className={cn(
                                 "text-[10px] font-bold uppercase tracking-wider pt-1.5 border-t mt-2 flex items-center gap-1",
-                                isProxySlot ? "text-indigo-100 border-indigo-500/40" : "text-emerald-100 border-emerald-500/40"
+                                isProxySlot ? `text-${theme.primaryLight} border-${theme.primary}/40` : "text-emerald-100 border-emerald-500/40"
                               )}>
                                 <BookOpen className="h-2.5 w-2.5 text-white" /> {isProxySlot ? 'Substitution' : 'Active Session'}
                               </div>

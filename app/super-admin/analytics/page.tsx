@@ -2,12 +2,16 @@
 
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { DollarSign, Users, TrendingUp, RefreshCw, Building2, AlertCircle } from 'lucide-react';
+import { DollarSign, Users, TrendingUp, RefreshCw, Building2, AlertCircle, Settings, Check, X } from 'lucide-react';
 
 import { useRequireAuth } from '@/lib/auth-context';
 import { PageHeader } from '@/components/enterprise/page-header';
 import { GlassCard } from '@/components/enterprise/glass-card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
+import { toast } from 'sonner';
 import {
   getPlatformTeacherDistribution,
   getPlatformRevenueDetail,
@@ -41,19 +45,28 @@ export default function AnalyticsPage() {
   const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [upiId, setUpiId] = useState<string>('');
+  const [upiLoading, setUpiLoading] = useState(false);
+  const [upiSaving, setUpiSaving] = useState(false);
+  const [pendingTransactions, setPendingTransactions] = useState<any[]>([]);
+  const [processingTx, setProcessingTx] = useState<string | null>(null);
 
   const fetchData = async () => {
     setLoading(true);
     setError(null);
     try {
-      const [teachers, revenue, analytics] = await Promise.all([
+      const [teachers, revenue, analytics, settings, transactions] = await Promise.all([
         getPlatformTeacherDistribution(),
         getPlatformRevenueDetail(),
         fetch('/api/super-admin/analytics').then((res) => res.json()),
+        fetch('/api/super-admin/platform-settings').then((res) => res.json()),
+        fetch('/api/super-admin/transactions?status=PENDING').then((res) => res.json()),
       ]);
       setTeacherDistribution(teachers ?? []);
       setRevenueDetail(revenue);
       setAnalyticsData(analytics);
+      setUpiId(settings.upiId || '');
+      setPendingTransactions(transactions || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load analytics data');
     } finally {
@@ -64,6 +77,64 @@ export default function AnalyticsPage() {
   useEffect(() => {
     fetchData();
   }, []);
+
+  const handleUpdateUpiId = async () => {
+    if (!upiId.trim()) {
+      return toast.error('Please enter a valid UPI ID');
+    }
+    setUpiSaving(true);
+    try {
+      const res = await fetch('/api/super-admin/platform-settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ upiId: upiId.trim() }),
+      });
+      if (!res.ok) throw new Error('Failed to update UPI ID');
+      toast.success('UPI ID updated successfully');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to update UPI ID');
+    } finally {
+      setUpiSaving(false);
+    }
+  };
+
+  const handleApproveTransaction = async (transactionId: string) => {
+    setProcessingTx(transactionId);
+    try {
+      const res = await fetch(`/api/super-admin/transactions/${transactionId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'approve' })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to approve');
+      toast.success('Transaction approved and plan activated');
+      fetchData();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to approve transaction');
+    } finally {
+      setProcessingTx(null);
+    }
+  };
+
+  const handleRejectTransaction = async (transactionId: string) => {
+    setProcessingTx(transactionId);
+    try {
+      const res = await fetch(`/api/super-admin/transactions/${transactionId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'reject', rejectionReason: 'Payment verification failed' })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to reject');
+      toast.success('Transaction rejected');
+      fetchData();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to reject transaction');
+    } finally {
+      setProcessingTx(null);
+    }
+  };
 
   const totalTeachers = teacherDistribution.reduce((sum, t) => sum + (typeof t.teacherCount === 'number' ? t.teacherCount : 0), 0);
   const annualRevenue = revenueDetail?.activeMrr ? revenueDetail.activeMrr * 12 : 0;
@@ -123,6 +194,102 @@ export default function AnalyticsPage() {
           <h3 className='text-2xl font-bold'>{analyticsData?.statusDistribution?.TRAIL_EXPIRED ?? 0}</h3>
         </GlassCard>
       </div>
+
+      {/* Platform Settings Card */}
+      <GlassCard className='p-6'>
+        <div className='flex items-center gap-3 mb-4'>
+          <div className='w-10 h-10 rounded-lg bg-purple-500/10 flex items-center justify-center'>
+            <Settings className='w-5 h-5 text-purple-500' />
+          </div>
+          <div>
+            <h3 className='font-semibold'>Platform Settings</h3>
+            <p className='text-xs text-muted-foreground'>Configure payment receiving details</p>
+          </div>
+        </div>
+        <div className='space-y-3'>
+          <div className='space-y-1'>
+            <Label htmlFor='upiId' className='text-xs font-semibold'>UPI Receiving ID</Label>
+            <Input
+              id='upiId'
+              placeholder='example@upi'
+              value={upiId}
+              onChange={(e) => setUpiId(e.target.value)}
+              className='h-9'
+            />
+            <p className='text-[10px] text-muted-foreground'>
+              This UPI ID will be used for QR code generation in the checkout flow
+            </p>
+          </div>
+          <Button
+            onClick={handleUpdateUpiId}
+            disabled={upiSaving || !upiId.trim()}
+            className='w-full'
+            size='sm'
+          >
+            {upiSaving ? 'Saving...' : 'Update UPI ID'}
+          </Button>
+        </div>
+      </GlassCard>
+
+      {/* Pending Subscriptions Widget */}
+      <GlassCard className='p-6'>
+        <div className='flex items-center justify-between mb-4'>
+          <div className='flex items-center gap-3'>
+            <div className='w-10 h-10 rounded-lg bg-amber-500/10 flex items-center justify-center'>
+              <DollarSign className='w-5 h-5 text-amber-500' />
+            </div>
+            <div>
+              <h3 className='font-semibold'>Pending Subscriptions</h3>
+              <p className='text-xs text-muted-foreground'>{pendingTransactions.length} awaiting verification</p>
+            </div>
+          </div>
+          <Button variant='outline' size='sm' onClick={fetchData} disabled={loading}>
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+          </Button>
+        </div>
+
+        {pendingTransactions.length === 0 ? (
+          <div className='text-center py-8 text-sm text-muted-foreground'>
+            No pending subscriptions
+          </div>
+        ) : (
+          <div className='space-y-3 max-h-80 overflow-y-auto'>
+            {pendingTransactions.map((tx) => (
+              <div key={tx.id} className='p-4 rounded-lg bg-muted/20 border border-border/40 hover:bg-muted/30 transition-colors'>
+                <div className='flex items-start justify-between mb-2'>
+                  <div>
+                    <p className='font-medium text-sm'>{tx.school?.name || 'Unknown School'}</p>
+                    <p className='text-xs text-muted-foreground'>Plan: {tx.planId.slice(0, 8)}...</p>
+                  </div>
+                  <Badge variant='outline' className='text-xs'>₹{tx.amount}</Badge>
+                </div>
+                <div className='flex items-center justify-between mt-3'>
+                  <p className='text-xs font-mono text-muted-foreground'>UTR: {tx.utrNumber}</p>
+                  <div className='flex gap-2'>
+                    <Button
+                      size='sm'
+                      onClick={() => handleApproveTransaction(tx.id)}
+                      disabled={processingTx === tx.id}
+                      className='h-7 text-xs bg-emerald-600 hover:bg-emerald-700 text-white'
+                    >
+                      {processingTx === tx.id ? '...' : 'Approve'}
+                    </Button>
+                    <Button
+                      size='sm'
+                      variant='outline'
+                      onClick={() => handleRejectTransaction(tx.id)}
+                      disabled={processingTx === tx.id}
+                      className='h-7 text-xs text-rose-600 border-rose-200 hover:bg-rose-50'
+                    >
+                      {processingTx === tx.id ? '...' : 'Reject'}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </GlassCard>
 
       <div className='grid lg:grid-cols-2 gap-6'>
         <GlassCard className='p-6'>

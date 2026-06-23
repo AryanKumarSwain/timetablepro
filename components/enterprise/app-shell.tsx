@@ -95,7 +95,7 @@ export function AppShell({ role, roleLabel, children }: AppShellProps) {
         />
         <main className='flex-1 min-w-0 px-4 md:px-6 pb-10'>{children}</main>
       </div>
-      <CommandPalette open={commandOpen} onOpenChange={setCommandOpen} />
+      <CommandPalette open={commandOpen} onOpenChange={setCommandOpen} userRole={role} />
     </div>
   );
 }

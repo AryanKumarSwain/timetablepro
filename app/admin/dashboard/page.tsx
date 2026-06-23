@@ -16,6 +16,8 @@ import { PageHeader } from '@/components/enterprise/page-header';
 import { GlassCard } from '@/components/enterprise/glass-card';
 import { PageSkeleton } from '@/components/enterprise/page-skeleton';
 import { Button } from '@/components/ui/button';
+import { PlanButton } from '@/components/ui/plan-button';
+import { usePlanTheme } from '@/lib/plan-theme';
 import {
   Select,
   SelectContent,
@@ -61,6 +63,7 @@ function getUniqueColor(str: string): string {
 
 export default function AdminDashboard() {
   const auth = useRequireAuth('admin');
+  const { theme } = usePlanTheme();
 
   const [stats, setStats] = useState<AdminDashboardStats | null>(null);
   const [attendance, setAttendance] = useState<DailyAttendance[]>([]);
@@ -191,12 +194,12 @@ export default function AdminDashboard() {
           { label: 'Dashboard' },
         ]}
         actions={
-          <Button asChild className="rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600">
+          <PlanButton asChild variant="primary" className="rounded-xl">
             <Link href="/admin/daily-desk">
               Open Daily Desk
               <ArrowRight className="ml-2 h-4 w-4" />
             </Link>
-          </Button>
+          </PlanButton>
         }
       />
 

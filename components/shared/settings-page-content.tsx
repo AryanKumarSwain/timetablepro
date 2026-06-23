@@ -12,7 +12,8 @@ import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
 import { useTheme } from 'next-themes';
-import { KeyRound, RefreshCw, ShieldCheck, Mail, CheckCircle2, Building2, Plus, Trash2, ToggleLeft, ToggleRight, Sun, Moon } from 'lucide-react';
+import { KeyRound, RefreshCw, ShieldCheck, Mail, CheckCircle2, Building2, Plus, Trash2, Sun, Moon } from 'lucide-react';
+import { PlanButton } from '@/components/ui/plan-button';
 
 async function fetchClient<T>(url: string, { method = 'GET', body }: { method?: string; body?: any } = {}): Promise<T> {
   const res = await fetch(url, {
@@ -113,14 +114,6 @@ export function SettingsPageContent({ initialUser, activeTab }: SettingsPageCont
   });
   const [instituteDetailsPending, setInstituteDetailsPending] = useState(false);
 
-  // Feature Toggles State
-  const [featureToggles, setFeatureToggles] = useState({
-    homeworkEnabled: false,
-    reportsEnabled: false,
-    attendanceEnabled: false,
-    dailyDeskEnabled: false,
-  });
-  const [featuresPending, setFeaturesPending] = useState(false);
 
   // Substitution Settings State
   const [leaveReasons, setLeaveReasons] = useState<string[]>([]);
@@ -160,16 +153,10 @@ export function SettingsPageContent({ initialUser, activeTab }: SettingsPageCont
     }
   }, [activeTab, isTeacher]);
 
-  // Load feature toggles when features tab is active
-  useEffect(() => {
-    if (activeTab === 'features' && !isTeacher) {
-      fetchFeatureToggles();
-    }
-  }, [activeTab, isTeacher]);
 
-  // Load leave reasons when substitution tab is active
+  // Load leave reasons when leave-reasons tab is active
   useEffect(() => {
-    if (activeTab === 'substitution' && !isTeacher) {
+    if (activeTab === 'leave-reasons' && !isTeacher) {
       fetchLeaveReasons();
     }
   }, [activeTab, isTeacher]);
@@ -192,23 +179,6 @@ export function SettingsPageContent({ initialUser, activeTab }: SettingsPageCont
     }
   };
 
-  const fetchFeatureToggles = async () => {
-    try {
-      const res = await fetch('/api/admin/school');
-      if (res.ok) {
-        const data = await res.json();
-        const plan = data.plan || {};
-        setFeatureToggles({
-          homeworkEnabled: plan.homeworkEnabled || false,
-          reportsEnabled: plan.reportEnabled || false,
-          attendanceEnabled: plan.attendanceEnabled || false,
-          dailyDeskEnabled: plan.dailyDeskEnabled || false,
-        });
-      }
-    } catch (error) {
-      console.error('Failed to fetch feature toggles:', error);
-    }
-  };
 
   const fetchLeaveReasons = async () => {
     try {
@@ -218,7 +188,7 @@ export function SettingsPageContent({ initialUser, activeTab }: SettingsPageCont
         setLeaveReasons(data.reasons || []);
       }
     } catch (error) {
-      console.error('Failed to fetch leave reasons:', error);
+      console.error('Failed to fetch reasons:', error);
     }
   };
 
@@ -243,10 +213,10 @@ export function SettingsPageContent({ initialUser, activeTab }: SettingsPageCont
         setPendingLeaveRequests(data.data || []);
       } else {
         const errData = await res.json().catch(() => ({}));
-        console.error('Failed to fetch leave requests:', errData);
+        console.error('Failed to fetch departure requests:', errData);
       }
     } catch (error) {
-      console.error('Failed to fetch leave requests:', error);
+      console.error('Failed to fetch departure requests:', error);
     } finally {
       setLeaveRequestsLoading(false);
     }
@@ -268,13 +238,13 @@ export function SettingsPageContent({ initialUser, activeTab }: SettingsPageCont
 
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.error || 'Unable to process leave request');
+        throw new Error(errData.error || 'Unable to process departure request');
       }
 
-      toast.success(`Leave request ${action === 'approve' ? 'approved' : 'declined'} successfully`);
+      toast.success(`Departure request ${action === 'approve' ? 'approved' : 'declined'} successfully`);
       await fetchLeaveRequests();
     } catch (e: any) {
-      toast.error(e.message || 'Failed processing leave request');
+      toast.error(e.message || 'Failed processing departure request');
     } finally {
       setLeaveRequestActionIds((prev) => prev.filter((leaveId) => leaveId !== id));
     }
@@ -340,30 +310,10 @@ export function SettingsPageContent({ initialUser, activeTab }: SettingsPageCont
     }
   };
 
-  const handleFeatureToggle = async (feature: keyof typeof featureToggles, value: boolean) => {
-    setFeaturesPending(true);
-    try {
-      await fetchClient('/api/admin/school', {
-        method: 'PATCH',
-        body: {
-          plan: {
-            ...featureToggles,
-            [feature]: value,
-          }
-        }
-      });
-      setFeatureToggles(prev => ({ ...prev, [feature]: value }));
-      toast.success(`${feature} ${value ? 'enabled' : 'disabled'} successfully`);
-    } catch (e: any) {
-      toast.error(e.message || 'Failed to update feature toggle');
-    } finally {
-      setFeaturesPending(false);
-    }
-  };
 
   const handleAddLeaveReason = async () => {
-    if (!newLeaveReason.trim()) return toast.error('Leave reason is required');
-    if (leaveReasons.includes(newLeaveReason.trim())) return toast.error('Leave reason already exists');
+    if (!newLeaveReason.trim()) return toast.error('Reason is required');
+    if (leaveReasons.includes(newLeaveReason.trim())) return toast.error('Reason already exists');
 
     setLeaveReasonsPending(true);
     try {
@@ -373,9 +323,9 @@ export function SettingsPageContent({ initialUser, activeTab }: SettingsPageCont
       });
       setLeaveReasons(prev => [...prev, newLeaveReason.trim()]);
       setNewLeaveReason('');
-      toast.success('Leave reason added successfully');
+      toast.success('Reason added successfully');
     } catch (e: any) {
-      toast.error(e.message || 'Failed to add leave reason');
+      toast.error(e.message || 'Failed to add reason');
     } finally {
       setLeaveReasonsPending(false);
     }
@@ -389,9 +339,9 @@ export function SettingsPageContent({ initialUser, activeTab }: SettingsPageCont
         body: { reason }
       });
       setLeaveReasons(prev => prev.filter(r => r !== reason));
-      toast.success('Leave reason deleted successfully');
+      toast.success('Reason deleted successfully');
     } catch (e: any) {
-      toast.error(e.message || 'Failed to delete leave reason');
+      toast.error(e.message || 'Failed to delete reason');
     } finally {
       setLeaveReasonsPending(false);
     }
@@ -399,7 +349,7 @@ export function SettingsPageContent({ initialUser, activeTab }: SettingsPageCont
 
   const handleLeaveRequest = async () => {
     if (leaveRequestStatus === 'PENDING') {
-      return toast.info('You already have a pending leave request.');
+      return toast.info('You already have a pending departure request.');
     }
 
     setLeaveRequestPending(true);
@@ -409,9 +359,9 @@ export function SettingsPageContent({ initialUser, activeTab }: SettingsPageCont
         body: { reason: leaveReason.trim() || undefined },
       });
       setLeaveRequestStatus('PENDING');
-      toast.success('Leave request submitted. Your school admin will review it shortly.');
+      toast.success('Departure request submitted. Your school admin will review it shortly.');
     } catch (e: any) {
-      toast.error(e.message || 'Failed submitting leave request');
+      toast.error(e.message || 'Failed submitting departure request');
     } finally {
       setLeaveRequestPending(false);
     }
@@ -534,7 +484,7 @@ export function SettingsPageContent({ initialUser, activeTab }: SettingsPageCont
         </motion.div>
       )}
 
-      {/* Leave Requests Panel (Admin Only) */}
+      {/* Faculty Departure Requests Panel (Admin Only) */}
       {!isTeacher && activeTab === 'leave-requests' && (
         <motion.div
           variants={cardVariants}
@@ -547,8 +497,8 @@ export function SettingsPageContent({ initialUser, activeTab }: SettingsPageCont
                 <div className="flex items-center gap-2">
                   <ShieldCheck className="h-4 w-4 text-indigo-500" />
                   <div>
-                    <CardTitle className="text-lg font-bold tracking-tight">Leave Requests</CardTitle>
-                    <CardDescription>Review and approve pending teacher leave requests.</CardDescription>
+                    <CardTitle className="text-lg font-bold tracking-tight">Faculty Departure Requests</CardTitle>
+                    <CardDescription>Review and approve pending faculty departure requests.</CardDescription>
                   </div>
                 </div>
                 {showLeaveRequestsTab && (
@@ -561,11 +511,11 @@ export function SettingsPageContent({ initialUser, activeTab }: SettingsPageCont
             <CardContent className="space-y-4">
               {leaveRequestsLoading ? (
                 <div className="rounded-xl border border-border/60 bg-muted/80 p-4 text-center text-sm text-muted-foreground">
-                  Loading pending leave requests…
+                  Loading pending departure requests…
                 </div>
               ) : pendingLeaveRequests.length === 0 ? (
                 <div className="rounded-xl border border-border/60 bg-muted/80 p-4 text-center text-sm text-muted-foreground">
-                  No pending leave requests found.
+                  No pending departure requests found.
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -646,29 +596,30 @@ export function SettingsPageContent({ initialUser, activeTab }: SettingsPageCont
                   className="rounded-xl border-border/80 text-xs focus-visible:ring-indigo-500"
                 />
               </div>
-              <Button
+              <PlanButton
                 onClick={handleProfileSave}
                 disabled={profilePending}
-                className="w-full rounded-xl text-xs font-bold shadow-md bg-indigo-600 hover:bg-indigo-700 text-white flex items-center justify-center gap-2 transition-all"
+                variant="primary"
+                className="w-full rounded-xl text-xs font-bold shadow-md flex items-center justify-center gap-2 transition-all"
               >
                 {profilePending && <RefreshCw className="h-3 w-3 animate-spin" />}
                 {profilePending ? 'Updating Data Matrices...' : 'Save Updated Dimensions'}
-              </Button>
+              </PlanButton>
             </CardContent>
           </Card>
         </motion.div>
       )}
 
-      {/* Teacher Leave School Request */}
+      {/* Teacher Faculty Departure Request */}
       {isTeacher && (activeTab === 'profile' || !activeTab) && (
         <motion.div variants={cardVariants}>
           <Card className="border border-border/60 shadow-sm">
             <CardHeader>
               <div className="flex items-center gap-2">
                 <Building2 className="h-4 w-4 text-indigo-500" />
-                <CardTitle className="text-lg font-bold tracking-tight">Leave School Request</CardTitle>
+                <CardTitle className="text-lg font-bold tracking-tight">Faculty Departure Request</CardTitle>
               </div>
-              <CardDescription>Submit a request to leave your current school</CardDescription>
+              <CardDescription>Submit a request to depart from your current school</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
@@ -686,42 +637,43 @@ export function SettingsPageContent({ initialUser, activeTab }: SettingsPageCont
               {leaveRequestStatus === 'NONE' && (
                 <>
                   <div className="space-y-1.5">
-                    <Label htmlFor="leaveReason" className="text-xs font-bold">Reason for Leaving (Optional)</Label>
+                    <Label htmlFor="leaveReason" className="text-xs font-bold">Reason for Departure (Optional)</Label>
                     <Textarea
                       id="leaveReason"
                       value={leaveReason}
                       onChange={(e) => setLeaveReason(e.target.value)}
-                      placeholder="Please provide a reason for your leave request..."
+                      placeholder="Please provide a reason for your departure request..."
                       className="rounded-xl border-border/80 text-xs focus-visible:ring-indigo-500"
                       rows={3}
                     />
                   </div>
-                  <Button
+                  <PlanButton
                     onClick={handleLeaveRequest}
                     disabled={leaveRequestPending}
-                    className="w-full rounded-xl text-xs font-bold shadow-md bg-orange-600 hover:bg-orange-700 text-white flex items-center justify-center gap-2 transition-all"
+                    variant="primary"
+                    className="w-full rounded-xl text-xs font-bold shadow-md flex items-center justify-center gap-2 transition-all"
                   >
                     {leaveRequestPending && <RefreshCw className="h-3 w-3 animate-spin" />}
-                    {leaveRequestPending ? 'Submitting Request...' : 'Submit Leave Request'}
-                  </Button>
+                    {leaveRequestPending ? 'Submitting Request...' : 'Submit Departure Request'}
+                  </PlanButton>
                 </>
               )}
               
               {leaveRequestStatus === 'PENDING' && (
                 <div className="rounded-xl border border-border/60 bg-muted/20 p-4 text-center">
-                  <p className="text-sm text-muted-foreground">Your leave request is pending review by the school administrator.</p>
+                  <p className="text-sm text-muted-foreground">Your departure request is pending review by the school administrator.</p>
                 </div>
               )}
               
               {leaveRequestStatus === 'APPROVED' && (
                 <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-center">
-                  <p className="text-sm text-emerald-600 dark:text-emerald-400">Your leave request has been approved. You can now join a new school.</p>
+                  <p className="text-sm text-emerald-600 dark:text-emerald-400">Your departure request has been approved. You can now join a new school.</p>
                 </div>
               )}
               
               {leaveRequestStatus === 'REJECTED' && (
                 <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-center">
-                  <p className="text-sm text-red-600 dark:text-red-400">Your leave request was declined by the administrator.</p>
+                  <p className="text-sm text-red-600 dark:text-red-400">Your departure request was declined by the administrator.</p>
                 </div>
               )}
             </CardContent>
@@ -792,96 +744,35 @@ export function SettingsPageContent({ initialUser, activeTab }: SettingsPageCont
                   className="rounded-xl border-border/80 text-xs focus-visible:ring-indigo-500"
                 />
               </div>
-              <Button
+              <PlanButton
                 onClick={handleInstituteDetailsSave}
                 disabled={instituteDetailsPending}
-                className="w-full rounded-xl text-xs font-bold shadow-md bg-indigo-600 hover:bg-indigo-700 text-white flex items-center justify-center gap-2 transition-all"
+                variant="primary"
+                className="w-full rounded-xl text-xs font-bold shadow-md flex items-center justify-center gap-2 transition-all"
               >
                 {instituteDetailsPending && <RefreshCw className="h-3 w-3 animate-spin" />}
                 {instituteDetailsPending ? 'Updating Institute Details...' : 'Save Institute Details'}
-              </Button>
+              </PlanButton>
             </CardContent>
           </Card>
         </motion.div>
       )}
 
-      {/* Feature Toggles Tab */}
-      {activeTab === 'features' && !isTeacher && (
-        <motion.div variants={cardVariants}>
-          <Card className="border border-border/60 shadow-sm">
-            <CardHeader>
-              <div className="flex items-center gap-2">
-                <ToggleRight className="h-4 w-4 text-indigo-500" />
-                <CardTitle className="text-lg font-bold tracking-tight">Feature Toggles</CardTitle>
-              </div>
-              <CardDescription>Enable or disable features for your school</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-3">
-                <div className="flex items-center justify-between p-3 rounded-xl border border-border/60 bg-muted/20">
-                  <div>
-                    <p className="text-sm font-semibold text-foreground">Homework Management</p>
-                    <p className="text-xs text-muted-foreground">Allow teachers to create and manage homework assignments</p>
-                  </div>
-                  <Switch
-                    checked={featureToggles.homeworkEnabled}
-                    onCheckedChange={(checked) => handleFeatureToggle('homeworkEnabled', checked)}
-                    disabled={featuresPending}
-                  />
-                </div>
-                <div className="flex items-center justify-between p-3 rounded-xl border border-border/60 bg-muted/20">
-                  <div>
-                    <p className="text-sm font-semibold text-foreground">Reports Management</p>
-                    <p className="text-xs text-muted-foreground">Enable daily teaching reports and analytics</p>
-                  </div>
-                  <Switch
-                    checked={featureToggles.reportsEnabled}
-                    onCheckedChange={(checked) => handleFeatureToggle('reportsEnabled', checked)}
-                    disabled={featuresPending}
-                  />
-                </div>
-                <div className="flex items-center justify-between p-3 rounded-xl border border-border/60 bg-muted/20">
-                  <div>
-                    <p className="text-sm font-semibold text-foreground">Attendance Tracking</p>
-                    <p className="text-xs text-muted-foreground">Track teacher attendance and substitutions</p>
-                  </div>
-                  <Switch
-                    checked={featureToggles.attendanceEnabled}
-                    onCheckedChange={(checked) => handleFeatureToggle('attendanceEnabled', checked)}
-                    disabled={featuresPending}
-                  />
-                </div>
-                <div className="flex items-center justify-between p-3 rounded-xl border border-border/60 bg-muted/20">
-                  <div>
-                    <p className="text-sm font-semibold text-foreground">Daily Desk</p>
-                    <p className="text-xs text-muted-foreground">Enable daily desk grid view and management</p>
-                  </div>
-                  <Switch
-                    checked={featureToggles.dailyDeskEnabled}
-                    onCheckedChange={(checked) => handleFeatureToggle('dailyDeskEnabled', checked)}
-                    disabled={featuresPending}
-                  />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-      )}
 
-      {/* Substitution Settings Tab */}
-      {activeTab === 'substitution' && !isTeacher && (
+      {/* Leave Reasons Settings Tab */}
+      {activeTab === 'leave-reasons' && !isTeacher && (
         <motion.div variants={cardVariants}>
           <Card className="border border-border/60 shadow-sm">
             <CardHeader>
               <div className="flex items-center gap-2">
                 <ShieldCheck className="h-4 w-4 text-indigo-500" />
-                <CardTitle className="text-lg font-bold tracking-tight">Substitution Settings</CardTitle>
+                <CardTitle className="text-lg font-bold tracking-tight">Leave Reasons</CardTitle>
               </div>
-              <CardDescription>Manage leave reasons for teacher substitutions</CardDescription>
+              <CardDescription>Manage reasons for faculty absence</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label className="text-xs font-bold">Add New Leave Reason</Label>
+                <Label className="text-xs font-bold">Add New Reason</Label>
                 <div className="flex gap-2">
                   <Input
                     value={newLeaveReason}
@@ -889,20 +780,21 @@ export function SettingsPageContent({ initialUser, activeTab }: SettingsPageCont
                     placeholder="E.g., Medical Leave, Personal Emergency"
                     className="rounded-xl border-border/80 text-xs focus-visible:ring-indigo-500"
                   />
-                  <Button
+                  <PlanButton
                     onClick={handleAddLeaveReason}
                     disabled={leaveReasonsPending || !newLeaveReason.trim()}
-                    className="rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white"
+                    variant="primary"
+                    className="rounded-xl"
                   >
                     <Plus className="h-4 w-4" />
-                  </Button>
+                  </PlanButton>
                 </div>
               </div>
               <Separator />
               <div className="space-y-2">
-                <Label className="text-xs font-bold">Existing Leave Reasons</Label>
+                <Label className="text-xs font-bold">Existing Reasons</Label>
                 {leaveReasons.length === 0 ? (
-                  <p className="text-xs text-muted-foreground">No leave reasons configured yet.</p>
+                  <p className="text-xs text-muted-foreground">No reasons configured yet.</p>
                 ) : (
                   <div className="space-y-2">
                     {leaveReasons.map((reason) => (
@@ -998,14 +890,15 @@ export function SettingsPageContent({ initialUser, activeTab }: SettingsPageCont
                             className="rounded-xl text-xs focus-visible:ring-indigo-500"
                           />
                         </div>
-                        <Button
+                        <PlanButton
                           type="submit"
                           disabled={passwordPending}
-                          className="w-full rounded-xl text-xs font-bold shadow-md bg-indigo-600 hover:bg-indigo-700 text-white flex items-center justify-center gap-2 transition-all"
+                          variant="primary"
+                          className="w-full rounded-xl text-xs font-bold shadow-md flex items-center justify-center gap-2 transition-all"
                         >
                           {passwordPending ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="h-3.5 w-3.5" />}
                           Save New Password
-                        </Button>
+                        </PlanButton>
                       </>
                     )}
                   </motion.form>
@@ -1068,10 +961,10 @@ export function SettingsPageContent({ initialUser, activeTab }: SettingsPageCont
                       <Button type="button" variant="outline" className="flex-1 rounded-xl text-xs font-bold" onClick={() => { setOtpStep('idle'); setOtp(''); }}>
                         Cancel
                       </Button>
-                      <Button type="submit" disabled={passwordPending} className="flex-1 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white flex items-center justify-center gap-2 transition-all">
+                      <PlanButton type="submit" disabled={passwordPending} variant="primary" className="flex-1 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all">
                         {passwordPending ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="h-3.5 w-3.5" />}
                         Verify & Lock Changes
-                      </Button>
+                      </PlanButton>
                     </div>
                   </motion.form>
                 )}

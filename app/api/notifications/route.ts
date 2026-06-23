@@ -16,7 +16,11 @@ export async function GET() {
     // 1. Assign visibility constraints context matching structural roles
     if (user.role === 'SUPER_ADMIN') {
       // Super-Admins read notifications generated directly by fellow Super-Admins
-      whereClause.scope = 'ALL_ADMINS';
+      // They also see trial request notifications and plan activation notifications
+      whereClause.OR = [
+        { scope: 'ALL_ADMINS' },
+        { type: 'SYSTEM' } // Trial requests and plan activations use SYSTEM type
+      ];
     } else if (user.role === 'ADMIN') {
       // Admins see global admin notices as well as school-specific messages.
       whereClause.scope = 'ALL_ADMINS';

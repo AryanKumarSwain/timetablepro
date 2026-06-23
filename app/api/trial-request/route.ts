@@ -60,6 +60,17 @@ export async function POST(request: NextRequest) {
       },
     } as any);
 
+    // Create notification for super admin about trial request
+    await prisma.notification.create({
+      data: {
+        title: 'Trial Request',
+        message: `${school.name} has requested a trial for the ${plan.name} plan.`,
+        type: 'SYSTEM',
+        scope: 'ALL_ADMINS',
+        senderId: adminData.id,
+      },
+    });
+
     return NextResponse.json(trialRequest, { status: 201 });
   } catch (error) {
     return handleApiError(error);

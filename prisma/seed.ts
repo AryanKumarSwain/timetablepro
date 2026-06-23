@@ -26,7 +26,7 @@ async function main() {
       id: 'plan-standard',
       name: 'Standard',
       teacherMin: 0,
-      teacherMax: 20,
+      teacherMax: 15,
       priceMonthly: 199,
       reportEnabled: true,
       attendanceEnabled: false,
@@ -37,8 +37,8 @@ async function main() {
     {
       id: 'plan-premium',
       name: 'Premium',
-      teacherMin: 21,
-      teacherMax: 50,
+      teacherMin: 16,
+      teacherMax: 30,
       priceMonthly: 299,
       reportEnabled: true,
       attendanceEnabled: true,
@@ -49,7 +49,7 @@ async function main() {
     {
       id: 'plan-elite',
       name: 'Elite',
-      teacherMin: 51,
+      teacherMin: 31,
       teacherMax: 100,
       priceMonthly: 399,
       reportEnabled: true,

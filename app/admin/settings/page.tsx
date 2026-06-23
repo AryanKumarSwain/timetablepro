@@ -6,12 +6,14 @@ import { SettingsPageContent } from '@/components/shared/settings-page-content';
 import { useAuth, useRequireAuth } from '@/lib/auth-context';
 import { QueryProvider } from '@/components/providers/query-provider'; // 1. Import your provider
 import { UserCheck } from 'lucide-react';
+import { usePlanTheme } from '@/lib/plan-theme';
 
 export default function AdminSettingsPage() {
   useRequireAuth('admin');
   const { user, loading } = useAuth();
   const searchParams = useSearchParams();
   const activeTab = searchParams.get('tab') ?? 'profile';
+  const { theme } = usePlanTheme();
 
   if (loading) {
     return <div className='max-w-[1200px] mx-auto p-4 text-xs text-muted-foreground'>Loading settings…</div>;
@@ -34,24 +36,23 @@ export default function AdminSettingsPage() {
           {[
             { value: 'profile', label: 'General' },
             { value: 'institute', label: 'Institute' },
-            { value: 'features', label: 'Features' },
-            { value: 'substitution', label: 'Substitution' },
-            { value: 'leave-requests', label: 'Leave Requests' },
+            { value: 'leave-reasons', label: 'Leave Reasons' },
+            { value: 'leave-requests', label: 'Faculty Departure Requests' },
           ].map((tab) => (
             <Link
               key={tab.value}
               href={`/admin/settings?tab=${tab.value}`}
               className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${
                 activeTab === tab.value
-                  ? 'border-indigo-500 bg-indigo-500 text-white'
-                  : 'border-border/60 bg-background text-muted-foreground hover:border-indigo-400 hover:text-foreground'
+                  ? `border-${theme.primary} bg-${theme.primary} text-white`
+                  : `border-border/60 bg-background text-muted-foreground hover:border-${theme.primary} hover:text-foreground`
               }`}
             >
               {tab.label}
             </Link>
           ))}
         </div>
-        <SettingsPageContent initialUser={user} activeTab={activeTab} />
+        <SettingsPageContent initialUser={user as any} activeTab={activeTab} />
       </div>
     </QueryProvider>
   );

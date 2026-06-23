@@ -8,6 +8,10 @@ export async function PATCH(request: NextRequest) {
     const body = await request.json();
 
     const name = String(body.name ?? '').trim();
+    const address = body.address ? String(body.address).trim() : undefined;
+    const phone = body.phone ? String(body.phone).trim() : undefined;
+    const email = body.email ? String(body.email).trim() : undefined;
+    const logo = body.logo ? String(body.logo).trim() : undefined;
 
     if (!name) {
       return NextResponse.json({ error: 'Institute name is required' }, { status: 400 });
@@ -15,7 +19,13 @@ export async function PATCH(request: NextRequest) {
 
     const school = await prisma.school.update({
       where: { id: schoolId },
-      data: { name },
+      data: {
+        name,
+        ...(address !== undefined && { address }),
+        ...(phone !== undefined && { phone }),
+        ...(email !== undefined && { email }),
+        ...(logo !== undefined && { logo }),
+      },
     });
 
     return NextResponse.json({ success: true, name: school.name });
@@ -41,6 +51,10 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       name: school.name,
+      address: (school as any).address,
+      phone: (school as any).phone,
+      email: (school as any).email,
+      logo: (school as any).logo,
       planId: school.planId,
       plan: school.plan ? {
         id: school.plan.id,

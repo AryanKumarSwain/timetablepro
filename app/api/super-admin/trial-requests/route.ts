@@ -79,6 +79,18 @@ export async function PATCH(request: NextRequest) {
         },
       } as any);
 
+      // Create notification for school admin about trial approval
+      await prisma.notification.create({
+        data: {
+          title: 'Trial Approved',
+          message: `Your trial for the ${school.trialPlan?.name || 'selected'} plan has been approved. Trial ends at ${trialEndsAt.toISOString()}.`,
+          type: 'SYSTEM',
+          scope: 'ALL_ADMINS',
+          schoolId: school.id,
+          senderId: (await requireSuperAdmin()).id,
+        },
+      });
+
       // TODO: Send email notification to the school
       console.log(`[Trial Approval] Trial approved for ${school.name} - Trial ends at ${trialEndsAt.toISOString()}`);
 
@@ -92,6 +104,18 @@ export async function PATCH(request: NextRequest) {
           originalPlanId: null,
         },
       } as any);
+
+      // Create notification for school admin about trial rejection
+      await prisma.notification.create({
+        data: {
+          title: 'Trial Request Declined',
+          message: 'Your trial request has been declined by the super administrator.',
+          type: 'SYSTEM',
+          scope: 'ALL_ADMINS',
+          schoolId: school.id,
+          senderId: (await requireSuperAdmin()).id,
+        },
+      });
 
       return NextResponse.json({ success: true });
     }

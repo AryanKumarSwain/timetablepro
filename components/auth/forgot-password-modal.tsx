@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
+import { PlanButton } from '@/components/ui/plan-button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
@@ -118,10 +119,10 @@ export function ForgotPasswordModal({ isOpen, onClose }: ForgotPasswordModalProp
                         className="rounded-xl h-10 text-xs focus-visible:ring-indigo-500"
                       />
                     </div>
-                    <Button type="submit" disabled={loading} className="w-full h-10 font-bold text-xs rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white flex items-center justify-center gap-2">
+                    <PlanButton type="submit" disabled={loading} variant="primary" className="w-full h-10 font-bold text-xs rounded-xl flex items-center justify-center gap-2">
                       {loading ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Mail className="h-3.5 w-3.5" />}
                       {loading ? 'Processing Validation...' : 'Send Recovery Token Code'}
-                    </Button>
+                    </PlanButton>
                   </form>
                 </motion.div>
               )}
@@ -155,10 +156,10 @@ export function ForgotPasswordModal({ isOpen, onClose }: ForgotPasswordModalProp
                     </div>
                     <div className="flex gap-2 pt-1">
                       <Button type="button" variant="outline" className="flex-1 rounded-xl text-xs font-bold" onClick={() => setStep('email')}>Back</Button>
-                      <Button type="submit" disabled={loading} className="flex-1 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white flex items-center justify-center gap-2">
+                      <PlanButton type="submit" disabled={loading} variant="primary" className="flex-1 rounded-xl text-xs font-bold flex items-center justify-center gap-2">
                         {loading ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="h-3.5 w-3.5" />}
                         Commit Changes
-                      </Button>
+                      </PlanButton>
                     </div>
                   </form>
                 </motion.div>

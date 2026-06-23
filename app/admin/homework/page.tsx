@@ -17,6 +17,7 @@ import { PageHeader } from '@/components/enterprise/page-header';
 import { PageSkeleton } from '@/components/enterprise/page-skeleton';
 import { GlassCard } from '@/components/enterprise/glass-card';
 import { Button } from '@/components/ui/button';
+import { PlanButton } from '@/components/ui/plan-button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -693,10 +694,10 @@ export default function AdminHomeworkPage() {
                   {allClassKeys.length} {allClassKeys.length === 1 ? 'class' : 'classes'} with submitted homework
                 </p>
               </div>
-              <Button onClick={openDialog} className='gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600'>
+              <PlanButton onClick={openDialog} variant="primary" className='gap-2 rounded-xl'>
                 <Plus className='h-4 w-4' />
                 Create Homework
-              </Button>
+              </PlanButton>
             </div>
           )}
 

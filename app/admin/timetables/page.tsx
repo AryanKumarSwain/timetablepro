@@ -15,6 +15,7 @@ import { StatCard } from '@/components/enterprise/stat-card';
 import { PageSkeleton } from '@/components/enterprise/page-skeleton';
 import { GlassCard } from '@/components/enterprise/glass-card';
 import { Button } from '@/components/ui/button';
+import { PlanButton } from '@/components/ui/plan-button';
 import { Badge } from '@/components/ui/badge';
 import {
   Dialog,
@@ -246,13 +247,14 @@ export default function TimetablesPage() {
           { label: 'Timetables' },
         ]}
         actions={
-          <Button
-            className='rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 shadow-md hover:from-indigo-500 hover:to-violet-500 transition-all'
+          <PlanButton
+            variant="primary"
+            className='rounded-xl shadow-md transition-all'
             onClick={() => setModalOpen(true)}
           >
             <Plus className='h-4 w-4 mr-1.5' />
             New Timetable
-          </Button>
+          </PlanButton>
         }
       />
 
@@ -345,13 +347,14 @@ export default function TimetablesPage() {
             <Button variant='outline' className='rounded-xl' onClick={() => setModalOpen(false)}>
               Cancel
             </Button>
-            <Button 
+            <PlanButton 
               disabled={creating || !newName.trim()} 
               onClick={() => void handleCreate()}
-              className='rounded-xl bg-indigo-600 hover:bg-indigo-500'
+              variant="primary"
+              className='rounded-xl'
             >
               {creating ? 'Creating…' : 'Create'}
-            </Button>
+            </PlanButton>
           </DialogFooter>
         </DialogContent>
       </Dialog>

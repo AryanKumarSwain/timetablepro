@@ -14,6 +14,7 @@ import {
 import type { Teacher, Replacement } from '@/lib/types';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { PlanButton } from '@/components/ui/plan-button';
 import {
   Dialog,
   DialogContent,
@@ -43,6 +44,7 @@ import html2canvas from 'html2canvas';
 import * as XLSX from 'xlsx';
 import { cn, isTeacherActive } from '@/lib/utils';
 import { getSchoolDetails } from '@/lib/api-services';
+import { usePlanTheme } from '@/lib/plan-theme';
 
 const ZOOM_MIN = 0.6;
 const ZOOM_MAX = 1.4;
@@ -56,6 +58,7 @@ export default function DailyDeskPage() {
   // 2. Unconditional Hook Initialization 
   const auth = useRequireAuth(isPublicView ? null : 'admin');
   const router = useRouter();
+  const { theme } = usePlanTheme();
 
   // 3. Component Core Reactive States
   const [gridData, setGridData] = useState<DailyDeskGrid | null>(null);
@@ -998,7 +1001,7 @@ export default function DailyDeskPage() {
                     <select
                       value={replacementForm.periodId}
                       onChange={(e) => setReplacementForm({ ...replacementForm, periodId: e.target.value, replacementTeacherId: '' })}
-                      className='w-full text-xs p-2 rounded-xl bg-background border border-border/60 focus:outline-none focus:border-indigo-500 transition-colors'
+                      className={`w-full text-xs p-2 rounded-xl bg-background border border-border/60 focus:outline-none focus:border-${theme.primary} transition-colors`}
                     >
                       <option value=''>Select Period</option>
                       {(gridData?.periods ?? []).map((p) => (
@@ -1013,7 +1016,7 @@ export default function DailyDeskPage() {
                     <select
                       value={replacementForm.classId}
                       onChange={(e) => setReplacementForm({ ...replacementForm, classId: e.target.value })}
-                      className='w-full text-xs p-2 rounded-xl bg-background border border-border/60 focus:outline-none focus:border-indigo-500 transition-colors'
+                      className={`w-full text-xs p-2 rounded-xl bg-background border border-border/60 focus:outline-none focus:border-${theme.primary} transition-colors`}
                     >
                       <option value=''>Select Class</option>
                       {(gridData?.classes ?? []).map((c) => (
@@ -1028,7 +1031,7 @@ export default function DailyDeskPage() {
                     <select
                       value={replacementForm.originalTeacherId}
                       onChange={(e) => setReplacementForm({ ...replacementForm, originalTeacherId: e.target.value })}
-                      className='w-full text-xs p-2 rounded-xl bg-background border border-border/60 focus:outline-none focus:border-indigo-500 transition-colors'
+                      className={`w-full text-xs p-2 rounded-xl bg-background border border-border/60 focus:outline-none focus:border-${theme.primary} transition-colors`}
                     >
                       <option value=''>Select Teacher</option>
                       {(() => {
@@ -1050,7 +1053,7 @@ export default function DailyDeskPage() {
                     <select
                       value={replacementForm.replacementTeacherId}
                       onChange={(e) => setReplacementForm({ ...replacementForm, replacementTeacherId: e.target.value })}
-                      className='w-full text-xs p-2 rounded-xl bg-background border border-border/60 focus:outline-none focus:border-indigo-500 transition-colors'
+                      className={`w-full text-xs p-2 rounded-xl bg-background border border-border/60 focus:outline-none focus:border-${theme.primary} transition-colors`}
                     >
                       <option value=''>Select Replacement</option>
                       {(() => {
@@ -1076,20 +1079,21 @@ export default function DailyDeskPage() {
                     <select
                       value={replacementForm.reason}
                       onChange={(e) => setReplacementForm({ ...replacementForm, reason: e.target.value })}
-                      className='w-full text-xs p-2 rounded-xl bg-background border border-border/60 focus:outline-none focus:border-indigo-500 transition-colors'
+                      className={`w-full text-xs p-2 rounded-xl bg-background border border-border/60 focus:outline-none focus:border-${theme.primary} transition-colors`}
                     >
                       <option value='Leave'>Leave</option>
                       <option value='Medical'>Medical</option>
                       <option value='Other'>Other</option>
                     </select>
                   </div>
-                  <Button
-                    className='w-full rounded-xl text-xs font-bold mt-2 bg-indigo-600 hover:bg-indigo-700 text-white'
+                  <PlanButton
+                    className='w-full rounded-xl text-xs font-bold mt-2'
+                    variant="primary"
                     onClick={() => void handleAddReplacement()}
                     disabled={submittingReplacement}
                   >
                     {submittingReplacement ? 'Dispatching...' : 'Confirm & Dispatch Duty'}
-                  </Button>
+                  </PlanButton>
                 </div>
               )}
 

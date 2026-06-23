@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/button';
 import { GlassCard } from '@/components/enterprise/glass-card';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
+import { usePlanTheme } from '@/lib/plan-theme';
 
 const features = [
   {
@@ -74,6 +75,7 @@ const plans = [
 
 export function LandingPage() {
   const [yearly, setYearly] = useState(false);
+  const { theme } = usePlanTheme();
 
   return (
     <div className='min-h-screen bg-background overflow-x-hidden'>
@@ -230,7 +232,7 @@ export function LandingPage() {
               onClick={() => setYearly((y) => !y)}
               className={cn(
                 'relative w-12 h-6 rounded-full transition-colors',
-                yearly ? 'bg-indigo-600' : 'bg-muted'
+                yearly ? `bg-${theme.primary}` : 'bg-muted'
               )}
             >
               <span
@@ -251,11 +253,11 @@ export function LandingPage() {
                 hover
                 className={cn(
                   'p-6 relative',
-                  plan.popular && 'ring-2 ring-indigo-500/50 scale-[1.02]'
+                  plan.popular && `ring-2 ring-${theme.primary}/50 scale-[1.02]`
                 )}
               >
                 {plan.popular && (
-                  <span className='absolute -top-3 left-1/2 -translate-x-1/2 text-xs font-semibold px-3 py-1 rounded-full bg-indigo-600 text-white'>
+                  <span className={`absolute -top-3 left-1/2 -translate-x-1/2 text-xs font-semibold px-3 py-1 rounded-full bg-${theme.primary} text-white`}>
                     Most popular
                   </span>
                 )}

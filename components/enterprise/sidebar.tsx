@@ -68,64 +68,102 @@ export function EnterpriseSidebar({
   const getPlanTheme = () => {
     if (!currentPlan) return {
       icon: Sparkles,
-      gradient: 'from-indigo-500 to-violet-600',
-      shadow: 'shadow-indigo-500/25',
-      accent: 'indigo',
-      footerGradient: 'from-amber-50 to-yellow-50',
-      footerBorder: 'border-amber-200',
-      footerDarkGradient: 'from-amber-950/20 to-yellow-950/20',
-      footerDarkBorder: 'border-amber-800',
+      gradient: 'from-violet-600 to-purple-700',
+      shadow: 'shadow-violet-500/25',
+      accent: 'violet',
+      activeBg: 'from-violet-500/15 to-purple-500/10',
+      activeBorder: 'border-violet-500/20',
+      activeText: 'text-violet-500 dark:text-violet-400',
+      badgeBg: 'bg-violet-500/20',
+      badgeText: 'text-violet-600 dark:text-violet-400',
+      footerGradient: 'from-violet-50 to-purple-50',
+      footerBorder: 'border-violet-200',
+      footerDarkGradient: 'from-violet-950/20 to-purple-950/20',
+      footerDarkBorder: 'border-violet-800',
     };
 
-    // Plan themes based on plan order (you can customize these)
+    // Plan themes based on subscription tiers
     const planThemes: Record<string, any> = {
-      // Baseline Tier (first plan) - Amber/Orange
-      'baseline': {
-        icon: Zap,
-        gradient: 'from-amber-500 to-orange-500',
-        shadow: 'shadow-amber-500/25',
-        accent: 'amber',
-        footerGradient: 'from-amber-50 to-orange-50',
-        footerBorder: 'border-amber-200',
-        footerDarkGradient: 'from-amber-950/20 to-orange-950/20',
-        footerDarkBorder: 'border-amber-800',
+      // Free Plan - Deep Purple
+      'free': {
+        icon: Sparkles,
+        gradient: 'from-violet-600 to-purple-700',
+        shadow: 'shadow-violet-500/25',
+        accent: 'violet',
+        activeBg: 'from-violet-500/15 to-purple-500/10',
+        activeBorder: 'border-violet-500/20',
+        activeText: 'text-violet-500 dark:text-violet-400',
+        badgeBg: 'bg-violet-500/20',
+        badgeText: 'text-violet-600 dark:text-violet-400',
+        footerGradient: 'from-violet-50 to-purple-50',
+        footerBorder: 'border-violet-200',
+        footerDarkGradient: 'from-violet-950/20 to-purple-950/20',
+        footerDarkBorder: 'border-violet-800',
       },
-      // Growth Tier (second plan) - Purple/Indigo
-      'growth': {
+      // Standard Plan - Rich Green
+      'standard': {
         icon: Rocket,
-        gradient: 'from-indigo-500 to-violet-600',
-        shadow: 'shadow-indigo-500/25',
-        accent: 'indigo',
-        footerGradient: 'from-indigo-50 to-violet-50',
-        footerBorder: 'border-indigo-200',
-        footerDarkGradient: 'from-indigo-950/20 to-violet-950/20',
-        footerDarkBorder: 'border-indigo-800',
+        gradient: 'from-emerald-500 to-green-600',
+        shadow: 'shadow-emerald-500/25',
+        accent: 'emerald',
+        activeBg: 'from-emerald-500/15 to-green-500/10',
+        activeBorder: 'border-emerald-500/20',
+        activeText: 'text-emerald-500 dark:text-emerald-400',
+        badgeBg: 'bg-emerald-500/20',
+        badgeText: 'text-emerald-600 dark:text-emerald-400',
+        footerGradient: 'from-emerald-50 to-green-50',
+        footerBorder: 'border-emerald-200',
+        footerDarkGradient: 'from-emerald-950/20 to-green-950/20',
+        footerDarkBorder: 'border-emerald-800',
       },
-      // Premium Tier (third plan) - Gold
+      // Premium Plan - Vibrant Orange
       'premium': {
+        icon: Zap,
+        gradient: 'from-orange-500 to-amber-500',
+        shadow: 'shadow-orange-500/25',
+        accent: 'orange',
+        activeBg: 'from-orange-500/15 to-amber-500/10',
+        activeBorder: 'border-orange-500/20',
+        activeText: 'text-orange-500 dark:text-orange-400',
+        badgeBg: 'bg-orange-500/20',
+        badgeText: 'text-orange-600 dark:text-orange-400',
+        footerGradient: 'from-orange-50 to-amber-50',
+        footerBorder: 'border-orange-200',
+        footerDarkGradient: 'from-orange-950/20 to-amber-950/20',
+        footerDarkBorder: 'border-orange-800',
+      },
+      // Elite Plan - Premium Gold
+      'elite': {
         icon: Crown,
-        gradient: 'from-amber-500 to-yellow-500',
-        shadow: 'shadow-amber-500/25',
-        accent: 'amber',
-        footerGradient: 'from-amber-50 to-yellow-50',
-        footerBorder: 'border-amber-200',
-        footerDarkGradient: 'from-amber-950/20 to-yellow-950/20',
-        footerDarkBorder: 'border-amber-800',
+        gradient: 'from-yellow-500 to-amber-400',
+        shadow: 'shadow-yellow-500/25',
+        accent: 'yellow',
+        activeBg: 'from-yellow-500/15 to-amber-400/10',
+        activeBorder: 'border-yellow-500/20',
+        activeText: 'text-yellow-600 dark:text-yellow-400',
+        badgeBg: 'bg-yellow-500/20',
+        badgeText: 'text-yellow-700 dark:text-yellow-400',
+        footerGradient: 'from-yellow-50 to-amber-50',
+        footerBorder: 'border-yellow-200',
+        footerDarkGradient: 'from-yellow-950/20 to-amber-950/20',
+        footerDarkBorder: 'border-yellow-800',
       },
     };
 
     // Match plan name to theme (case-insensitive)
     const planNameLower = currentPlan.name.toLowerCase();
-    if (planNameLower.includes('baseline') || planNameLower.includes('basic')) {
-      return planThemes['baseline'];
-    } else if (planNameLower.includes('growth') || planNameLower.includes('standard')) {
-      return planThemes['growth'];
-    } else if (planNameLower.includes('premium') || planNameLower.includes('enterprise') || planNameLower.includes('pro')) {
+    if (planNameLower.includes('free') || planNameLower.includes('trial') || planNameLower.includes('basic') || planNameLower.includes('starter')) {
+      return planThemes['free'];
+    } else if (planNameLower.includes('standard') || planNameLower.includes('growth') || planNameLower.includes('pro')) {
+      return planThemes['standard'];
+    } else if (planNameLower.includes('premium') || planNameLower.includes('business') || planNameLower.includes('plus')) {
       return planThemes['premium'];
+    } else if (planNameLower.includes('elite') || planNameLower.includes('enterprise') || planNameLower.includes('ultimate')) {
+      return planThemes['elite'];
     }
 
-    // Default theme
-    return planThemes['baseline'];
+    // Default to free theme
+    return planThemes['free'];
   };
 
   const theme = getPlanTheme();
@@ -192,7 +230,7 @@ export function EnterpriseSidebar({
                 className={cn(
                   'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200',
                   active
-                    ? cn('bg-gradient-to-r text-foreground shadow-sm border', theme.accent === 'amber' ? 'from-amber-500/15 to-orange-500/10 border-amber-500/20' : theme.accent === 'indigo' ? 'from-indigo-500/15 to-violet-500/10 border-indigo-500/20' : 'from-amber-500/15 to-yellow-500/10 border-amber-500/20')
+                    ? cn('bg-gradient-to-r text-foreground shadow-sm border', theme.activeBg, theme.activeBorder)
                     : 'text-muted-foreground hover:text-foreground hover:bg-muted/50',
                   isLocked && 'opacity-60'
                 )}
@@ -200,7 +238,7 @@ export function EnterpriseSidebar({
                 <Icon
                   className={cn(
                     'h-4 w-4 shrink-0',
-                    active && (theme.accent === 'amber' ? 'text-amber-500 dark:text-amber-400' : theme.accent === 'indigo' ? 'text-indigo-500 dark:text-indigo-400' : 'text-amber-500 dark:text-amber-400')
+                    active && theme.activeText
                   )}
                 />
                 {!collapsed && <span className='truncate'>{item.label}</span>}
@@ -208,7 +246,7 @@ export function EnterpriseSidebar({
                   <Lock className='h-3 w-3 ml-auto text-rose-500' />
                 )}
                 {!collapsed && !isLocked && item.badge && (
-                  <span className={cn('ml-auto text-[10px] px-1.5 py-0.5 rounded-full', theme.accent === 'amber' ? 'bg-amber-500/20 text-amber-600 dark:text-amber-400' : theme.accent === 'indigo' ? 'bg-indigo-500/20 text-indigo-600 dark:text-indigo-400' : 'bg-amber-500/20 text-amber-600 dark:text-amber-400')}>
+                  <span className={cn('ml-auto text-[10px] px-1.5 py-0.5 rounded-full', theme.badgeBg, theme.badgeText)}>
                     {item.badge}
                   </span>
                 )}
@@ -239,7 +277,7 @@ export function EnterpriseSidebar({
                 className='space-y-2'
               >
                 <div className='flex items-center gap-2 text-xs text-muted-foreground'>
-                  <ThemeIcon className={cn('h-3 w-3', theme.accent === 'amber' ? 'text-amber-500' : theme.accent === 'indigo' ? 'text-indigo-500' : 'text-amber-500')} />
+                  <ThemeIcon className={cn('h-3 w-3', theme.activeText)} />
                   <span className='font-medium'>Current Plan</span>
                 </div>
                 <div className={cn('bg-gradient-to-r dark:bg-gradient-to-r border rounded-lg p-2.5', theme.footerGradient, theme.footerBorder, theme.footerDarkGradient, theme.footerDarkBorder)}>

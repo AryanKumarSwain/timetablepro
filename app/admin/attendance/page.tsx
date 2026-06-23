@@ -13,6 +13,7 @@ import { ProtectedFeature } from '@/components/protected-feature';
 import { getSchoolDetails } from '@/lib/api-services';
 import { useAuth } from '@/lib/auth-context';
 import { Card } from '@/components/ui/card';
+import { usePlanTheme } from '@/lib/plan-theme';
 import {
   DataGrid,
   DataGridTable,
@@ -32,6 +33,7 @@ interface DayLog {
 export default function AdminAttendancePage() {
   useRequireAuth('admin');
   const { user } = useAuth();
+  const { theme } = usePlanTheme();
 
   const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
   
@@ -288,7 +290,7 @@ export default function AdminAttendancePage() {
                 className="pl-9 pr-4 py-1.5 w-full md:w-48 rounded-lg bg-card border text-xs font-semibold focus:outline-none"
               />
             </div>
-            <button onClick={() => void loadDataRegistry(false)} className="inline-flex items-center justify-center px-3 h-9 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 text-white text-xs font-bold gap-1.5">
+            <button onClick={() => void loadDataRegistry(false)} className={`inline-flex items-center justify-center px-3 h-9 rounded-xl bg-${theme.primary} text-white text-xs font-bold gap-1.5`}>
               <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
               Sync
             </button>
@@ -355,7 +357,7 @@ export default function AdminAttendancePage() {
           <div className="glass-panel p-4 rounded-xl border border-border/80 space-y-3 pointer-events-auto">
             <div className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-muted-foreground">
               <SlidersHorizontal className="h-3.5 w-3.5 text-primary" />
-              Range Matrix Multi-Day Parser
+              Date Range Report
             </div>
             <div className="flex flex-wrap items-center gap-4">
               <div className="flex items-center gap-2">
@@ -366,8 +368,8 @@ export default function AdminAttendancePage() {
                 <span className="text-xs text-muted-foreground font-medium">To:</span>
                 <input type="date" value={endDate} max={todayStr} onChange={(e) => setEndDate(e.target.value)} className="bg-card border p-1.5 rounded-lg text-xs font-semibold" />
               </div>
-              <button onClick={fetchRangeTelemetry} disabled={isRangeLoading} className="px-4 py-2 bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 text-xs font-bold rounded-lg disabled:opacity-50">
-                {isRangeLoading ? 'Spreading Columns...' : 'Generate Matrix Grid'}
+              <button onClick={fetchRangeTelemetry} disabled={isRangeLoading} className={`px-4 py-2 bg-${theme.primary} text-white text-xs font-bold rounded-lg disabled:opacity-50`}>
+                {isRangeLoading ? 'Spreading Columns...' : 'Generate '}
               </button>
             </div>
           </div>
