@@ -35,13 +35,26 @@ export async function PATCH(
     }
     
     if (action === 'approve') {
-      // Find the Max/Elite plan
-      const maxPlan = await prisma.saaSPlan.findFirst({
-        where: { name: { contains: 'elite', mode: 'insensitive' } }
+      // Find the Max/Elite plan, or fallback to the plan with highest teacher limit
+      let maxPlan = await prisma.saaSPlan.findFirst({
+        where: {
+          OR: [
+            { name: { contains: 'elite' } },
+            { name: { contains: 'Elite' } },
+            { name: { contains: 'ELITE' } }
+          ]
+        }
       });
       
       if (!maxPlan) {
-        return NextResponse.json({ error: 'Max/Elite plan not found' }, { status: 404 });
+        // Fallback to plan with highest teacherMax
+        maxPlan = await prisma.saaSPlan.findFirst({
+          orderBy: { teacherMax: 'desc' }
+        });
+      }
+      
+      if (!maxPlan) {
+        return NextResponse.json({ error: 'No plans available to assign' }, { status: 400 });
       }
       
       await prisma.$transaction([
@@ -64,7 +77,7 @@ export async function PATCH(
         prisma.notification.create({
           data: {
             title: 'Custom Plan Approved',
-            message: `Your custom plan request for ${facultyLimit} faculty has been approved. You have been upgraded to the Elite plan.`,
+            message: `Your custom plan request for ${facultyLimit} faculty has been approved. You have been upgraded to the ${maxPlan.name} plan.`,
             type: 'INFO',
             scope: 'ALL_ADMINS',
             senderId: superAdmin.id,
@@ -73,7 +86,7 @@ export async function PATCH(
         })
       ]);
       
-      return NextResponse.json({ success: true, message: 'Custom plan approved and Max plan granted' });
+      return NextResponse.json({ success: true, message: `Custom plan approved and ${maxPlan.name} plan granted` });
     } else {
       await prisma.$transaction([
         // Reject custom request

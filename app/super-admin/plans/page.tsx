@@ -40,6 +40,20 @@ type SchoolTrialRequest = {
   id: string;
   schoolId: string;
   schoolName: string;
+  schoolCity: string | null;
+  schoolCountry: string | null;
+  schoolType: string | null;
+  currentTeacherCount: number;
+  currentPlan: {
+    id: string;
+    name: string;
+    teacherMax: number;
+  } | null;
+  adminContacts: {
+    name: string | null;
+    email: string | null;
+    phone: string | null;
+  }[];
   trialPlanId: string | null;
   trialPlanName: string | null;
   currentPlanName: string | null;
@@ -52,6 +66,20 @@ type CustomPlanRequest = {
   id: string;
   schoolId: string;
   schoolName: string;
+  schoolCity: string | null;
+  schoolCountry: string | null;
+  schoolType: string | null;
+  currentTeacherCount: number;
+  currentPlan: {
+    id: string;
+    name: string;
+    teacherMax: number;
+  } | null;
+  adminContacts: {
+    name: string | null;
+    email: string | null;
+    phone: string | null;
+  }[];
   requestedFacultyLimit: number;
   status: 'PENDING' | 'APPROVED' | 'REJECTED';
   rejectionReason: string | null;
@@ -375,6 +403,65 @@ export default function PlansPage() {
         </Button>
       </div>
 
+      {/* ── Custom Plan Requests banner ── */}
+      {customPlanRequests.length > 0 && (
+        <GlassCard className='p-6 bg-gradient-to-r from-amber-500/10 to-orange-500/10 border-amber-500/20'>
+          <h3 className='font-semibold text-amber-700 dark:text-amber-400 mb-4'>
+            Pending Custom Plan Requests ({customPlanRequests.length})
+          </h3>
+          <div className='space-y-3'>
+            {customPlanRequests.map((req) => (
+              <div
+                key={req.id}
+                className='p-4 rounded-lg bg-background/50 border border-border/40'
+              >
+                <div className='flex items-start justify-between mb-3'>
+                  <div className='flex-1'>
+                    <p className='font-semibold text-sm'>{req.schoolName}</p>
+                    <div className='text-xs text-muted-foreground space-y-1 mt-2'>
+                      <p><span className='font-medium'>Location:</span> {req.schoolCity}, {req.schoolCountry}</p>
+                      <p><span className='font-medium'>Type:</span> {req.schoolType || 'N/A'}</p>
+                      <p><span className='font-medium'>Current Teachers:</span> {req.currentTeacherCount}</p>
+                      <p><span className='font-medium'>Current Plan:</span> {req.currentPlan?.name || 'Free'}</p>
+                      <p><span className='font-medium'>Requested Limit:</span> {req.requestedFacultyLimit}</p>
+                      {req.adminContacts && req.adminContacts.length > 0 && (
+                        <div className='mt-2 pt-2 border-t border-border/40'>
+                          <p className='font-medium'>Admin Contacts:</p>
+                          {req.adminContacts.map((contact, idx) => (
+                            <p key={idx} className='text-xs'>
+                              {contact.name} - {contact.email} {contact.phone ? `(${contact.phone})` : ''}
+                            </p>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div className='flex gap-2 ml-4'>
+                    <Button
+                      size='sm'
+                      variant='outline'
+                      onClick={() => handleRejectCustomPlan(req.id)}
+                      disabled={processingCustomPlan === req.id}
+                      className='text-rose-600 hover:text-rose-700 hover:bg-rose-50'
+                    >
+                      <X className='w-4 h-4 mr-1' /> Reject
+                    </Button>
+                    <Button
+                      size='sm'
+                      onClick={() => handleApproveCustomPlan(req.id, req.schoolId, req.requestedFacultyLimit)}
+                      disabled={processingCustomPlan === req.id}
+                      className='bg-emerald-600 hover:bg-emerald-700'
+                    >
+                      <Check className='w-4 h-4 mr-1' /> Approve
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </GlassCard>
+      )}
+
       {/* ── Trial requests banner ── */}
       {trialRequests.length > 0 && (
         <GlassCard className='p-6 bg-gradient-to-r from-amber-500/10 to-orange-500/10 border-amber-500/20'>
@@ -385,33 +472,48 @@ export default function PlansPage() {
             {trialRequests.map((req) => (
               <div
                 key={req.id}
-                className='flex items-center justify-between p-4 rounded-lg bg-background/50 border border-border/40'
+                className='p-4 rounded-lg bg-background/50 border border-border/40'
               >
-                <div>
-                  <p className='font-medium'>{req.schoolName}</p>
-                  <p className='text-sm text-muted-foreground'>
-                    Current: {req.currentPlanName || 'No plan'} → Trial:{' '}
-                    {req.trialPlanName || 'No plan selected'}
-                  </p>
-                </div>
-                <div className='flex gap-2'>
-                  <Button
-                    size='sm'
-                    variant='outline'
-                    onClick={() => handleTrialAction(req.id, 'REJECT')}
-                    disabled={saving}
-                    className='text-rose-600 hover:text-rose-700 hover:bg-rose-50'
-                  >
-                    <X className='w-4 h-4 mr-1' /> Reject
-                  </Button>
-                  <Button
-                    size='sm'
-                    onClick={() => handleTrialAction(req.id, 'APPROVE')}
-                    disabled={saving}
-                    className='bg-emerald-600 hover:bg-emerald-700'
-                  >
-                    <Check className='w-4 h-4 mr-1' /> Approve
-                  </Button>
+                <div className='flex items-start justify-between mb-3'>
+                  <div className='flex-1'>
+                    <p className='font-semibold text-sm'>{req.schoolName}</p>
+                    <div className='text-xs text-muted-foreground space-y-1 mt-2'>
+                      <p><span className='font-medium'>Location:</span> {req.schoolCity}, {req.schoolCountry}</p>
+                      <p><span className='font-medium'>Type:</span> {req.schoolType || 'N/A'}</p>
+                      <p><span className='font-medium'>Current Teachers:</span> {req.currentTeacherCount}</p>
+                      <p><span className='font-medium'>Current Plan:</span> {req.currentPlan?.name || 'Free'}</p>
+                      <p><span className='font-medium'>Trial Plan:</span> {req.trialPlanName || 'No plan selected'}</p>
+                      {req.adminContacts && req.adminContacts.length > 0 && (
+                        <div className='mt-2 pt-2 border-t border-border/40'>
+                          <p className='font-medium'>Admin Contacts:</p>
+                          {req.adminContacts.map((contact, idx) => (
+                            <p key={idx} className='text-xs'>
+                              {contact.name} - {contact.email} {contact.phone ? `(${contact.phone})` : ''}
+                            </p>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div className='flex gap-2 ml-4'>
+                    <Button
+                      size='sm'
+                      variant='outline'
+                      onClick={() => handleTrialAction(req.id, 'REJECT')}
+                      disabled={saving}
+                      className='text-rose-600 hover:text-rose-700 hover:bg-rose-50'
+                    >
+                      <X className='w-4 h-4 mr-1' /> Reject
+                    </Button>
+                    <Button
+                      size='sm'
+                      onClick={() => handleTrialAction(req.id, 'APPROVE')}
+                      disabled={saving}
+                      className='bg-emerald-600 hover:bg-emerald-700'
+                    >
+                      <Check className='w-4 h-4 mr-1' /> Approve
+                    </Button>
+                  </div>
                 </div>
               </div>
             ))}

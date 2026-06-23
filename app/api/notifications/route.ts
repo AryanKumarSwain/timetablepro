@@ -22,9 +22,11 @@ export async function GET() {
         { type: 'SYSTEM' } // Trial requests and plan activations use SYSTEM type
       ];
     } else if (user.role === 'ADMIN') {
-      // Admins see global admin notices as well as school-specific messages.
-      whereClause.scope = 'ALL_ADMINS';
-      whereClause.OR = [{ schoolId: null }, { schoolId: user.schoolId }];
+      // Admins only see notifications for their own school or global notifications (schoolId: null)
+      whereClause.OR = [
+        { schoolId: user.schoolId },
+        { schoolId: null }
+      ];
     } else if (user.role === 'TEACHER') {
       // Teachers retrieve alerts targeted for their specific school ID assignment
       // Workaround: Only show notifications where they DON'T have a read entry

@@ -350,56 +350,6 @@ export default function UpgradePage() {
           })}
         </div>
 
-        {/* Custom Plan Request Button for Large Schools */}
-        {teacherCount >= 100 && (
-          <div className="flex justify-center items-center mt-6">
-            <Dialog open={customPlanDialogOpen} onOpenChange={setCustomPlanDialogOpen}>
-              <DialogTrigger asChild>
-                <Button variant="outline" className="border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/20 gap-2 px-5 py-4 rounded-lg text-xs shadow-xs hover:bg-amber-100 dark:hover:bg-amber-950/30">
-                  <Crown className="h-4 w-4 text-amber-600" />
-                  Request Custom Enterprise Plan
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Custom Enterprise Plan Request</DialogTitle>
-                  <DialogDescription>
-                    Your school has {teacherCount} faculty members. Request a custom plan with your desired faculty limit.
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4 py-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="facultyLimit">Desired Faculty Limit</Label>
-                    <Input
-                      id="facultyLimit"
-                      type="number"
-                      min="100"
-                      value={customPlanFacultyLimit}
-                      onChange={(e) => setCustomPlanFacultyLimit(parseInt(e.target.value) || 100)}
-                      className="h-10"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Minimum 100 faculty required for custom plans
-                    </p>
-                  </div>
-                  <div className="flex gap-3 justify-end">
-                    <Button variant="outline" onClick={() => setCustomPlanDialogOpen(false)}>
-                      Cancel
-                    </Button>
-                    <Button
-                      onClick={handleCustomPlanSubmit}
-                      disabled={submittingCustomPlan || customPlanFacultyLimit < 100}
-                      className="bg-amber-600 hover:bg-amber-700 text-white"
-                    >
-                      {submittingCustomPlan ? 'Submitting...' : 'Submit Request'}
-                    </Button>
-                  </div>
-                </div>
-              </DialogContent>
-            </Dialog>
-          </div>
-        )}
-
         {/* Free Trial Button Section Container */}
         <div className="flex justify-center items-center mt-4">
           <Dialog open={trialDialogOpen} onOpenChange={setTrialDialogOpen}>
@@ -436,6 +386,54 @@ export default function UpgradePage() {
             </DialogContent>
           </Dialog>
         </div>
+
+        {/* Custom Plan Request Button */}
+        <div className="flex justify-center items-center mt-4">
+            <Dialog open={customPlanDialogOpen} onOpenChange={setCustomPlanDialogOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" className="border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/20 gap-2 px-5 py-4 rounded-lg text-xs shadow-xs hover:bg-amber-100 dark:hover:bg-amber-950/30">
+                  <Crown className="h-4 w-4 text-amber-600" />
+                  Request Custom Enterprise Plan
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Custom Enterprise Plan Request</DialogTitle>
+                  <DialogDescription>
+                    Request a custom plan tailored to your school's specific needs. Our team will review and contact you.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="facultyLimit">Desired Faculty Limit</Label>
+                    <Input
+                      id="facultyLimit"
+                      type="number"
+                      min="1"
+                      value={customPlanFacultyLimit}
+                      onChange={(e) => setCustomPlanFacultyLimit(parseInt(e.target.value) || 1)}
+                      className="h-10"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Enter the number of faculty members you need to support
+                    </p>
+                  </div>
+                  <div className="flex gap-3 justify-end">
+                    <Button variant="outline" onClick={() => setCustomPlanDialogOpen(false)}>
+                      Cancel
+                    </Button>
+                    <Button
+                      onClick={handleCustomPlanSubmit}
+                      disabled={submittingCustomPlan || customPlanFacultyLimit < 1}
+                      className="bg-amber-600 hover:bg-amber-700 text-white"
+                    >
+                      {submittingCustomPlan ? 'Submitting...' : 'Submit Request'}
+                    </Button>
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
+          </div>
 
         {/* Global Managed Transaction Modals Wrapper */}
         <AnimatePresence mode="wait">

@@ -13,6 +13,17 @@ export async function GET() {
       include: { 
         plan: true,
         trialPlan: true,
+        _count: {
+          select: { teachers: true }
+        },
+        users: {
+          where: { role: 'ADMIN' },
+          select: {
+            email: true,
+            name: true,
+            phone: true
+          }
+        }
       } as any,
       orderBy: { createdAt: 'desc' },
     });
@@ -22,9 +33,20 @@ export async function GET() {
       id: school.id,
       schoolId: school.id,
       schoolName: school.name,
-      contactName: school.name, // Using school name as contact name for now
-      phone: 'N/A', // Phone not available in School model
-      expectedFaculty: 0, // Not available in School model
+      schoolCity: school.city,
+      schoolCountry: school.country,
+      schoolType: school.type,
+      currentTeacherCount: school._count.teachers,
+      currentPlan: school.plan ? {
+        id: school.plan.id,
+        name: school.plan.name,
+        teacherMax: school.plan.teacherMax
+      } : null,
+      adminContacts: school.users.map((u: any) => ({
+        name: u.name,
+        email: u.email,
+        phone: u.phone
+      })),
       planId: school.trialPlanId,
       status: school.trialStatus,
       createdAt: school.createdAt,

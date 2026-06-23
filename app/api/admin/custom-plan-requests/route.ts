@@ -10,15 +10,17 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { requestedFacultyLimit } = body;
     
-    if (!requestedFacultyLimit || requestedFacultyLimit < 100) {
-      return NextResponse.json({ error: 'Faculty limit must be at least 100' }, { status: 400 });
+    if (!requestedFacultyLimit || requestedFacultyLimit < 1) {
+      return NextResponse.json({ error: 'Faculty limit must be at least 1' }, { status: 400 });
     }
     
     // Get school with teacher count
     const school = await prisma.school.findUnique({
       where: { id: user.schoolId },
       include: {
-        teachers: true,
+        _count: {
+          select: { teachers: true }
+        },
         customPlanRequests: {
           where: { status: 'PENDING' }
         }
@@ -27,11 +29,6 @@ export async function POST(request: NextRequest) {
     
     if (!school) {
       return NextResponse.json({ error: 'School not found' }, { status: 404 });
-    }
-    
-    // Check if school has >100 faculty
-    if (school.teachers.length < 100) {
-      return NextResponse.json({ error: 'Custom plans are only available for schools with 100+ faculty' }, { status: 400 });
     }
     
     // Check if there's already a pending request
