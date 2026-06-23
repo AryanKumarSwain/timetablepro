@@ -42,6 +42,9 @@ export async function GET(request: NextRequest) {
       where: { id: schoolId },
       include: {
         plan: true,
+        _count: {
+          select: { teachers: true }
+        }
       },
     });
 
@@ -56,6 +59,8 @@ export async function GET(request: NextRequest) {
       email: (school as any).email,
       logo: (school as any).logo,
       planId: school.planId,
+      licenseStatus: school.licenseStatus,
+      teacherCount: school._count.teachers,
       plan: school.plan ? {
         id: school.plan.id,
         name: school.plan.name,

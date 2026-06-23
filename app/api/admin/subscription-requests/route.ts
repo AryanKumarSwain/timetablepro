@@ -36,6 +36,8 @@ export async function POST(request: NextRequest) {
         amount: amount.toString(),
         billingCycle,
         utrNumber: utrNumber.trim(),
+        phoneNumber: mobileNumber || null,
+        email: school.email || null,
         status: 'PENDING'
       }
     });

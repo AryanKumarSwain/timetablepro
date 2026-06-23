@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { DollarSign, Users, TrendingUp, RefreshCw, Building2, AlertCircle, Settings, Check, X } from 'lucide-react';
+import { DollarSign, Users, TrendingUp, RefreshCw, Building2, AlertCircle, Settings, Check, X, Info, Mail, Phone, Calendar } from 'lucide-react';
 
 import { useRequireAuth } from '@/lib/auth-context';
 import { PageHeader } from '@/components/enterprise/page-header';
@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import {
   getPlatformTeacherDistribution,
@@ -50,6 +51,7 @@ export default function AnalyticsPage() {
   const [upiSaving, setUpiSaving] = useState(false);
   const [pendingTransactions, setPendingTransactions] = useState<any[]>([]);
   const [processingTx, setProcessingTx] = useState<string | null>(null);
+  const [detailsDialog, setDetailsDialog] = useState<{ open: boolean; transaction: any }>({ open: false, transaction: null });
 
   const fetchData = async () => {
     setLoading(true);
@@ -259,13 +261,22 @@ export default function AnalyticsPage() {
                 <div className='flex items-start justify-between mb-2'>
                   <div>
                     <p className='font-medium text-sm'>{tx.school?.name || 'Unknown School'}</p>
-                    <p className='text-xs text-muted-foreground'>Plan: {tx.planId.slice(0, 8)}...</p>
+                    <p className='text-xs text-muted-foreground'>Plan: {tx.planId || 'Unknown'}</p>
                   </div>
                   <Badge variant='outline' className='text-xs'>₹{tx.amount}</Badge>
                 </div>
                 <div className='flex items-center justify-between mt-3'>
                   <p className='text-xs font-mono text-muted-foreground'>UTR: {tx.utrNumber}</p>
                   <div className='flex gap-2'>
+                    <Button
+                      size='sm'
+                      variant='ghost'
+                      onClick={() => setDetailsDialog({ open: true, transaction: tx })}
+                      className='h-7 text-xs'
+                    >
+                      <Info className='w-3 h-3 mr-1' />
+                      Details
+                    </Button>
                     <Button
                       size='sm'
                       onClick={() => handleApproveTransaction(tx.id)}
@@ -290,6 +301,80 @@ export default function AnalyticsPage() {
           </div>
         )}
       </GlassCard>
+
+      {/* School Details Dialog */}
+      <Dialog open={detailsDialog.open} onOpenChange={(open) => setDetailsDialog({ ...detailsDialog, open })}>
+        <DialogContent className='max-w-md'>
+          <DialogHeader>
+            <DialogTitle>School Details</DialogTitle>
+            <DialogDescription>
+              Detailed information about the subscription request
+            </DialogDescription>
+          </DialogHeader>
+          {detailsDialog.transaction && (
+            <div className='space-y-4 py-4'>
+              <div className='space-y-3'>
+                <div className='flex items-start gap-3'>
+                  <Building2 className='w-5 h-5 text-muted-foreground mt-0.5' />
+                  <div>
+                    <p className='text-sm font-medium'>{detailsDialog.transaction.school?.name || 'Unknown School'}</p>
+                    <p className='text-xs text-muted-foreground'>School Name</p>
+                  </div>
+                </div>
+                <div className='flex items-start gap-3'>
+                  <Mail className='w-5 h-5 text-muted-foreground mt-0.5' />
+                  <div>
+                    <p className='text-sm font-medium'>{detailsDialog.transaction.school?.email || 'N/A'}</p>
+                    <p className='text-xs text-muted-foreground'>Email</p>
+                  </div>
+                </div>
+                <div className='flex items-start gap-3'>
+                  <Phone className='w-5 h-5 text-muted-foreground mt-0.5' />
+                  <div>
+                    <p className='text-sm font-medium'>{detailsDialog.transaction.school?.phone || 'N/A'}</p>
+                    <p className='text-xs text-muted-foreground'>Phone Number</p>
+                  </div>
+                </div>
+                <div className='flex items-start gap-3'>
+                  <DollarSign className='w-5 h-5 text-muted-foreground mt-0.5' />
+                  <div>
+                    <p className='text-sm font-medium'>{detailsDialog.transaction.school?.planId || 'Free'}</p>
+                    <p className='text-xs text-muted-foreground'>Current Plan</p>
+                  </div>
+                </div>
+                <div className='flex items-start gap-3'>
+                  <TrendingUp className='w-5 h-5 text-muted-foreground mt-0.5' />
+                  <div>
+                    <p className='text-sm font-medium'>{detailsDialog.transaction.planId || 'Unknown'}</p>
+                    <p className='text-xs text-muted-foreground'>Requested Plan</p>
+                  </div>
+                </div>
+                <div className='flex items-start gap-3'>
+                  <Calendar className='w-5 h-5 text-muted-foreground mt-0.5' />
+                  <div>
+                    <p className='text-sm font-medium capitalize'>{detailsDialog.transaction.billingCycle}</p>
+                    <p className='text-xs text-muted-foreground'>Billing Cycle</p>
+                  </div>
+                </div>
+                <div className='flex items-start gap-3'>
+                  <AlertCircle className='w-5 h-5 text-muted-foreground mt-0.5' />
+                  <div>
+                    <p className='text-sm font-mono font-medium'>{detailsDialog.transaction.utrNumber}</p>
+                    <p className='text-xs text-muted-foreground'>UTR Number</p>
+                  </div>
+                </div>
+                <div className='flex items-start gap-3'>
+                  <DollarSign className='w-5 h-5 text-muted-foreground mt-0.5' />
+                  <div>
+                    <p className='text-sm font-bold text-lg'>₹{detailsDialog.transaction.amount}</p>
+                    <p className='text-xs text-muted-foreground'>Amount</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <div className='grid lg:grid-cols-2 gap-6'>
         <GlassCard className='p-6'>

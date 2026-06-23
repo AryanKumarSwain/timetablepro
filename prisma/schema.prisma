@@ -60,6 +60,7 @@ model School {
   homework                Homework[]
   leaveRequests           SchoolLeaveRequest[]
   subscriptionTransactions SubscriptionTransaction[]
+  customPlanRequests      CustomPlanRequest[]
 }
 
 enum LicenseStatus {
@@ -489,10 +490,32 @@ model SubscriptionTransaction {
   amount        Decimal            @db.Decimal(10, 2)
   billingCycle  String             // 'monthly' | 'annual'
   utrNumber     String
+  phoneNumber   String?
+  email         String?
   status        TransactionStatus  @default(PENDING)
   rejectionReason String?
   createdAt     DateTime           @default(now())
   updatedAt     DateTime           @updatedAt
+
+  @@index([schoolId])
+  @@index([status])
+}
+
+enum CustomPlanRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model CustomPlanRequest {
+  id                   String                  @id @default(uuid())
+  schoolId             String
+  school               School                  @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  requestedFacultyLimit Int
+  status               CustomPlanRequestStatus @default(PENDING)
+  rejectionReason      String?
+  createdAt            DateTime                @default(now())
+  updatedAt            DateTime                @updatedAt
 
   @@index([schoolId])
   @@index([status])

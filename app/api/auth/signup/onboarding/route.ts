@@ -54,6 +54,28 @@ export async function POST(request: NextRequest) {
     }
 
     const result = await prisma.$transaction(async (tx) => {
+      // Find or create the free plan with a consistent ID
+      let freePlan = await tx.saaSPlan.findFirst({
+        where: { name: 'Free' }
+      });
+
+      if (!freePlan) {
+        freePlan = await tx.saaSPlan.create({
+          data: {
+            id: 'free-plan-default',
+            name: 'Free',
+            teacherMin: 0,
+            teacherMax: 5,
+            priceMonthly: 0,
+            reportEnabled: false,
+            attendanceEnabled: false,
+            homeworkEnabled: false,
+            exportFormats: [],
+            watermarkRequired: true
+          }
+        });
+      }
+
       const school = await tx.school.create({
         data: {
           name: instituteName,
@@ -63,18 +85,7 @@ export async function POST(request: NextRequest) {
           studentsRange,
           facultyRange,
           licenseStatus: 'ACTIVE',
-          plan: {
-            connectOrCreate: {
-              where: { id: "baseline-free-tier" },
-              create: {
-                id: "baseline-free-tier",
-                name: "Free",
-                teacherMin: 0,
-                teacherMax: 5,
-                priceMonthly: 0
-              }
-            }
-          }
+          planId: freePlan.id
         },
       });
 

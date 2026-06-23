@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { Check, CheckCircle2, Sparkles, ChevronRight, Zap, Rocket, Crown, X, Clock } from 'lucide-react';
-import { fetchSaasPlans, switchPlan, submitTrialRequest } from '@/lib/api-services';
+import { fetchSaasPlans, submitTrialRequest } from '@/lib/api-services';
 import type { SaasPlan } from '@/lib/api-services';
 import { QRCodeSVG } from 'qrcode.react';
 
@@ -59,7 +59,7 @@ export default function UpgradePage() {
   const [switchingPlan, setSwitchingPlan] = useState<boolean>(false);
   const [verificationPending, setVerificationPending] = useState<{ show: boolean; utrNumber: string }>({ show: false, utrNumber: '' });
   const [timerExpired, setTimerExpired] = useState<boolean>(false);
-  const [timeRemaining, setTimeRemaining] = useState<number>(300); // 5 minutes in seconds
+  const [timeRemaining, setTimeRemaining] = useState<number>(300); 
 
   const [trialDialogOpen, setTrialDialogOpen] = useState<boolean>(false);
   const [submittingTrial, setSubmittingTrial] = useState<boolean>(false);
@@ -67,6 +67,10 @@ export default function UpgradePage() {
   const [schoolData, setSchoolData] = useState<SchoolData | null>(null);
   const [userEmail, setUserEmail] = useState<string>('');
   const [upiId, setUpiId] = useState<string>('example@upi');
+  const [customPlanDialogOpen, setCustomPlanDialogOpen] = useState<boolean>(false);
+  const [submittingCustomPlan, setSubmittingCustomPlan] = useState<boolean>(false);
+  const [customPlanFacultyLimit, setCustomPlanFacultyLimit] = useState<number>(100);
+  const [teacherCount, setTeacherCount] = useState<number>(0);
 
   useEffect(() => {
     let isMounted = true;
@@ -78,29 +82,43 @@ export default function UpgradePage() {
         
         const schoolRes = await fetch('/api/admin/school');
         if (schoolRes.ok && isMounted) {
-          const schoolInfo: SchoolData = await schoolRes.json();
-          setCurrentPlanId(schoolInfo.planId || null);
-          setSchoolData(schoolInfo);
+          try {
+            const schoolInfo: SchoolData = await schoolRes.json();
+            setCurrentPlanId(schoolInfo.planId || null);
+            setSchoolData(schoolInfo);
+            setTeacherCount(schoolInfo.teacherCount || 0);
+          } catch (jsonError) {
+            console.error('Failed to parse school data:', jsonError);
+          }
         }
         
         const sessionRes = await fetch('/api/auth/session');
         if (sessionRes.ok && isMounted) {
-          const sessionData = await sessionRes.json();
-          setUserEmail(sessionData.user?.email || '');
+          try {
+            const sessionData = await sessionRes.json();
+            setUserEmail(sessionData.user?.email || '');
+          } catch (jsonError) {
+            console.error('Failed to parse session data:', jsonError);
+          }
         }
 
-        // Fetch UPI ID for QR code
         try {
-          const upiRes = await fetch('/api/super-admin/platform-settings');
+          const upiRes = await fetch('/api/public/platform-settings');
           if (upiRes.ok && isMounted) {
-            const upiData = await upiRes.json();
-            setUpiId(upiData.upiId || 'example@upi');
+            try {
+              const upiData = await upiRes.json();
+              setUpiId(upiData.upiId || 'example@upi');
+            } catch (jsonError) {
+              console.error('Failed to parse UPI data:', jsonError);
+              setUpiId('example@upi');
+            }
           }
-        } catch {
-          // Fallback to default if fetch fails
+        } catch (fetchError) {
+          console.error('Failed to fetch UPI settings:', fetchError);
           setUpiId('example@upi');
         }
-      } catch {
+      } catch (error) {
+        console.error('Failed to load upgrade page data:', error);
         toast.error('Failed to load plans');
       } finally {
         if (isMounted) setLoading(false);
@@ -115,13 +133,11 @@ export default function UpgradePage() {
   const gst = Math.round(baseAmount * 0.18);
   const total = Math.round(baseAmount + gst);
 
-  // Sanitizes phone layout to restrict string vectors down to strict Integers only
   const handleDigitFilter = (value: string, callback: (sanitized: string) => void) => {
     const numericSanitized = value.replace(/\D/g, '');
     callback(numericSanitized);
   };
 
-  // Timer countdown effect
   useEffect(() => {
     if (!selectedPlanId || timerExpired) return;
 
@@ -138,7 +154,6 @@ export default function UpgradePage() {
     return () => clearInterval(interval);
   }, [selectedPlanId, timerExpired]);
 
-  // Reset timer when plan is selected
   useEffect(() => {
     if (selectedPlanId) {
       setTimeRemaining(300);
@@ -157,6 +172,28 @@ export default function UpgradePage() {
     setTimerExpired(false);
   };
 
+  const handleCustomPlanSubmit = async () => {
+    if (customPlanFacultyLimit < 100) {
+      return toast.error('Faculty limit must be at least 100');
+    }
+    setSubmittingCustomPlan(true);
+    try {
+      const res = await fetch('/api/admin/custom-plan-requests', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ requestedFacultyLimit: customPlanFacultyLimit })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to submit request');
+      toast.success('Custom plan request submitted successfully');
+      setCustomPlanDialogOpen(false);
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to submit custom plan request');
+    } finally {
+      setSubmittingCustomPlan(false);
+    }
+  };
+
   const handlePayment = async () => {
     const cleanPhone = checkoutForm.mobileNumber.trim();
     const cleanState = checkoutForm.state.trim();
@@ -166,7 +203,7 @@ export default function UpgradePage() {
       return toast.error('Please fill in all required fields');
     }
     if (cleanPhone.length < 10 || cleanPhone.length > 11) {
-      return toast.error('Please input a valid 10-digit standard Indian phone sequence');
+      return toast.error('Please input a valid 10-digit phone number');
     }
     if (cleanUtr.length < 8) {
       return toast.error('Please enter a valid UTR number');
@@ -183,7 +220,8 @@ export default function UpgradePage() {
           billingCycle: billingPeriod,
           utrNumber: cleanUtr,
           mobileNumber: cleanPhone,
-          state: cleanState
+          state: cleanState,
+          adminEmail: userEmail // Pass administrative email down into the transaction engine
         })
       });
 
@@ -263,7 +301,7 @@ export default function UpgradePage() {
             return (
               <motion.div key={plan.id} whileHover={{ y: -4, scale: 1.005 }} className={`relative bg-white dark:bg-slate-900 rounded-xl p-6 flex flex-col justify-between shadow-sm border ${style.border} ${isCurrentPlan ? 'ring-2 ring-emerald-500/50' : ''}`}>
                 {idx === 1 && <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 bg-purple-600 text-white text-[10px] font-bold px-3 py-0.5 rounded-full uppercase tracking-wider">Most Popular</span>}
-                {idx === 2 && <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 bg-amber-500 text-white text-[10px] font-bold px-3 py-0.5 rounded-full uppercase tracking-wider flex items-center gap-1"><Crown className="h-3 w-3" /> Premium Tier</span>}
+                {idx === 2 && <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 bg-amber-500 text-white text-[10px] font-bold px-3 py-0.5 rounded-full uppercase tracking-wider flex items-center gap-1"><Crown className="h-3 w-3" /> Luxury Tier</span>}
                 
                 <div className="mb-6">
                   <div className="flex items-center gap-2 mb-3">
@@ -312,8 +350,58 @@ export default function UpgradePage() {
           })}
         </div>
 
+        {/* Custom Plan Request Button for Large Schools */}
+        {teacherCount >= 100 && (
+          <div className="flex justify-center items-center mt-6">
+            <Dialog open={customPlanDialogOpen} onOpenChange={setCustomPlanDialogOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" className="border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/20 gap-2 px-5 py-4 rounded-lg text-xs shadow-xs hover:bg-amber-100 dark:hover:bg-amber-950/30">
+                  <Crown className="h-4 w-4 text-amber-600" />
+                  Request Custom Enterprise Plan
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Custom Enterprise Plan Request</DialogTitle>
+                  <DialogDescription>
+                    Your school has {teacherCount} faculty members. Request a custom plan with your desired faculty limit.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="facultyLimit">Desired Faculty Limit</Label>
+                    <Input
+                      id="facultyLimit"
+                      type="number"
+                      min="100"
+                      value={customPlanFacultyLimit}
+                      onChange={(e) => setCustomPlanFacultyLimit(parseInt(e.target.value) || 100)}
+                      className="h-10"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Minimum 100 faculty required for custom plans
+                    </p>
+                  </div>
+                  <div className="flex gap-3 justify-end">
+                    <Button variant="outline" onClick={() => setCustomPlanDialogOpen(false)}>
+                      Cancel
+                    </Button>
+                    <Button
+                      onClick={handleCustomPlanSubmit}
+                      disabled={submittingCustomPlan || customPlanFacultyLimit < 100}
+                      className="bg-amber-600 hover:bg-amber-700 text-white"
+                    >
+                      {submittingCustomPlan ? 'Submitting...' : 'Submit Request'}
+                    </Button>
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
+          </div>
+        )}
+
         {/* Free Trial Button Section Container */}
-        <div className="flex justify-center items-center">
+        <div className="flex justify-center items-center mt-4">
           <Dialog open={trialDialogOpen} onOpenChange={setTrialDialogOpen}>
             <DialogTrigger asChild>
               <Button onClick={openTrialDialog} variant="outline" className="border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 gap-2 px-5 py-4 rounded-lg text-xs shadow-xs hover:bg-slate-50">
@@ -349,8 +437,8 @@ export default function UpgradePage() {
           </Dialog>
         </div>
 
-        {/* Checkout Dynamic Drawer Component */}
-        <AnimatePresence>
+        {/* Global Managed Transaction Modals Wrapper */}
+        <AnimatePresence mode="wait">
           {selectedPlanId && selectedPlan && !verificationPending.show && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 bg-slate-950/40 backdrop-blur-sm flex items-center justify-center p-4">
               <motion.div initial={{ scale: 0.95, y: 10, opacity: 0 }} animate={{ scale: 1, y: 0, opacity: 1 }} exit={{ scale: 0.95, y: 10, opacity: 0 }} className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-3xl shadow-2xl relative overflow-hidden grid md:grid-cols-12 max-h-[90vh] overflow-y-auto">
@@ -441,53 +529,51 @@ export default function UpgradePage() {
                     )}
                   </div>
                 </div>
-
               </motion.div>
             </motion.div>
           )}
-
-          {/* Verification Pending Screen */}
-          <AnimatePresence>
-            {verificationPending.show && (
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 bg-slate-950/40 backdrop-blur-sm flex items-center justify-center p-4">
-                <motion.div initial={{ scale: 0.95, y: 10, opacity: 0 }} animate={{ scale: 1, y: 0, opacity: 1 }} exit={{ scale: 0.95, y: 10, opacity: 0 }} className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-md shadow-2xl relative overflow-hidden p-8 text-center">
-                  <button onClick={() => setVerificationPending({ show: false, utrNumber: '' })} className="absolute top-4 right-4 p-1.5 rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700">
-                    <X className="h-4 w-4 text-slate-600" />
-                  </button>
-                  
-                  <div className="w-16 h-16 mx-auto mb-6 rounded-full bg-emerald-500/10 flex items-center justify-center">
-                    <CheckCircle2 className="h-8 w-8 text-emerald-500" />
-                  </div>
-                  
-                  <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">Verification Pending</h2>
-                  <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
-                    Payment proof submitted successfully. Our team will verify the transaction (UTR: <span className="font-mono font-semibold text-slate-900 dark:text-white">{verificationPending.utrNumber}</span>) and activate your plan within 12 hours.
-                  </p>
-                  
-                  <div className="bg-slate-50 dark:bg-slate-950 rounded-xl p-4 text-left space-y-2 mb-6">
-                    <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400">
-                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
-                      <span>Payment proof received</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400">
-                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
-                      <span>Verification in progress</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400">
-                      <Clock className="h-3.5 w-3.5 text-amber-500" />
-                      <span>Expected activation: Within 12 hours</span>
-                    </div>
-                  </div>
-                  
-                  <Button onClick={() => setVerificationPending({ show: false, utrNumber: '' })} variant="outline" className="w-full">
-                    Close
-                  </Button>
-                </motion.div>
-              </motion.div>
-            )}
-          </AnimatePresence>
         </AnimatePresence>
 
+        {/* Verification Pending View Layer */}
+        <AnimatePresence mode="wait">
+          {verificationPending.show && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 bg-slate-950/40 backdrop-blur-sm flex items-center justify-center p-4">
+              <motion.div initial={{ scale: 0.95, y: 10, opacity: 0 }} animate={{ scale: 1, y: 0, opacity: 1 }} exit={{ scale: 0.95, y: 10, opacity: 0 }} className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-md shadow-2xl relative overflow-hidden p-8 text-center">
+                <button onClick={() => setVerificationPending({ show: false, utrNumber: '' })} className="absolute top-4 right-4 p-1.5 rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700">
+                  <X className="h-4 w-4 text-slate-600" />
+                </button>
+                
+                <div className="w-16 h-16 mx-auto mb-6 rounded-full bg-emerald-500/10 flex items-center justify-center">
+                  <CheckCircle2 className="h-8 w-8 text-emerald-500" />
+                </div>
+                
+                <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">Verification Pending</h2>
+                <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
+                  Payment proof submitted successfully. Our team will verify the transaction (UTR: <span className="font-mono font-semibold text-slate-900 dark:text-white">{verificationPending.utrNumber}</span>) and activate your plan within 12 hours.
+                </p>
+                
+                <div className="bg-slate-50 dark:bg-slate-950 rounded-xl p-4 text-left space-y-2 mb-6">
+                  <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400">
+                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+                    <span>Payment proof received</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400">
+                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+                    <span>Verification in progress</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400">
+                    <Clock className="h-3.5 w-3.5 text-amber-500" />
+                    <span>Expected activation: Within 12 hours</span>
+                  </div>
+                </div>
+                
+                <Button onClick={() => setVerificationPending({ show: false, utrNumber: '' })} variant="outline" className="w-full">
+                  Close
+                </Button>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );

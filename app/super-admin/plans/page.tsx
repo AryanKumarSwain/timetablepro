@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Edit, Plus, Trash2, Check, X } from 'lucide-react';
+import { Edit, Plus, Trash2, Check, X, Crown } from 'lucide-react';
 
 import { useRequireAuth } from '@/lib/auth-context';
 import { PageHeader } from '@/components/enterprise/page-header';
@@ -25,7 +25,7 @@ import {
   TableHead, TableCell,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { useToast } from '@/components/ui/use-toast';
+import { toast } from 'sonner';
 import {
   createSuperAdminPlan,
   deleteSuperAdminPlan,
@@ -45,6 +45,16 @@ type SchoolTrialRequest = {
   currentPlanName: string | null;
   trialStatus: 'NONE' | 'PENDING' | 'APPROVED' | 'REJECTED' | 'EXPIRED';
   trialEndsAt: string | null;
+  createdAt: string;
+};
+
+type CustomPlanRequest = {
+  id: string;
+  schoolId: string;
+  schoolName: string;
+  requestedFacultyLimit: number;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  rejectionReason: string | null;
   createdAt: string;
 };
 
@@ -88,13 +98,13 @@ const parseNumber = (value: string) => Number(value.replace(/[^0-9.]/g, '') || 0
 export default function PlansPage() {
   useRequireAuth('super-admin');
 
-  const { toast } = useToast();
-
   const [plans, setPlans]                 = useState<SaasPlan[]>([]);
   const [trialRequests, setTrialRequests] = useState<SchoolTrialRequest[]>([]);
+  const [customPlanRequests, setCustomPlanRequests] = useState<CustomPlanRequest[]>([]);
   const [loading, setLoading]             = useState(true);
   const [saving, setSaving]               = useState(false);
   const [fetchError, setFetchError]       = useState<string | null>(null);
+  const [processingCustomPlan, setProcessingCustomPlan] = useState<string | null>(null);
 
   // form dialog
   const [formOpen, setFormOpen]         = useState(false);
@@ -131,9 +141,57 @@ export default function PlansPage() {
     }
   };
 
+  const fetchCustomPlanRequests = async () => {
+    try {
+      const res = await fetch('/api/super-admin/custom-plan-requests');
+      if (res.ok) setCustomPlanRequests(await res.json());
+    } catch (err) {
+      console.error('Failed to load custom plan requests:', err);
+    }
+  };
+
+  const handleApproveCustomPlan = async (requestId: string, schoolId: string, facultyLimit: number) => {
+    setProcessingCustomPlan(requestId);
+    try {
+      const res = await fetch(`/api/super-admin/custom-plan-requests/${requestId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'approve', facultyLimit })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to approve');
+      toast.success('Custom plan approved and Max plan granted');
+      fetchCustomPlanRequests();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to approve custom plan');
+    } finally {
+      setProcessingCustomPlan(null);
+    }
+  };
+
+  const handleRejectCustomPlan = async (requestId: string) => {
+    setProcessingCustomPlan(requestId);
+    try {
+      const res = await fetch(`/api/super-admin/custom-plan-requests/${requestId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'reject', rejectionReason: 'Request declined' })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to reject');
+      toast.success('Custom plan request rejected');
+      fetchCustomPlanRequests();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to reject custom plan');
+    } finally {
+      setProcessingCustomPlan(null);
+    }
+  };
+
   useEffect(() => {
     fetchPlans();
     fetchTrialRequests();
+    fetchCustomPlanRequests();
   }, []);
 
   const planRows = useMemo(() => plans, [plans]);
@@ -241,18 +299,15 @@ export default function PlansPage() {
       if (formMode === 'create') {
         const created = await createSuperAdminPlan(payload);
         setPlans((cur) => [created, ...cur]);
-        toast({ title: 'Plan created', description: `${created.name} was added successfully.` });
+        toast.success(`Plan created: ${created.name} was added successfully.`);
       } else if (selectedPlan) {
         const updated = await updateSuperAdminPlan(selectedPlan.id, payload);
         setPlans((cur) => cur.map((p) => (p.id === updated.id ? updated : p)));
-        toast({ title: 'Plan updated', description: `${updated.name} has been saved.` });
+        toast.success(`Plan updated: ${updated.name} has been saved.`);
       }
       setFormOpen(false);
     } catch (err) {
-      toast({
-        title: 'Unable to save plan',
-        description: err instanceof Error ? err.message : 'Please try again.',
-      });
+      toast.error(err instanceof Error ? err.message : 'Unable to save plan. Please try again.');
     } finally {
       setSaving(false);
     }
@@ -264,13 +319,10 @@ export default function PlansPage() {
     try {
       await deleteSuperAdminPlan(planToDelete.id);
       setPlans((cur) => cur.filter((p) => p.id !== planToDelete.id));
-      toast({ title: 'Plan deleted', description: `${planToDelete.name} has been removed.` });
+      toast.success(`Plan deleted: ${planToDelete.name} has been removed.`);
       setDeleteOpen(false);
     } catch (err) {
-      toast({
-        title: 'Unable to delete plan',
-        description: err instanceof Error ? err.message : 'Please try again.',
-      });
+      toast.error(err instanceof Error ? err.message : 'Unable to delete plan. Please try again.');
     } finally {
       setSaving(false);
     }
@@ -288,14 +340,10 @@ export default function PlansPage() {
         const data = await res.json();
         throw new Error(data.error || 'Failed to process trial request');
       }
-      toast({ title: 'Success', description: `Trial request ${action.toLowerCase()}d` });
+      toast.success(`Trial request ${action.toLowerCase()}d`);
       await fetchTrialRequests();
     } catch (err) {
-      toast({
-        title: 'Error',
-        description: err instanceof Error ? err.message : 'Failed to process trial request',
-        variant: 'destructive',
-      });
+      toast.error(err instanceof Error ? err.message : 'Failed to process trial request');
     } finally {
       setSaving(false);
     }
@@ -592,6 +640,67 @@ export default function PlansPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ── Custom Plan Requests Section ── */}
+      <GlassCard className='p-6 mt-6'>
+        <div className='flex items-center justify-between mb-4'>
+          <div className='flex items-center gap-3'>
+            <div className='w-10 h-10 rounded-lg bg-amber-500/10 flex items-center justify-center'>
+              <Crown className='w-5 h-5 text-amber-500' />
+            </div>
+            <div>
+              <h3 className='font-semibold'>Custom Plan Requests</h3>
+              <p className='text-xs text-muted-foreground'>{customPlanRequests.length} pending requests</p>
+            </div>
+          </div>
+          <Button variant='outline' size='sm' onClick={fetchCustomPlanRequests}>
+            Refresh
+          </Button>
+        </div>
+
+        {customPlanRequests.length === 0 ? (
+          <div className='text-center py-8 text-sm text-muted-foreground'>
+            No custom plan requests
+          </div>
+        ) : (
+          <div className='space-y-3 max-h-80 overflow-y-auto'>
+            {customPlanRequests.map((req) => (
+              <div key={req.id} className='p-4 rounded-lg bg-muted/20 border border-border/40'>
+                <div className='flex items-start justify-between mb-2'>
+                  <div>
+                    <p className='font-medium text-sm'>{req.schoolName}</p>
+                    <p className='text-xs text-muted-foreground'>Requested Faculty Limit: {req.requestedFacultyLimit}</p>
+                  </div>
+                  <Badge variant={req.status === 'PENDING' ? 'outline' : req.status === 'APPROVED' ? 'default' : 'destructive'}>
+                    {req.status}
+                  </Badge>
+                </div>
+                {req.status === 'PENDING' && (
+                  <div className='flex gap-2 mt-3'>
+                    <Button
+                      size='sm'
+                      onClick={() => handleApproveCustomPlan(req.id, req.schoolId, req.requestedFacultyLimit)}
+                      disabled={processingCustomPlan === req.id}
+                      className='h-7 text-xs bg-emerald-600 hover:bg-emerald-700 text-white'
+                    >
+                      {processingCustomPlan === req.id ? '...' : 'Confirm & Grant Max Plan'}
+                    </Button>
+                    <Button
+                      size='sm'
+                      variant='outline'
+                      onClick={() => handleRejectCustomPlan(req.id)}
+                      disabled={processingCustomPlan === req.id}
+                      className='h-7 text-xs text-rose-600 border-rose-200 hover:bg-rose-50'
+                    >
+                      {processingCustomPlan === req.id ? '...' : 'Reject'}
+                    </Button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </GlassCard>
 
       {/* ── Delete confirmation ── */}
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
