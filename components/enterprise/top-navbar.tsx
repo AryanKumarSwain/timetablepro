@@ -448,11 +448,11 @@ export function TopNavbar({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align='end' className='w-80 rounded-2xl border-border/80 shadow-xl p-0 overflow-hidden'>
-              <div className="p-4 bg-muted/30 border-b border-border/50 flex items-center justify-between">
+              <div className="p-4 bg-muted/30 border-b border-border/50 flex items-center justify-between sticky top-0 z-10">
                 <span className="font-bold text-xs tracking-tight text-foreground">Workspace Comms Stream</span>
                 {unreadCount > 0 && <Badge variant="secondary" className={`bg-${planTheme.primary}/10 ${planTheme.primaryText} font-bold border-none text-[10px]`}>{unreadCount} New</Badge>}
               </div>
-              <ScrollArea className="max-h-[320px]">
+              <div className="overflow-y-auto max-h-[400px]">
                 {mounted && parsedRole === 'admin' && pendingLeaveRequests.length > 0 && (
                   <div className="space-y-2">
                     {pendingLeaveRequests.map((request) => (
@@ -586,7 +586,7 @@ export function TopNavbar({
                     </div>
                   ))
                 )}
-              </ScrollArea>
+              </div>
             </DropdownMenuContent>
           </DropdownMenu>
 
