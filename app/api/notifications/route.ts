@@ -115,5 +115,4 @@ export async function POST(request: Request) {
     console.error('[POST /api/notifications Exception]:', error);
     return NextResponse.json({ error: 'Failed logging target downstream alerts' }, { status: 500 });
   }
-  
 }
