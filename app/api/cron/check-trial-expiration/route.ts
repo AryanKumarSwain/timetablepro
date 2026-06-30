@@ -35,6 +35,11 @@ export async function GET(request: NextRequest) {
           lte: day6End,
         },
         hasNotifiedTrialEnding: false,
+        // Exclude schools that have an active paid plan (planEndsAt is in the future)
+        OR: [
+          { planEndsAt: null },
+          { planEndsAt: { lt: now } },
+        ],
       },
       include: { trialPlan: true, originalPlan: true },
     } as any);
@@ -58,7 +63,7 @@ export async function GET(request: NextRequest) {
               type: 'ALERT',
               scope: 'SCHOOL_TEACHERS',
               schoolId: school.id,
-              senderId: admin.id, // System notification
+              senderId: admin.id,
             },
           });
         }

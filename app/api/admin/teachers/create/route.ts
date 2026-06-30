@@ -50,6 +50,20 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // 1.5 BLOCK ADMIN EMAILS: Prevent admin emails from being added as teachers
+    const existingAdmin = await prisma.user.findFirst({
+      where: { 
+        email,
+        role: 'ADMIN'
+      }
+    });
+    if (existingAdmin) {
+      return NextResponse.json(
+        { error: 'This email belongs to an admin and cannot be added as a teacher.' },
+        { status: 400 }
+      );
+    }
+
     const requestSubjects = normalizeStringArray(body.subjects);
     let subjectSpecialtyId =
       typeof body.subjectSpecialtyId === 'string' && body.subjectSpecialtyId

@@ -20,6 +20,7 @@ model SaaSPlan {
   schools          School[]
   trialSchools     School[] @relation("SchoolTrialPlan")
   originalSchools  School[] @relation("SchoolOriginalPlan")
+  queuedSchools    School[] @relation("SchoolQueuedPlan")
 }
 
 model School {
@@ -33,6 +34,11 @@ model School {
   licenseStatus           LicenseStatus           @default(ACTIVE)
   planId                  String?
   plan                    SaaSPlan?                @relation(fields: [planId], references: [id])
+  planStartsAt            DateTime?
+  planEndsAt              DateTime?
+  queuedPlanId            String?
+  queuedPlan              SaaSPlan?                @relation("SchoolQueuedPlan", fields: [queuedPlanId], references: [id])
+  queuedPlanStartsAt      DateTime?
   trialEndsAt             DateTime?
   trialPlanId             String?
   trialPlan               SaaSPlan?                @relation("SchoolTrialPlan", fields: [trialPlanId], references: [id])
@@ -492,6 +498,8 @@ model SubscriptionTransaction {
   utrNumber     String
   phoneNumber   String?
   email         String?
+  couponId      String?
+  coupon        Coupon?            @relation(fields: [couponId], references: [id])
   status        TransactionStatus  @default(PENDING)
   rejectionReason String?
   createdAt     DateTime           @default(now())
@@ -499,6 +507,7 @@ model SubscriptionTransaction {
 
   @@index([schoolId])
   @@index([status])
+  @@index([couponId])
 }
 
 enum CustomPlanRequestStatus {
@@ -519,4 +528,20 @@ model CustomPlanRequest {
 
   @@index([schoolId])
   @@index([status])
+}
+
+model Coupon {
+  id              String    @id @default(uuid())
+  code            String    @unique
+  discountPercent Int       // e.g., 20 for 20%
+  isActive        Boolean   @default(true)
+  expiresAt       DateTime?
+  maxUses         Int?
+  currentUses     Int       @default(0)
+  transactions    SubscriptionTransaction[]
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([code])
+  @@index([isActive])
 }

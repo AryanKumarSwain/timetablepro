@@ -19,7 +19,15 @@ export async function GET(request: NextRequest) {
             email: true,
             phone: true,
             planId: true,
-            licenseStatus: true
+            licenseStatus: true,
+            users: {
+              where: { role: 'ADMIN' },
+              select: {
+                email: true,
+                name: true,
+                phone: true
+              }
+            }
           }
         }
       },

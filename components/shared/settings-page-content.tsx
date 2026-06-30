@@ -484,7 +484,7 @@ export function SettingsPageContent({ initialUser, activeTab }: SettingsPageCont
         </motion.div>
       )}
 
-      {/* Faculty Departure Requests Panel (Admin Only) */}
+      {/* Leave Requests Panel (Admin Only) */}
       {!isTeacher && activeTab === 'leave-requests' && (
         <motion.div
           variants={cardVariants}
@@ -497,8 +497,8 @@ export function SettingsPageContent({ initialUser, activeTab }: SettingsPageCont
                 <div className="flex items-center gap-2">
                   <ShieldCheck className="h-4 w-4 text-indigo-500" />
                   <div>
-                    <CardTitle className="text-lg font-bold tracking-tight">Faculty Departure Requests</CardTitle>
-                    <CardDescription>Review and approve pending faculty departure requests.</CardDescription>
+                    <CardTitle className="text-lg font-bold tracking-tight">Leave Requests</CardTitle>
+                    <CardDescription>Review and approve pending leave requests.</CardDescription>
                   </div>
                 </div>
                 {showLeaveRequestsTab && (
@@ -610,16 +610,16 @@ export function SettingsPageContent({ initialUser, activeTab }: SettingsPageCont
         </motion.div>
       )}
 
-      {/* Teacher Faculty Departure Request */}
+      {/* Teacher Leave Request */}
       {isTeacher && (activeTab === 'profile' || !activeTab) && (
         <motion.div variants={cardVariants}>
           <Card className="border border-border/60 shadow-sm">
             <CardHeader>
               <div className="flex items-center gap-2">
                 <Building2 className="h-4 w-4 text-indigo-500" />
-                <CardTitle className="text-lg font-bold tracking-tight">Faculty Departure Request</CardTitle>
+                <CardTitle className="text-lg font-bold tracking-tight">Leave Request</CardTitle>
               </div>
-              <CardDescription>Submit a request to depart from your current school</CardDescription>
+              <CardDescription>Submit a leave request</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">

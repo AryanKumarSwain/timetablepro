@@ -67,6 +67,7 @@ export async function POST(request: NextRequest) {
         message: `${school.name} has requested a trial for the ${plan.name} plan.`,
         type: 'SYSTEM',
         scope: 'ALL_ADMINS',
+        schoolId: school.id,
         senderId: adminData.id,
       },
     });

@@ -23,6 +23,7 @@ export async function GET() {
       ];
     } else if (user.role === 'ADMIN') {
       // Admins only see notifications for their own school or global notifications (schoolId: null)
+      // For SYSTEM type notifications with schoolId, only show if it's their school
       whereClause.OR = [
         { schoolId: user.schoolId },
         { schoolId: null }

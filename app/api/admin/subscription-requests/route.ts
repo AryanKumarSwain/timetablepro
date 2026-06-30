@@ -8,7 +8,7 @@ export async function POST(request: NextRequest) {
     const user = await requireSchoolAdmin();
     
     const body = await request.json();
-    const { planId, amount, billingCycle, utrNumber, mobileNumber, state } = body;
+    const { planId, amount, billingCycle, utrNumber, mobileNumber, state, adminEmail, couponCode } = body;
     
     if (!planId || !amount || !billingCycle || !utrNumber) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
@@ -27,6 +27,32 @@ export async function POST(request: NextRequest) {
     if (!school) {
       return NextResponse.json({ error: 'School not found' }, { status: 404 });
     }
+
+    // Validate coupon if provided
+    let couponId: string | null = null;
+    if (couponCode && couponCode.trim()) {
+      const coupon = await prisma.coupon.findUnique({
+        where: { code: couponCode.trim().toUpperCase() }
+      });
+
+      if (!coupon) {
+        return NextResponse.json({ error: 'Invalid coupon code' }, { status: 400 });
+      }
+
+      if (!coupon.isActive) {
+        return NextResponse.json({ error: 'Coupon is not active' }, { status: 400 });
+      }
+
+      if (coupon.expiresAt && new Date(coupon.expiresAt) < new Date()) {
+        return NextResponse.json({ error: 'Coupon has expired' }, { status: 400 });
+      }
+
+      if (coupon.maxUses && coupon.currentUses >= coupon.maxUses) {
+        return NextResponse.json({ error: 'Coupon has reached maximum uses' }, { status: 400 });
+      }
+
+      couponId = coupon.id;
+    }
     
     // Create subscription transaction
     const transaction = await prisma.subscriptionTransaction.create({
@@ -37,16 +63,17 @@ export async function POST(request: NextRequest) {
         billingCycle,
         utrNumber: utrNumber.trim(),
         phoneNumber: mobileNumber || null,
-        email: school.email || null,
+        email: adminEmail || school.email || null,
+        couponId,
         status: 'PENDING'
       }
     });
 
-    // Create system notification for all admins
+    // Create system notification for super admins
     await prisma.notification.create({
       data: {
         title: 'New Subscription Request',
-        message: `${school.name} has submitted a payment proof for plan upgrade. UTR: ${utrNumber.trim()}. Amount: ₹${amount}`,
+        message: `${school.name} has submitted a payment proof for plan upgrade. Amount: ₹${amount}${couponCode ? ' (Coupon applied)' : ''}`,
         type: 'SYSTEM',
         scope: 'ALL_ADMINS',
         senderId: user.id,

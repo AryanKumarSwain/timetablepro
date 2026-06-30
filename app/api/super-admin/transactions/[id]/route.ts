@@ -46,36 +46,74 @@ export async function PATCH(
     const targetUserId = transaction.school.users[0]?.id || null;
 
     if (action === 'approve') {
+      // Get the school's current plan details
+      const school = await prisma.school.findUnique({
+        where: { id: transaction.schoolId },
+        include: { plan: true }
+      });
+
+      // Calculate plan dates based on billing cycle
+      const now = new Date();
+      const planStartsAt = now;
+      let planEndsAt: Date;
+
+      if (transaction.billingCycle === 'annual') {
+        planEndsAt = new Date(now);
+        planEndsAt.setFullYear(planEndsAt.getFullYear() + 1);
+      } else {
+        planEndsAt = new Date(now);
+        planEndsAt.setMonth(planEndsAt.getMonth() + 1);
+      }
+
+      // If school has an active plan with end date, queue it
+      const hasActivePlan = school?.planId && school?.planEndsAt && new Date(school.planEndsAt) > now;
+
       await prisma.$transaction([
         // 1. Update transaction status
         prisma.subscriptionTransaction.update({
           where: { id },
           data: { status: 'APPROVED' }
         }),
-        
+
         // 2. Update school plan and license status
         prisma.school.update({
           where: { id: transaction.schoolId },
           data: {
             planId: transaction.planId,
-            licenseStatus: 'ACTIVE'
+            planStartsAt,
+            planEndsAt,
+            licenseStatus: 'ACTIVE',
+            // Queue current plan if it exists and is still active
+            ...(hasActivePlan && {
+              queuedPlanId: school.planId,
+              queuedPlanStartsAt: planEndsAt
+            })
           }
         }),
-        
-        // 3. Create notification for school admin (with scope supplied)
+
+        // 3. Increment coupon usage if coupon was applied
+        ...(transaction.couponId ? [
+          prisma.coupon.update({
+            where: { id: transaction.couponId },
+            data: { currentUses: { increment: 1 } }
+          })
+        ] : []),
+
+        // 4. Create notification for school admin
         prisma.notification.create({
           data: {
             title: 'Plan Activated',
-            message: `Your subscription has been approved and activated. UTR: ${transaction.utrNumber}`,
+            message: hasActivePlan
+              ? `Your new plan has been activated. Your previous plan will resume automatically after this plan ends.`
+              : `Your subscription has been approved and activated.`,
             type: 'INFO',
-            scope: 'ALL_ADMINS',
-            senderId: superAdmin.id,
+            scope: 'SCHOOL_TEACHERS',
             schoolId: transaction.schoolId,
-            targetUserId
+            senderId: superAdmin.id,
           }
         })
       ]);
-      
+
       return NextResponse.json({ success: true, message: 'Transaction approved and plan activated' });
     } else {
       await prisma.$transaction([
@@ -94,10 +132,9 @@ export async function PATCH(
             title: 'Payment Verification Failed',
             message: `Your payment verification failed. Reason: ${rejectionReason || 'Payment verification failed'}. Please contact support.`,
             type: 'ALERT',
-            scope: 'ALL_ADMINS',
+            scope: 'SCHOOL_TEACHERS',
             senderId: superAdmin.id,
             schoolId: transaction.schoolId,
-            targetUserId
           }
         })
       ]);

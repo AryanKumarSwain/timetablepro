@@ -42,6 +42,7 @@ export async function GET(request: NextRequest) {
       where: { id: schoolId },
       include: {
         plan: true,
+        queuedPlan: true,
         _count: {
           select: { teachers: true }
         }
@@ -59,6 +60,22 @@ export async function GET(request: NextRequest) {
       email: (school as any).email,
       logo: (school as any).logo,
       planId: school.planId,
+      planStartsAt: school.planStartsAt,
+      planEndsAt: school.planEndsAt,
+      queuedPlanId: school.queuedPlanId,
+      queuedPlanStartsAt: school.queuedPlanStartsAt,
+      queuedPlan: school.queuedPlan ? {
+        id: school.queuedPlan.id,
+        name: school.queuedPlan.name,
+        teacherMin: school.queuedPlan.teacherMin,
+        teacherMax: school.queuedPlan.teacherMax,
+        priceMonthly: Number(school.queuedPlan.priceMonthly),
+        reportEnabled: school.queuedPlan.reportEnabled,
+        attendanceEnabled: school.queuedPlan.attendanceEnabled,
+        homeworkEnabled: school.queuedPlan.homeworkEnabled,
+        exportFormats: school.queuedPlan.exportFormats,
+        watermarkRequired: school.queuedPlan.watermarkRequired,
+      } : null,
       licenseStatus: school.licenseStatus,
       teacherCount: school._count.teachers,
       plan: school.plan ? {

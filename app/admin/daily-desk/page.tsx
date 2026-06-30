@@ -85,6 +85,7 @@ export default function DailyDeskPage() {
   const [historyGridData, setHistoryGridData] = useState<DailyDeskGrid | null>(null);
   const [loadingHistoryGrid, setLoadingHistoryGrid] = useState(false);
   const historyModalRef = useRef<HTMLDivElement>(null);
+  const [leaveReasons, setLeaveReasons] = useState<string[]>([]);
 
   const localeDate = new Date();
   const today = `${localeDate.getFullYear()}-${String(localeDate.getMonth() + 1).padStart(2, '0')}-${String(localeDate.getDate()).padStart(2, '0')}`;
@@ -99,6 +100,13 @@ export default function DailyDeskPage() {
       if (!schoolId) {
         console.warn('School context missing, skipping data load');
         return;
+      }
+
+      // Fetch leave reasons
+      const leaveReasonsRes = await fetch('/api/admin/substitution/leave-reasons');
+      if (leaveReasonsRes.ok) {
+        const leaveReasonsData = await leaveReasonsRes.json();
+        setLeaveReasons(leaveReasonsData.reasons || []);
       }
 
       const [desk, teachersData, replacementData] = await Promise.all([
@@ -1081,9 +1089,17 @@ export default function DailyDeskPage() {
                       onChange={(e) => setReplacementForm({ ...replacementForm, reason: e.target.value })}
                       className={`w-full text-xs p-2 rounded-xl bg-background border border-border/60 focus:outline-none focus:border-${theme.primary} transition-colors`}
                     >
-                      <option value='Leave'>Leave</option>
-                      <option value='Medical'>Medical</option>
-                      <option value='Other'>Other</option>
+                      {leaveReasons.length > 0 ? (
+                        leaveReasons.map((reason) => (
+                          <option key={reason} value={reason}>{reason}</option>
+                        ))
+                      ) : (
+                        <>
+                          <option value='Leave'>Leave</option>
+                          <option value='Medical'>Medical</option>
+                          <option value='Other'>Other</option>
+                        </>
+                      )}
                     </select>
                   </div>
                   <PlanButton

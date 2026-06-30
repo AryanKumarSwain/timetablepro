@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { DollarSign, Users, TrendingUp, RefreshCw, Building2, AlertCircle, Settings, Check, X, Info, Mail, Phone, Calendar } from 'lucide-react';
+import { DollarSign, Users, TrendingUp, RefreshCw, Building2, AlertCircle, Settings, Check, X, Info, Mail, Phone, Calendar, Tag, Plus, Trash2, Edit2 } from 'lucide-react';
 
 import { useRequireAuth } from '@/lib/auth-context';
 import { PageHeader } from '@/components/enterprise/page-header';
@@ -52,23 +52,29 @@ export default function AnalyticsPage() {
   const [pendingTransactions, setPendingTransactions] = useState<any[]>([]);
   const [processingTx, setProcessingTx] = useState<string | null>(null);
   const [detailsDialog, setDetailsDialog] = useState<{ open: boolean; transaction: any }>({ open: false, transaction: null });
+  const [coupons, setCoupons] = useState<any[]>([]);
+  const [couponDialog, setCouponDialog] = useState<{ open: boolean; coupon: any }>({ open: false, coupon: null });
+  const [couponForm, setCouponForm] = useState({ code: '', discountPercent: 20, expiresAt: '', maxUses: '', isActive: true });
+  const [savingCoupon, setSavingCoupon] = useState(false);
 
   const fetchData = async () => {
     setLoading(true);
     setError(null);
     try {
-      const [teachers, revenue, analytics, settings, transactions] = await Promise.all([
+      const [teachers, revenue, analytics, settings, transactions, couponsData] = await Promise.all([
         getPlatformTeacherDistribution(),
         getPlatformRevenueDetail(),
         fetch('/api/super-admin/analytics').then((res) => res.json()),
         fetch('/api/super-admin/platform-settings').then((res) => res.json()),
         fetch('/api/super-admin/transactions?status=PENDING').then((res) => res.json()),
+        fetch('/api/super-admin/coupons').then((res) => res.json()).catch(() => []),
       ]);
       setTeacherDistribution(teachers ?? []);
       setRevenueDetail(revenue);
       setAnalyticsData(analytics);
       setUpiId(settings.upiId || '');
       setPendingTransactions(transactions || []);
+      setCoupons(Array.isArray(couponsData) ? couponsData : []);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load analytics data');
     } finally {
@@ -135,6 +141,89 @@ export default function AnalyticsPage() {
       toast.error(err.message || 'Failed to reject transaction');
     } finally {
       setProcessingTx(null);
+    }
+  };
+
+  const handleCreateCoupon = async () => {
+    if (!couponForm.code.trim() || !couponForm.discountPercent) {
+      return toast.error('Code and discount percent are required');
+    }
+
+    setSavingCoupon(true);
+    try {
+      const res = await fetch('/api/super-admin/coupons', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          code: couponForm.code,
+          discountPercent: couponForm.discountPercent,
+          expiresAt: couponForm.expiresAt || null,
+          maxUses: couponForm.maxUses || null,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to create coupon');
+      toast.success('Coupon created successfully');
+      setCouponDialog({ open: false, coupon: null });
+      setCouponForm({ code: '', discountPercent: 20, expiresAt: '', maxUses: '', isActive: true });
+      fetchData();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to create coupon');
+    } finally {
+      setSavingCoupon(false);
+    }
+  };
+
+  const handleUpdateCoupon = async () => {
+    if (!couponDialog.coupon) return;
+
+    setSavingCoupon(true);
+    try {
+      const res = await fetch(`/api/super-admin/coupons/${couponDialog.coupon.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(couponForm),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to update coupon');
+      toast.success('Coupon updated successfully');
+      setCouponDialog({ open: false, coupon: null });
+      setCouponForm({ code: '', discountPercent: 20, expiresAt: '', maxUses: '', isActive: true });
+      fetchData();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to update coupon');
+    } finally {
+      setSavingCoupon(false);
+    }
+  };
+
+  const handleDeleteCoupon = async (couponId: string) => {
+    try {
+      const res = await fetch(`/api/super-admin/coupons/${couponId}`, {
+        method: 'DELETE',
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to delete coupon');
+      toast.success('Coupon deleted successfully');
+      fetchData();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to delete coupon');
+    }
+  };
+
+  const openCouponDialog = (coupon?: any) => {
+    if (coupon) {
+      setCouponForm({
+        code: coupon.code,
+        discountPercent: coupon.discountPercent,
+        expiresAt: coupon.expiresAt ? coupon.expiresAt.split('T')[0] : '',
+        maxUses: coupon.maxUses?.toString() || '',
+        isActive: coupon.isActive,
+      });
+      setCouponDialog({ open: true, coupon });
+    } else {
+      setCouponForm({ code: '', discountPercent: 20, expiresAt: '', maxUses: '', isActive: true });
+      setCouponDialog({ open: true, coupon: null });
     }
   };
 
@@ -233,6 +322,76 @@ export default function AnalyticsPage() {
         </div>
       </GlassCard>
 
+      {/* Coupon Management Widget */}
+      <GlassCard className='p-6'>
+        <div className='flex items-center justify-between mb-4'>
+          <div className='flex items-center gap-3'>
+            <div className='w-10 h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center'>
+              <Tag className='w-5 h-5 text-emerald-500' />
+            </div>
+            <div>
+              <h3 className='font-semibold'>Coupon Codes</h3>
+              <p className='text-xs text-muted-foreground'>{coupons.length} active coupons</p>
+            </div>
+          </div>
+          <div className='flex gap-2'>
+            <Button variant='outline' size='sm' onClick={fetchData} disabled={loading}>
+              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            </Button>
+            <Button size='sm' onClick={() => openCouponDialog()}>
+              <Plus className='w-4 h-4 mr-1' /> Create
+            </Button>
+          </div>
+        </div>
+
+        {coupons.length === 0 ? (
+          <div className='text-center py-8 text-sm text-muted-foreground'>
+            No coupons created yet
+          </div>
+        ) : (
+          <div className='space-y-2 max-h-60 overflow-y-auto'>
+            {coupons.map((coupon) => (
+              <div key={coupon.id} className='p-3 rounded-lg bg-muted/20 border border-border/40 hover:bg-muted/30 transition-colors'>
+                <div className='flex items-center justify-between'>
+                  <div className='flex items-center gap-3'>
+                    <div className='px-2 py-1 bg-emerald-500/10 text-emerald-600 rounded text-xs font-mono font-bold'>
+                      {coupon.code}
+                    </div>
+                    <div>
+                      <p className='text-sm font-semibold'>{coupon.discountPercent}% OFF</p>
+                      <p className='text-xs text-muted-foreground'>
+                        Used {coupon.currentUses}/{coupon.maxUses || '∞'}
+                      </p>
+                    </div>
+                  </div>
+                  <div className='flex items-center gap-2'>
+                    <Badge variant={coupon.isActive ? 'default' : 'secondary'} className='text-xs'>
+                      {coupon.isActive ? 'Active' : 'Inactive'}
+                    </Badge>
+                    <Button
+                      variant='ghost'
+                      size='sm'
+                      onClick={() => openCouponDialog(coupon)}
+                      className='h-7 w-7 p-0'
+                    >
+                      <Edit2 className='h-3 w-3' />
+                    </Button>
+                    <Button
+                      variant='ghost'
+                      size='sm'
+                      onClick={() => handleDeleteCoupon(coupon.id)}
+                      className='h-7 w-7 p-0 text-rose-600 hover:text-rose-700'
+                    >
+                      <Trash2 className='h-3 w-3' />
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </GlassCard>
+
       {/* Pending Subscriptions Widget */}
       <GlassCard className='p-6'>
         <div className='flex items-center justify-between mb-4'>
@@ -324,15 +483,19 @@ export default function AnalyticsPage() {
                 <div className='flex items-start gap-3'>
                   <Mail className='w-5 h-5 text-muted-foreground mt-0.5' />
                   <div>
-                    <p className='text-sm font-medium'>{detailsDialog.transaction.school?.email || 'N/A'}</p>
-                    <p className='text-xs text-muted-foreground'>Email</p>
+                    <p className='text-sm font-medium'>
+                      {detailsDialog.transaction.school?.users?.[0]?.email || detailsDialog.transaction.school?.email || 'N/A'}
+                    </p>
+                    <p className='text-xs text-muted-foreground'>Admin Email</p>
                   </div>
                 </div>
                 <div className='flex items-start gap-3'>
                   <Phone className='w-5 h-5 text-muted-foreground mt-0.5' />
                   <div>
-                    <p className='text-sm font-medium'>{detailsDialog.transaction.school?.phone || 'N/A'}</p>
-                    <p className='text-xs text-muted-foreground'>Phone Number</p>
+                    <p className='text-sm font-medium'>
+                      {detailsDialog.transaction.school?.users?.[0]?.phone || detailsDialog.transaction.school?.phone || 'N/A'}
+                    </p>
+                    <p className='text-xs text-muted-foreground'>Admin Phone</p>
                   </div>
                 </div>
                 <div className='flex items-start gap-3'>
@@ -373,6 +536,93 @@ export default function AnalyticsPage() {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Coupon Dialog */}
+      <Dialog open={couponDialog.open} onOpenChange={(open) => setCouponDialog({ ...couponDialog, open })}>
+        <DialogContent className='max-w-md'>
+          <DialogHeader>
+            <DialogTitle>{couponDialog.coupon ? 'Edit Coupon' : 'Create Coupon'}</DialogTitle>
+            <DialogDescription>
+              {couponDialog.coupon ? 'Update coupon details' : 'Create a new discount coupon'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className='space-y-4 py-4'>
+            <div className='space-y-2'>
+              <Label htmlFor='couponCode'>Coupon Code</Label>
+              <Input
+                id='couponCode'
+                placeholder='e.g. TTP20'
+                value={couponForm.code}
+                onChange={(e) => setCouponForm({ ...couponForm, code: e.target.value.toUpperCase() })}
+                className='font-mono'
+              />
+            </div>
+            <div className='space-y-2'>
+              <Label htmlFor='discountPercent'>Discount Percent</Label>
+              <Input
+                id='discountPercent'
+                type='number'
+                min='0'
+                max='100'
+                placeholder='20'
+                value={couponForm.discountPercent}
+                onChange={(e) => setCouponForm({ ...couponForm, discountPercent: parseInt(e.target.value) || 0 })}
+              />
+              <p className='text-[10px] text-muted-foreground'>Percentage discount (0-100)</p>
+            </div>
+            <div className='space-y-2'>
+              <Label htmlFor='expiresAt'>Expiration Date (Optional)</Label>
+              <Input
+                id='expiresAt'
+                type='date'
+                value={couponForm.expiresAt}
+                onChange={(e) => setCouponForm({ ...couponForm, expiresAt: e.target.value })}
+              />
+              <p className='text-[10px] text-muted-foreground'>Leave empty for no expiration</p>
+            </div>
+            <div className='space-y-2'>
+              <Label htmlFor='maxUses'>Max Uses (Optional)</Label>
+              <Input
+                id='maxUses'
+                type='number'
+                min='1'
+                placeholder='100'
+                value={couponForm.maxUses}
+                onChange={(e) => setCouponForm({ ...couponForm, maxUses: e.target.value })}
+              />
+              <p className='text-[10px] text-muted-foreground'>Leave empty for unlimited uses</p>
+            </div>
+            {couponDialog.coupon && (
+              <div className='flex items-center gap-2'>
+                <input
+                  type='checkbox'
+                  id='isActive'
+                  checked={couponForm.isActive !== undefined ? couponForm.isActive : couponDialog.coupon.isActive}
+                  onChange={(e) => setCouponForm({ ...couponForm, isActive: e.target.checked })}
+                  className='h-4 w-4'
+                />
+                <Label htmlFor='isActive' className='text-sm'>Active</Label>
+              </div>
+            )}
+          </div>
+          <div className='flex gap-2'>
+            <Button
+              variant='outline'
+              onClick={() => setCouponDialog({ open: false, coupon: null })}
+              className='flex-1'
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={couponDialog.coupon ? handleUpdateCoupon : handleCreateCoupon}
+              disabled={savingCoupon}
+              className='flex-1'
+            >
+              {savingCoupon ? 'Saving...' : couponDialog.coupon ? 'Update' : 'Create'}
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
 

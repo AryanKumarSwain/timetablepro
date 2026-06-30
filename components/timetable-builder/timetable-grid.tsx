@@ -5,11 +5,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Trash2, Plus, Coffee } from 'lucide-react';
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from '@/components/ui/sheet';
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import {
   Select,
   SelectContent,
@@ -290,13 +290,13 @@ export function SlotEditorSheet({
 }: SlotEditorSheetProps) {
   const dayLabel = DAYS[dayOfWeek] ?? '';
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="rounded-l-3xl border-l">
-        <SheetHeader className="pb-4 border-b">
-          <SheetTitle className="text-xl font-bold text-foreground">{slot ? 'Modify Slot' : 'Assign Grid Slot'}</SheetTitle>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="rounded-2xl max-w-md p-6">
+        <DialogHeader className="pb-4 border-b">
+          <DialogTitle className="text-xl font-bold text-foreground">{slot ? 'Modify Slot' : 'Assign Grid Slot'}</DialogTitle>
           <p className="text-xs text-muted-foreground font-medium">{dayLabel} Layout Framework — <span className="text-indigo-600 font-semibold">{periodLabel}</span></p>
-        </SheetHeader>
-        <div className='space-y-5 mt-6'>
+        </DialogHeader>
+        <div className='space-y-5 mt-2'>
           <div className="space-y-2">
             <label className='text-xs font-bold text-muted-foreground uppercase tracking-wider block'>Subject</label>
             <Select value={draft?.subjectId ?? ''} onValueChange={(v) => onDraftChange({ subjectId: v ?? '' })}>
@@ -306,7 +306,7 @@ export function SlotEditorSheet({
               </SelectContent>
             </Select>
           </div>
-          
+
           <div className="space-y-2">
             <label className='text-xs font-bold text-muted-foreground uppercase tracking-wider block'>Faculty / Teacher</label>
             <Select value={draft?.teacherId ?? ''} onValueChange={(v) => onDraftChange({ teacherId: v ?? '' })}>
@@ -324,8 +324,8 @@ export function SlotEditorSheet({
             {slot && (<Button variant='destructive' className='w-full h-11 rounded-xl font-semibold' onClick={onRemove}>Drop Grid Mapping</Button>)}
           </div>
         </div>
-      </SheetContent>
-    </Sheet>
+      </DialogContent>
+    </Dialog>
   );
 }
 

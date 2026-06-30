@@ -65,6 +65,8 @@ export async function GET(request: NextRequest) {
         data: {
           trialStatus: 'EXPIRED',
           planId: school.originalPlanId,
+          planStartsAt: null,
+          planEndsAt: null,
           licenseStatus: 'TRAIL_EXPIRED',
           trialPlanId: null,
           originalPlanId: null,
