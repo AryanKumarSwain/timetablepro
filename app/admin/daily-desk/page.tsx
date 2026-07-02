@@ -86,9 +86,18 @@ export default function DailyDeskPage() {
   const [loadingHistoryGrid, setLoadingHistoryGrid] = useState(false);
   const historyModalRef = useRef<HTMLDivElement>(null);
   const [leaveReasons, setLeaveReasons] = useState<string[]>([]);
+  const [absentRequests, setAbsentRequests] = useState<any[]>([]);
 
   const localeDate = new Date();
   const today = `${localeDate.getFullYear()}-${String(localeDate.getMonth() + 1).padStart(2, '0')}-${String(localeDate.getDate()).padStart(2, '0')}`;
+  const [selectedDate, setSelectedDate] = useState<string>(today);
+  const [showMarkAbsentForm, setShowMarkAbsentForm] = useState(false);
+  const [markAbsentForm, setMarkAbsentForm] = useState({
+    teacherId: '',
+    date: today,
+    reason: '',
+    action: 'absent', // 'absent' or 'present'
+  });
 
   // 4. Data Loading Protocols
   const loadData = useCallback(async () => {
@@ -109,10 +118,17 @@ export default function DailyDeskPage() {
         setLeaveReasons(leaveReasonsData.reasons || []);
       }
 
+      // Fetch pending absent requests
+      const absentRequestsRes = await fetch('/api/admin/absent-requests?status=PENDING');
+      if (absentRequestsRes.ok) {
+        const absentRequestsData = await absentRequestsRes.json();
+        setAbsentRequests(absentRequestsData || []);
+      }
+
       const [desk, teachersData, replacementData] = await Promise.all([
-        getDailyDeskGrid(today, schoolId),
+        getDailyDeskGrid(selectedDate, schoolId),
         getTeachers(schoolId),
-        getReplacements({ date: today }, schoolId),
+        getReplacements({ date: selectedDate }, schoolId),
       ]);
       setGridData(desk);
       setTeachers(teachersData);
@@ -120,7 +136,108 @@ export default function DailyDeskPage() {
     } catch (error) {
       console.error('Failed to load daily desk operational matrix data:', error);
     }
-  }, [today, auth.session?.user]);
+  }, [selectedDate, auth.session?.user]);
+
+  const handleApproveAbsentRequest = async (requestId: string) => {
+    try {
+      const response = await fetch(`/api/admin/absent-requests/${requestId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'approve' }),
+      });
+
+      if (response.ok) {
+        // Refresh absent requests
+        const absentRequestsRes = await fetch('/api/admin/absent-requests?status=PENDING');
+        if (absentRequestsRes.ok) {
+          const absentRequestsData = await absentRequestsRes.json();
+          setAbsentRequests(absentRequestsData || []);
+        }
+        // Reload grid data to show updated attendance
+        await loadData();
+        window.alert('✓ Absent request approved successfully!');
+      } else {
+        const error = await response.json();
+        const errorMessage = error.error || 'Unknown error';
+        if (errorMessage.includes('Database migration required')) {
+          window.alert('⚠️ Database setup required. Please run: npx prisma generate');
+        } else {
+          window.alert(`✗ Failed to approve: ${errorMessage}`);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to approve absent request:', error);
+      window.alert('✗ Failed to approve request. Please try again.');
+    }
+  };
+
+  const handleRejectAbsentRequest = async (requestId: string) => {
+    try {
+      const response = await fetch(`/api/admin/absent-requests/${requestId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'reject' }),
+      });
+
+      if (response.ok) {
+        // Refresh absent requests
+        const absentRequestsRes = await fetch('/api/admin/absent-requests?status=PENDING');
+        if (absentRequestsRes.ok) {
+          const absentRequestsData = await absentRequestsRes.json();
+          setAbsentRequests(absentRequestsData || []);
+        }
+        window.alert('✓ Absent request rejected successfully!');
+      } else {
+        const error = await response.json();
+        const errorMessage = error.error || 'Unknown error';
+        if (errorMessage.includes('Database migration required')) {
+          window.alert('⚠️ Database setup required. Please run: npx prisma generate');
+        } else {
+          window.alert(`✗ Failed to reject: ${errorMessage}`);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to reject absent request:', error);
+      window.alert('✗ Failed to reject request. Please try again.');
+    }
+  };
+
+  const handleMarkTeacherAbsent = async () => {
+    if (!markAbsentForm.teacherId || !markAbsentForm.date) {
+      window.alert('Please select a teacher and date');
+      return;
+    }
+
+    try {
+      const schoolId = (auth.session?.user as any)?.schoolId;
+      const isAbsent = markAbsentForm.action === 'absent';
+      
+      const response = await fetch('/api/attendance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          teacherId: markAbsentForm.teacherId,
+          date: markAbsentForm.date,
+          isAbsent,
+          reason: markAbsentForm.reason || (isAbsent ? 'Marked absent by admin' : 'Marked present by admin'),
+          schoolId,
+        }),
+      });
+
+      if (response.ok) {
+        window.alert(`✓ Teacher marked ${isAbsent ? 'absent' : 'present'} successfully!`);
+        setShowMarkAbsentForm(false);
+        setMarkAbsentForm({ teacherId: '', date: selectedDate, reason: '', action: 'absent' });
+        await loadData();
+      } else {
+        const error = await response.json();
+        window.alert(`✗ Failed to mark ${isAbsent ? 'absent' : 'present'}: ${error.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('Failed to mark teacher attendance:', error);
+      window.alert('✗ Failed to mark attendance. Please try again.');
+    }
+  };
 
   const loadHistory = useCallback(async () => {
     if (isPublicView) return;
@@ -657,9 +774,18 @@ export default function DailyDeskPage() {
                 <h2 className='text-base font-bold uppercase tracking-wide text-foreground print:text-xl print:text-black'>
                   Daily Operations Layout Matrix
                 </h2>
-                <p className='text-xs text-muted-foreground mt-0.5 print:text-sm print:text-gray-600'>
-                  Live scheduling run verified for calendar timeline: <strong>{today}</strong>.
-                </p>
+                <div className="flex items-center gap-3 mt-0.5">
+                  <p className='text-xs text-muted-foreground print:text-sm print:text-gray-600'>
+                    Live scheduling run verified for calendar timeline:
+                  </p>
+                  <input
+                    type="date"
+                    value={selectedDate}
+                    onChange={(e) => setSelectedDate(e.target.value)}
+                    className="text-xs font-bold text-foreground bg-background border border-border/60 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-primary/20 print:hidden"
+                  />
+                  <strong className='text-xs text-foreground print:text-sm print:text-black'>{selectedDate}</strong>
+                </div>
               </div>
 
               {/* CONTROLS BAR */}
@@ -877,10 +1003,10 @@ export default function DailyDeskPage() {
                                           <>
                                             <div className="flex items-center gap-1.5 px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 mb-1 print:bg-transparent print:border-none print:p-0 print:text-red-700 print:mb-0">
                                               <AlertTriangle className='h-3 w-3 shrink-0 text-rose-500 print:hidden' />
-                                              <span className="text-[9px] font-bold uppercase tracking-wide print:text-[8px]">ABSENT</span>
+                                              <span className="text-[9px] font-bold uppercase tracking-wide print:text-[8px]">ABSENT (ALL DAY)</span>
                                             </div>
                                             {!isPublicView && (
-                                              <div className="grid grid-cols-2 gap-1 print:hidden">
+                                              <div className="grid grid-cols-2 gap-1">
                                                 <Button
                                                   size='sm'
                                                   variant='outline'
@@ -895,7 +1021,7 @@ export default function DailyDeskPage() {
                                                   className='h-6 text-[10px] font-bold rounded bg-indigo-500/10 text-indigo-600 border border-indigo-500/20 hover:bg-indigo-500/20 transition-colors px-1'
                                                   onClick={() => openCoverForm(cell.classId, period.id, cell.teacherId)}
                                                 >
-                                                  Cover
+                                                  Assign Cover
                                                 </Button>
                                               </div>
                                             )}
@@ -903,16 +1029,9 @@ export default function DailyDeskPage() {
                                         )}
                                       </>
                                     ) : (
-                                      !isPublicView && (
-                                        <Button
-                                          size='sm'
-                                          variant='outline'
-                                          className='h-6 text-[10px] font-bold rounded border-rose-500/20 text-rose-600 hover:bg-rose-500/10 transition-colors w-full print:hidden'
-                                          onClick={() => void handleMarkAttendance(cell.classId, period.id, cell.teacherId, true)}
-                                        >
-                                          Mark Absent
-                                        </Button>
-                                      )
+                                      <div className="text-[10px] text-muted-foreground italic mt-auto">
+                                        Present
+                                      </div>
                                     )}
                                   </div>
                                 </Card>
@@ -1117,6 +1236,146 @@ export default function DailyDeskPage() {
                 {/* Custom pipeline metrics lists can render here */}
               </div>
             </GlassCard>
+
+            {/* MARK TEACHER ABSENT MODULE */}
+            <GlassCard className='p-5 space-y-3'>
+              <div className='flex items-center justify-between pb-2 border-b border-border/40'>
+                <div>
+                  <h2 className='text-sm font-bold uppercase tracking-wider text-foreground'>Mark Attendance</h2>
+                  <p className='text-[11px] text-muted-foreground mt-0.5'>Mark teacher absent/present for a day</p>
+                </div>
+                <Button
+                  size='sm'
+                  variant={showMarkAbsentForm ? 'ghost' : 'default'}
+                  className='rounded-xl text-xs font-bold h-8 transition-all'
+                  onClick={() => setShowMarkAbsentForm(!showMarkAbsentForm)}
+                >
+                  {showMarkAbsentForm ? 'Cancel' : <><CalendarX className='h-3.5 w-3.5 mr-1' /> Mark</>}
+                </Button>
+              </div>
+
+              {showMarkAbsentForm && (
+                <div className='space-y-3 p-4 bg-rose-500/[0.03] rounded-xl border border-rose-500/20 shadow-inner animate-in fade-in slide-in-from-top-3 duration-200'>
+                  <div>
+                    <label className='block text-[11px] font-bold uppercase text-muted-foreground mb-1'>Date</label>
+                    <input
+                      type="date"
+                      value={markAbsentForm.date}
+                      onChange={(e) => setMarkAbsentForm({ ...markAbsentForm, date: e.target.value })}
+                      className="w-full text-xs p-2 rounded-xl bg-background border border-border/60 focus:outline-none focus:border-rose-500 transition-colors"
+                    />
+                  </div>
+                  <div>
+                    <label className='block text-[11px] font-bold uppercase text-muted-foreground mb-1'>Teacher</label>
+                    <select
+                      value={markAbsentForm.teacherId}
+                      onChange={(e) => setMarkAbsentForm({ ...markAbsentForm, teacherId: e.target.value })}
+                      className='w-full text-xs p-2 rounded-xl bg-background border border-border/60 focus:outline-none focus:border-rose-500 transition-colors'
+                    >
+                      <option value=''>Select Teacher</option>
+                      {teachers.filter((t) => isTeacherActive(t.active)).map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className='block text-[11px] font-bold uppercase text-muted-foreground mb-1'>Action</label>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setMarkAbsentForm({ ...markAbsentForm, action: 'absent' })}
+                        className={`flex-1 text-xs font-bold py-2 px-3 rounded-xl border transition-colors ${
+                          markAbsentForm.action === 'absent'
+                            ? 'bg-rose-500/10 border-rose-500/30 text-rose-600'
+                            : 'bg-background border-border/60 text-muted-foreground hover:border-rose-500/30'
+                        }`}
+                      >
+                        Mark Absent
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setMarkAbsentForm({ ...markAbsentForm, action: 'present' })}
+                        className={`flex-1 text-xs font-bold py-2 px-3 rounded-xl border transition-colors ${
+                          markAbsentForm.action === 'present'
+                            ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600'
+                            : 'bg-background border-border/60 text-muted-foreground hover:border-emerald-500/30'
+                        }`}
+                      >
+                        Mark Present
+                      </button>
+                    </div>
+                  </div>
+                  <div>
+                    <label className='block text-[11px] font-bold uppercase text-muted-foreground mb-1'>Reason (optional)</label>
+                    <input
+                      type="text"
+                      value={markAbsentForm.reason}
+                      onChange={(e) => setMarkAbsentForm({ ...markAbsentForm, reason: e.target.value })}
+                      placeholder={markAbsentForm.action === 'absent' ? "e.g., Sick leave, Personal emergency" : "e.g., Returned to work"}
+                      className="w-full text-xs p-2 rounded-xl bg-background border border-border/60 focus:outline-none focus:border-rose-500 transition-colors"
+                    />
+                  </div>
+                  <Button
+                    className='w-full rounded-xl text-xs font-bold mt-2'
+                    variant={markAbsentForm.action === 'absent' ? 'destructive' : 'default'}
+                    onClick={() => void handleMarkTeacherAbsent()}
+                  >
+                    {markAbsentForm.action === 'absent' ? 'Mark as Absent' : 'Mark as Present'}
+                  </Button>
+                </div>
+              )}
+            </GlassCard>
+
+            {/* PENDING ABSENT REQUESTS MODULE */}
+            {absentRequests.length > 0 && (
+              <GlassCard className='p-5 space-y-3'>
+                <div className='flex items-center justify-between pb-2 border-b border-border/40'>
+                  <div>
+                    <h2 className='text-sm font-bold uppercase tracking-wider text-foreground'>Absent Requests</h2>
+                    <p className='text-[11px] text-muted-foreground mt-0.5'>{absentRequests.length} pending approval</p>
+                  </div>
+                </div>
+
+                <div className='space-y-2 max-h-[300px] overflow-y-auto'>
+                  {absentRequests.map((request) => (
+                    <div key={request.id} className='p-3 bg-amber-500/5 border border-amber-500/20 rounded-lg space-y-2'>
+                      <div className='flex items-start justify-between'>
+                        <div>
+                          <p className='text-xs font-bold text-foreground'>{request.teacher.name}</p>
+                          <p className='text-[10px] text-muted-foreground'>{request.date}</p>
+                        </div>
+                        <span className='text-[9px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600'>
+                          Pending
+                        </span>
+                      </div>
+                      {request.reason && (
+                        <p className='text-[10px] text-muted-foreground italic'>"{request.reason}"</p>
+                      )}
+                      <div className='flex gap-1.5 pt-1'>
+                        <Button
+                          size='sm'
+                          variant='outline'
+                          className='h-7 text-[10px] font-bold rounded border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/10 flex-1'
+                          onClick={() => handleApproveAbsentRequest(request.id)}
+                        >
+                          Approve
+                        </Button>
+                        <Button
+                          size='sm'
+                          variant='outline'
+                          className='h-7 text-[10px] font-bold rounded border-rose-500/30 text-rose-600 hover:bg-rose-500/10 flex-1'
+                          onClick={() => handleRejectAbsentRequest(request.id)}
+                        >
+                          Reject
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </GlassCard>
+            )}
 
             {/* LIVE AVAILABLE TEACHERS MODULE */}
             <GlassCard className='p-5 space-y-3'>

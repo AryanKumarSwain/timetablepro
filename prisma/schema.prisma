@@ -65,6 +65,7 @@ model School {
   timetableSlots          TimetableSlot[]
   homework                Homework[]
   leaveRequests           SchoolLeaveRequest[]
+  absentRequests          TeacherAbsentRequest[]
   subscriptionTransactions SubscriptionTransaction[]
   customPlanRequests      CustomPlanRequest[]
 }
@@ -174,6 +175,25 @@ model VerificationToken {
   @@index([userId])
 }
 
+model TeacherAbsentRequest {
+  id        String   @id @default(uuid())
+  teacherId String
+  teacher   Teacher  @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  date      String
+  periodId  String
+  classId   String
+  reason    String?
+  status    String   @default("PENDING") // PENDING, APPROVED, REJECTED
+  schoolId  String
+  school    School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([teacherId])
+  @@index([schoolId])
+  @@index([date, status])
+}
+
 model Teacher {
   id                   String                  @id @default(uuid())
   schoolId             String?
@@ -181,7 +201,7 @@ model Teacher {
   userId               String?                 @unique
   user                 User?                   @relation(fields: [userId], references: [id], onDelete: SetNull)
   name                 String
-  email                String
+  email                String                  @unique
   phone                String
   qualifications       Json                    @default("[]")
   subjects             Json                    @default("[]")
@@ -198,6 +218,7 @@ model Teacher {
   fulfilledCoverDuties ReplacementAssignment[] @relation("ReplacementTeacher")
   homework             Homework[]
   leaveRequests        SchoolLeaveRequest[]
+  absentRequests       TeacherAbsentRequest[]
 
   @@index([schoolId])
 }

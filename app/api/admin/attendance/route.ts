@@ -78,10 +78,10 @@ export async function POST(request: NextRequest) {
     const formattedDate = date.split('T')[0];
     const todayStr = new Date().toISOString().split('T')[0];
 
-    // Restrict edits to current real-time metrics only
-    if (formattedDate !== todayStr) {
-      return NextResponse.json({ 
-        error: 'Operation rejected. Modification privileges are restricted to current date matrices only.' 
+    // Restrict edits to current date and future dates only (no past dates)
+    if (formattedDate < todayStr) {
+      return NextResponse.json({
+        error: 'Operation rejected. Cannot modify attendance for past dates.'
       }, { status: 403 });
     }
 

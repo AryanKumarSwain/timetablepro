@@ -41,19 +41,17 @@ export default function DailyDeskPublicView({ data }: DailyDeskPublicViewProps) 
     if (typeof window !== 'undefined') window.print();
   };
 
-  const getSubjectClass = (subjectName: string): string => {
-    if (!subjectName) return '';
+  const getSlotColor = (subjectName: string): string => {
+    // Generate light pastel colors based on subject name
+    if (!subjectName) return 'bg-slate-50';
     const name = subjectName.toLowerCase();
-    if (name.includes('biology') || name.includes('bio')) return 'sub-biology';
-    if (name.includes('chemistry') || name.includes('chem')) return 'sub-chemistry';
-    if (name.includes('geography') || name.includes('geo')) return 'sub-geography';
-    if (name.includes('economics') || name.includes('eco')) return 'sub-economics';
-    if (name.includes('physical education') || name.includes('p.e') || name.includes('pe')) return 'sub-physical-education';
-    if (name.includes('math') || name.includes('mathematics')) return 'sub-mathematics';
-    if (name.includes('history')) return 'sub-history';
-    if (name.includes('computer') || name.includes('cs') || name.includes('it')) return 'sub-computer-science';
-    if (name.includes('physics') || name.includes('phy')) return 'sub-physics';
-    return '';
+    if (name.includes('math')) return 'bg-blue-50';
+    if (name.includes('english')) return 'bg-green-50';
+    if (name.includes('science') || name.includes('physics') || name.includes('chemistry') || name.includes('biology')) return 'bg-purple-50';
+    if (name.includes('hindi')) return 'bg-orange-50';
+    if (name.includes('social') || name.includes('history') || name.includes('geography')) return 'bg-yellow-50';
+    if (name.includes('computer')) return 'bg-cyan-50';
+    return 'bg-slate-50';
   };
 
   const totalRealSlotsScheduled = data.grid?.reduce((total, row) => {
@@ -184,7 +182,7 @@ export default function DailyDeskPublicView({ data }: DailyDeskPublicViewProps) 
                       const hasServerReplacement = !!cell.replacement;
                       const isCovered = hasServerReplacement && (cell.replacement?.status === 'CONFIRMED' || cell.replacement?.status === 'confirmed');
                       const isCoverMissing = cell.isReplacementAbsent === true;
-                      const subjectColorClass = getSubjectClass(cell.subjectName);
+                      const slotColorClass = getSlotColor(cell.subjectName);
 
                       return (
                         <td
@@ -203,7 +201,7 @@ export default function DailyDeskPublicView({ data }: DailyDeskPublicViewProps) 
                                 ? (isCovered && !isCoverMissing)
                                   ? 'border-emerald-500/40 bg-emerald-50 dark:bg-emerald-950/20'
                                   : 'border-rose-500/40 bg-rose-500/5 ring-1 ring-rose-500/10'
-                                : cn('border-border/60 bg-background hover:border-indigo-500/40', subjectColorClass)
+                                : cn('border-border/60 hover:border-indigo-500/40', slotColorClass)
                             )}
                           >
                             <div>

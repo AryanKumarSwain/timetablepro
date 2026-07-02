@@ -9,7 +9,7 @@ async function getDailyDeskData(date: string, schoolId?: string) {
     where: schoolId ? { status: 'PUBLISHED', schoolId } : { status: 'PUBLISHED' },
     include: {
       periods: {
-        orderBy: { periodNumber: 'asc' },
+        orderBy: { startTime: 'asc' },
       },
       slots: {
         include: {

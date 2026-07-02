@@ -184,7 +184,14 @@ export function TimetableGrid({
             </div>
           )}
 
-          {periods.map((period) => (
+          {periods
+            .sort((a, b) => {
+              // Sort by time to maintain correct position for both periods and breaks
+              const aTime = a.startTime || '00:00';
+              const bTime = b.startTime || '00:00';
+              return aTime.localeCompare(bTime);
+            })
+            .map((period) => (
             <div key={period.id} className={cn("contents group/row", period.isBreak && "bg-amber-500/[0.01]")}>
               <div className={cn("p-4 border-t border-r flex flex-col justify-center gap-2 transition-colors relative group pl-5", period.isBreak ? "bg-amber-500/[0.03]" : "bg-muted/10")}>
                 <div className="flex items-center justify-between gap-2">

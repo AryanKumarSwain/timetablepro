@@ -15,9 +15,18 @@ import {
   Subject,
 } from '@/lib/types';
 import { Card } from '@/components/ui/card';
-import { Eye, Calendar, Layers, BookOpen } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Eye, Calendar, Layers, BookOpen, Share2, CalendarX } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { usePlanTheme } from '@/lib/plan-theme';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
 const DAYS = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
 const DAY_INDICES = [1, 2, 3, 4, 5, 6];
@@ -31,6 +40,11 @@ export default function TeacherWeeklySchedulePage() {
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [selectedClassId, setSelectedClassId] = useState<string>('all');
   const [loading, setLoading] = useState(true);
+  const [absentDialogOpen, setAbsentDialogOpen] = useState(false);
+  const [selectedSlot, setSelectedSlot] = useState<any>(null);
+  const [absentReason, setAbsentReason] = useState('');
+  const [fullDayAbsentDialogOpen, setFullDayAbsentDialogOpen] = useState(false);
+  const [selectedDayIndex, setSelectedDayIndex] = useState<number | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -52,7 +66,7 @@ export default function TeacherWeeklySchedulePage() {
           timetableData.map((slot: any) => slot.periodId)
         );
 
-        const relevantPeriods = periodsData.filter((p: any) => 
+        const relevantPeriods = periodsData.filter((p: any) =>
           allocatedPeriodIds.has(p.id)
         );
 
@@ -99,6 +113,106 @@ export default function TeacherWeeklySchedulePage() {
     return classMap.get(selectedClassId) || null;
   }, [selectedClassId, classMap]);
 
+  const handleMarkAbsent = (slot: any, dayIndex: number) => {
+    setSelectedSlot({ ...slot, dayIndex });
+    setAbsentDialogOpen(true);
+  };
+
+  const handleFullDayAbsent = (dayIndex: number) => {
+    setSelectedDayIndex(dayIndex);
+    setFullDayAbsentDialogOpen(true);
+  };
+
+  const handleSubmitFullDayAbsentRequest = async () => {
+    if (selectedDayIndex === null || !auth.user?.teacherId) return;
+
+    try {
+      // Calculate the date for the selected day
+      const today = new Date();
+      const dayOfWeek = selectedDayIndex;
+      const diff = dayOfWeek - today.getDay();
+      const targetDate = new Date(today);
+      targetDate.setDate(today.getDate() + diff);
+      const dateStr = targetDate.toISOString().split('T')[0];
+
+      // Create absent request for all periods of that day
+      const teacherSlots = allTimetableSlots.filter(
+        (s) => s.dayOfWeek === dayOfWeek && s.teacherId === auth.user?.teacherId
+      );
+
+      if (teacherSlots.length === 0) {
+        window.alert('No classes scheduled for this day.');
+        return;
+      }
+
+      // Submit request for the first slot (represents full day)
+      const firstSlot = teacherSlots[0];
+      const response = await fetch('/api/teacher/absent-request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          teacherId: auth.user.teacherId,
+          date: dateStr,
+          periodId: firstSlot.periodId,
+          classId: firstSlot.classId,
+          reason: `Full-day absence: ${absentReason}`,
+        }),
+      });
+
+      if (response.ok) {
+        window.alert('Full-day absent request submitted successfully! Admin will review it.');
+        setFullDayAbsentDialogOpen(false);
+        setAbsentReason('');
+        setSelectedDayIndex(null);
+      } else {
+        const error = await response.json();
+        window.alert(`Failed to submit request: ${error.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('Failed to submit full-day absent request:', error);
+      window.alert('Failed to submit request. Please try again.');
+    }
+  };
+
+  const handleSubmitAbsentRequest = async () => {
+    if (!selectedSlot || !auth.user?.teacherId) return;
+
+    try {
+      // Calculate the date for the selected day
+      const today = new Date();
+      const dayOfWeek = selectedSlot.dayIndex;
+      const diff = dayOfWeek - today.getDay();
+      const targetDate = new Date(today);
+      targetDate.setDate(today.getDate() + diff);
+      const dateStr = targetDate.toISOString().split('T')[0];
+
+      const response = await fetch('/api/teacher/absent-request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          teacherId: auth.user.teacherId,
+          date: dateStr,
+          periodId: selectedSlot.periodId,
+          classId: selectedSlot.classId,
+          reason: absentReason,
+        }),
+      });
+
+      if (response.ok) {
+        window.alert('Absent request submitted successfully! Admin will review it.');
+        setAbsentDialogOpen(false);
+        setAbsentReason('');
+        setSelectedSlot(null);
+      } else {
+        const error = await response.json();
+        window.alert(`Failed to submit request: ${error.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('Failed to submit absent request:', error);
+      window.alert('Failed to submit request. Please try again.');
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -111,7 +225,7 @@ export default function TeacherWeeklySchedulePage() {
 
   return (
     <div className="max-w-[1600px] mx-auto p-6 space-y-6 bg-background text-foreground min-h-screen">
-      
+
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-card p-5 rounded-2xl border border-border shadow-sm">
         <div className="flex flex-wrap items-center gap-4">
           <div className="w-full sm:w-[280px]">
@@ -141,6 +255,7 @@ export default function TeacherWeeklySchedulePage() {
         </div>
 
         <div className="flex items-center gap-2.5 self-end md:self-center">
+
           <div className="flex items-center gap-1.5 text-xs bg-emerald-500/10 text-emerald-500 font-bold px-3 py-2 h-10 rounded-xl border border-emerald-500/20 shadow-sm">
             <span className="relative flex h-2 w-2">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
@@ -172,12 +287,23 @@ export default function TeacherWeeklySchedulePage() {
                 <th className="p-4 text-xs font-black uppercase tracking-widest text-muted-foreground w-[180px]">
                   TIME PLANNER
                 </th>
-                {DAYS.map((day) => (
+                {DAYS.map((day, idx) => (
                   <th
                     key={day}
                     className="p-4 text-center text-xs font-bold uppercase tracking-wider text-card-foreground border-l border-border/40 min-w-[160px]"
                   >
-                    {day}
+                    <div className="flex items-center justify-center gap-2">
+                      {day}
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-6 w-6 p-0 rounded-lg hover:bg-rose-500/10 text-rose-500 hover:text-rose-600"
+                        onClick={() => handleFullDayAbsent(DAY_INDICES[idx])}
+                        title="Request full-day absence"
+                      >
+                        <CalendarX className="h-3 w-3" />
+                      </Button>
+                    </div>
                   </th>
                 ))}
               </tr>
@@ -233,30 +359,41 @@ export default function TeacherWeeklySchedulePage() {
                           )}
                         >
                           {teacherSpecificSlot ? (
-                            <Card className={cn(
-                              "p-3 border shadow-md flex flex-col justify-between min-h-[85px] rounded-xl group transition-colors",
-                              isProxySlot 
-                                ? `bg-${theme.primary} dark:bg-${theme.primaryDark} border-${theme.primaryDark} dark:border-${theme.primaryBorderDark} hover:bg-${theme.primaryHover} dark:hover:bg-${theme.primary}`
-                                : "bg-emerald-600 dark:bg-emerald-700 border-emerald-700 dark:border-emerald-800 hover:bg-emerald-700 dark:hover:bg-emerald-600"
-                            )}>
-                              <div>
-                                <span className={cn(
-                                  "inline-block px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider mb-2 shadow-sm",
-                                  isProxySlot ? `bg-background ${theme.primaryText}` : "bg-background text-emerald-500"
-                                )}>
-                                  {isProxySlot ? 'PROXY' : getSubjectName(teacherSpecificSlot.subjectId)}
-                                </span>
-                                <p className="font-extrabold text-sm text-white tracking-wide">
-                                  Class {getClassName(teacherSpecificSlot.classId)}
-                                </p>
-                              </div>
-                              <div className={cn(
-                                "text-[10px] font-bold uppercase tracking-wider pt-1.5 border-t mt-2 flex items-center gap-1",
-                                isProxySlot ? `text-${theme.primaryLight} border-${theme.primary}/40` : "text-emerald-100 border-emerald-500/40"
+                            <div className="relative group">
+                              <Card className={cn(
+                                "p-3 border shadow-md flex flex-col justify-between min-h-[85px] rounded-xl group transition-colors",
+                                isProxySlot
+                                  ? `bg-${theme.primary} dark:bg-${theme.primaryDark} border-${theme.primaryDark} dark:border-${theme.primaryBorderDark} hover:bg-${theme.primaryHover} dark:hover:bg-${theme.primary}`
+                                  : "bg-emerald-600 dark:bg-emerald-700 border-emerald-700 dark:border-emerald-800 hover:bg-emerald-700 dark:hover:bg-emerald-600"
                               )}>
-                                <BookOpen className="h-2.5 w-2.5 text-white" /> {isProxySlot ? 'Substitution' : 'Active Session'}
-                              </div>
-                            </Card>
+                                <div>
+                                  <span className={cn(
+                                    "inline-block px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider mb-2 shadow-sm",
+                                    isProxySlot ? `bg-background ${theme.primaryText}` : "bg-background text-emerald-500"
+                                  )}>
+                                    {isProxySlot ? 'PROXY' : getSubjectName(teacherSpecificSlot.subjectId)}
+                                  </span>
+                                  <p className="font-extrabold text-sm text-white tracking-wide">
+                                    {getClassName(teacherSpecificSlot.classId)}
+                                  </p>
+                                </div>
+                                <div className={cn(
+                                  "text-[10px] font-bold uppercase tracking-wider pt-1.5 border-t mt-2 flex items-center gap-1",
+                                  isProxySlot ? `text-${theme.primaryLight} border-${theme.primary}/40` : "text-emerald-100 border-emerald-500/40"
+                                )}>
+                                  <BookOpen className="h-2.5 w-2.5 text-white" /> {isProxySlot ? 'Substitution' : 'Active Session'}
+                                </div>
+                              </Card>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleMarkAbsent(teacherSpecificSlot, dayIndex)}
+                                className="absolute top-2 right-2 h-6 w-6 p-0 rounded-full bg-white/90 hover:bg-white border-rose-500/30 text-rose-600 opacity-0 group-hover:opacity-100 transition-opacity shadow-sm"
+                                title="Mark as absent"
+                              >
+                                <CalendarX className="h-3 w-3" />
+                              </Button>
+                            </div>
                           ) : (
                             <div className="text-center py-7">
                               <span className="text-border font-light">—</span>
@@ -272,6 +409,82 @@ export default function TeacherWeeklySchedulePage() {
           </table>
         </div>
       </div>
+
+      <Dialog open={absentDialogOpen} onOpenChange={setAbsentDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Mark as Absent</DialogTitle>
+            <DialogDescription>
+              Submit a request to be absent for this class. The admin will review and approve your request.
+            </DialogDescription>
+          </DialogHeader>
+          {selectedSlot && (
+            <div className="py-4 space-y-2">
+              <p className="text-sm font-medium">
+                Class: {getClassName(selectedSlot.classId)}
+              </p>
+              <p className="text-sm text-muted-foreground">
+                Subject: {getSubjectName(selectedSlot.subjectId)}
+              </p>
+              <p className="text-sm text-muted-foreground">
+                Day: {DAYS[selectedSlot.dayIndex - 1] || 'Unknown'}
+              </p>
+            </div>
+          )}
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Reason (optional)</label>
+            <textarea
+              value={absentReason}
+              onChange={(e) => setAbsentReason(e.target.value)}
+              placeholder="Provide a reason for your absence..."
+              className="w-full min-h-[80px] px-3 py-2 text-sm rounded-lg border border-input bg-background focus:outline-none focus:ring-2 focus:ring-primary/20"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAbsentDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSubmitAbsentRequest}>
+              Submit Request
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={fullDayAbsentDialogOpen} onOpenChange={setFullDayAbsentDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Request Full-Day Absence</DialogTitle>
+            <DialogDescription>
+              Submit a request to be absent for the entire day. The admin will review and approve your request.
+            </DialogDescription>
+          </DialogHeader>
+          {selectedDayIndex !== null && (
+            <div className="py-4 space-y-2">
+              <p className="text-sm font-medium">
+                Day: {DAYS[selectedDayIndex - 1] || 'Unknown'}
+              </p>
+            </div>
+          )}
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Reason (optional)</label>
+            <textarea
+              value={absentReason}
+              onChange={(e) => setAbsentReason(e.target.value)}
+              placeholder="Provide a reason for your absence..."
+              className="w-full min-h-[80px] px-3 py-2 text-sm rounded-lg border border-input bg-background focus:outline-none focus:ring-2 focus:ring-primary/20"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setFullDayAbsentDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSubmitFullDayAbsentRequest}>
+              Submit Request
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

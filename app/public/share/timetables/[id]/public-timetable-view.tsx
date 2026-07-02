@@ -130,26 +130,34 @@ export default function PublicTimetableView({
         {/* TIMETABLE GRID */}
         <div
           className='timetable-matrix-scroll w-full overflow-x-auto rounded-xl border border-border/60 bg-background p-4 scrollbar-thin scrollbar-thumb-accent print:overflow-visible print:border-none print:bg-transparent'
-          style={{ transform: `scale(${zoomLevel})`, transformOrigin: 'top left', width: zoomLevel !== 1 ? `${100 / zoomLevel}%` : undefined }}
         >
-          <TimetableGrid
-            periods={periods}
-            slots={filteredSlots}
-            workingDays={workingDays}
-            baseStartTime={baseStartTime}
-            periodDuration={periodDuration}
-            renderCell={(dayOfWeek, periodId, slot) => {
-              if (!slot) {
-                return null;
-              }
-              return (
-                <div className='h-full w-full p-2 rounded-xl border border-dashed border-indigo-500/20 bg-indigo-500/[0.02] flex flex-col justify-center gap-1'>
-                  <span className='text-sm font-semibold text-foreground truncate'>{slot.subjectName || 'Untitled'}</span>
-                  <span className='text-xs text-muted-foreground truncate'>{slot.teacherName || 'Staff'}</span>
-                </div>
-              );
+          <div
+            className='timetable-inner-container print:min-w-full transition-transform duration-150 ease-out'
+            style={{ 
+              transform: `scale(${zoomLevel})`,
+              transformOrigin: 'top left',
+              width: zoomLevel !== 1 ? `${100 / zoomLevel}%` : '100%'
             }}
-          />
+          >
+            <TimetableGrid
+              periods={periods}
+              slots={filteredSlots}
+              workingDays={workingDays}
+              baseStartTime={baseStartTime}
+              periodDuration={periodDuration}
+              renderCell={(dayOfWeek, periodId, slot) => {
+                if (!slot) {
+                  return null;
+                }
+                return (
+                  <div className='h-full w-full p-2 rounded-xl border border-dashed border-indigo-500/20 bg-indigo-500/[0.02] flex flex-col justify-center gap-1'>
+                    <span className='text-sm font-semibold text-foreground truncate'>{slot.subjectName || 'Untitled'}</span>
+                    <span className='text-xs text-muted-foreground truncate'>{slot.teacherName || 'Staff'}</span>
+                  </div>
+                );
+              }}
+            />
+          </div>
         </div>
 
         {selectedClass && (

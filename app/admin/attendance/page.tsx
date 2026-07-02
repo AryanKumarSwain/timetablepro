@@ -55,10 +55,10 @@ export default function AdminAttendancePage() {
   const [isRangeLoading, setIsRangeLoading] = useState<boolean>(false);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
-  // Date Lock Guards
+  // Date Lock Guards - only prevent past dates, allow future dates
   const isPastDate = selectedDate < todayStr;
   const isFutureDate = selectedDate > todayStr;
-  const isEditable = !isPastDate && !isFutureDate;
+  const isEditable = !isPastDate; // Allow future dates
 
   // Extract unique distinct dates for columns from the range metrics map
   const uniqueDates = useMemo(() => {
@@ -366,7 +366,7 @@ export default function AdminAttendancePage() {
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-xs text-muted-foreground font-medium">To:</span>
-                <input type="date" value={endDate} max={todayStr} onChange={(e) => setEndDate(e.target.value)} className="bg-card border p-1.5 rounded-lg text-xs font-semibold" />
+                <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="bg-card border p-1.5 rounded-lg text-xs font-semibold" />
               </div>
               <button onClick={fetchRangeTelemetry} disabled={isRangeLoading} className={`px-4 py-2 bg-${theme.primary} text-white text-xs font-bold rounded-lg disabled:opacity-50`}>
                 {isRangeLoading ? 'Spreading Columns...' : 'Generate '}

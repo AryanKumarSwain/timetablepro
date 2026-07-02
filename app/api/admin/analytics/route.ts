@@ -11,12 +11,8 @@ export async function GET(request: Request) {
     const schoolId = searchParams.get('schoolId');
 
     let targetedSchoolId = schoolId;
-    if (!targetedSchoolId || targetedSchoolId === 'default-id' || targetedSchoolId === 'school-demo') {
-      const fallbackSchool = await (prisma as any).school.findFirst({ select: { id: true } });
-      if (!fallbackSchool) {
-        return NextResponse.json({ teacherWorkload: [], subjectDistribution: [], totalSlots: 0, classesList: [] });
-      }
-      targetedSchoolId = fallbackSchool.id;
+    if (!targetedSchoolId || targetedSchoolId === 'default-id') {
+      return NextResponse.json({ teacherWorkload: [], subjectDistribution: [], totalSlots: 0, classesList: [] });
     }
 
     // 1. DYNAMIC RANGE & MULTIPLIER CALCULATION
