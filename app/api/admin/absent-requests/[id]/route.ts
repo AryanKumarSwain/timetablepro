@@ -41,10 +41,20 @@ export async function PATCH(
       data: { status: newStatus },
     });
 
-    // If approved, create teacher attendance record as absent
+    // If approved, create or update teacher attendance record as absent
     if (action === 'approve') {
-      await prisma.teacherAttendance.create({
-        data: {
+      await prisma.teacherAttendance.upsert({
+        where: {
+          teacherId_date: {
+            teacherId: absentRequest.teacherId,
+            date: absentRequest.date,
+          },
+        },
+        update: {
+          status: 'ABSENT',
+          schoolId, // Ensures the school binding remains consistent if updated
+        },
+        create: {
           teacherId: absentRequest.teacherId,
           date: absentRequest.date,
           status: 'ABSENT',

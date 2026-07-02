@@ -16,7 +16,7 @@ import {
 } from '@/lib/types';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Eye, Calendar, Layers, BookOpen, Share2, CalendarX } from 'lucide-react';
+import { Eye, Calendar, Layers, BookOpen, Share2, CalendarX, Plus, CheckCircle2, X, Edit, Undo } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { usePlanTheme } from '@/lib/plan-theme';
 import {
@@ -45,6 +45,13 @@ export default function TeacherWeeklySchedulePage() {
   const [absentReason, setAbsentReason] = useState('');
   const [fullDayAbsentDialogOpen, setFullDayAbsentDialogOpen] = useState(false);
   const [selectedDayIndex, setSelectedDayIndex] = useState<number | null>(null);
+  const [lastAbsentRequestId, setLastAbsentRequestId] = useState<string | null>(null);
+  const [showUndoButton, setShowUndoButton] = useState(false);
+  const [todoDialogOpen, setTodoDialogOpen] = useState(false);
+  const [editTodoDialogOpen, setEditTodoDialogOpen] = useState(false);
+  const [todoItems, setTodoItems] = useState<string[]>(['']);
+  const [todos, setTodos] = useState<any[]>([]);
+  const [editingTodos, setEditingTodos] = useState<any[]>([]);
 
   useEffect(() => {
     let isMounted = true;
@@ -80,6 +87,9 @@ export default function TeacherWeeklySchedulePage() {
         setPeriods(sortedPeriods);
         setClasses(classesData);
         setSubjects(subjectsData);
+        
+        // Load todos
+        await loadTodos();
       } catch (error) {
         console.error('Failed to synchronize master admin schedule engine parameters:', error);
       } finally {
@@ -123,6 +133,257 @@ export default function TeacherWeeklySchedulePage() {
     setFullDayAbsentDialogOpen(true);
   };
 
+  const handleAddTodo = (slot: any, dayIndex: number) => {
+    setSelectedSlot({ ...slot, dayIndex });
+    setTodoItems(['']);
+    setTodoDialogOpen(true);
+  };
+
+  const handleEditTodo = (slot: any, dayIndex: number) => {
+    setSelectedSlot({ ...slot, dayIndex });
+    const slotTodos = getTodosForSlot({ ...slot, dayIndex });
+    setEditingTodos(slotTodos);
+    setTodoItems(slotTodos.map((t: any) => t.title));
+    setEditTodoDialogOpen(true);
+  };
+
+  const handleDeleteTodo = async (todoId: string) => {
+    try {
+      const response = await fetch(`/api/teacher/todos/${todoId}`, {
+        method: 'DELETE',
+      });
+      if (response.ok) {
+        loadTodos();
+      } else {
+        console.error('Failed to delete TODO:', response.status);
+      }
+    } catch (error) {
+      console.error('Failed to delete TODO:', error);
+    }
+  };
+
+  const handleSubmitTodo = async () => {
+    if (!selectedSlot || !auth.user?.teacherId) return;
+
+    const validItems = todoItems.filter(item => item.trim());
+    if (validItems.length === 0) {
+      window.alert('Please add at least one TODO item.');
+      return;
+    }
+
+    try {
+      // Calculate the date for the selected day
+      const today = new Date();
+      const dayOfWeek = selectedSlot.dayIndex;
+      const currentDay = today.getDay();
+      
+      // Handle day index mapping (Monday=1 to Saturday=6, Sunday=0)
+      let diff;
+      if (dayOfWeek === 0) {
+        diff = 0 - currentDay;
+      } else if (currentDay === 0) {
+        diff = dayOfWeek - 7;
+      } else {
+        diff = dayOfWeek - currentDay;
+      }
+      
+      const targetDate = new Date(today);
+      targetDate.setDate(today.getDate() + diff);
+      
+      // Validate the date is valid
+      if (isNaN(targetDate.getTime())) {
+        window.alert('Invalid date calculation. Please try again.');
+        return;
+      }
+      
+      const dateStr = targetDate.toISOString().split('T')[0];
+      console.log('handleSubmitTodo date calculation:', { today, dayOfWeek, currentDay, diff, targetDate, dateStr });
+
+      // Create multiple TODOs
+      const promises = validItems.map(title =>
+        fetch('/api/teacher/todos', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            date: dateStr,
+            periodId: selectedSlot.periodNumber || selectedSlot.periodId,
+            classId: selectedSlot.classId,
+            title,
+          }),
+        })
+      );
+
+      const responses = await Promise.all(promises);
+      console.log('TODO creation responses:', responses);
+      const allSuccessful = responses.every(r => r.ok);
+
+      if (allSuccessful) {
+        window.alert(`${validItems.length} TODO(s) added successfully!`);
+        setTodoDialogOpen(false);
+        setTodoItems(['']);
+        setSelectedSlot(null);
+        // Reload todos
+        loadTodos();
+      } else {
+        const failedResponses = responses.filter(r => !r.ok);
+        console.error('Failed TODO responses:', failedResponses);
+        window.alert('Failed to add some TODOs. Please try again.');
+      }
+    } catch (error) {
+      console.error('Failed to add TODO:', error);
+      window.alert('Failed to add TODO. Please try again.');
+    }
+  };
+
+  // FIX: previously this only read `slot.dayIndex`, which is only ever set
+  // when a dialog is opened (handleAddTodo / handleEditTodo / handleMarkAbsent).
+  // The slot objects rendered directly in the table only carry `dayOfWeek`
+  // (from the API), so `slot.dayIndex` was `undefined` there, the date
+  // calculation produced `NaN`, and this function silently returned `[]`.
+  // That made the TODO count badge and the "Edit" button never appear for
+  // cells that already had TODOs saved — even though the TODOs were still
+  // safely stored on the server — making it look like previously added
+  // TODOs "disappeared" whenever a new one was added.
+  const getTodosForSlot = (slot: any) => {
+    const today = new Date();
+    const dayOfWeek = slot.dayIndex ?? slot.dayOfWeek;
+    const currentDay = today.getDay();
+    
+    // Handle day index mapping (Monday=1 to Saturday=6, Sunday=0)
+    // JavaScript getDay(): Sunday=0, Monday=1, ..., Saturday=6
+    let diff;
+    if (dayOfWeek === 0) {
+      // Sunday
+      diff = 0 - currentDay;
+    } else if (currentDay === 0) {
+      // Today is Sunday, target is weekday (1-6)
+      diff = dayOfWeek - 7;
+    } else {
+      diff = dayOfWeek - currentDay;
+    }
+    
+    const targetDate = new Date(today);
+    targetDate.setDate(today.getDate() + diff);
+    
+    // Validate the date is valid
+    if (isNaN(targetDate.getTime())) {
+      return [];
+    }
+    
+    const dateStr = targetDate.toISOString().split('T')[0];
+
+    return todos.filter(t => 
+      t.date === dateStr && 
+      String(t.periodId) === String(slot.periodId) && 
+      String(t.classId) === String(slot.classId)
+    );
+  };
+
+  const handleSubmitEditTodo = async () => {
+    if (!selectedSlot || !auth.user?.teacherId) return;
+
+    try {
+      // Delete existing todos for this slot
+      const slotTodos = getTodosForSlot(selectedSlot);
+      await Promise.all(
+        slotTodos.map((t: any) =>
+          fetch(`/api/teacher/todos/${t.id}`, { method: 'DELETE' })
+        )
+      );
+
+      // Create new todos from the edited items
+      const validItems = todoItems.filter(item => item.trim());
+      if (validItems.length > 0) {
+        const today = new Date();
+        const dayOfWeek = selectedSlot.dayIndex;
+        const currentDay = today.getDay();
+        
+        // Handle day index mapping (Monday=1 to Saturday=6, Sunday=0)
+        let diff;
+        if (dayOfWeek === 0) {
+          diff = 0 - currentDay;
+        } else if (currentDay === 0) {
+          diff = dayOfWeek - 7;
+        } else {
+          diff = dayOfWeek - currentDay;
+        }
+        
+        const targetDate = new Date(today);
+        targetDate.setDate(today.getDate() + diff);
+        
+        // Validate the date is valid
+        if (isNaN(targetDate.getTime())) {
+          window.alert('Invalid date calculation. Please try again.');
+          return;
+        }
+        
+        const dateStr = targetDate.toISOString().split('T')[0];
+
+        const promises = validItems.map(title =>
+          fetch('/api/teacher/todos', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              date: dateStr,
+              periodId: selectedSlot.periodNumber || selectedSlot.periodId,
+              classId: selectedSlot.classId,
+              title,
+            }),
+          })
+        );
+
+        await Promise.all(promises);
+      }
+
+      window.alert('TODOs updated successfully!');
+      setEditTodoDialogOpen(false);
+      setTodoItems(['']);
+      setSelectedSlot(null);
+      setEditingTodos([]);
+      loadTodos();
+    } catch (error) {
+      console.error('Failed to update TODOs:', error);
+      window.alert('Failed to update TODOs. Please try again.');
+    }
+  };
+
+  const loadTodos = async () => {
+    try {
+      const response = await fetch('/api/teacher/todos');
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Loaded todos in weekly schedule:', data);
+        setTodos(data.todos || []);
+      } else {
+        console.error('Failed to load todos:', response.status, await response.text());
+      }
+    } catch (error) {
+      console.error('Failed to load todos:', error);
+    }
+  };
+
+  const handleUndoAbsentRequest = async () => {
+    if (!lastAbsentRequestId) return;
+
+    try {
+      const response = await fetch(`/api/teacher/absent-request/${lastAbsentRequestId}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        setShowUndoButton(false);
+        setLastAbsentRequestId(null);
+        window.alert('Absent request reverted successfully!');
+      } else {
+        const error = await response.json();
+        window.alert(`Failed to revert request: ${error.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('Failed to revert absent request:', error);
+      window.alert('Failed to revert request. Please try again.');
+    }
+  };
+
   const handleSubmitFullDayAbsentRequest = async () => {
     if (selectedDayIndex === null || !auth.user?.teacherId) return;
 
@@ -130,9 +391,27 @@ export default function TeacherWeeklySchedulePage() {
       // Calculate the date for the selected day
       const today = new Date();
       const dayOfWeek = selectedDayIndex;
-      const diff = dayOfWeek - today.getDay();
+      const currentDay = today.getDay();
+      
+      // Handle day index mapping (Monday=1 to Saturday=6, Sunday=0)
+      let diff;
+      if (dayOfWeek === 0) {
+        diff = 0 - currentDay;
+      } else if (currentDay === 0) {
+        diff = dayOfWeek - 7;
+      } else {
+        diff = dayOfWeek - currentDay;
+      }
+      
       const targetDate = new Date(today);
       targetDate.setDate(today.getDate() + diff);
+      
+      // Validate the date is valid
+      if (isNaN(targetDate.getTime())) {
+        window.alert('Invalid date calculation. Please try again.');
+        return;
+      }
+      
       const dateStr = targetDate.toISOString().split('T')[0];
 
       // Create absent request for all periods of that day
@@ -160,6 +439,9 @@ export default function TeacherWeeklySchedulePage() {
       });
 
       if (response.ok) {
+        const data = await response.json();
+        setLastAbsentRequestId(data.absentRequest?.id || null);
+        setShowUndoButton(true);
         window.alert('Full-day absent request submitted successfully! Admin will review it.');
         setFullDayAbsentDialogOpen(false);
         setAbsentReason('');
@@ -181,9 +463,27 @@ export default function TeacherWeeklySchedulePage() {
       // Calculate the date for the selected day
       const today = new Date();
       const dayOfWeek = selectedSlot.dayIndex;
-      const diff = dayOfWeek - today.getDay();
+      const currentDay = today.getDay();
+      
+      // Handle day index mapping (Monday=1 to Saturday=6, Sunday=0)
+      let diff;
+      if (dayOfWeek === 0) {
+        diff = 0 - currentDay;
+      } else if (currentDay === 0) {
+        diff = dayOfWeek - 7;
+      } else {
+        diff = dayOfWeek - currentDay;
+      }
+      
       const targetDate = new Date(today);
       targetDate.setDate(today.getDate() + diff);
+      
+      // Validate the date is valid
+      if (isNaN(targetDate.getTime())) {
+        window.alert('Invalid date calculation. Please try again.');
+        return;
+      }
+      
       const dateStr = targetDate.toISOString().split('T')[0];
 
       const response = await fetch('/api/teacher/absent-request', {
@@ -287,25 +587,62 @@ export default function TeacherWeeklySchedulePage() {
                 <th className="p-4 text-xs font-black uppercase tracking-widest text-muted-foreground w-[180px]">
                   TIME PLANNER
                 </th>
-                {DAYS.map((day, idx) => (
-                  <th
-                    key={day}
-                    className="p-4 text-center text-xs font-bold uppercase tracking-wider text-card-foreground border-l border-border/40 min-w-[160px]"
-                  >
-                    <div className="flex items-center justify-center gap-2">
-                      {day}
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-6 w-6 p-0 rounded-lg hover:bg-rose-500/10 text-rose-500 hover:text-rose-600"
-                        onClick={() => handleFullDayAbsent(DAY_INDICES[idx])}
-                        title="Request full-day absence"
-                      >
-                        <CalendarX className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  </th>
-                ))}
+                {DAYS.map((day, idx) => {
+                  const today = new Date();
+                  const currentDay = today.getDay();
+                  const dayIndex = DAY_INDICES[idx];
+                  let diff;
+                  if (dayIndex === 0) {
+                    diff = 0 - currentDay;
+                  } else if (currentDay === 0) {
+                    diff = dayIndex - 7;
+                  } else {
+                    diff = dayIndex - currentDay;
+                  }
+                  const targetDate = new Date(today);
+                  targetDate.setDate(today.getDate() + diff);
+                  const dateStr = targetDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                  
+                  return (
+                    <th
+                      key={day}
+                      className={cn(
+                        "p-4 text-center text-xs font-bold uppercase tracking-wider text-card-foreground border-l min-w-[160px]",
+                        showUndoButton && selectedDayIndex === DAY_INDICES[idx] 
+                          ? "border-rose-500 bg-rose-50/50" 
+                          : "border-border/40"
+                      )}
+                    >
+                      <div className="flex flex-col items-center gap-1">
+                        <div className="flex items-center justify-center gap-2">
+                          {day}
+                          {showUndoButton && selectedDayIndex === DAY_INDICES[idx] ? (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={handleUndoAbsentRequest}
+                              className="h-6 w-6 p-0 rounded-lg border-rose-500/30 text-rose-600 hover:bg-rose-500/10"
+                              title="Undo Request"
+                            >
+                              <Undo className="h-3 w-3" />
+                            </Button>
+                          ) : (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-6 w-6 p-0 rounded-lg hover:bg-rose-500/10 text-rose-500 hover:text-rose-600"
+                              onClick={() => handleFullDayAbsent(DAY_INDICES[idx])}
+                              title="Request full-day absence"
+                            >
+                              <CalendarX className="h-3 w-3" />
+                            </Button>
+                          )}
+                        </div>
+                        <span className="text-[10px] text-muted-foreground font-medium">{dateStr}</span>
+                      </div>
+                    </th>
+                  );
+                })}
               </tr>
             </thead>
             <tbody className="divide-y divide-border/60">
@@ -384,15 +721,22 @@ export default function TeacherWeeklySchedulePage() {
                                   <BookOpen className="h-2.5 w-2.5 text-white" /> {isProxySlot ? 'Substitution' : 'Active Session'}
                                 </div>
                               </Card>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => handleMarkAbsent(teacherSpecificSlot, dayIndex)}
-                                className="absolute top-2 right-2 h-6 w-6 p-0 rounded-full bg-white/90 hover:bg-white border-rose-500/30 text-rose-600 opacity-0 group-hover:opacity-100 transition-opacity shadow-sm"
-                                title="Mark as absent"
-                              >
-                                <CalendarX className="h-3 w-3" />
-                              </Button>
+                              {getTodosForSlot(teacherSpecificSlot).length > 0 && (
+                                <div className="absolute -top-2 -right-2 bg-indigo-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-md">
+                                  {getTodosForSlot(teacherSpecificSlot).length}
+                                </div>
+                              )}
+                              <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleAddTodo(teacherSpecificSlot, dayIndex)}
+                                  className="h-6 w-6 p-0 rounded-full bg-white/90 hover:bg-white border-indigo-500/30 text-indigo-600 shadow-sm"
+                                  title="Add TODO"
+                                >
+                                  <Plus className="h-3 w-3" />
+                                </Button>
+                              </div>
                             </div>
                           ) : (
                             <div className="text-center py-7">
@@ -481,6 +825,181 @@ export default function TeacherWeeklySchedulePage() {
             </Button>
             <Button onClick={handleSubmitFullDayAbsentRequest}>
               Submit Request
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={todoDialogOpen} onOpenChange={setTodoDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add TODOs</DialogTitle>
+            <DialogDescription>
+              Add multiple TODO items for this period. They will appear in your daily report.
+            </DialogDescription>
+          </DialogHeader>
+          {selectedSlot && (
+            <div className="py-4 space-y-2">
+              <p className="text-sm font-medium">
+                Class: {getClassName(selectedSlot.classId)}
+              </p>
+              <p className="text-sm text-muted-foreground">
+                Subject: {getSubjectName(selectedSlot.subjectId)}
+              </p>
+              <p className="text-sm text-muted-foreground">
+                Day: {DAYS[selectedSlot.dayIndex - 1] || 'Unknown'}
+              </p>
+              {getTodosForSlot(selectedSlot).length > 0 && (
+                <div className="pt-2 mt-2 border-t border-border/60">
+                  <p className="text-xs font-semibold text-muted-foreground mb-1.5">
+                    Already added ({getTodosForSlot(selectedSlot).length}):
+                  </p>
+                  <ul className="space-y-1">
+                    {getTodosForSlot(selectedSlot).map((t: any) => (
+                      <li key={t.id} className="text-xs text-foreground/80 flex items-center gap-1.5">
+                        <CheckCircle2 className="h-3 w-3 text-emerald-500 flex-shrink-0" />
+                        {t.title}
+                        <button
+                          onClick={() => handleDeleteTodo(t.id)}
+                          className="ml-auto text-gray-400 hover:text-red-500 transition-colors"
+                          title="Remove TODO"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+          <div className="space-y-3 max-h-[300px] overflow-y-auto">
+            <label className="text-sm font-medium">New TODO Items</label>
+            {todoItems.map((item, index) => (
+              <div key={index} className="flex gap-2">
+                <input
+                  type="text"
+                  value={item}
+                  onChange={(e) => {
+                    const newItems = [...todoItems];
+                    newItems[index] = e.target.value;
+                    setTodoItems(newItems);
+                  }}
+                  placeholder={`TODO ${index + 1}`}
+                  className="flex-1 px-3 py-2 text-sm rounded-lg border border-input bg-background focus:outline-none focus:ring-2 focus:ring-primary/20"
+                />
+                {todoItems.length > 1 && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const newItems = todoItems.filter((_, i) => i !== index);
+                      setTodoItems(newItems);
+                    }}
+                    className="h-9 w-9 p-0"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+            ))}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setTodoItems([...todoItems, ''])}
+              className="w-full"
+            >
+              <Plus className="h-4 w-4 mr-2" /> Add Another TODO
+            </Button>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setTodoDialogOpen(false);
+              setTodoItems(['']);
+            }}>
+              Cancel
+            </Button>
+            <Button onClick={handleSubmitTodo}>
+              Add TODOs
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={editTodoDialogOpen} onOpenChange={setEditTodoDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit TODOs</DialogTitle>
+            <DialogDescription>
+              Edit TODO items for this period.
+            </DialogDescription>
+          </DialogHeader>
+          {selectedSlot && (
+            <div className="py-4 space-y-2">
+              <p className="text-sm font-medium">
+                Class: {getClassName(selectedSlot.classId)}
+              </p>
+              <p className="text-sm text-muted-foreground">
+                Subject: {getSubjectName(selectedSlot.subjectId)}
+              </p>
+              <p className="text-sm text-muted-foreground">
+                Day: {DAYS[selectedSlot.dayIndex - 1] || 'Unknown'}
+              </p>
+            </div>
+          )}
+          <div className="space-y-3 max-h-[300px] overflow-y-auto">
+            <label className="text-sm font-medium">TODO Items</label>
+            {todoItems.map((item, index) => (
+              <div key={index} className="flex gap-2">
+                <input
+                  type="text"
+                  value={item}
+                  onChange={(e) => {
+                    const newItems = [...todoItems];
+                    newItems[index] = e.target.value;
+                    setTodoItems(newItems);
+                  }}
+                  placeholder={`TODO ${index + 1}`}
+                  className="flex-1 px-3 py-2 text-sm rounded-lg border border-input bg-background focus:outline-none focus:ring-2 focus:ring-primary/20"
+                />
+                {todoItems.length > 1 && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const newItems = todoItems.filter((_, i) => i !== index);
+                      setTodoItems(newItems);
+                    }}
+                    className="h-9 w-9 p-0"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+            ))}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setTodoItems([...todoItems, ''])}
+              className="w-full"
+            >
+              <Plus className="h-4 w-4 mr-2" /> Add Another TODO
+            </Button>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setEditTodoDialogOpen(false);
+              setTodoItems(['']);
+              setEditingTodos([]);
+            }}>
+              Cancel
+            </Button>
+            <Button onClick={handleSubmitEditTodo}>
+              Update TODOs
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -45,9 +45,29 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // If teacher has a rejected request, allow them to submit a new one
-    // by updating their status to NONE first
+    // If teacher has a rejected request, check if it's within 24 hours
     if (teacher.leaveRequestStatus === 'REJECTED') {
+      const rejectedRequest = await prisma.schoolLeaveRequest.findFirst({
+        where: {
+          teacherId: teacher.id,
+          schoolId,
+          status: 'REJECTED',
+        },
+        orderBy: { requestedAt: 'desc' },
+      });
+
+      if (rejectedRequest) {
+        const hoursSinceRejection = (Date.now() - new Date(rejectedRequest.requestedAt).getTime()) / (1000 * 60 * 60);
+        if (hoursSinceRejection < 24) {
+          const hoursRemaining = Math.ceil(24 - hoursSinceRejection);
+          return NextResponse.json(
+            { error: `You can resubmit your request after ${hoursRemaining} hours.` },
+            { status: 400 }
+          );
+        }
+      }
+
+      // If more than 24 hours have passed, allow resubmission by updating status to NONE
       await prisma.teacher.update({
         where: { id: teacher.id },
         data: { leaveRequestStatus: 'NONE' },

@@ -12,7 +12,7 @@ export async function GET() {
       totalClasses,
       todayAbsent,
       todayReplacements,
-      pendingReplacements,
+      pendingAbsentRequests,
     ] = await Promise.all([
       prisma.teacher.count({ where: schoolWhere(schoolId) }),
       prisma.classRoom.count({ where: schoolWhere(schoolId) }),
@@ -22,7 +22,7 @@ export async function GET() {
       prisma.replacementAssignment.count({
         where: { schoolId, date: today },
       }),
-      prisma.replacementAssignment.count({
+      prisma.teacherAbsentRequest.count({
         where: { schoolId, status: 'PENDING' },
       }),
     ]);
@@ -32,7 +32,7 @@ export async function GET() {
       totalClasses,
       todayAbsent,
       todayReplacements,
-      pendingReplacements,
+      pendingAbsentRequests,
     });
   } catch (error) {
     console.error('[GET /api/dashboard/stats]', error);

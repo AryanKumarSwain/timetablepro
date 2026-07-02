@@ -103,6 +103,7 @@ export function SettingsPageContent({ initialUser, activeTab }: SettingsPageCont
   const [leaveRequestStatus, setLeaveRequestStatus] = useState<'NONE' | 'PENDING' | 'APPROVED' | 'REJECTED'>(initialUser?.leaveRequestStatus ?? 'NONE');
   const [leaveReason, setLeaveReason] = useState('');
   const [leaveRequestPending, setLeaveRequestPending] = useState(false);
+  const [leaveRequestError, setLeaveRequestError] = useState<string | null>(null);
 
   // Institute Details State
   const [instituteDetails, setInstituteDetails] = useState({
@@ -353,14 +354,17 @@ export function SettingsPageContent({ initialUser, activeTab }: SettingsPageCont
     }
 
     setLeaveRequestPending(true);
+    setLeaveRequestError(null);
     try {
       await fetchClient('/api/teacher/leave-request', {
         method: 'POST',
         body: { reason: leaveReason.trim() || undefined },
       });
       setLeaveRequestStatus('PENDING');
+      setLeaveRequestError(null);
       toast.success('Departure request submitted. Your school admin will review it shortly.');
     } catch (e: any) {
+      setLeaveRequestError(e.message || 'Failed submitting departure request');
       toast.error(e.message || 'Failed submitting departure request');
     } finally {
       setLeaveRequestPending(false);
@@ -497,8 +501,8 @@ export function SettingsPageContent({ initialUser, activeTab }: SettingsPageCont
                 <div className="flex items-center gap-2">
                   <ShieldCheck className="h-4 w-4 text-indigo-500" />
                   <div>
-                    <CardTitle className="text-lg font-bold tracking-tight">Leave Requests</CardTitle>
-                    <CardDescription>Review and approve pending leave requests.</CardDescription>
+                    <CardTitle className="text-lg font-bold tracking-tight">Left Requests</CardTitle>
+                    <CardDescription>Review and approve pending left requests.</CardDescription>
                   </div>
                 </div>
                 {showLeaveRequestsTab && (
@@ -511,11 +515,11 @@ export function SettingsPageContent({ initialUser, activeTab }: SettingsPageCont
             <CardContent className="space-y-4">
               {leaveRequestsLoading ? (
                 <div className="rounded-xl border border-border/60 bg-muted/80 p-4 text-center text-sm text-muted-foreground">
-                  Loading pending departure requests…
+                  Loading pending Left requests…
                 </div>
               ) : pendingLeaveRequests.length === 0 ? (
                 <div className="rounded-xl border border-border/60 bg-muted/80 p-4 text-center text-sm text-muted-foreground">
-                  No pending departure requests found.
+                  No pending Left requests found.
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -617,9 +621,9 @@ export function SettingsPageContent({ initialUser, activeTab }: SettingsPageCont
             <CardHeader>
               <div className="flex items-center gap-2">
                 <Building2 className="h-4 w-4 text-indigo-500" />
-                <CardTitle className="text-lg font-bold tracking-tight">Leave Request</CardTitle>
+                <CardTitle className="text-lg font-bold tracking-tight">Left Request</CardTitle>
               </div>
-              <CardDescription>Submit a leave request</CardDescription>
+              <CardDescription>Submit a left request</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
@@ -647,6 +651,11 @@ export function SettingsPageContent({ initialUser, activeTab }: SettingsPageCont
                       rows={3}
                     />
                   </div>
+                  {leaveRequestError && (
+                    <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-center">
+                      <p className="text-xs text-red-600 dark:text-red-400">{leaveRequestError}</p>
+                    </div>
+                  )}
                   <PlanButton
                     onClick={handleLeaveRequest}
                     disabled={leaveRequestPending}

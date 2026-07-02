@@ -203,11 +203,11 @@ export default function AdminDashboard() {
         }
       />
 
-      {(stats?.pendingReplacements ?? 0) > 0 && (
+      {(stats?.pendingAbsentRequests ?? 0) > 0 && (
         <GlassCard className="p-4 border-amber-500/30 bg-amber-500/5 flex items-center gap-3 rounded-2xl">
           <AlertTriangle className="h-5 w-5 text-amber-500 shrink-0" />
           <p className="text-sm">
-            <span className="font-semibold">{stats?.pendingReplacements}</span> substitution assignments awaiting confirmation.
+            <span className="font-semibold">{stats?.pendingAbsentRequests}</span> absent requests awaiting approval.
           </p>
           <Button size="sm" variant="outline" className="ml-auto rounded-xl" asChild>
             <Link href="/admin/daily-desk">Review</Link>
@@ -219,7 +219,7 @@ export default function AdminDashboard() {
         <KPICard label="Total Teachers" value={stats?.totalTeachers || 0} subtext="Active in system" index={0} />
         <KPICard label="Total Classes" value={stats?.totalClasses || 0} subtext="Classes managed" index={1} />
         <KPICard label="Today's Absences" value={stats?.todayAbsent || 0} variant="danger" subtext="Teachers absent today" index={2} />
-        <KPICard label="Pending Replacements" value={stats?.pendingReplacements || 0} variant="warning" subtext="Awaiting confirmation" index={3} />
+        <KPICard label="Pending Absent Requests" value={stats?.pendingAbsentRequests || 0} variant="warning" subtext="Awaiting approval" index={3} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

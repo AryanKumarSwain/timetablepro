@@ -342,8 +342,9 @@ export type AdminDashboardStats = {
   totalClasses: number;
   totalSubjects: number;
   totalPeriods: number;
-  todayAttendance: number;
-  pendingReplacements: number;
+  todayAbsent: number;
+  todayReplacements: number;
+  pendingAbsentRequests: number;
 };
 
 export async function getAdminDashboardStats(): Promise<AdminDashboardStats> {

@@ -179,7 +179,7 @@ export interface AdminDashboardStats {
   totalPeriods: number;
   todayAbsent: number;
   todayReplacements: number;
-  pendingReplacements: number;
+  pendingAbsentRequests: number;
 }
 
 // ============================================================================

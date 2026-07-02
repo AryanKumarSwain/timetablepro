@@ -68,6 +68,7 @@ model School {
   absentRequests          TeacherAbsentRequest[]
   subscriptionTransactions SubscriptionTransaction[]
   customPlanRequests      CustomPlanRequest[]
+  teacherTodos            TeacherTodo[]
 }
 
 enum LicenseStatus {
@@ -219,6 +220,7 @@ model Teacher {
   homework             Homework[]
   leaveRequests        SchoolLeaveRequest[]
   absentRequests       TeacherAbsentRequest[]
+  teacherTodos         TeacherTodo[]
 
   @@index([schoolId])
 }
@@ -300,6 +302,25 @@ model TeacherAttendance {
 
   @@unique([teacherId, date])
   @@index([schoolId])
+}
+
+model TeacherTodo {
+  id        String   @id @default(uuid())
+  schoolId  String
+  school    School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  teacherId String
+  teacher   Teacher  @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  date      String
+  periodId  String?
+  classId   String?
+  title     String
+  completed Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([schoolId])
+  @@index([teacherId])
+  @@index([date])
 }
 
 enum AttendanceStatus {

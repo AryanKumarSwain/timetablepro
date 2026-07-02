@@ -22,9 +22,8 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { BookOpen, Plus, Send, Trash2, Edit, AlertCircle } from 'lucide-react';
-import { toast } from 'sonner';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
+import { BookOpen, Send, Trash2, Edit, AlertCircle, CheckCircle2, X } from 'lucide-react';
 
 // Helper to separate text from comma-separated items
 function splitDescription(desc = '') {
@@ -194,6 +193,7 @@ export default function TeacherReportsPage() {
   const [submitSuccess, setSubmitSuccess] = useState<string | null>(null);
   const [attemptedSubmit, setAttemptedSubmit] = useState(false);
   const [loadMessage, setLoadMessage] = useState<string | null>(null);
+  const [todos, setTodos] = useState<Array<{ id: string; title: string; completed: boolean; periodId?: string; classId?: string }>>([]);
 
   useEffect(() => {
     if (!auth.loading && auth.user) {
@@ -235,6 +235,25 @@ export default function TeacherReportsPage() {
 
       const savedEntries = existingReport?.entries ?? [];
 
+      // Load todos for today
+      const today = new Date();
+      const todayStr = today.toISOString().split('T')[0];
+      console.log('Fetching TODOs for date:', todayStr, 'Full date:', today);
+      try {
+        const todosResponse = await fetch('/api/teacher/todos?date=' + todayStr);
+        if (todosResponse.ok) {
+          const todosData = await todosResponse.json();
+          console.log('Loaded todos:', todosData);
+          console.log('Todos array:', todosData.todos);
+          console.log('Todos length:', todosData.todos?.length);
+          setTodos(todosData.todos || []);
+        } else {
+          console.error('Failed to load todos:', todosResponse.status, await todosResponse.text());
+        }
+      } catch (error) {
+        console.error('Failed to load todos', error);
+      }
+
       const integratedRows = slots.map((slot) => {
         const matchingEntry = savedEntries.find(
           (e) => String(e.classId) === String(slot.classId) &&
@@ -243,6 +262,12 @@ export default function TeacherReportsPage() {
 
         const { description, tlm, homework } = splitHomeworkDescription(matchingEntry?.description ?? '');
         const isProxy = (slot as any).isProxy === true;
+
+        console.log('Slot data for TODO matching:', {
+          periodNumber: slot.periodNumber,
+          classId: slot.classId,
+          subjectId: slot.subjectId
+        });
 
         return {
           entryId: matchingEntry?.id,
@@ -286,6 +311,57 @@ export default function TeacherReportsPage() {
     });
     setValidationError(null);
     setSubmitSuccess(null);
+  };
+
+  const handleToggleTodo = async (todoId: string, completed: boolean) => {
+    try {
+      const response = await fetch(`/api/teacher/todos/${todoId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ completed: !completed }),
+      });
+
+      if (response.ok) {
+        setTodos(todos.map(t => t.id === todoId ? { ...t, completed: !completed } : t));
+      }
+    } catch (error) {
+      console.error('Failed to toggle TODO:', error);
+    }
+  };
+
+  const handleDeleteTodo = async (todoId: string) => {
+    try {
+      const response = await fetch(`/api/teacher/todos/${todoId}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        setTodos(todos.filter(t => t.id !== todoId));
+      }
+    } catch (error) {
+      console.error('Failed to delete TODO:', error);
+    }
+  };
+
+  const getTodosForPeriod = (periodNumber: string | number, classId: string) => {
+    console.log('getTodosForPeriod - Input:', { periodNumber, classId, typePeriod: typeof periodNumber, typeClass: typeof classId });
+    console.log('getTodosForPeriod - All todos:', todos);
+    const filtered = todos.filter(t => {
+      const periodMatch = String(t.periodId) === String(periodNumber);
+      const classMatch = String(t.classId) === String(classId);
+      console.log('TODO item check:', { 
+        todoId: t.id, 
+        todoPeriodId: t.periodId, 
+        todoClassId: t.classId, 
+        targetPeriod: periodNumber, 
+        targetClass: classId,
+        periodMatch, 
+        classMatch 
+      });
+      return periodMatch && classMatch;
+    });
+    console.log('getTodosForPeriod - Result:', { totalTodos: todos.length, filteredCount: filtered.length, filtered });
+    return filtered;
   };
 
   const handleSubmit = async () => {
@@ -368,7 +444,10 @@ export default function TeacherReportsPage() {
   if (!hasSchoolAssignment) {
     return (
       <div className='max-w-4xl mx-auto px-4 mt-6'>
-        <PageHeader title="Today's Report" description="Friday, June 5, 2026" />
+        <PageHeader 
+          title="Today's Report" 
+          description={new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+        />
         <GlassCard className='p-12 text-center'>
           <AlertCircle className='h-12 w-12 text-muted-foreground mx-auto mb-4' />
           <h3 className='text-lg font-semibold mb-2'>No School Assignment</h3>
@@ -382,7 +461,10 @@ export default function TeacherReportsPage() {
 
   return (
     <div className='max-w-5xl mx-auto px-6 py-6 space-y-6'>
-      <PageHeader title="Today's Report" description="Friday, June 5, 2026" />
+      <PageHeader 
+        title="Today's Report" 
+        description={new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+      />
 
       {/* Interactive Form Guard Alert Element */}
       {validationError && (
@@ -427,7 +509,7 @@ export default function TeacherReportsPage() {
               </div>
 
               {/* Input Workspace Interface Layout */}
-              <div className='grid grid-cols-1 md:grid-cols-3 gap-4 items-start'>
+              <div className='grid grid-cols-1 md:grid-cols-4 gap-4 items-start'>
 
                 <div className='md:col-span-2 space-y-1.5'>
                   <label className='text-xs font-semibold text-muted-foreground'>
@@ -440,6 +522,54 @@ export default function TeacherReportsPage() {
                     placeholder="Enter what you covered in class (Required)"
                     className='min-h-[95px] resize-none focus-visible:ring-1'
                   />
+                </div>
+
+                <div className='md:col-span-1 space-y-1.5'>
+                  <label className='text-xs font-semibold text-muted-foreground flex items-center gap-1.5'>
+                    <CheckCircle2 className="h-3 w-3" /> TODOs
+                    {getTodosForPeriod(r.periodNumber, r.classId).length > 0 && (
+                      <span className="text-[10px] bg-indigo-500/20 text-indigo-600 px-1.5 py-0.5 rounded-full font-medium">
+                        {getTodosForPeriod(r.periodNumber, r.classId).length}
+                      </span>
+                    )}
+                  </label>
+                  <div className="border rounded-xl bg-background/50 min-h-[95px] p-2 space-y-1.5 overflow-y-auto max-h-[160px]">
+                    {getTodosForPeriod(r.periodNumber, r.classId).length === 0 ? (
+                      <p className="text-xs text-muted-foreground/70 flex items-center justify-center h-full min-h-[75px]">
+                        No TODOs
+                      </p>
+                    ) : (
+                      getTodosForPeriod(r.periodNumber, r.classId).map((todo) => (
+                        <div
+                          key={todo.id}
+                          className="flex items-center gap-2 p-1.5 rounded-lg bg-muted/50 border border-border/60 text-xs"
+                        >
+                          <button
+                            onClick={() => handleToggleTodo(todo.id, todo.completed)}
+                            disabled={readOnly}
+                            className={`flex-shrink-0 w-3.5 h-3.5 rounded border flex items-center justify-center transition-colors ${
+                              todo.completed
+                                ? 'bg-emerald-500 border-emerald-500 text-white'
+                                : 'border-gray-300 hover:border-emerald-500'
+                            }`}
+                          >
+                            {todo.completed && <CheckCircle2 className="h-2.5 w-2.5" />}
+                          </button>
+                          <span className={`flex-1 ${todo.completed ? 'line-through text-muted-foreground' : ''}`}>
+                            {todo.title}
+                          </span>
+                          {!readOnly && (
+                            <button
+                              onClick={() => handleDeleteTodo(todo.id)}
+                              className="flex-shrink-0 text-gray-400 hover:text-red-500 transition-colors"
+                            >
+                              <X className="h-2.5 w-2.5" />
+                            </button>
+                          )}
+                        </div>
+                      ))
+                    )}
+                  </div>
                 </div>
 
                 <div className='md:col-span-1 space-y-1.5'>

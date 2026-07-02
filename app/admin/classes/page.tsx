@@ -61,7 +61,16 @@ export default function ClassesPage() {
     try {
       setLoading(true);
       const classesData = await getClasses();
-      setClasses(classesData);
+      // Sort classes by grade (numeric) and then section (alphabetical)
+      const sortedClasses = classesData.sort((a, b) => {
+        const gradeA = parseInt(a.grade || '0');
+        const gradeB = parseInt(b.grade || '0');
+        if (gradeA !== gradeB) {
+          return gradeA - gradeB;
+        }
+        return (a.section || '').localeCompare(b.section || '');
+      });
+      setClasses(sortedClasses);
     } catch (error) {
       console.error('Failed to load data:', error);
     } finally {

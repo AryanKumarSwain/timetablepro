@@ -37,15 +37,17 @@ export async function GET(request: NextRequest) {
             ...(teacherId ? { teacherId } : {}),
           },
         }),
-        // Always fetch proxy assignments if teacherId is available
-        teacherId ? prisma.replacementAssignment.findMany({
-          where: {
-            ...schoolWhere(schoolId),
-            replacementTeacherId: teacherId,
-            status: 'CONFIRMED',
-          },
-          include: { period: true, slot: { include: { subject: true } } },
-        }) : Promise.resolve([]),
+        teacherId
+          ? prisma.replacementAssignment.findMany({
+              where: {
+                ...schoolWhere(schoolId),
+                replacementTeacherId: teacherId,
+                status: 'CONFIRMED',
+                ...(classId ? { classId } : {}),
+              },
+              include: { period: true, slot: { include: { subject: true } } },
+            })
+          : Promise.resolve([]),
       ]);
 
       const regularSlots = rows.map((row) => ({

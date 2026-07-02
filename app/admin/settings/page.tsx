@@ -37,7 +37,7 @@ export default function AdminSettingsPage() {
             { value: 'profile', label: 'General' },
             { value: 'institute', label: 'Institute' },
             { value: 'leave-reasons', label: 'Leave Reasons' },
-            { value: 'leave-requests', label: 'Leave Requests' },
+            { value: 'leave-requests', label: 'Left Requests' },
           ].map((tab) => (
             <Link
               key={tab.value}
