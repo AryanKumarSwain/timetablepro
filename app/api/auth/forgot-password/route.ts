@@ -49,7 +49,12 @@ export async function POST(request: Request) {
     const mailResult = await sendVerificationCode(user.email, token);
     if (!mailResult.sent) {
       console.error('[MAIL DISPATCH FAILURE]:', mailResult.error);
-      return NextResponse.json({ error: 'Failed transmitting validation token code' }, { status: 500 });
+      // Do not expose email delivery problems to end users. Return success
+      // to keep the endpoint idempotent and prevent leaking SMTP config.
+      return NextResponse.json({ 
+        success: true, 
+        message: 'If the account exists, a secure verification code has been dispatched.' 
+      });
     }
 
     return NextResponse.json({ 

@@ -206,8 +206,8 @@ export default function TeacherWeeklySchedulePage() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             date: dateStr,
-            periodId: selectedSlot.periodNumber || selectedSlot.periodId,
-            classId: selectedSlot.classId,
+            periodId: String(selectedSlot.periodId ?? selectedSlot.periodNumber),
+            classId: String(selectedSlot.classId),
             title,
           }),
         })
@@ -325,8 +325,8 @@ export default function TeacherWeeklySchedulePage() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               date: dateStr,
-              periodId: selectedSlot.periodNumber || selectedSlot.periodId,
-              classId: selectedSlot.classId,
+              periodId: String(selectedSlot.periodId ?? selectedSlot.periodNumber),
+              classId: String(selectedSlot.classId),
               title,
             }),
           })
@@ -373,6 +373,7 @@ export default function TeacherWeeklySchedulePage() {
       if (response.ok) {
         setShowUndoButton(false);
         setLastAbsentRequestId(null);
+        setSelectedDayIndex(null);
         window.alert('Absent request reverted successfully!');
       } else {
         const error = await response.json();
@@ -440,12 +441,12 @@ export default function TeacherWeeklySchedulePage() {
 
       if (response.ok) {
         const data = await response.json();
-        setLastAbsentRequestId(data.absentRequest?.id || null);
+        setLastAbsentRequestId(data.request?.id || data.absentRequest?.id || null);
         setShowUndoButton(true);
         window.alert('Full-day absent request submitted successfully! Admin will review it.');
         setFullDayAbsentDialogOpen(false);
         setAbsentReason('');
-        setSelectedDayIndex(null);
+        setSelectedDayIndex(dayOfWeek);
       } else {
         const error = await response.json();
         window.alert(`Failed to submit request: ${error.error || 'Unknown error'}`);

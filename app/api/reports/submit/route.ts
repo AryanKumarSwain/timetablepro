@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireSchoolContext, handleApiError, schoolWhere } from '@/lib/auth-server';
-import { mapReportResponse } from '@/lib/report-utils';
+import { mapReportResponse, parseReportDateParam } from '@/lib/report-utils';
 
 const reportInclude = {
   teacher: true,
@@ -12,25 +12,6 @@ async function resolveTeacher(schoolId: string, userEmail: string) {
   return prisma.teacher.findFirst({
     where: { schoolId, email: userEmail },
   });
-}
-
-// Generates a pure UTC Midnight date from local calendar parts
-function getAbsoluteDate(dateParam?: string) {
-  let yyyy: number, mm: number, dd: number;
-
-  if (!dateParam || dateParam === 'today') {
-    const now = new Date();
-    yyyy = now.getFullYear();
-    mm = now.getMonth() + 1;
-    dd = now.getDate();
-  } else {
-    const parts = dateParam.split('T')[0].split('-');
-    yyyy = parseInt(parts[0], 10);
-    mm = parseInt(parts[1], 10);
-    dd = parseInt(parts[2], 10);
-  }
-
-  return new Date(Date.UTC(yyyy, mm - 1, dd, 0, 0, 0, 0));
 }
 
 export async function POST(request: NextRequest) {
@@ -46,7 +27,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const reportDate = getAbsoluteDate(body.date ? String(body.date) : 'today');
+    const reportDate = parseReportDateParam(body.date ? String(body.date) : 'today');
     
     let report = null;
 

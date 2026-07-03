@@ -182,6 +182,7 @@ export default function TeacherReportsPage() {
     description: string;
     tlm: string[];
     homework: string;
+    periodId?: string;
     periodNumber: string | number;
     startTime: string;
     endTime: string;
@@ -276,6 +277,7 @@ export default function TeacherReportsPage() {
           subjectId: slot.subjectId,
           subjectName: slot.subjectName || 'N/A',
           teacherName: auth.user?.name || 'Teacher',
+          periodId: slot.periodId,
           periodNumber: slot.periodNumber ?? 'N/A',
           startTime: slot.startTime ?? '',
           endTime: slot.endTime ?? '',
@@ -322,10 +324,117 @@ export default function TeacherReportsPage() {
       });
 
       if (response.ok) {
-        setTodos(todos.map(t => t.id === todoId ? { ...t, completed: !completed } : t));
+        const updatedTodos = todos.map(t =>
+          t.id === todoId ? { ...t, completed: !completed } : t
+        );
+        setTodos(updatedTodos);
+
+        if (!completed) {
+          const completedTodo = updatedTodos.find(t => t.id === todoId);
+          if (completedTodo) {
+            setRows((prevRows) => {
+              const normalizedTitle = completedTodo.title.trim();
+              if (!normalizedTitle) return prevRows;
+
+              return prevRows.map((row) => {
+                const sameClass = String(row.classId) === String(completedTodo.classId);
+                const samePeriod = row.periodId
+                  ? String(row.periodId) === String(completedTodo.periodId) || String(row.periodNumber) === String(completedTodo.periodId)
+                  : String(row.periodNumber) === String(completedTodo.periodId);
+
+                if (!sameClass || !samePeriod) {
+                  return row;
+                }
+
+                const currentDescription = row.description || '';
+                const descriptionLines = currentDescription
+                  .split('\n')
+                  .map((line) => line.trim());
+
+                if (descriptionLines.some((line) => line === normalizedTitle)) {
+                  return row;
+                }
+
+                const newDescription = currentDescription.trim()
+                  ? `${currentDescription.trim()}\n${normalizedTitle}`
+                  : normalizedTitle;
+
+                return { ...row, description: newDescription };
+              });
+            });
+          }
+        }
       }
     } catch (error) {
       console.error('Failed to toggle TODO:', error);
+    }
+  };
+
+  const handleCheckAllTodos = async (
+    periodId: string | undefined,
+    periodNumber: string | number,
+    classId: string
+  ) => {
+    const periodTodos = getTodosForPeriod(periodId, periodNumber, classId);
+    const incompleteTodos = periodTodos.filter((todo) => !todo.completed);
+    if (incompleteTodos.length === 0) return;
+
+    try {
+      const responses = await Promise.all(
+        incompleteTodos.map((todo) =>
+          fetch(`/api/teacher/todos/${todo.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ completed: true }),
+          })
+        )
+      );
+
+      if (!responses.every((res) => res.ok)) {
+        console.error('Failed to check all TODOs:', responses);
+        return;
+      }
+
+      setTodos((prevTodos) =>
+        prevTodos.map((todo) =>
+          incompleteTodos.some((incomplete) => incomplete.id === todo.id)
+            ? { ...todo, completed: true }
+            : todo
+        )
+      );
+
+      setRows((prevRows) => {
+        return prevRows.map((row) => {
+          const sameClass = String(row.classId) === String(classId);
+          const samePeriod = row.periodId
+            ? String(row.periodId) === String(periodId) || String(row.periodNumber) === String(periodId)
+            : String(row.periodNumber) === String(periodId);
+
+          if (!sameClass || !samePeriod) {
+            return row;
+          }
+
+          const existingLines = (row.description || '')
+            .split('\n')
+            .map((line) => line.trim());
+
+          const linesToAppend = incompleteTodos
+            .map((todo) => todo.title.trim())
+            .filter((title) => title && !existingLines.includes(title));
+
+          if (linesToAppend.length === 0) {
+            return row;
+          }
+
+          const newDescription = row.description?.trim()
+            ? `${row.description.trim()}\n${linesToAppend.join('\n')}`
+            : linesToAppend.join('\n');
+
+          return { ...row, description: newDescription };
+        });
+      });
+    } catch (error) {
+      console.error('Failed to check all TODOs:', error);
     }
   };
 
@@ -343,17 +452,20 @@ export default function TeacherReportsPage() {
     }
   };
 
-  const getTodosForPeriod = (periodNumber: string | number, classId: string) => {
-    console.log('getTodosForPeriod - Input:', { periodNumber, classId, typePeriod: typeof periodNumber, typeClass: typeof classId });
+  const getTodosForPeriod = (periodId: string | undefined, periodNumber: string | number, classId: string) => {
+    console.log('getTodosForPeriod - Input:', { periodId, periodNumber, classId, typePeriodId: typeof periodId, typePeriod: typeof periodNumber, typeClass: typeof classId });
     console.log('getTodosForPeriod - All todos:', todos);
     const filtered = todos.filter(t => {
-      const periodMatch = String(t.periodId) === String(periodNumber);
+      const periodMatch = periodId
+        ? String(t.periodId) === String(periodId)
+        : String(t.periodId) === String(periodNumber);
       const classMatch = String(t.classId) === String(classId);
       console.log('TODO item check:', { 
         todoId: t.id, 
         todoPeriodId: t.periodId, 
         todoClassId: t.classId, 
-        targetPeriod: periodNumber, 
+        targetPeriodId: periodId,
+        targetPeriodNumber: periodNumber,
         targetClass: classId,
         periodMatch, 
         classMatch 
@@ -433,6 +545,52 @@ export default function TeacherReportsPage() {
     }
   };
 
+  const handleSaveDraft = async () => {
+    if (rows.length === 0) return;
+    setValidationError(null);
+    setSubmitSuccess(null);
+    setSubmitting(true);
+
+    try {
+      const entriesPayload = rows.map((r) => {
+        const tlmString = (r.tlm || []).join(', ');
+        return {
+          id: r.entryId,
+          classId: r.classId,
+          className: r.className,
+          subjectId: r.subjectId,
+          subjectName: r.subjectName,
+          periodNumber: Number(r.periodNumber) || r.periodNumber,
+          startTime: r.startTime,
+          endTime: r.endTime,
+          description: `${r.description.trim()}${tlmString ? `\n\nTLM: ${tlmString}` : ''}${r.homework ? `\n\nHomework: ${r.homework}` : ''}`,
+          isCompleted: true,
+        };
+      });
+
+      const todayObj = new Date();
+      const yyyy = todayObj.getFullYear();
+      const mm = String(todayObj.getMonth() + 1).padStart(2, '0');
+      const dd = String(todayObj.getDate()).padStart(2, '0');
+      const explicitLocalDate = `${yyyy}-${mm}-${dd}`;
+
+      const savedReport = await submitReport({
+        reportId: report?.id,
+        date: explicitLocalDate,
+        status: 'DRAFT',
+        entries: entriesPayload,
+      });
+
+      setSubmitSuccess('Draft saved successfully!');
+      setReport(savedReport);
+    } catch (e) {
+      console.error(e);
+      setValidationError('Failed to save draft. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className='max-w-4xl mx-auto px-4 mt-6'>
@@ -486,8 +644,11 @@ export default function TeacherReportsPage() {
         </GlassCard>
       ) : (
         <div className='space-y-5'>
-          {rows.map((r, i) => (
-            <GlassCard key={`${r.classId}-${r.subjectId}-${i}`} className='p-5 shadow-sm border border-muted/60'>
+          {rows.map((r, i) => {
+            const periodTodos = getTodosForPeriod(r.periodId, r.periodNumber, r.classId);
+            const incompleteTodos = periodTodos.filter((todo) => !todo.completed);
+            return (
+              <GlassCard key={`${r.classId}-${r.subjectId}-${i}`} className='p-5 shadow-sm border border-muted/60'>
 
               {/* Dynamic Badge Row Info Section */}
               <div className='flex flex-wrap items-center gap-2 mb-4 text-sm font-semibold text-foreground'>
@@ -525,21 +686,32 @@ export default function TeacherReportsPage() {
                 </div>
 
                 <div className='md:col-span-1 space-y-1.5'>
-                  <label className='text-xs font-semibold text-muted-foreground flex items-center gap-1.5'>
-                    <CheckCircle2 className="h-3 w-3" /> TODOs
-                    {getTodosForPeriod(r.periodNumber, r.classId).length > 0 && (
-                      <span className="text-[10px] bg-indigo-500/20 text-indigo-600 px-1.5 py-0.5 rounded-full font-medium">
-                        {getTodosForPeriod(r.periodNumber, r.classId).length}
-                      </span>
+                  <div className='flex items-start justify-between gap-2'>
+                    <label className='text-xs font-semibold text-muted-foreground flex items-center gap-1.5'>
+                      <CheckCircle2 className="h-3 w-3" /> TODOs
+                      {periodTodos.length > 0 && (
+                        <span className="text-[10px] bg-indigo-500/20 text-indigo-600 px-1.5 py-0.5 rounded-full font-medium">
+                          {periodTodos.length}
+                        </span>
+                      )}
+                    </label>
+                    {!readOnly && incompleteTodos.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => void handleCheckAllTodos(r.periodId, r.periodNumber, r.classId)}
+                        className="text-[11px] font-semibold text-indigo-600 hover:text-indigo-800 transition-colors"
+                      >
+                        Check all
+                      </button>
                     )}
-                  </label>
+                  </div>
                   <div className="border rounded-xl bg-background/50 min-h-[95px] p-2 space-y-1.5 overflow-y-auto max-h-[160px]">
-                    {getTodosForPeriod(r.periodNumber, r.classId).length === 0 ? (
+                    {getTodosForPeriod(r.periodId, r.periodNumber, r.classId).length === 0 ? (
                       <p className="text-xs text-muted-foreground/70 flex items-center justify-center h-full min-h-[75px]">
                         No TODOs
                       </p>
                     ) : (
-                      getTodosForPeriod(r.periodNumber, r.classId).map((todo) => (
+                      getTodosForPeriod(r.periodId, r.periodNumber, r.classId).map((todo) => (
                         <div
                           key={todo.id}
                           className="flex items-center gap-2 p-1.5 rounded-lg bg-muted/50 border border-border/60 text-xs"
@@ -602,10 +774,19 @@ export default function TeacherReportsPage() {
               )}
 
             </GlassCard>
-          ))}
+            );
+          })}
 
           {!readOnly && (
-            <div className='flex justify-end pt-2'>
+            <div className='flex justify-end pt-2 gap-3'>
+              <button
+                type="button"
+                disabled={submitting}
+                onClick={() => void handleSaveDraft()}
+                className='rounded-xl px-5 py-3 border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 font-medium transition disabled:opacity-50 disabled:cursor-not-allowed'
+              >
+                {submitting ? 'Saving…' : 'Save Draft'}
+              </button>
               <Button
                 size='lg'
                 onClick={() => void handleSubmit()}

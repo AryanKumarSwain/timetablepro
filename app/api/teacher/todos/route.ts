@@ -66,21 +66,32 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json().catch(() => ({}));
     const { date, periodId, classId, title } = body;
+    const normalizedDate = String(date || '').trim();
+    const normalizedTitle = String(title || '').trim();
+    const normalizedPeriodId = periodId !== undefined && periodId !== null ? String(periodId) : null;
+    const normalizedClassId = classId !== undefined && classId !== null ? String(classId) : null;
 
-    if (!date || !title) {
-      return NextResponse.json({ error: 'Missing required fields: date, title' }, { status: 400 });
+    if (!normalizedDate || !normalizedTitle) {
+      return NextResponse.json({ error: 'Missing required fields: date and title are required' }, { status: 400 });
     }
 
-    console.log('[TODOS_POST] Creating todo:', { schoolId, teacherId: teacher.id, date, periodId, classId, title });
+    console.log('[TODOS_POST] Creating todo:', {
+      schoolId,
+      teacherId: teacher.id,
+      date: normalizedDate,
+      periodId: normalizedPeriodId,
+      classId: normalizedClassId,
+      title: normalizedTitle,
+    });
 
     const todo = await prisma.teacherTodo.create({
       data: {
         schoolId,
         teacherId: teacher.id,
-        date,
-        periodId: periodId || null,
-        classId: classId || null,
-        title,
+        date: normalizedDate,
+        periodId: normalizedPeriodId,
+        classId: normalizedClassId,
+        title: normalizedTitle,
       },
     });
 

@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    return NextResponse.json({ success: true, request: absentRequest });
+    return NextResponse.json({ success: true, request: absentRequest, absentRequest });
   } catch (error) {
     return handleApiError(error);
   }
