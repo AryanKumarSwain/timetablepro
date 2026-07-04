@@ -5,9 +5,26 @@ import { BookMarked, Search, Download, Filter, ChevronLeft, ChevronRight } from 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { PageHeader } from '@/components/enterprise/page-header';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { toast } from 'sonner';
 import { LessonDetailView } from '@/components/lesson-planning/lesson-detail-view';
-import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addDays, eachDayOfInterval } from 'date-fns';
+import { 
+  format, 
+  startOfMonth, 
+  endOfMonth, 
+  startOfWeek, 
+  endOfWeek, 
+  addDays, 
+  startOfDay, 
+  endOfDay 
+} from 'date-fns';
 
 interface LessonPlan {
   id: string;
@@ -19,6 +36,18 @@ interface LessonPlan {
   class: { name: string };
   subject: { name: string };
   period: { startTime: string; endTime: string };
+}
+
+interface ClassOption {
+  id: string;
+  name: string;
+  grade?: string;
+  section?: string;
+}
+
+interface TeacherOption {
+  id: string;
+  name: string;
 }
 
 const statusColors = {
@@ -33,15 +62,45 @@ export default function AdminLessonPlanningPage() {
   const [view, setView] = useState<'day' | 'week' | 'month'>('month');
   const [currentDate, setCurrentDate] = useState(new Date());
   const [lessonPlans, setLessonPlans] = useState<LessonPlan[]>([]);
+  const [classes, setClasses] = useState<ClassOption[]>([]);
+  const [teachers, setTeachers] = useState<TeacherOption[]>([]);
   const [selectedLesson, setSelectedLesson] = useState<LessonPlan | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterTeacherId, setFilterTeacherId] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
+  const [filterClassId, setFilterClassId] = useState('');
 
   useEffect(() => {
     fetchLessonPlans();
-  }, [searchTerm, filterTeacherId, filterStatus]);
+  }, [searchTerm, filterTeacherId, filterStatus, filterClassId]);
+
+  useEffect(() => {
+    fetchClasses();
+    fetchTeachers();
+  }, []);
+
+  const fetchClasses = async () => {
+    try {
+      const res = await fetch('/api/classes');
+      if (!res.ok) throw new Error('Failed to fetch classes');
+      const data = await res.json();
+      setClasses(data);
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  const fetchTeachers = async () => {
+    try {
+      const res = await fetch('/api/teachers');
+      if (!res.ok) throw new Error('Failed to fetch teachers');
+      const data = await res.json();
+      setTeachers(data);
+    } catch (error) {
+      console.error(error);
+    }
+  };
 
   const fetchLessonPlans = async () => {
     try {
@@ -50,6 +109,7 @@ export default function AdminLessonPlanningPage() {
       if (searchTerm) params.append('search', searchTerm);
       if (filterTeacherId) params.append('teacherId', filterTeacherId);
       if (filterStatus) params.append('status', filterStatus);
+      if (filterClassId) params.append('classId', filterClassId);
 
       const res = await fetch(`/api/admin/lesson-plans?${params.toString()}`);
       if (!res.ok) throw new Error('Failed to fetch');
@@ -73,6 +133,7 @@ export default function AdminLessonPlanningPage() {
       params.append('dateFrom', dateFrom);
       params.append('dateTo', dateTo);
       params.append('format', 'csv');
+      if (filterClassId) params.append('classId', filterClassId);
 
       const res = await fetch(`/api/admin/lesson-plans/export?${params.toString()}`);
       if (!res.ok) throw new Error('Failed to export');
@@ -123,14 +184,25 @@ export default function AdminLessonPlanningPage() {
     startDate = startOfWeek(currentDate);
     endDate = endOfWeek(currentDate);
   } else {
-    startDate = currentDate;
-    endDate = currentDate;
+    // Ensure we capture the whole day for the daily view filter
+    startDate = startOfDay(currentDate);
+    endDate = endOfDay(currentDate);
   }
 
-  // Filter lessons for the current view
+  // Filter lessons for the current view and search term
   const filteredLessons = lessonPlans.filter((lesson) => {
     const lessonDate = new Date(lesson.planDate);
-    return lessonDate >= startDate && lessonDate <= endDate;
+    const matchesDate = lessonDate >= startDate && lessonDate <= endDate;
+    
+    const searchLower = searchTerm.toLowerCase();
+    const matchesSearch = !searchTerm || 
+      lesson.class.name.toLowerCase().includes(searchLower) ||
+      lesson.teacher.name.toLowerCase().includes(searchLower) ||
+      lesson.subject.name.toLowerCase().includes(searchLower) ||
+      lesson.lessonTitle.toLowerCase().includes(searchLower) ||
+      (lesson.topic && lesson.topic.toLowerCase().includes(searchLower));
+
+    return matchesDate && matchesSearch;
   });
 
   // Sort lessons by date and time
@@ -150,23 +222,21 @@ export default function AdminLessonPlanningPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-6">
-      {/* Header */}
-      <div className="mb-8">
-        <div className="flex items-center gap-3 mb-2">
-          <BookMarked className="h-8 w-8 text-blue-600" />
-          <h1 className="text-3xl font-bold text-gray-900">Lesson Planning Overview</h1>
-        </div>
-        <p className="text-gray-600">Monitor and review all teachers' lesson plans</p>
-      </div>
+      <div className="mx-auto max-w-7xl space-y-6">
+        <PageHeader
+          title="Lesson Planning Overview"
+          description="Monitor and review all teachers' lesson plans"
+          breadcrumbs={[{ label: 'Admin', href: '/admin/dashboard' }, { label: 'Lesson Planning' }]}
+        />
 
       {/* Toolbar */}
-      <div className="bg-white rounded-lg shadow p-4 mb-6 space-y-4">
+      <div className="bg-white rounded-2xl border border-slate-200/70 shadow-sm p-4 mb-6 space-y-4">
         <div className="flex flex-col lg:flex-row gap-4">
           {/* Search */}
           <div className="flex-1 relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
             <Input
-              placeholder="Search by teacher, topic, or chapter..."
+              placeholder="Search by teacher, class, topic, or chapter..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-10"
@@ -174,7 +244,33 @@ export default function AdminLessonPlanningPage() {
           </div>
 
           {/* Filters */}
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            <Select value={filterTeacherId || 'all'} onValueChange={(value) => setFilterTeacherId(value === 'all' ? '' : value)}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="All teachers" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All teachers</SelectItem>
+                {teachers.map((teacher) => (
+                  <SelectItem key={teacher.id} value={teacher.id}>
+                    {teacher.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={filterClassId || 'all'} onValueChange={(value) => setFilterClassId(value === 'all' ? '' : value)}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="All classes" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All classes</SelectItem>
+                {classes.map((classItem) => (
+                  <SelectItem key={classItem.id} value={classItem.id}>
+                    {classItem.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Button variant="outline" size="icon">
               <Filter className="h-4 w-4" />
             </Button>
@@ -296,11 +392,11 @@ export default function AdminLessonPlanningPage() {
           lesson={selectedLesson}
           onClose={() => setSelectedLesson(null)}
           onCommentAdded={() => {
-            // Refresh the lesson details
             fetchLessonPlans();
           }}
         />
       )}
+      </div>
     </div>
   );
 }

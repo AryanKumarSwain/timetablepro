@@ -2,9 +2,17 @@
 
 import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
-import { BookMarked, Plus, Search, Filter } from 'lucide-react';
+import { BookMarked, Search, Filter } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { PageHeader } from '@/components/enterprise/page-header';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import {
   Dialog,
   DialogContent,
@@ -44,29 +52,70 @@ interface LessonPlan {
   slotId: string;
 }
 
+interface ClassOption {
+  id: string;
+  name: string;
+}
+
+interface SubjectOption {
+  id: string;
+  name: string;
+}
+
 export default function LessonPlanningPage() {
   const [view, setView] = useState<'day' | 'week' | 'month' | 'year'>('week');
   const [selectedDate, setSelectedDate] = useState(() => format(new Date(), 'yyyy-MM-dd'));
   const [lessonPlans, setLessonPlans] = useState<LessonPlan[]>([]);
   const [timetableSlots, setTimetableSlots] = useState<TimetableSlot[]>([]);
+  const [classes, setClasses] = useState<ClassOption[]>([]);
+  const [subjects, setSubjects] = useState<SubjectOption[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<TimetableSlot | null>(null);
+  const [selectedLesson, setSelectedLesson] = useState<LessonPlan | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  
+  // Filter States
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('');
+  const [selectedClassId, setSelectedClassId] = useState('');
+  const [selectedSubjectId, setSelectedSubjectId] = useState('');
+  const [selectedDateFilter, setSelectedDateFilter] = useState('');
 
+  // Fetch all lesson plans on mount (removed filter dependencies to preserve daily schedule)
   useEffect(() => {
     fetchLessonPlans();
-    fetchTimetableSlots();
   }, []);
+
+  useEffect(() => {
+    fetchTimetableSlots(selectedDate);
+    fetchClassesAndSubjects();
+  }, [selectedDate]);
+
+  const fetchClassesAndSubjects = async () => {
+    try {
+      const [classesRes, subjectsRes] = await Promise.all([
+        fetch('/api/classes'),
+        fetch('/api/subjects'),
+      ]);
+
+      if (classesRes.ok) {
+        const classesData = await classesRes.json();
+        setClasses(classesData);
+      }
+
+      if (subjectsRes.ok) {
+        const subjectsData = await subjectsRes.json();
+        setSubjects(subjectsData);
+      }
+    } catch (error) {
+      console.error(error);
+    }
+  };
 
   const fetchLessonPlans = async () => {
     try {
-      const params = new URLSearchParams();
-      if (searchTerm) params.append('search', searchTerm);
-      if (selectedStatus) params.append('status', selectedStatus);
-
-      const res = await fetch(`/api/teacher/lesson-plans?${params.toString()}`);
+      // Fetching all lessons so stats and daily view remain intact
+      const res = await fetch(`/api/teacher/lesson-plans`);
       if (!res.ok) throw new Error('Failed to fetch');
 
       const data = await res.json();
@@ -77,9 +126,12 @@ export default function LessonPlanningPage() {
     }
   };
 
-  const fetchTimetableSlots = async () => {
+  const fetchTimetableSlots = async (date = selectedDate) => {
     try {
-      const res = await fetch(`/api/teacher/timetable-periods`);
+      const params = new URLSearchParams();
+      if (date) params.append('date', date);
+
+      const res = await fetch(`/api/teacher/timetable-periods?${params.toString()}`);
       if (!res.ok) throw new Error('Failed to fetch');
 
       const data = await res.json();
@@ -114,11 +166,36 @@ export default function LessonPlanningPage() {
       }
 
       toast.success('Lesson plan created');
-      setIsDialogOpen(false);
-      setSelectedSlot(null);
+      handleCloseDialog();
       fetchLessonPlans();
     } catch (error) {
-      throw error;
+      toast.error(error instanceof Error ? error.message : 'Failed to create lesson plan');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleUpdateLesson = async (data: LessonPlanFormData) => {
+    if (!selectedLesson) return;
+
+    try {
+      setIsLoading(true);
+      const res = await fetch(`/api/teacher/lesson-plans/${selectedLesson.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || 'Failed to update lesson plan');
+      }
+
+      toast.success('Lesson plan updated');
+      handleCloseDialog();
+      fetchLessonPlans();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to update lesson plan');
     } finally {
       setIsLoading(false);
     }
@@ -142,12 +219,28 @@ export default function LessonPlanningPage() {
     }
   };
 
+  const handleOpenCreateDialog = (slot: TimetableSlot) => {
+    setSelectedSlot(slot);
+    setSelectedLesson(null);
+    setIsDialogOpen(true);
+  };
+
+  const handleOpenEditDialog = (lesson: LessonPlan) => {
+    setSelectedLesson(lesson);
+    setSelectedSlot(null);
+    setIsDialogOpen(true);
+  };
+
+  const handleCloseDialog = () => {
+    setIsDialogOpen(false);
+    setSelectedSlot(null);
+    setSelectedLesson(null);
+  };
+
   const parseDateOnly = (value: string) => {
     if (!value) return null;
-
     const parsed = new Date(`${value}T00:00:00`);
     if (Number.isNaN(parsed.getTime())) return null;
-
     return parsed;
   };
 
@@ -157,8 +250,26 @@ export default function LessonPlanningPage() {
   // Get lesson dates for calendar
   const lessonDates = lessonPlans.map((p) => p.planDate);
 
-  // Get lessons for selected date
-  const lessonsForDate = lessonPlans.filter((p) => p.planDate === selectedDate);
+  // Get lessons for selected date (Unfiltered by UI search)
+  const dayScheduleEntries = [...timetableSlots]
+    .sort((a, b) => a.period.startTime.localeCompare(b.period.startTime))
+    .map((slot) => ({
+      slot,
+      lesson: lessonPlans.find((plan) => plan.slotId === slot.id && plan.planDate === selectedDate) ?? null,
+    }));
+
+  // Client-side filtering for the "All Your Lessons" section
+  const filteredAllLessons = lessonPlans.filter((lesson) => {
+    const matchesSearch = !searchTerm || 
+      lesson.lessonTitle.toLowerCase().includes(searchTerm.toLowerCase()) || 
+      (lesson.topic && lesson.topic.toLowerCase().includes(searchTerm.toLowerCase()));
+    const matchesClass = !selectedClassId || lesson.classId === selectedClassId;
+    const matchesSubject = !selectedSubjectId || lesson.subjectId === selectedSubjectId;
+    const matchesDate = !selectedDateFilter || lesson.planDate === selectedDateFilter;
+    const matchesStatus = !selectedStatus || lesson.status === selectedStatus;
+
+    return matchesSearch && matchesClass && matchesSubject && matchesDate && matchesStatus;
+  });
 
   // Calculate stats
   const todaysLessons = lessonPlans.filter((p) => p.planDate === today).length;
@@ -176,14 +287,12 @@ export default function LessonPlanningPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-6">
-      {/* Header */}
-      <div className="mb-8">
-        <div className="flex items-center gap-3 mb-2">
-          <BookMarked className="h-8 w-8 text-blue-600" />
-          <h1 className="text-3xl font-bold text-gray-900">Lesson Planning</h1>
-        </div>
-        <p className="text-gray-600">Plan and manage your lessons for all your classes</p>
-      </div>
+      <div className="mx-auto max-w-7xl space-y-6">
+        <PageHeader
+          title="Lesson Planning"
+          description="Plan and manage your lessons for all your classes"
+          breadcrumbs={[{ label: 'Teacher', href: '/teacher/schedule' }, { label: 'Lesson Planning' }]}
+        />
 
       {/* Stats */}
       <div className="mb-8">
@@ -195,7 +304,7 @@ export default function LessonPlanningPage() {
         />
       </div>
 
-      {/* Main Content */}
+      {/* Main Content Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         {/* Sidebar */}
         <div className="space-y-6">
@@ -224,49 +333,12 @@ export default function LessonPlanningPage() {
               />
             </div>
           </div>
-
-          {/* Quick Add */}
-          <div className="bg-white p-4 rounded-lg shadow">
-            <Button
-              onClick={() => {
-                if (timetableSlots.length === 0) {
-                  toast.error('No timetable slots found');
-                  return;
-                }
-                setSelectedSlot(timetableSlots[0]);
-                setIsDialogOpen(true);
-              }}
-              className="w-full"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              New Lesson
-            </Button>
-          </div>
         </div>
 
-        {/* Main Content Area */}
+        {/* Selected Date Content Area */}
         <div className="lg:col-span-3 space-y-6">
-          {/* Search and Filter */}
-          <div className="bg-white p-4 rounded-lg shadow flex gap-2">
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <Input
-                placeholder="Search lessons..."
-                value={searchTerm}
-                onChange={(e) => {
-                  setSearchTerm(e.target.value);
-                  fetchLessonPlans();
-                }}
-                className="pl-10"
-              />
-            </div>
-            <Button variant="outline" size="icon">
-              <Filter className="h-4 w-4" />
-            </Button>
-          </div>
-
           {/* Lessons for Selected Date */}
-          <div className="bg-white p-4 rounded-lg shadow">
+          <div className="bg-white p-4 rounded-lg shadow border border-slate-200/70">
             <div className="flex justify-between items-center mb-4">
               <h2 className="font-semibold">
                 Lessons for {selectedDateValue.toLocaleDateString('en-US', {
@@ -275,84 +347,145 @@ export default function LessonPlanningPage() {
                   day: 'numeric',
                 })}
               </h2>
-              <Button
-                size="sm"
-                onClick={() => setIsDialogOpen(true)}
-              >
-                <Plus className="h-4 w-4 mr-1" />
-                Add Lesson
-              </Button>
             </div>
 
-            {lessonsForDate.length === 0 ? (
+            {dayScheduleEntries.length === 0 ? (
               <div className="text-center py-8 text-gray-500">
-                <p>No lessons planned for this date</p>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setIsDialogOpen(true)}
-                  className="mt-4"
-                >
-                  Create First Lesson
-                </Button>
+                <p>No timetable periods found for this date</p>
               </div>
             ) : (
               <div className="space-y-3">
-                {lessonsForDate.map((lesson) => (
+                {dayScheduleEntries.map(({ slot, lesson }) => (
                   <LessonPlanCard
-                    key={lesson.id}
-                    id={lesson.id}
-                    lessonTitle={lesson.lessonTitle}
-                    className={lesson.class.name}
-                    subjectName={lesson.subject.name}
-                    periodTime={`${lesson.period.startTime} - ${lesson.period.endTime}`}
-                    date={lesson.planDate}
-                    status={lesson.status}
-                    topic={lesson.topic}
-                    estimatedDuration={lesson.estimatedDuration}
-                    onDelete={handleDeleteLesson}
+                    key={slot.id}
+                    id={lesson?.id ?? slot.id}
+                    lessonTitle={lesson?.lessonTitle ?? 'No lesson plan yet'}
+                    className={slot.class.name}
+                    subjectName={slot.subject.name}
+                    periodTime={`${slot.period.startTime} - ${slot.period.endTime}`}
+                    date={selectedDate}
+                    status={lesson?.status ?? 'PENDING'}
+                    topic={lesson?.topic}
+                    estimatedDuration={lesson?.estimatedDuration}
+                    isEmpty={!lesson}
+                    onClick={() => {
+                      if (lesson) {
+                        handleOpenEditDialog(lesson);
+                      } else {
+                        handleOpenCreateDialog(slot);
+                      }
+                    }}
+                    onDelete={lesson ? () => handleDeleteLesson(lesson.id) : undefined}
                   />
                 ))}
               </div>
             )}
           </div>
-
-          {/* All Lessons */}
-          {lessonsForDate.length > 0 && (
-            <div className="bg-white p-4 rounded-lg shadow">
-              <h2 className="font-semibold mb-4">All Your Lessons</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {lessonPlans.map((lesson) => (
-                  <LessonPlanCard
-                    key={lesson.id}
-                    id={lesson.id}
-                    lessonTitle={lesson.lessonTitle}
-                    className={lesson.class.name}
-                    subjectName={lesson.subject.name}
-                    periodTime={`${lesson.period.startTime} - ${lesson.period.endTime}`}
-                    date={lesson.planDate}
-                    status={lesson.status}
-                    topic={lesson.topic}
-                    estimatedDuration={lesson.estimatedDuration}
-                    onDelete={handleDeleteLesson}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
         </div>
       </div>
 
-      {/* New Lesson Dialog */}
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+      {/* All Lessons section with Filter applied purely here */}
+      {lessonPlans.length > 0 && (
+        <div className="bg-white p-6 rounded-2xl border border-slate-200/70 shadow-sm mt-6 w-full">
+          
+          {/* Header & Filter Controls side-by-side */}
+          <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-6 gap-4">
+            <h2 className="font-semibold text-xl text-gray-900 whitespace-nowrap">All Your Lessons</h2>
+            
+            <div className="flex flex-col sm:flex-row flex-wrap items-center gap-3 w-full lg:w-auto">
+              <div className="relative flex-1 min-w-[200px] w-full">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                  placeholder="Search lessons..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10 w-full"
+                />
+              </div>
+              <Select value={selectedClassId || 'all'} onValueChange={(value) => setSelectedClassId(value === 'all' ? '' : value)}>
+                <SelectTrigger className="w-full sm:w-[150px]">
+                  <SelectValue placeholder="All classes" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All classes</SelectItem>
+                  {classes.map((classItem) => (
+                    <SelectItem key={classItem.id} value={classItem.id}>{classItem.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={selectedSubjectId || 'all'} onValueChange={(value) => setSelectedSubjectId(value === 'all' ? '' : value)}>
+                <SelectTrigger className="w-full sm:w-[150px]">
+                  <SelectValue placeholder="All subjects" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All subjects</SelectItem>
+                  {subjects.map((subject) => (
+                    <SelectItem key={subject.id} value={subject.id}>{subject.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Input
+                type="date"
+                value={selectedDateFilter}
+                onChange={(e) => setSelectedDateFilter(e.target.value)}
+                className="w-full sm:w-[150px]"
+              />
+              <Button variant="outline" size="icon" className="shrink-0 hidden sm:flex">
+                <Filter className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {filteredAllLessons.map((lesson) => (
+              <LessonPlanCard
+                key={lesson.id}
+                id={lesson.id}
+                lessonTitle={lesson.lessonTitle}
+                className={lesson.class.name}
+                subjectName={lesson.subject.name}
+                periodTime={`${lesson.period.startTime} - ${lesson.period.endTime}`}
+                date={lesson.planDate}
+                status={lesson.status}
+                topic={lesson.topic}
+                estimatedDuration={lesson.estimatedDuration}
+                onClick={() => handleOpenEditDialog(lesson)}
+                onDelete={() => handleDeleteLesson(lesson.id)}
+              />
+            ))}
+            
+            {filteredAllLessons.length === 0 && (
+              <div className="col-span-full text-center py-8 text-gray-500">
+                No lessons match your filters.
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Lesson Dialog */}
+      <Dialog open={isDialogOpen} onOpenChange={(open) => {
+        if (!open) handleCloseDialog();
+        else setIsDialogOpen(true);
+      }}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Create New Lesson Plan</DialogTitle>
+            <DialogTitle>{selectedLesson ? 'Edit Lesson Plan' : 'Create New Lesson Plan'}</DialogTitle>
           </DialogHeader>
           <LessonPlanForm
-            onSubmit={handleCreateLesson}
+            onSubmit={selectedLesson ? handleUpdateLesson : handleCreateLesson}
+            initialData={selectedLesson ? {
+              ...selectedLesson,
+              status: selectedLesson.status === 'PLANNED' ? 'PLANNED' : 'DRAFT',
+            } : undefined}
             slotInfo={
-              selectedSlot
+              selectedLesson
+                ? {
+                    className: selectedLesson.class.name,
+                    subjectName: selectedLesson.subject.name,
+                    periodTime: `${selectedLesson.period.startTime} - ${selectedLesson.period.endTime}`,
+                  }
+                : selectedSlot
                 ? {
                     className: selectedSlot.class.name,
                     subjectName: selectedSlot.subject.name,
@@ -364,6 +497,7 @@ export default function LessonPlanningPage() {
           />
         </DialogContent>
       </Dialog>
+      </div>
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { requireSuperAdmin, requireRole, handleApiError } from '@/lib/auth-server';
+import { requireSuperAdmin, handleApiError } from '@/lib/auth-server';
 
 const VALID_EXPORT_FORMATS = ['pdf', 'docx', 'csv'] as const;
 
@@ -32,10 +32,11 @@ function validatePlanPayload(body: any) {
       teacherMin,
       teacherMax,
       priceMonthly,
-      reportEnabled:     body.reportEnabled     !== undefined ? Boolean(body.reportEnabled)     : true,
-      attendanceEnabled: body.attendanceEnabled !== undefined ? Boolean(body.attendanceEnabled) : true,
-      homeworkEnabled:   body.homeworkEnabled   !== undefined ? Boolean(body.homeworkEnabled)   : true,
-      watermarkRequired: body.watermarkRequired !== undefined ? Boolean(body.watermarkRequired) : false,
+      reportEnabled:         body.reportEnabled         !== undefined ? Boolean(body.reportEnabled)         : true,
+      attendanceEnabled:     body.attendanceEnabled     !== undefined ? Boolean(body.attendanceEnabled)     : true,
+      homeworkEnabled:       body.homeworkEnabled       !== undefined ? Boolean(body.homeworkEnabled)       : true,
+      lessonPlanningEnabled: body.lessonPlanningEnabled !== undefined ? Boolean(body.lessonPlanningEnabled) : false,
+      watermarkRequired:     body.watermarkRequired     !== undefined ? Boolean(body.watermarkRequired)     : false,
       exportFormats,
     },
   };
@@ -49,18 +50,17 @@ function serializePlan(plan: any, schoolCount: number) {
     teacherMax:        plan.teacherMax,
     priceMonthly:      Number(plan.priceMonthly),
     schoolCount,
-    reportEnabled:     plan.reportEnabled,
-    attendanceEnabled: plan.attendanceEnabled,
-    homeworkEnabled:   plan.homeworkEnabled,
-    watermarkRequired: plan.watermarkRequired,
-    exportFormats:     plan.exportFormats ?? [],
+    reportEnabled:         plan.reportEnabled,
+    attendanceEnabled:     plan.attendanceEnabled,
+    homeworkEnabled:       plan.homeworkEnabled,
+    lessonPlanningEnabled: plan.lessonPlanningEnabled ?? false,
+    watermarkRequired:     plan.watermarkRequired,
+    exportFormats:         plan.exportFormats ?? [],
   };
 }
 
 export async function GET() {
   try {
-    await requireRole('SUPER_ADMIN', 'ADMIN');
-
     const plans = await prisma.saaSPlan.findMany({
       orderBy: { priceMonthly: 'asc' },
       include: {
@@ -98,11 +98,12 @@ export async function POST(request: NextRequest) {
         teacherMin:        payload.teacherMin,
         teacherMax:        payload.teacherMax,
         priceMonthly:      payload.priceMonthly,
-        reportEnabled:     payload.reportEnabled,
-        attendanceEnabled: payload.attendanceEnabled,
-        homeworkEnabled:   payload.homeworkEnabled,
-        watermarkRequired: payload.watermarkRequired,
-        exportFormats:     payload.exportFormats,
+        reportEnabled:         payload.reportEnabled,
+        attendanceEnabled:     payload.attendanceEnabled,
+        homeworkEnabled:       payload.homeworkEnabled,
+        lessonPlanningEnabled: payload.lessonPlanningEnabled,
+        watermarkRequired:     payload.watermarkRequired,
+        exportFormats:         payload.exportFormats,
       },
     });
 

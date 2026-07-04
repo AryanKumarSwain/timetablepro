@@ -71,7 +71,7 @@ export function handleApiError(error: unknown) {
   return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
 }
 
-export async function checkFeatureAccess(feature: 'reports' | 'attendance' | 'homework'): Promise<boolean> {
+export async function checkFeatureAccess(feature: 'reports' | 'attendance' | 'homework' | 'lesson-planning'): Promise<boolean> {
   const session = await getSession();
   if (!session.isLoggedIn || !session.user || !session.user.schoolId) return false;
 
@@ -90,12 +90,14 @@ export async function checkFeatureAccess(feature: 'reports' | 'attendance' | 'ho
       return plan.attendanceEnabled || false;
     case 'homework':
       return plan.homeworkEnabled || false;
+    case 'lesson-planning':
+      return plan.lessonPlanningEnabled || false;
     default:
       return false;
   }
 }
 
-export async function requireFeatureAccess(feature: 'reports' | 'attendance' | 'homework'): Promise<void> {
+export async function requireFeatureAccess(feature: 'reports' | 'attendance' | 'homework' | 'lesson-planning'): Promise<void> {
   const hasAccess = await checkFeatureAccess(feature);
   if (!hasAccess) {
     throw new AuthError(`This feature is locked under your active plan. Upgrade your plan subscription to gain instant access.`, 403);

@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { useRouter } from 'next/navigation';
 
 interface ProtectedFeatureProps {
-  featureKey: 'reports' | 'attendance' | 'homework';
+  featureKey: 'reports' | 'attendance' | 'homework' | 'lesson-planning';
   featureName: string;
   isEnabled: boolean;
   children: React.ReactNode;

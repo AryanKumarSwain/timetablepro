@@ -26,7 +26,7 @@ export interface NavItem {
   href: string;
   icon: LucideIcon;
   badge?: string;
-  featureKey?: 'reports' | 'attendance' | 'homework';
+  featureKey?: 'reports' | 'attendance' | 'homework' | 'lesson-planning';
 }
 
 
@@ -43,7 +43,7 @@ export const ADMIN_NAV: NavItem[] = [
   { label: 'Subjects', href: '/admin/subjects', icon: BookOpen },
   { label: 'Attendance', href: '/admin/attendance', icon: UserCheck, featureKey: 'attendance' },
   { label: 'Timetables', href: '/admin/timetables', icon: Table2 },
-  { label: 'Lesson Planning', href: '/admin/lesson-planning', icon: BookMarked },
+  { label: 'Lesson Planning', href: '/admin/lesson-planning', icon: BookMarked, featureKey: 'lesson-planning' },
   { label: 'Daily Desk', href: '/admin/daily-desk', icon: ClipboardList },
   { label: 'Reports', href: '/admin/reports', icon: FileText, featureKey: 'reports' },
   { label: 'Homework', href: '/admin/homework', icon: BookOpen, featureKey: 'homework' },

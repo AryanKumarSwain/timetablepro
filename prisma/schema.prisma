@@ -1,679 +1,680 @@
 datasource db {
-  provider = "mysql"
+  provider = "mysql"
 }
 
 generator client {
-  provider = "prisma-client-js"
+  provider = "prisma-client-js"
 }
 
 model SaaSPlan {
-  id               String   @id @default(uuid())
-  name             String
-  teacherMin       Int
-  teacherMax       Int
-  priceMonthly     Decimal  @db.Decimal(10, 2)
-  reportEnabled    Boolean  @default(false)
-  attendanceEnabled Boolean  @default(false)
-  homeworkEnabled  Boolean  @default(false)
-  exportFormats    Json     @default("[]")
-  watermarkRequired Boolean  @default(true)
-  schools          School[]
-  trialSchools     School[] @relation("SchoolTrialPlan")
-  originalSchools  School[] @relation("SchoolOriginalPlan")
-  queuedSchools    School[] @relation("SchoolQueuedPlan")
+  id               String   @id @default(uuid())
+  name             String
+  teacherMin       Int
+  teacherMax       Int
+  priceMonthly     Decimal  @db.Decimal(10, 2)
+  reportEnabled      Boolean  @default(false)
+  attendanceEnabled   Boolean  @default(false)
+  homeworkEnabled    Boolean  @default(false)
+  lessonPlanningEnabled Boolean @default(false)
+  exportFormats      Json     @default("[]")
+  watermarkRequired   Boolean  @default(true)
+  schools          School[]
+  trialSchools     School[] @relation("SchoolTrialPlan")
+  originalSchools  School[] @relation("SchoolOriginalPlan")
+  queuedSchools    School[] @relation("SchoolQueuedPlan")
 }
 
 model School {
-  id                      String                  @id @default(uuid())
-  name                    String
-  type                    String?
-  city                    String?
-  country                 String?
-  studentsRange           String?
-  facultyRange            String?
-  licenseStatus           LicenseStatus           @default(ACTIVE)
-  planId                  String?
-  plan                    SaaSPlan?                @relation(fields: [planId], references: [id])
-  planStartsAt            DateTime?
-  planEndsAt              DateTime?
-  queuedPlanId            String?
-  queuedPlan              SaaSPlan?                @relation("SchoolQueuedPlan", fields: [queuedPlanId], references: [id])
-  queuedPlanStartsAt      DateTime?
-  trialEndsAt             DateTime?
-  trialPlanId             String?
-  trialPlan               SaaSPlan?                @relation("SchoolTrialPlan", fields: [trialPlanId], references: [id])
-  trialStatus             TrialStatus              @default(NONE)
-  hasNotifiedTrialEnding  Boolean                 @default(false)
-  hasUsedTrial            Boolean                 @default(false)
-  originalPlanId          String?
-  originalPlan            SaaSPlan?                @relation("SchoolOriginalPlan", fields: [originalPlanId], references: [id])
-  address                 String?
-  phone                   String?
-  email                   String?
-  logo                    String?
-  createdAt               DateTime                @default(now())
-  users                   User[]
-  teachers                Teacher[]
-  classes                 ClassRoom[]
-  subjects                Subject[]
-  periods                 Period[]
-  weeklySlots             WeeklyTimetableSlot[]
-  attendance              TeacherAttendance[]
-  replacements            ReplacementAssignment[]
-  dailyReports            DailyReport[]
-  timetables              Timetable[]
-  timetableSlots          TimetableSlot[]
-  homework                Homework[]
-  leaveRequests           SchoolLeaveRequest[]
-  absentRequests          TeacherAbsentRequest[]
-  subscriptionTransactions SubscriptionTransaction[]
-  customPlanRequests      CustomPlanRequest[]
-  teacherTodos            TeacherTodo[]
-  lessonPlans             LessonPlan[]
+  id                      String                  @id @default(uuid())
+  name                    String
+  type                    String?
+  city                    String?
+  country                 String?
+  studentsRange           String?
+  facultyRange            String?
+  licenseStatus           LicenseStatus           @default(ACTIVE)
+  planId                  String?
+  plan                    SaaSPlan?                @relation(fields: [planId], references: [id])
+  planStartsAt            DateTime?
+  planEndsAt              DateTime?
+  queuedPlanId            String?
+  queuedPlan              SaaSPlan?                @relation("SchoolQueuedPlan", fields: [queuedPlanId], references: [id])
+  queuedPlanStartsAt      DateTime?
+  trialEndsAt             DateTime?
+  trialPlanId             String?
+  trialPlan               SaaSPlan?                @relation("SchoolTrialPlan", fields: [trialPlanId], references: [id])
+  trialStatus             TrialStatus              @default(NONE)
+  hasNotifiedTrialEnding  Boolean                 @default(false)
+  hasUsedTrial            Boolean                 @default(false)
+  originalPlanId          String?
+  originalPlan            SaaSPlan?                @relation("SchoolOriginalPlan", fields: [originalPlanId], references: [id])
+  address                 String?
+  phone                   String?
+  email                   String?
+  logo                    String?
+  createdAt               DateTime                @default(now())
+  users                   User[]
+  teachers                Teacher[]
+  classes                 ClassRoom[]
+  subjects                Subject[]
+  periods                 Period[]
+  weeklySlots             WeeklyTimetableSlot[]
+  attendance              TeacherAttendance[]
+  replacements            ReplacementAssignment[]
+  dailyReports            DailyReport[]
+  timetables              Timetable[]
+  timetableSlots          TimetableSlot[]
+  homework                Homework[]
+  leaveRequests           SchoolLeaveRequest[]
+  absentRequests          TeacherAbsentRequest[]
+  subscriptionTransactions SubscriptionTransaction[]
+  customPlanRequests      CustomPlanRequest[]
+  teacherTodos            TeacherTodo[]
+  lessonPlans             LessonPlan[]
 }
 
 enum LicenseStatus {
-  ACTIVE
-  SUSPENDED
-  TRIAL
-  TRAIL_EXPIRED
+  ACTIVE
+  SUSPENDED
+  TRIAL
+  TRAIL_EXPIRED
 }
 
 enum TrialStatus {
-  NONE
-  PENDING
-  APPROVED
-  REJECTED
-  EXPIRED
+  NONE
+  PENDING
+  APPROVED
+  REJECTED
+  EXPIRED
 }
 
 model User {
-  id              String   @id @default(uuid())
-  email           String   @unique
-  password        String?
-  role            UserRole
-  schoolId        String?
-  school          School?  @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  name            String?
-  phone           String?
-  countryCode     String?
-  onboardingDone  Boolean  @default(false)
-  teacher         Teacher?
-  tokens          VerificationToken[]
-  lessonComments  LessonPlanComment[]
-  createdAt       DateTime @default(now())
+  id              String   @id @default(uuid())
+  email           String   @unique
+  password        String?
+  role            UserRole
+  schoolId        String?
+  school          School?  @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  name            String?
+  phone           String?
+  countryCode     String?
+  onboardingDone  Boolean  @default(false)
+  teacher         Teacher?
+  tokens          VerificationToken[]
+  lessonComments  LessonPlanComment[]
+  createdAt       DateTime @default(now())
 }
 
 enum UserRole {
-  SUPER_ADMIN
-  ADMIN
-  TEACHER
+  SUPER_ADMIN
+  ADMIN
+  TEACHER
 }
 
 enum VerificationTokenType {
-  PASSWORD_RESET
+  PASSWORD_RESET
 }
 enum NotificationType {
-  INFO
-  ALERT
-  SYSTEM
+  INFO
+  ALERT
+  SYSTEM
 }
 
 enum NotificationScope {
-  ALL_ADMINS       // Generated by Super-Admin targets
-  SCHOOL_TEACHERS  // Generated by Admin to school targets
+  ALL_ADMINS       // Generated by Super-Admin targets
+  SCHOOL_TEACHERS  // Generated by Admin to school targets
 }
 
 model Notification {
-  id          String            @id @default(uuid())
-  title       String
-  message     String            @db.Text
-  type        NotificationType  @default(INFO)
-  scope       NotificationScope
-  schoolId    String?           // Nullable for general Super-Admin global broadcasts
-  senderId    String            // User profile triggering allocation
-  targetUserId String?          // Optional: target specific user for direct notifications
-  createdAt   DateTime          @default(now())
-  
-  // Implicit tracking relation array block mapping read receipts
-  reads       NotificationRead[]
+  id          String            @id @default(uuid())
+  title       String
+  message     String            @db.Text
+  type        NotificationType  @default(INFO)
+  scope       NotificationScope
+  schoolId    String?           // Nullable for general Super-Admin global broadcasts
+  senderId    String            // User profile triggering allocation
+  targetUserId String?          // Optional: target specific user for direct notifications
+  createdAt   DateTime          @default(now())
+  
+  // Implicit tracking relation array block mapping read receipts
+  reads       NotificationRead[]
 
-  @@index([schoolId])
-  @@index([scope])
-  @@index([targetUserId])
+  @@index([schoolId])
+  @@index([scope])
+  @@index([targetUserId])
 }
 
 model EmailVerification {
-  id          String   @id @default(uuid())
-  email       String   @unique
-  fullName    String
-  phone       String
-  countryCode String
-  password    String
-  otp         String
-  expiresAt   DateTime
-  createdAt   DateTime @default(now())
+  id          String   @id @default(uuid())
+  email       String   @unique
+  fullName    String
+  phone       String
+  countryCode String
+  password    String
+  otp         String
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
 }
 
 model NotificationRead {
-  id             String       @id @default(uuid())
-  notificationId String
-  userId         String       // Destination receiver footprint
-  readAt         DateTime     @default(now())
-  
-  notification   Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  id             String       @id @default(uuid())
+  notificationId String
+  userId         String       // Destination receiver footprint
+  readAt         DateTime     @default(now())
+  
+  notification   Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
 
-  @@unique([notificationId, userId])
+  @@unique([notificationId, userId])
 }
 model VerificationToken {
-  id         String                     @id @default(uuid())
-  userId     String
-  user       User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  token      String
-  type       VerificationTokenType      @default(PASSWORD_RESET)
-  expiresAt  DateTime
-  createdAt  DateTime                   @default(now())
+  id         String                     @id @default(uuid())
+  userId     String
+  user       User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token      String
+  type       VerificationTokenType      @default(PASSWORD_RESET)
+  expiresAt  DateTime
+  createdAt  DateTime                   @default(now())
 
-  @@unique([token])
-  @@index([userId])
+  @@unique([token])
+  @@index([userId])
 }
 
 model TeacherAbsentRequest {
-  id        String   @id @default(uuid())
-  teacherId String
-  teacher   Teacher  @relation(fields: [teacherId], references: [id], onDelete: Cascade)
-  date      String
-  periodId  String
-  classId   String
-  reason    String?
-  status    String   @default("PENDING") // PENDING, APPROVED, REJECTED
-  schoolId  String
-  school    School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id        String   @id @default(uuid())
+  teacherId String
+  teacher   Teacher  @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  date      String
+  periodId  String
+  classId   String
+  reason    String?
+  status    String   @default("PENDING") // PENDING, APPROVED, REJECTED
+  schoolId  String
+  school    School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  @@index([teacherId])
-  @@index([schoolId])
-  @@index([date, status])
+  @@index([teacherId])
+  @@index([schoolId])
+  @@index([date, status])
 }
 
 model Teacher {
-  id                   String                  @id @default(uuid())
-  schoolId             String?
-  school               School?                 @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  userId               String?                 @unique
-  user                 User?                   @relation(fields: [userId], references: [id], onDelete: SetNull)
-  name                 String
-  email                String                  @unique
-  phone                String
-  qualifications       Json                    @default("[]")
-  subjects             Json                    @default("[]")
-  active               Boolean                 @default(true)
-  joinDate             String
-  maxPeriodsPerWeek    Int                     @default(24)
-  subjectSpecialtyId   String?
-  leaveRequestStatus   LeaveRequestStatus      @default(NONE)
-  weeklySlots          WeeklyTimetableSlot[]
-  timetableSlots       TimetableSlot[]
-  dailyReports         DailyReport[]
-  attendanceRecords    TeacherAttendance[]
-  absentCoverRequests  ReplacementAssignment[] @relation("OriginalTeacher")
-  fulfilledCoverDuties ReplacementAssignment[] @relation("ReplacementTeacher")
-  homework             Homework[]
-  leaveRequests        SchoolLeaveRequest[]
-  absentRequests       TeacherAbsentRequest[]
-  teacherTodos         TeacherTodo[]
-  lessonPlans          LessonPlan[]
+  id                   String                  @id @default(uuid())
+  schoolId             String?
+  school               School?                 @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  userId               String?                 @unique
+  user                 User?                   @relation(fields: [userId], references: [id], onDelete: SetNull)
+  name                 String
+  email                String                  @unique
+  phone                String
+  qualifications       Json                    @default("[]")
+  subjects             Json                    @default("[]")
+  active               Boolean                 @default(true)
+  joinDate             String
+  maxPeriodsPerWeek    Int                     @default(24)
+  subjectSpecialtyId   String?
+  leaveRequestStatus   LeaveRequestStatus      @default(NONE)
+  weeklySlots          WeeklyTimetableSlot[]
+  timetableSlots       TimetableSlot[]
+  dailyReports         DailyReport[]
+  attendanceRecords    TeacherAttendance[]
+  absentCoverRequests  ReplacementAssignment[] @relation("OriginalTeacher")
+  fulfilledCoverDuties ReplacementAssignment[] @relation("ReplacementTeacher")
+  homework             Homework[]
+  leaveRequests        SchoolLeaveRequest[]
+  absentRequests       TeacherAbsentRequest[]
+  teacherTodos         TeacherTodo[]
+  lessonPlans          LessonPlan[]
 
-  @@index([schoolId])
+  @@index([schoolId])
 }
 
 model Subject {
-  id             String          @id @default(uuid())
-  schoolId       String
-  school         School          @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  name           String
-  code           String
-  weeklySlots    WeeklyTimetableSlot[]
-  reportEntries  ReportEntry[]
-  timetableSlots TimetableSlot[]
-  lessonPlans    LessonPlan[]
+  id             String          @id @default(uuid())
+  schoolId       String
+  school         School          @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  name           String
+  code           String
+  weeklySlots    WeeklyTimetableSlot[]
+  reportEntries  ReportEntry[]
+  timetableSlots TimetableSlot[]
+  lessonPlans    LessonPlan[]
 
-  @@index([schoolId])
+  @@index([schoolId])
 }
 
 model ClassRoom {
-  id             String          @id @default(uuid())
-  schoolId       String
-  school         School          @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  name           String
-  grade          String
-  section        String
-  roomNumber     String
-  weeklySlots    WeeklyTimetableSlot[]
-  reportEntries  ReportEntry[]
-  timetableSlots TimetableSlot[]
-  homework       Homework[]
-  lessonPlans    LessonPlan[]
+  id             String          @id @default(uuid())
+  schoolId       String
+  school         School          @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  name           String
+  grade          String
+  section        String
+  roomNumber     String
+  weeklySlots    WeeklyTimetableSlot[]
+  reportEntries  ReportEntry[]
+  timetableSlots TimetableSlot[]
+  homework       Homework[]
+  lessonPlans    LessonPlan[]
 
-  @@index([schoolId])
+  @@index([schoolId])
 }
 
 model Period {
-  id                     String                  @id @default(uuid())
-  schoolId               String
-  school                 School                  @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  timetableId            String?                 
-  timetable              Timetable?              @relation(fields: [timetableId], references: [id], onDelete: Cascade)
-  periodNumber           Int
-  startTime              String
-  endTime                String
-  isBreak                Boolean                 @default(false) 
-  label                  String?                 
-  weeklySlots            WeeklyTimetableSlot[]
-  timetableSlots         TimetableSlot[]
-  replacementAssignments ReplacementAssignment[]
-  lessonPlans            LessonPlan[]
+  id                     String                  @id @default(uuid())
+  schoolId               String
+  school                 School                  @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  timetableId            String?                 
+  timetable              Timetable?              @relation(fields: [timetableId], references: [id], onDelete: Cascade)
+  periodNumber           Int
+  startTime              String
+  endTime                String
+  isBreak                Boolean                 @default(false) 
+  label                  String?                 
+  weeklySlots            WeeklyTimetableSlot[]
+  timetableSlots         TimetableSlot[]
+  replacementAssignments ReplacementAssignment[]
+  lessonPlans            LessonPlan[]
 
-  @@index([schoolId])
-  @@index([timetableId])
+  @@index([schoolId])
+  @@index([timetableId])
 }
 
 model WeeklyTimetableSlot {
-  id        String    @id @default(uuid())
-  schoolId  String
-  school    School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  dayOfWeek Int
-  periodId  String
-  period    Period    @relation(fields: [periodId], references: [id])
-  classId   String
-  class     ClassRoom @relation(fields: [classId], references: [id])
-  subjectId String
-  subject   Subject   @relation(fields: [subjectId], references: [id])
-  teacherId String
-  teacher   Teacher   @relation(fields: [teacherId], references: [id])
+  id        String    @id @default(uuid())
+  schoolId  String
+  school    School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  dayOfWeek Int
+  periodId  String
+  period    Period    @relation(fields: [periodId], references: [id])
+  classId   String
+  class     ClassRoom @relation(fields: [classId], references: [id])
+  subjectId String
+  subject   Subject   @relation(fields: [subjectId], references: [id])
+  teacherId String
+  teacher   Teacher   @relation(fields: [teacherId], references: [id])
 
-  @@index([schoolId])
-  @@index([dayOfWeek, periodId, classId])
+  @@index([schoolId])
+  @@index([dayOfWeek, periodId, classId])
 }
 
 model TeacherAttendance {
-  id        String           @id @default(uuid())
-  schoolId  String
-  school    School           @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  teacherId String
-  teacher   Teacher          @relation(fields: [teacherId], references: [id])
-  date      String
-  status    AttendanceStatus
+  id        String           @id @default(uuid())
+  schoolId  String
+  school    School           @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  teacherId String
+  teacher   Teacher          @relation(fields: [teacherId], references: [id])
+  date      String
+  status    AttendanceStatus
 
-  @@unique([teacherId, date])
-  @@index([schoolId])
+  @@unique([teacherId, date])
+  @@index([schoolId])
 }
 
 model TeacherTodo {
-  id        String   @id @default(uuid())
-  schoolId  String
-  school    School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  teacherId String
-  teacher   Teacher  @relation(fields: [teacherId], references: [id], onDelete: Cascade)
-  date      String
-  periodId  String?
-  classId   String?
-  title     String
-  completed Boolean  @default(false)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id        String   @id @default(uuid())
+  schoolId  String
+  school    School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  teacherId String
+  teacher   Teacher  @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  date      String
+  periodId  String?
+  classId   String?
+  title     String
+  completed Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  @@index([schoolId])
-  @@index([teacherId])
-  @@index([date])
+  @@index([schoolId])
+  @@index([teacherId])
+  @@index([date])
 }
 
 enum AttendanceStatus {
-  PRESENT
-  ABSENT
-  FIRST_HALF
-  SECOND_HALF
+  PRESENT
+  ABSENT
+  FIRST_HALF
+  SECOND_HALF
 }
 
 model ReplacementAssignment {
-  id                   String           @id @default(uuid())
-  schoolId             String
-  school               School           @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  date                 String
-  periodId             String
-  period               Period           @relation(fields: [periodId], references: [id])
-  classId              String
-  originalTeacherId    String
-  originalTeacher      Teacher          @relation("OriginalTeacher", fields: [originalTeacherId], references: [id])
-  replacementTeacherId String
-  replacementTeacher   Teacher          @relation("ReplacementTeacher", fields: [replacementTeacherId], references: [id])
-  reason               LeaveReason      @default(CASUAL_LEAVE)
-  status               AssignmentStatus @default(PENDING)
-  slotId               String?
-  slot                 TimetableSlot?    @relation(fields: [slotId], references: [id], onDelete: Cascade)
+  id                   String           @id @default(uuid())
+  schoolId             String
+  school               School           @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  date                 String
+  periodId             String
+  period               Period           @relation(fields: [periodId], references: [id])
+  classId              String
+  originalTeacherId    String
+  originalTeacher      Teacher          @relation("OriginalTeacher", fields: [originalTeacherId], references: [id])
+  replacementTeacherId String
+  replacementTeacher   Teacher          @relation("ReplacementTeacher", fields: [replacementTeacherId], references: [id])
+  reason               LeaveReason      @default(CASUAL_LEAVE)
+  status               AssignmentStatus @default(PENDING)
+  slotId               String?
+  slot                 TimetableSlot?    @relation(fields: [slotId], references: [id], onDelete: Cascade)
 
-  @@index([schoolId])
-  @@index([date, periodId, classId])
+  @@index([schoolId])
+  @@index([date, periodId, classId])
 }
 
 enum LeaveReason {
-  CASUAL_LEAVE
-  MEDICAL_LEAVE
-  OTHER_DUTY
+  CASUAL_LEAVE
+  MEDICAL_LEAVE
+  OTHER_DUTY
 }
 
 enum AssignmentStatus {
-  PENDING
-  CONFIRMED
+  PENDING
+  CONFIRMED
 }
 
 enum DailyReportStatus {
-  DRAFT
-  SUBMITTED
+  DRAFT
+  SUBMITTED
 }
 
 enum TimetableStatus {
-  DRAFT
-  PUBLISHED
+  DRAFT
+  PUBLISHED
 }
 
 model TrialRequest {
-  id              String        @id @default(uuid())
-  schoolId        String
-  schoolName      String
-  contactName     String
-  phone           String
-  expectedFaculty Int
-  planId          String?
-  status          RequestStatus @default(PENDING)
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  id              String        @id @default(uuid())
+  schoolId        String
+  schoolName      String
+  contactName     String
+  phone           String
+  expectedFaculty Int
+  planId          String?
+  status          RequestStatus @default(PENDING)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
 }
 enum RequestStatus {
-  PENDING
-  APPROVED
-  REJECTED
+  PENDING
+  APPROVED
+  REJECTED
 }
 
 enum LeaveRequestStatus {
-  NONE
-  PENDING
-  APPROVED
-  REJECTED
+  NONE
+  PENDING
+  APPROVED
+  REJECTED
 }
 
 model DailyReport {
-  id          String            @id @default(cuid())
-  teacherId   String
-  teacher     Teacher           @relation(fields: [teacherId], references: [id], onDelete: Cascade)
-  schoolId    String
-  school      School            @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  reportDate  DateTime
-  status      DailyReportStatus @default(DRAFT)
-  submittedAt DateTime?
-  csvFileUrl  String?
-  pdfFileUrl  String?
-  createdAt   DateTime          @default(now())
-  updatedAt   DateTime          @updatedAt
-  entries     ReportEntry[]
+  id          String            @id @default(cuid())
+  teacherId   String
+  teacher     Teacher           @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  schoolId    String
+  school      School            @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  reportDate  DateTime
+  status      DailyReportStatus @default(DRAFT)
+  submittedAt DateTime?
+  csvFileUrl  String?
+  pdfFileUrl  String?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  entries     ReportEntry[]
 
-  @@unique([teacherId, reportDate])
-  @@index([schoolId])
-  @@index([teacherId])
-  @@index([reportDate])
-  @@index([status])
+  @@unique([teacherId, reportDate])
+  @@index([schoolId])
+  @@index([teacherId])
+  @@index([reportDate])
+  @@index([status])
 }
 
 model ReportEntry {
-  id          String      @id @default(cuid())
-  reportId    String
-  report      DailyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
-  classId     String
-  class       ClassRoom   @relation(fields: [classId], references: [id], onDelete: Cascade)
-  subjectId   String
-  subject     Subject     @relation(fields: [subjectId], references: [id], onDelete: Cascade)
-  description String      @db.Text
-  isCompleted Boolean     @default(false)
-  isProxy     Boolean     @default(false)
-  createdAt   DateTime    @default(now())
+  id          String      @id @default(cuid())
+  reportId    String
+  report      DailyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  classId     String
+  class       ClassRoom   @relation(fields: [classId], references: [id], onDelete: Cascade)
+  subjectId   String
+  subject     Subject     @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  description String      @db.Text
+  isCompleted Boolean     @default(false)
+  isProxy     Boolean     @default(false)
+  createdAt   DateTime    @default(now())
 
-  @@index([reportId])
-  @@index([classId])
-  @@index([subjectId])
+  @@index([reportId])
+  @@index([classId])
+  @@index([subjectId])
 }
 
 model Timetable {
-  id             String          @id @default(cuid())
-  name           String
-  schoolId       String
-  school         School          @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  status         TimetableStatus @default(DRAFT)
-  baseStartTime  String          @default("08:00")
-  periodDuration Int             @default(45)
-  workingDays    Json            
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
-  slots          TimetableSlot[]
-  periods        Period[]        
+  id             String          @id @default(cuid())
+  name           String
+  schoolId       String
+  school         School          @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  status         TimetableStatus @default(DRAFT)
+  baseStartTime  String          @default("08:00")
+  periodDuration Int             @default(45)
+  workingDays    Json            
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  slots          TimetableSlot[]
+  periods        Period[]        
 
-  @@index([schoolId])
+  @@index([schoolId])
 }
 
 model TimetableSlot {
-  id          String    @id @default(cuid())
-  timetableId String
-  timetable   Timetable @relation(fields: [timetableId], references: [id], onDelete: Cascade)
-  schoolId    String
-  school      School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  dayOfWeek   Int
-  periodId    String
-  period      Period    @relation(fields: [periodId], references: [id])
-  classId     String
-  class       ClassRoom @relation(fields: [classId], references: [id])
-  subjectId   String
-  subject     Subject   @relation(fields: [subjectId], references: [id])
-  teacherId   String
-  teacher     Teacher   @relation(fields: [teacherId], references: [id])
-  replacements ReplacementAssignment[]
-  lessonPlans  LessonPlan[]
+  id          String    @id @default(cuid())
+  timetableId String
+  timetable   Timetable @relation(fields: [timetableId], references: [id], onDelete: Cascade)
+  schoolId    String
+  school      School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  dayOfWeek   Int
+  periodId    String
+  period      Period    @relation(fields: [periodId], references: [id])
+  classId     String
+  class       ClassRoom @relation(fields: [classId], references: [id])
+  subjectId   String
+  subject     Subject   @relation(fields: [subjectId], references: [id])
+  teacherId   String
+  teacher     Teacher   @relation(fields: [teacherId], references: [id])
+  replacements ReplacementAssignment[]
+  lessonPlans  LessonPlan[]
 
-  @@unique([timetableId, dayOfWeek, periodId, classId])
-  @@index([timetableId])
-  @@index([schoolId])
+  @@unique([timetableId, dayOfWeek, periodId, classId])
+  @@index([timetableId])
+  @@index([schoolId])
 }
 
 enum HomeworkStatus {
-  DRAFT
-  SENT_TO_ADMIN
+  DRAFT
+  SENT_TO_ADMIN
 }
 
 model Homework {
-  id          String         @id @default(uuid())
-  schoolId    String
-  school      School         @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  teacherId   String
-  teacher     Teacher        @relation(fields: [teacherId], references: [id], onDelete: Cascade)
-  classId     String
-  class       ClassRoom      @relation(fields: [classId], references: [id], onDelete: Cascade)
-  title       String
-  description String         @db.Text
-  status      HomeworkStatus @default(DRAFT)
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
+  id          String         @id @default(uuid())
+  schoolId    String
+  school      School         @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  teacherId   String
+  teacher     Teacher        @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  classId     String
+  class       ClassRoom      @relation(fields: [classId], references: [id], onDelete: Cascade)
+  title       String
+  description String         @db.Text
+  status      HomeworkStatus @default(DRAFT)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
 
-  @@index([schoolId])
-  @@index([teacherId])
-  @@index([classId])
-  @@index([status])
+  @@index([schoolId])
+  @@index([teacherId])
+  @@index([classId])
+  @@index([status])
 }
 
 model SchoolLeaveRequest {
-  id          String            @id @default(uuid())
-  teacherId   String
-  teacher     Teacher           @relation(fields: [teacherId], references: [id], onDelete: Cascade)
-  schoolId    String
-  school      School            @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  status      LeaveRequestStatus @default(PENDING)
-  requestedAt DateTime          @default(now())
-  reviewedAt  DateTime?
-  reviewedBy  String?
-  reason      String?           @db.Text
+  id          String            @id @default(uuid())
+  teacherId   String
+  teacher     Teacher           @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  schoolId    String
+  school      School            @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  status      LeaveRequestStatus @default(PENDING)
+  requestedAt DateTime          @default(now())
+  reviewedAt  DateTime?
+  reviewedBy  String?
+  reason      String?           @db.Text
 
-  @@index([schoolId])
-  @@index([teacherId])
-  @@index([status])
+  @@index([schoolId])
+  @@index([teacherId])
+  @@index([status])
 }
 
 model PlatformSettings {
-  id        String   @id @default(uuid())
-  upiId     String?  @default("example@upi")
-  updatedAt DateTime @updatedAt
+  id        String   @id @default(uuid())
+  upiId     String?  @default("example@upi")
+  updatedAt DateTime @updatedAt
 }
 
 enum TransactionStatus {
-  PENDING
-  APPROVED
-  REJECTED
+  PENDING
+  APPROVED
+  REJECTED
 }
 
 model SubscriptionTransaction {
-  id            String             @id @default(uuid())
-  schoolId      String
-  school        School             @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  planId        String
-  amount        Decimal            @db.Decimal(10, 2)
-  billingCycle  String             // 'monthly' | 'annual'
-  utrNumber     String
-  phoneNumber   String?
-  email         String?
-  couponId      String?
-  coupon        Coupon?            @relation(fields: [couponId], references: [id])
-  status        TransactionStatus  @default(PENDING)
-  rejectionReason String?
-  createdAt     DateTime           @default(now())
-  updatedAt     DateTime           @updatedAt
+  id            String             @id @default(uuid())
+  schoolId      String
+  school        School             @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  planId        String
+  amount        Decimal            @db.Decimal(10, 2)
+  billingCycle  String             // 'monthly' | 'annual'
+  utrNumber     String
+  phoneNumber   String?
+  email         String?
+  couponId      String?
+  coupon        Coupon?            @relation(fields: [couponId], references: [id])
+  status        TransactionStatus  @default(PENDING)
+  rejectionReason String?
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
 
-  @@index([schoolId])
-  @@index([status])
-  @@index([couponId])
+  @@index([schoolId])
+  @@index([status])
+  @@index([couponId])
 }
 
 enum CustomPlanRequestStatus {
-  PENDING
-  APPROVED
-  REJECTED
+  PENDING
+  APPROVED
+  REJECTED
 }
 
 model CustomPlanRequest {
-  id                   String                  @id @default(uuid())
-  schoolId             String
-  school               School                  @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  requestedFacultyLimit Int
-  status               CustomPlanRequestStatus @default(PENDING)
-  rejectionReason      String?
-  createdAt            DateTime                @default(now())
-  updatedAt            DateTime                @updatedAt
+  id                   String                  @id @default(uuid())
+  schoolId             String
+  school               School                  @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  requestedFacultyLimit Int
+  status               CustomPlanRequestStatus @default(PENDING)
+  rejectionReason      String?
+  createdAt            DateTime                @default(now())
+  updatedAt            DateTime                @updatedAt
 
-  @@index([schoolId])
-  @@index([status])
+  @@index([schoolId])
+  @@index([status])
 }
 
 model Coupon {
-  id              String    @id @default(uuid())
-  code            String    @unique
-  discountPercent Int       // e.g., 20 for 20%
-  isActive        Boolean   @default(true)
-  expiresAt       DateTime?
-  maxUses         Int?
-  currentUses     Int       @default(0)
-  transactions    SubscriptionTransaction[]
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  id              String    @id @default(uuid())
+  code            String    @unique
+  discountPercent Int       // e.g., 20 for 20%
+  isActive        Boolean   @default(true)
+  expiresAt       DateTime?
+  maxUses         Int?
+  currentUses     Int       @default(0)
+  transactions    SubscriptionTransaction[]
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
-  @@index([code])
-  @@index([isActive])
+  @@index([code])
+  @@index([isActive])
 }
 
 // ─── Lesson Planning Module ──────────────────────────────────────────────
 
 enum LessonStatus {
-  DRAFT
-  PLANNED
-  COMPLETED
-  SKIPPED
-  CANCELLED
+  DRAFT
+  PLANNED
+  COMPLETED
+  SKIPPED
+  CANCELLED
 }
 
 model LessonPlan {
-  id                  String        @id @default(uuid())
-  schoolId            String
-  school              School        @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  teacherId           String
-  teacher             Teacher       @relation(fields: [teacherId], references: [id], onDelete: Cascade)
-  slotId              String
-  slot                TimetableSlot @relation(fields: [slotId], references: [id], onDelete: Cascade)
-  classId             String
-  class               ClassRoom     @relation(fields: [classId], references: [id], onDelete: Cascade)
-  subjectId           String
-  subject             Subject       @relation(fields: [subjectId], references: [id], onDelete: Cascade)
-  periodId            String
-  period              Period        @relation(fields: [periodId], references: [id])
-  
-  planDate            String        // Date of the lesson (YYYY-MM-DD format)
-  lessonTitle         String
-  topic               String?
-  chapter             String?
-  subtopic            String?
-  learningObjectives  String?       @db.Text
-  teachingMethod      String?
-  teachingAids        String?       @db.Text // Resources/aids for teaching
-  activities          String?       @db.Text
-  homework            String?       @db.Text
-  assessmentMethod    String?
-  learningOutcomes    String?       @db.Text
-  notes               String?       @db.Text
-  estimatedDuration   Int?          // In minutes
-  status              LessonStatus  @default(DRAFT)
-  
-  attachments         LessonAttachment[]
-  comments            LessonPlanComment[]
-  
-  createdAt           DateTime      @default(now())
-  updatedAt           DateTime      @updatedAt
+  id                  String        @id @default(uuid())
+  schoolId            String
+  school              School        @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  teacherId           String
+  teacher             Teacher       @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  slotId              String
+  slot                TimetableSlot @relation(fields: [slotId], references: [id], onDelete: Cascade)
+  classId             String
+  class               ClassRoom     @relation(fields: [classId], references: [id], onDelete: Cascade)
+  subjectId           String
+  subject             Subject       @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  periodId            String
+  period              Period        @relation(fields: [periodId], references: [id])
+  
+  planDate            String        // Date of the lesson (YYYY-MM-DD format)
+  lessonTitle         String
+  topic               String?
+  chapter             String?
+  subtopic            String?
+  learningObjectives  String?       @db.Text
+  teachingMethod      String?
+  teachingAids        String?       @db.Text // Resources/aids for teaching
+  activities          String?       @db.Text
+  homework            String?       @db.Text
+  assessmentMethod    String?
+  learningOutcomes    String?       @db.Text
+  notes               String?       @db.Text
+  estimatedDuration   Int?          // In minutes
+  status              LessonStatus  @default(DRAFT)
+  
+  attachments         LessonAttachment[]
+  comments            LessonPlanComment[]
+  
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
 
-  @@unique([slotId, planDate])
-  @@index([schoolId])
-  @@index([teacherId])
-  @@index([classId])
-  @@index([subjectId])
-  @@index([planDate])
-  @@index([status])
+  @@unique([slotId, planDate])
+  @@index([schoolId])
+  @@index([teacherId])
+  @@index([classId])
+  @@index([subjectId])
+  @@index([planDate])
+  @@index([status])
 }
 
 model LessonAttachment {
-  id            String    @id @default(uuid())
-  lessonPlanId  String
-  lessonPlan    LessonPlan @relation(fields: [lessonPlanId], references: [id], onDelete: Cascade)
-  fileName      String
-  fileUrl       String    @db.Text
-  fileSize      Int?
-  mimeType      String?
-  createdAt     DateTime  @default(now())
+  id            String    @id @default(uuid())
+  lessonPlanId  String
+  lessonPlan    LessonPlan @relation(fields: [lessonPlanId], references: [id], onDelete: Cascade)
+  fileName      String
+  fileUrl       String    @db.Text
+  fileSize      Int?
+  mimeType      String?
+  createdAt     DateTime  @default(now())
 
-  @@index([lessonPlanId])
+  @@index([lessonPlanId])
 }
 
 model LessonPlanComment {
-  id            String    @id @default(uuid())
-  lessonPlanId  String
-  lessonPlan    LessonPlan @relation(fields: [lessonPlanId], references: [id], onDelete: Cascade)
-  userId        String
-  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  content       String    @db.Text
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id            String    @id @default(uuid())
+  lessonPlanId  String
+  lessonPlan    LessonPlan @relation(fields: [lessonPlanId], references: [id], onDelete: Cascade)
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  content       String    @db.Text
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
-  @@index([lessonPlanId])
-  @@index([userId])
+  @@index([lessonPlanId])
+  @@index([userId])
 }

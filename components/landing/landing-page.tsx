@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import Link from 'next/link';
 import { motion } from 'framer-motion';
@@ -14,11 +14,12 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { GlassCard } from '@/components/enterprise/glass-card';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { usePlanTheme } from '@/lib/plan-theme';
+import { getSuperAdminPlans, type SaasPlan } from '@/lib/api-services';
 
-const features = [
+const landingFeatures = [
   {
     icon: Zap,
     title: 'Smart Substitute Engine',
@@ -51,31 +52,24 @@ const features = [
   },
 ];
 
-const plans = [
-  {
-    name: 'Basic',
-    range: '0–30 teachers',
-    price: { monthly: 49, yearly: 470 },
-    features: ['Daily desk', 'Substitutions', 'Weekly timetable', 'Email support'],
-  },
-  {
-    name: 'Growth',
-    range: '30–50 teachers',
-    price: { monthly: 99, yearly: 950 },
-    popular: true,
-    features: ['Everything in Basic', 'Analytics', 'Clone day ops', 'Priority support'],
-  },
-  {
-    name: 'Enterprise',
-    range: '50+ teachers',
-    price: { monthly: 199, yearly: 1910 },
-    features: ['Custom SLA', 'SSO', 'Dedicated onboarding', 'API access'],
-  },
-];
+const defaultPlans: { id: string; name: string; teacherMin: number; teacherMax: number; priceMonthly: number; reportEnabled?: boolean; attendanceEnabled?: boolean; homeworkEnabled?: boolean; lessonPlanningEnabled?: boolean; exportFormats?: string[] }[] = [];
 
 export function LandingPage() {
   const [yearly, setYearly] = useState(false);
   const { theme } = usePlanTheme();
+  const [plans, setPlans] = useState<SaasPlan[] | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    getSuperAdminPlans()
+      .then((data) => {
+        if (mounted) setPlans(data);
+      })
+      .catch(() => {
+        // ignore - keep showing empty state
+      });
+    return () => { mounted = false; };
+  }, []);
 
   return (
     <div className='min-h-screen bg-background overflow-x-hidden'>
@@ -202,7 +196,7 @@ export function LandingPage() {
           Everything you need to run a school day — without spreadsheet chaos.
         </p>
         <div className='grid md:grid-cols-2 lg:grid-cols-3 gap-6'>
-          {features.map((f, i) => (
+          {landingFeatures.map((f, i) => (
             <motion.div
               key={f.title}
               initial={{ opacity: 0, y: 20 }}
@@ -247,48 +241,50 @@ export function LandingPage() {
             </span>
           </div>
           <div className='grid md:grid-cols-3 gap-6 mt-12'>
-            {plans.map((plan) => (
-              <GlassCard
-                key={plan.name}
-                hover
-                className={cn(
-                  'p-6 relative',
-                  plan.popular && `ring-2 ring-${theme.primary}/50 scale-[1.02]`
-                )}
-              >
-                {plan.popular && (
-                  <span className={`absolute -top-3 left-1/2 -translate-x-1/2 text-xs font-semibold px-3 py-1 rounded-full bg-${theme.primary} text-white`}>
-                    Most popular
-                  </span>
-                )}
-                <h3 className='text-xl font-bold'>{plan.name}</h3>
-                <p className='text-sm text-muted-foreground'>{plan.range}</p>
-                <p className='mt-4 text-4xl font-bold'>
-                  ${yearly ? plan.price.yearly : plan.price.monthly}
-                  <span className='text-sm font-normal text-muted-foreground'>
-                    /{yearly ? 'yr' : 'mo'}
-                  </span>
-                </p>
-                <ul className='mt-6 space-y-2'>
-                  {plan.features.map((feat) => (
-                    <li key={feat} className='flex items-center gap-2 text-sm'>
-                      <Check className='h-4 w-4 text-emerald-500 shrink-0' />
-                      {feat}
-                    </li>
-                  ))}
-                </ul>
-                <Button
-                  asChild
-                  className={cn(
-                    'w-full mt-6 rounded-xl',
-                    plan.popular && 'bg-gradient-to-r from-indigo-600 to-violet-600'
-                  )}
-                  variant={plan.popular ? 'default' : 'outline'}
-                >
-                  <Link href='/signup'>Get started</Link>
-                </Button>
-              </GlassCard>
-            ))}
+            {(plans && plans.length > 0 ? plans : defaultPlans).map((plan) => {
+              const yearlyPrice = Math.round(Number(plan.priceMonthly) * 12 * 0.8);
+              const range = `${plan.teacherMin}–${plan.teacherMax}${plan.teacherMax > 9999 ? '+' : ''}`;
+              const enabledFeatures: string[] = [
+                'Daily desk',
+                'Substitutions',
+                'Weekly timetable',
+              ];
+              if (plan.reportEnabled) enabledFeatures.push('Analytics');
+              if (plan.attendanceEnabled) enabledFeatures.push('Attendance');
+              if (plan.homeworkEnabled) enabledFeatures.push('Homework');
+              if ((plan as any).lessonPlanningEnabled) enabledFeatures.push('Lesson Planning');
+              const exportsList = (plan.exportFormats ?? []).map((f: string) => (f === 'docx' ? 'Word' : f.toUpperCase()));
+
+              return (
+                <GlassCard key={plan.id || plan.name} hover className='p-6 relative'>
+                  <h3 className='text-xl font-bold'>{plan.name}</h3>
+                  <p className='text-sm text-muted-foreground'>{range}</p>
+                  <p className='mt-4 text-4xl font-bold'>
+                    ₹{yearly ? yearlyPrice : Number(plan.priceMonthly)}
+                    <span className='text-sm font-normal text-muted-foreground'>/{yearly ? 'yr' : 'mo'}</span>
+                  </p>
+
+                  <ul className='mt-6 space-y-2'>
+                    {enabledFeatures.map((feat) => (
+                      <li key={feat} className='flex items-center gap-2 text-sm'>
+                        <Check className='h-4 w-4 text-emerald-500 shrink-0' />
+                        {feat}
+                      </li>
+                    ))}
+                    {exportsList.length > 0 && (
+                      <li className='flex items-center gap-2 text-sm'>
+                        <Check className='h-4 w-4 text-emerald-500 shrink-0' />
+                        Exports: {exportsList.join(', ')}
+                      </li>
+                    )}
+                  </ul>
+
+                  <Button asChild className='w-full mt-6 rounded-xl' variant='outline'>
+                    <Link href='/signup'>Get started</Link>
+                  </Button>
+                </GlassCard>
+              );
+            })}
           </div>
         </div>
       </section>

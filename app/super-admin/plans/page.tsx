@@ -91,24 +91,26 @@ type CustomPlanRequest = {
 const EXPORT_FORMATS = ['pdf', 'docx', 'csv'] as const;
 
 const FEATURE_FLAGS = [
-  { field: 'reportEnabled',     label: 'Reports' },
-  { field: 'attendanceEnabled', label: 'Attendance' },
-  { field: 'homeworkEnabled',   label: 'Homework' },
-  { field: 'watermarkRequired', label: 'Watermark required' },
+  { field: 'reportEnabled',         label: 'Reports' },
+  { field: 'attendanceEnabled',     label: 'Attendance' },
+  { field: 'homeworkEnabled',       label: 'Homework' },
+  { field: 'lessonPlanningEnabled', label: 'Lesson Planning' },
+  { field: 'watermarkRequired',     label: 'Watermark required' },
 ] as const;
 
 type FeatureFlagField = typeof FEATURE_FLAGS[number]['field'];
 
 const emptyForm = {
-  name:              '',
-  teacherMin:        '0',
-  teacherMax:        '0',
-  priceMonthly:      '0',
-  reportEnabled:     true,
-  attendanceEnabled: true,
-  homeworkEnabled:   true,
-  watermarkRequired: false,
-  exportFormats:     [] as string[],
+  name:                 '',
+  teacherMin:           '0',
+  teacherMax:           '0',
+  priceMonthly:         '0',
+  reportEnabled:        true,
+  attendanceEnabled:    true,
+  homeworkEnabled:      true,
+  lessonPlanningEnabled: true,
+  watermarkRequired:    false,
+  exportFormats:        [] as string[],
 };
 
 type PlanForm = typeof emptyForm;
@@ -251,11 +253,12 @@ export default function PlansPage() {
       teacherMin:        String(plan.teacherMin),
       teacherMax:        String(plan.teacherMax),
       priceMonthly:      String(plan.priceMonthly),
-      reportEnabled:     plan.reportEnabled     ?? true,
-      attendanceEnabled: plan.attendanceEnabled ?? true,
-      homeworkEnabled:   plan.homeworkEnabled   ?? true,
-      watermarkRequired: plan.watermarkRequired ?? false,
-      exportFormats:     plan.exportFormats     ?? [],
+      reportEnabled:         plan.reportEnabled         ?? true,
+      attendanceEnabled:     plan.attendanceEnabled     ?? true,
+      homeworkEnabled:       plan.homeworkEnabled       ?? true,
+      lessonPlanningEnabled: plan.lessonPlanningEnabled ?? true,
+      watermarkRequired:     plan.watermarkRequired     ?? false,
+      exportFormats:         plan.exportFormats         ?? [],
     });
     setFormErrors({});
     setFormOpen(true);
@@ -315,11 +318,12 @@ export default function PlansPage() {
       teacherMin:        parseNumber(formValues.teacherMin),
       teacherMax:        parseNumber(formValues.teacherMax),
       priceMonthly:      parseNumber(formValues.priceMonthly),
-      reportEnabled:     formValues.reportEnabled,
-      attendanceEnabled: formValues.attendanceEnabled,
-      homeworkEnabled:   formValues.homeworkEnabled,
-      watermarkRequired: formValues.watermarkRequired,
-      exportFormats:     formValues.exportFormats,
+      reportEnabled:         formValues.reportEnabled,
+      attendanceEnabled:     formValues.attendanceEnabled,
+      homeworkEnabled:       formValues.homeworkEnabled,
+      lessonPlanningEnabled: formValues.lessonPlanningEnabled,
+      watermarkRequired:     formValues.watermarkRequired,
+      exportFormats:         formValues.exportFormats,
     };
 
     setSaving(true);
@@ -582,10 +586,11 @@ export default function PlansPage() {
                     {/* Feature flags summary */}
                     <TableCell>
                       <div className='flex flex-wrap gap-1'>
-                        {plan.reportEnabled     && <Badge variant='secondary' className='text-xs'>Reports</Badge>}
-                        {plan.attendanceEnabled  && <Badge variant='secondary' className='text-xs'>Attendance</Badge>}
-                        {plan.homeworkEnabled    && <Badge variant='secondary' className='text-xs'>Homework</Badge>}
-                        {plan.watermarkRequired  && <Badge variant='outline'   className='text-xs'>Watermark</Badge>}
+                        {plan.reportEnabled         && <Badge variant='secondary' className='text-xs'>Reports</Badge>}
+                        {plan.attendanceEnabled     && <Badge variant='secondary' className='text-xs'>Attendance</Badge>}
+                        {plan.homeworkEnabled       && <Badge variant='secondary' className='text-xs'>Homework</Badge>}
+                        {plan.lessonPlanningEnabled && <Badge variant='secondary' className='text-xs'>Lesson Planning</Badge>}
+                        {plan.watermarkRequired     && <Badge variant='outline'   className='text-xs'>Watermark</Badge>}
                       </div>
                     </TableCell>
 
@@ -647,7 +652,7 @@ export default function PlansPage() {
                 <p className='mb-1'>
                   {formValues.reportEnabled ? 'Unlocked' : 'Locked'}: Reports, {formValues.attendanceEnabled ? 'Unlocked' : 'Locked'}: Attendance, {formValues.homeworkEnabled ? 'Unlocked' : 'Locked'}: Homework
                 </p>
-                <p>Allowed Exports: {formValues.exportFormats.length > 0 ? formValues.exportFormats.join(', ') : 'None'}, Watermark: {formValues.watermarkRequired ? 'True' : 'False'}</p>
+                <p>Allowed Exports: {formValues.exportFormats.length > 0 ? formValues.exportFormats.map((fmt) => fmt === 'word' ? 'Word' : fmt.toUpperCase()).join(', ') : 'None'}, Watermark: {formValues.watermarkRequired ? 'True' : 'False'}</p>
               </div>
             </div>
 
@@ -724,7 +729,7 @@ export default function PlansPage() {
                       onCheckedChange={() => toggleExportFormat(fmt)}
                     />
                     <Label htmlFor={`fmt-${fmt}`} className='text-sm font-normal uppercase cursor-pointer'>
-                      {fmt}
+                      {fmt === 'docx' ? 'Word' : fmt.toUpperCase()}
                     </Label>
                   </div>
                 ))}

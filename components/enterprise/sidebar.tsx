@@ -30,7 +30,7 @@ export function EnterpriseSidebar({
   roleLabel,
 }: SidebarProps) {
   const pathname = usePathname();
-  const [currentPlan, setCurrentPlan] = useState<{ name: string; priceMonthly: number; id: string; reportEnabled?: boolean; attendanceEnabled?: boolean; homeworkEnabled?: boolean } | null>(null);
+  const [currentPlan, setCurrentPlan] = useState<{ name: string; priceMonthly: number; id: string; reportEnabled?: boolean; attendanceEnabled?: boolean; homeworkEnabled?: boolean; lessonPlanningEnabled?: boolean } | null>(null);
 
   useEffect(() => {
     const fetchCurrentPlan = async () => {
@@ -50,7 +50,7 @@ export function EnterpriseSidebar({
   }, []);
 
   // Check if a feature is enabled based on plan
-  const isFeatureEnabled = (featureKey?: 'reports' | 'attendance' | 'homework'): boolean => {
+  const isFeatureEnabled = (featureKey?: 'reports' | 'attendance' | 'homework' | 'lesson-planning'): boolean => {
     if (!featureKey || !currentPlan) return true;
     switch (featureKey) {
       case 'reports':
@@ -59,6 +59,8 @@ export function EnterpriseSidebar({
         return currentPlan.attendanceEnabled || false;
       case 'homework':
         return currentPlan.homeworkEnabled || false;
+      case 'lesson-planning':
+        return currentPlan.lessonPlanningEnabled || false;
       default:
         return true;
     }

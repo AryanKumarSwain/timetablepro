@@ -59,6 +59,7 @@ export interface SaasPlan {
   reportEnabled: boolean;
   attendanceEnabled: boolean;
   homeworkEnabled: boolean;
+  lessonPlanningEnabled?: boolean;
   exportFormats: string[];
   watermarkRequired: boolean;
   schoolCount: number;
