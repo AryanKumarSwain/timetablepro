@@ -15,7 +15,8 @@ import {
   CalendarRange,
   Table2,
   UserCheck,
-  Settings, // Imported for your Settings tab
+  Settings,
+  BookMarked,
 } from 'lucide-react';
 
 export type AppRole = 'super-admin' | 'admin' | 'teacher';
@@ -40,8 +41,9 @@ export const ADMIN_NAV: NavItem[] = [
   { label: 'Teachers', href: '/admin/teachers', icon: Users },
   { label: 'Classes', href: '/admin/classes', icon: GraduationCap },
   { label: 'Subjects', href: '/admin/subjects', icon: BookOpen },
-   { label: 'Attendance', href: '/admin/attendance', icon: UserCheck, featureKey: 'attendance' },
+  { label: 'Attendance', href: '/admin/attendance', icon: UserCheck, featureKey: 'attendance' },
   { label: 'Timetables', href: '/admin/timetables', icon: Table2 },
+  { label: 'Lesson Planning', href: '/admin/lesson-planning', icon: BookMarked },
   { label: 'Daily Desk', href: '/admin/daily-desk', icon: ClipboardList },
   { label: 'Reports', href: '/admin/reports', icon: FileText, featureKey: 'reports' },
   { label: 'Homework', href: '/admin/homework', icon: BookOpen, featureKey: 'homework' },
@@ -52,9 +54,10 @@ export const ADMIN_NAV: NavItem[] = [
 export const TEACHER_NAV: NavItem[] = [
   { label: 'Today', href: '/teacher/schedule', icon: LayoutDashboard },
   { label: 'Weekly Routine', href: '/teacher/weekly-schedule', icon: CalendarRange },
+  { label: 'Lesson Planning', href: '/teacher/lesson-planning', icon: BookMarked },
   { label: "Today's Report", href: '/teacher/report/today', icon: FileText },
   { label: 'Report History', href: '/teacher/report/history', icon: History },
-  { label: 'Settings', href: '/teacher/settings', icon: Settings }, // Added Teacher Settings
+  { label: 'Settings', href: '/teacher/settings', icon: Settings },
 ];
 
 export function getNavForRole(role: AppRole): NavItem[] {

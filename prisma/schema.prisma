@@ -69,6 +69,7 @@ model School {
   subscriptionTransactions SubscriptionTransaction[]
   customPlanRequests      CustomPlanRequest[]
   teacherTodos            TeacherTodo[]
+  lessonPlans             LessonPlan[]
 }
 
 enum LicenseStatus {
@@ -99,6 +100,7 @@ model User {
   onboardingDone  Boolean  @default(false)
   teacher         Teacher?
   tokens          VerificationToken[]
+  lessonComments  LessonPlanComment[]
   createdAt       DateTime @default(now())
 }
 
@@ -221,6 +223,7 @@ model Teacher {
   leaveRequests        SchoolLeaveRequest[]
   absentRequests       TeacherAbsentRequest[]
   teacherTodos         TeacherTodo[]
+  lessonPlans          LessonPlan[]
 
   @@index([schoolId])
 }
@@ -234,6 +237,7 @@ model Subject {
   weeklySlots    WeeklyTimetableSlot[]
   reportEntries  ReportEntry[]
   timetableSlots TimetableSlot[]
+  lessonPlans    LessonPlan[]
 
   @@index([schoolId])
 }
@@ -250,6 +254,7 @@ model ClassRoom {
   reportEntries  ReportEntry[]
   timetableSlots TimetableSlot[]
   homework       Homework[]
+  lessonPlans    LessonPlan[]
 
   @@index([schoolId])
 }
@@ -268,6 +273,7 @@ model Period {
   weeklySlots            WeeklyTimetableSlot[]
   timetableSlots         TimetableSlot[]
   replacementAssignments ReplacementAssignment[]
+  lessonPlans            LessonPlan[]
 
   @@index([schoolId])
   @@index([timetableId])
@@ -470,6 +476,7 @@ model TimetableSlot {
   teacherId   String
   teacher     Teacher   @relation(fields: [teacherId], references: [id])
   replacements ReplacementAssignment[]
+  lessonPlans  LessonPlan[]
 
   @@unique([timetableId, dayOfWeek, periodId, classId])
   @@index([timetableId])
@@ -586,4 +593,87 @@ model Coupon {
 
   @@index([code])
   @@index([isActive])
+}
+
+// ─── Lesson Planning Module ──────────────────────────────────────────────
+
+enum LessonStatus {
+  DRAFT
+  PLANNED
+  COMPLETED
+  SKIPPED
+  CANCELLED
+}
+
+model LessonPlan {
+  id                  String        @id @default(uuid())
+  schoolId            String
+  school              School        @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  teacherId           String
+  teacher             Teacher       @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  slotId              String
+  slot                TimetableSlot @relation(fields: [slotId], references: [id], onDelete: Cascade)
+  classId             String
+  class               ClassRoom     @relation(fields: [classId], references: [id], onDelete: Cascade)
+  subjectId           String
+  subject             Subject       @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  periodId            String
+  period              Period        @relation(fields: [periodId], references: [id])
+  
+  planDate            String        // Date of the lesson (YYYY-MM-DD format)
+  lessonTitle         String
+  topic               String?
+  chapter             String?
+  subtopic            String?
+  learningObjectives  String?       @db.Text
+  teachingMethod      String?
+  teachingAids        String?       @db.Text // Resources/aids for teaching
+  activities          String?       @db.Text
+  homework            String?       @db.Text
+  assessmentMethod    String?
+  learningOutcomes    String?       @db.Text
+  notes               String?       @db.Text
+  estimatedDuration   Int?          // In minutes
+  status              LessonStatus  @default(DRAFT)
+  
+  attachments         LessonAttachment[]
+  comments            LessonPlanComment[]
+  
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+
+  @@unique([slotId, planDate])
+  @@index([schoolId])
+  @@index([teacherId])
+  @@index([classId])
+  @@index([subjectId])
+  @@index([planDate])
+  @@index([status])
+}
+
+model LessonAttachment {
+  id            String    @id @default(uuid())
+  lessonPlanId  String
+  lessonPlan    LessonPlan @relation(fields: [lessonPlanId], references: [id], onDelete: Cascade)
+  fileName      String
+  fileUrl       String    @db.Text
+  fileSize      Int?
+  mimeType      String?
+  createdAt     DateTime  @default(now())
+
+  @@index([lessonPlanId])
+}
+
+model LessonPlanComment {
+  id            String    @id @default(uuid())
+  lessonPlanId  String
+  lessonPlan    LessonPlan @relation(fields: [lessonPlanId], references: [id], onDelete: Cascade)
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  content       String    @db.Text
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([lessonPlanId])
+  @@index([userId])
 }

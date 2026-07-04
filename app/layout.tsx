@@ -27,7 +27,7 @@ export default function RootLayout({
   return (
     <html
       lang='en'
-      className='dark bg-background'
+      className='bg-background'
       suppressHydrationWarning
     >
       <body
@@ -37,7 +37,7 @@ export default function RootLayout({
       >
         <ThemeProvider
           attribute='class'
-          defaultTheme='dark'
+          defaultTheme='light'
           enableSystem
           disableTransitionOnChange
         >
