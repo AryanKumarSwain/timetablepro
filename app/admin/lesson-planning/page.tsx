@@ -6,6 +6,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { PageHeader } from '@/components/enterprise/page-header';
+import { ProtectedFeature } from '@/components/protected-feature';
+import { useAuth, useRequireAuth } from '@/lib/auth-context';
+import { getSchoolDetails } from '@/lib/api-services';
 import {
   Select,
   SelectContent,
@@ -59,6 +62,8 @@ const statusColors = {
 };
 
 export default function AdminLessonPlanningPage() {
+  const auth = useRequireAuth('admin');
+  const { user } = useAuth();
   const [view, setView] = useState<'day' | 'week' | 'month'>('month');
   const [currentDate, setCurrentDate] = useState(new Date());
   const [lessonPlans, setLessonPlans] = useState<LessonPlan[]>([]);
@@ -70,15 +75,30 @@ export default function AdminLessonPlanningPage() {
   const [filterTeacherId, setFilterTeacherId] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [filterClassId, setFilterClassId] = useState('');
+  const [featureEnabled, setFeatureEnabled] = useState(true);
 
   useEffect(() => {
+    if (auth.loading || !auth.user) return;
     fetchLessonPlans();
-  }, [searchTerm, filterTeacherId, filterStatus, filterClassId]);
+  }, [auth.loading, auth.user, searchTerm, filterTeacherId, filterStatus, filterClassId]);
 
   useEffect(() => {
+    if (auth.loading || !auth.user) return;
     fetchClasses();
     fetchTeachers();
-  }, []);
+    void fetchFeatureAccess();
+  }, [auth.loading, auth.user]);
+
+  const fetchFeatureAccess = async () => {
+    try {
+      const schoolData = await getSchoolDetails();
+      const plan = schoolData?.plan;
+      setFeatureEnabled(plan?.lessonPlanningEnabled || false);
+    } catch (error) {
+      console.error('Failed to fetch lesson planning feature access', error);
+      setFeatureEnabled(false);
+    }
+  };
 
   const fetchClasses = async () => {
     try {
@@ -221,9 +241,15 @@ export default function AdminLessonPlanningPage() {
   }, {} as Record<string, LessonPlan[]>);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-6">
-      <div className="mx-auto max-w-7xl space-y-6">
-        <PageHeader
+    <ProtectedFeature
+      featureKey="lesson-planning"
+      featureName="Lesson Planning"
+      isEnabled={featureEnabled}
+      schoolId={user?.schoolId || undefined}
+    >
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-6">
+        <div className="mx-auto max-w-7xl space-y-6">
+          <PageHeader
           title="Lesson Planning Overview"
           description="Monitor and review all teachers' lesson plans"
           breadcrumbs={[{ label: 'Admin', href: '/admin/dashboard' }, { label: 'Lesson Planning' }]}
@@ -396,7 +422,8 @@ export default function AdminLessonPlanningPage() {
           }}
         />
       )}
+        </div>
       </div>
-    </div>
+    </ProtectedFeature>
   );
 }
