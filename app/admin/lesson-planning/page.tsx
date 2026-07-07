@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { BookMarked, Search, Download, Filter, ChevronLeft, ChevronRight } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { BookMarked, Search, Download, Filter, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -18,16 +18,7 @@ import {
 } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { LessonDetailView } from '@/components/lesson-planning/lesson-detail-view';
-import { 
-  format, 
-  startOfMonth, 
-  endOfMonth, 
-  startOfWeek, 
-  endOfWeek, 
-  addDays, 
-  startOfDay, 
-  endOfDay 
-} from 'date-fns';
+import { format, addDays } from 'date-fns';
 
 interface LessonPlan {
   id: string;
@@ -64,8 +55,12 @@ const statusColors = {
 export default function AdminLessonPlanningPage() {
   const auth = useRequireAuth('admin');
   const { user } = useAuth();
-  const [view, setView] = useState<'day' | 'week' | 'month'>('month');
-  const [currentDate, setCurrentDate] = useState(new Date());
+  
+  // Set default dates to today
+  const todayStr = format(new Date(), 'yyyy-MM-dd');
+  const [dateFrom, setDateFrom] = useState(todayStr);
+  const [dateTo, setDateTo] = useState(todayStr);
+
   const [lessonPlans, setLessonPlans] = useState<LessonPlan[]>([]);
   const [classes, setClasses] = useState<ClassOption[]>([]);
   const [teachers, setTeachers] = useState<TeacherOption[]>([]);
@@ -75,12 +70,13 @@ export default function AdminLessonPlanningPage() {
   const [filterTeacherId, setFilterTeacherId] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [filterClassId, setFilterClassId] = useState('');
+  const [expandedDates, setExpandedDates] = useState<string[]>([todayStr]);
   const [featureEnabled, setFeatureEnabled] = useState(true);
 
   useEffect(() => {
     if (auth.loading || !auth.user) return;
     fetchLessonPlans();
-  }, [auth.loading, auth.user, searchTerm, filterTeacherId, filterStatus, filterClassId]);
+  }, [auth.loading, auth.user, searchTerm, filterTeacherId, filterStatus, filterClassId, dateFrom, dateTo]);
 
   useEffect(() => {
     if (auth.loading || !auth.user) return;
@@ -130,6 +126,8 @@ export default function AdminLessonPlanningPage() {
       if (filterTeacherId) params.append('teacherId', filterTeacherId);
       if (filterStatus) params.append('status', filterStatus);
       if (filterClassId) params.append('classId', filterClassId);
+      if (dateFrom) params.append('dateFrom', dateFrom);
+      if (dateTo) params.append('dateTo', dateTo);
 
       const res = await fetch(`/api/admin/lesson-plans?${params.toString()}`);
       if (!res.ok) throw new Error('Failed to fetch');
@@ -146,12 +144,9 @@ export default function AdminLessonPlanningPage() {
 
   const handleExport = async () => {
     try {
-      const dateFrom = view === 'month' ? format(startOfMonth(currentDate), 'yyyy-MM-dd') : currentDate.toISOString().split('T')[0];
-      const dateTo = view === 'month' ? format(endOfMonth(currentDate), 'yyyy-MM-dd') : dateFrom;
-
       const params = new URLSearchParams();
-      params.append('dateFrom', dateFrom);
-      params.append('dateTo', dateTo);
+      if (dateFrom) params.append('dateFrom', dateFrom);
+      if (dateTo) params.append('dateTo', dateTo);
       params.append('format', 'csv');
       if (filterClassId) params.append('classId', filterClassId);
 
@@ -162,7 +157,7 @@ export default function AdminLessonPlanningPage() {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `lesson-plans-${currentDate.toISOString().split('T')[0]}.csv`;
+      a.download = `lesson-plans-${dateFrom}-to-${dateTo}.csv`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
@@ -175,43 +170,37 @@ export default function AdminLessonPlanningPage() {
     }
   };
 
+  // Shifts the date range backward by 1 day
   const handlePrevious = () => {
-    if (view === 'month') {
-      setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
-    } else if (view === 'week') {
-      setCurrentDate(addDays(currentDate, -7));
-    } else {
-      setCurrentDate(addDays(currentDate, -1));
-    }
+    if (!dateFrom || !dateTo) return;
+    const from = new Date(`${dateFrom}T00:00:00`);
+    const to = new Date(`${dateTo}T00:00:00`);
+    setDateFrom(format(addDays(from, -1), 'yyyy-MM-dd'));
+    setDateTo(format(addDays(to, -1), 'yyyy-MM-dd'));
   };
 
+  // Shifts the date range forward by 1 day
   const handleNext = () => {
-    if (view === 'month') {
-      setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
-    } else if (view === 'week') {
-      setCurrentDate(addDays(currentDate, 7));
-    } else {
-      setCurrentDate(addDays(currentDate, 1));
-    }
+    if (!dateFrom || !dateTo) return;
+    const from = new Date(`${dateFrom}T00:00:00`);
+    const to = new Date(`${dateTo}T00:00:00`);
+    setDateFrom(format(addDays(from, 1), 'yyyy-MM-dd'));
+    setDateTo(format(addDays(to, 1), 'yyyy-MM-dd'));
   };
 
-  // Get the date range based on the current view
-  let startDate: Date, endDate: Date;
-  if (view === 'month') {
-    startDate = startOfMonth(currentDate);
-    endDate = endOfMonth(currentDate);
-  } else if (view === 'week') {
-    startDate = startOfWeek(currentDate);
-    endDate = endOfWeek(currentDate);
-  } else {
-    // Ensure we capture the whole day for the daily view filter
-    startDate = startOfDay(currentDate);
-    endDate = endOfDay(currentDate);
-  }
+  const toggleExpandedDate = (date: string) => {
+    setExpandedDates((current) =>
+      current.includes(date) ? current.filter((item) => item !== date) : [...current, date]
+    );
+  };
+
+  // Safe date parsing for calculations
+  const startDate = dateFrom ? new Date(`${dateFrom}T00:00:00`) : new Date();
+  const endDate = dateTo ? new Date(`${dateTo}T23:59:59`) : new Date();
 
   // Filter lessons for the current view and search term
   const filteredLessons = lessonPlans.filter((lesson) => {
-    const lessonDate = new Date(lesson.planDate);
+    const lessonDate = new Date(`${lesson.planDate}T12:00:00`);
     const matchesDate = lessonDate >= startDate && lessonDate <= endDate;
     
     const searchLower = searchTerm.toLowerCase();
@@ -240,6 +229,36 @@ export default function AdminLessonPlanningPage() {
     return acc;
   }, {} as Record<string, LessonPlan[]>);
 
+  const planningStatusSummary = useMemo(() => {
+    const summaryDates: Array<{ date: string; entries: Array<{ teacherId: string; teacherName: string; status: 'SUBMITTED' | 'DRAFT' | 'NOT_SUBMITTED' }> }> = [];
+
+    for (let current = new Date(startDate); current <= endDate; current = addDays(current, 1)) {
+      const dateKey = format(current, 'yyyy-MM-dd');
+      const entries = teachers.map((teacher) => {
+        const teacherPlans = lessonPlans.filter(
+          (lesson) => lesson.teacher.id === teacher.id && lesson.planDate === dateKey
+        );
+
+        let status: 'SUBMITTED' | 'DRAFT' | 'NOT_SUBMITTED' = 'NOT_SUBMITTED';
+        if (teacherPlans.some((lesson) => lesson.status === 'PLANNED' || lesson.status === 'COMPLETED')) {
+          status = 'SUBMITTED';
+        } else if (teacherPlans.some((lesson) => lesson.status === 'DRAFT')) {
+          status = 'DRAFT';
+        }
+
+        return {
+          teacherId: teacher.id,
+          teacherName: teacher.name,
+          status,
+        };
+      });
+
+      summaryDates.push({ date: dateKey, entries });
+    }
+
+    return summaryDates;
+  }, [startDate, endDate, lessonPlans, teachers]);
+
   return (
     <ProtectedFeature
       featureKey="lesson-planning"
@@ -250,178 +269,240 @@ export default function AdminLessonPlanningPage() {
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-6">
         <div className="mx-auto max-w-7xl space-y-6">
           <PageHeader
-          title="Lesson Planning Overview"
-          description="Monitor and review all teachers' lesson plans"
-          breadcrumbs={[{ label: 'Admin', href: '/admin/dashboard' }, { label: 'Lesson Planning' }]}
-        />
+            title="Lesson Planning Overview"
+            description="Monitor and review all teachers' lesson plans"
+            breadcrumbs={[{ label: 'Admin', href: '/admin/dashboard' }, { label: 'Lesson Planning' }]}
+          />
 
-      {/* Toolbar */}
-      <div className="bg-white rounded-2xl border border-slate-200/70 shadow-sm p-4 mb-6 space-y-4">
-        <div className="flex flex-col lg:flex-row gap-4">
-          {/* Search */}
-          <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-            <Input
-              placeholder="Search by teacher, class, topic, or chapter..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
-            />
-          </div>
-
-          {/* Filters */}
-          <div className="flex flex-wrap gap-2">
-            <Select value={filterTeacherId || 'all'} onValueChange={(value) => setFilterTeacherId(value === 'all' ? '' : value)}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="All teachers" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All teachers</SelectItem>
-                {teachers.map((teacher) => (
-                  <SelectItem key={teacher.id} value={teacher.id}>
-                    {teacher.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={filterClassId || 'all'} onValueChange={(value) => setFilterClassId(value === 'all' ? '' : value)}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="All classes" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All classes</SelectItem>
-                {classes.map((classItem) => (
-                  <SelectItem key={classItem.id} value={classItem.id}>
-                    {classItem.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Button variant="outline" size="icon">
-              <Filter className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="outline"
-              onClick={handleExport}
-              disabled={isLoading}
-            >
-              <Download className="h-4 w-4 mr-2" />
-              Export
-            </Button>
-          </div>
-        </div>
-
-        {/* View and Navigation */}
-        <div className="flex items-center justify-between">
-          <div className="flex gap-2">
-            {(['day', 'week', 'month'] as const).map((v) => (
-              <Button
-                key={v}
-                size="sm"
-                variant={view === v ? 'default' : 'outline'}
-                onClick={() => setView(v)}
-              >
-                {v.charAt(0).toUpperCase() + v.slice(1)}
-              </Button>
-            ))}
-          </div>
-
-          <div className="flex items-center gap-4">
-            <Button variant="outline" size="sm" onClick={handlePrevious}>
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <span className="font-semibold min-w-40 text-center">
-              {view === 'month' && format(currentDate, 'MMMM yyyy')}
-              {view === 'week' &&
-                `${format(startDate, 'MMM d')} - ${format(endDate, 'MMM d, yyyy')}`}
-              {view === 'day' && format(currentDate, 'MMMM d, yyyy')}
-            </span>
-            <Button variant="outline" size="sm" onClick={handleNext}>
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-      </div>
-
-      {/* Lessons Display */}
-      {isLoading ? (
-        <div className="text-center py-12">
-          <p className="text-gray-600">Loading lesson plans...</p>
-        </div>
-      ) : Object.keys(lessonsByDate).length === 0 ? (
-        <div className="bg-white rounded-lg shadow p-12 text-center">
-          <p className="text-gray-600 text-lg">No lesson plans found for this period</p>
-        </div>
-      ) : (
-        <div className="space-y-6">
-          {Object.entries(lessonsByDate).map(([date, lessons]) => (
-            <div key={date} className="bg-white rounded-lg shadow overflow-hidden">
-              {/* Date Header */}
-              <div className="bg-blue-50 px-6 py-3 border-b">
-                <h2 className="font-semibold text-lg">
-                  {format(new Date(date), 'EEEE, MMMM d, yyyy')}
-                </h2>
-                <p className="text-sm text-gray-600">{lessons.length} lessons</p>
+          {/* Toolbar */}
+          <div className="bg-white rounded-2xl border border-slate-200/70 shadow-sm p-4 mb-6 space-y-4">
+            <div className="flex flex-col lg:flex-row gap-4">
+              {/* Search */}
+              <div className="flex-1 relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                  placeholder="Search by teacher, class, topic, or chapter..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10"
+                />
               </div>
 
-              {/* Lessons Table */}
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-gray-50 border-b">
-                    <tr>
-                      <th className="px-6 py-3 text-left font-semibold">Time</th>
-                      <th className="px-6 py-3 text-left font-semibold">Teacher</th>
-                      <th className="px-6 py-3 text-left font-semibold">Class</th>
-                      <th className="px-6 py-3 text-left font-semibold">Subject</th>
-                      <th className="px-6 py-3 text-left font-semibold">Lesson Title</th>
-                      <th className="px-6 py-3 text-left font-semibold">Status</th>
-                      <th className="px-6 py-3 text-left font-semibold">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {lessons.map((lesson) => (
-                      <tr key={lesson.id} className="border-b hover:bg-gray-50 transition-colors">
-                        <td className="px-6 py-3">
-                          {lesson.period.startTime} - {lesson.period.endTime}
-                        </td>
-                        <td className="px-6 py-3">{lesson.teacher.name}</td>
-                        <td className="px-6 py-3">{lesson.class.name}</td>
-                        <td className="px-6 py-3">{lesson.subject.name}</td>
-                        <td className="px-6 py-3 max-w-xs truncate">{lesson.lessonTitle}</td>
-                        <td className="px-6 py-3">
-                          <Badge className={statusColors[lesson.status as keyof typeof statusColors]}>
-                            {lesson.status}
-                          </Badge>
-                        </td>
-                        <td className="px-6 py-3">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => setSelectedLesson(lesson)}
-                          >
-                            View
-                          </Button>
-                        </td>
-                      </tr>
+              {/* General Filters */}
+              <div className="flex flex-wrap gap-2">
+                <Select value={filterTeacherId || 'all'} onValueChange={(value) => setFilterTeacherId(value === 'all' ? '' : value)}>
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue placeholder="All teachers" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All teachers</SelectItem>
+                    {teachers.map((teacher) => (
+                      <SelectItem key={teacher.id} value={teacher.id}>
+                        {teacher.name}
+                      </SelectItem>
                     ))}
-                  </tbody>
-                </table>
+                  </SelectContent>
+                </Select>
+                <Select value={filterClassId || 'all'} onValueChange={(value) => setFilterClassId(value === 'all' ? '' : value)}>
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue placeholder="All classes" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All classes</SelectItem>
+                    {classes.map((classItem) => (
+                      <SelectItem key={classItem.id} value={classItem.id}>
+                        {classItem.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button variant="outline" size="icon">
+                  <Filter className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={handleExport}
+                  disabled={isLoading}
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Export
+                </Button>
               </div>
             </div>
-          ))}
-        </div>
-      )}
 
-      {/* Detail View Modal */}
-      {selectedLesson && (
-        <LessonDetailView
-          lesson={selectedLesson}
-          onClose={() => setSelectedLesson(null)}
-          onCommentAdded={() => {
-            fetchLessonPlans();
-          }}
-        />
-      )}
+            {/* Date Range Navigation */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-slate-100 pt-4">
+              <div className="flex items-center gap-3">
+                <span className="text-sm font-medium text-slate-600">Date Range:</span>
+                <Input
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                  className="w-[140px]"
+                />
+                <span className="text-slate-400 text-sm">to</span>
+                <Input
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                  className="w-[140px]"
+                />
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={handlePrevious}>
+                  <ChevronLeft className="h-4 w-4 mr-1" /> Prev Day
+                </Button>
+                <Button variant="outline" size="sm" onClick={handleNext}>
+                  Next Day <ChevronRight className="h-4 w-4 ml-1" />
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
+            <div className="space-y-6">
+              {/* Lessons Display */}
+              {isLoading ? (
+                <div className="text-center py-12">
+                  <p className="text-gray-600">Loading lesson plans...</p>
+                </div>
+              ) : Object.keys(lessonsByDate).length === 0 ? (
+                <div className="bg-white rounded-lg shadow p-12 text-center">
+                  <p className="text-gray-600 text-lg">No lesson plans found for this period</p>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {Object.entries(lessonsByDate).map(([date, lessons]) => (
+                    <div key={date} className="bg-white rounded-lg shadow overflow-hidden">
+                      {/* Date Header */}
+                      <div className="bg-blue-50 px-6 py-3 border-b">
+                        <h2 className="font-semibold text-lg">
+                          {format(new Date(`${date}T00:00:00`), 'EEEE, MMMM d, yyyy')}
+                        </h2>
+                        <p className="text-sm text-gray-600">{lessons.length} lessons</p>
+                      </div>
+
+                      {/* Lessons Table */}
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead className="bg-gray-50 border-b">
+                            <tr>
+                              <th className="px-6 py-3 text-left font-semibold">Time</th>
+                              <th className="px-6 py-3 text-left font-semibold">Teacher</th>
+                              <th className="px-6 py-3 text-left font-semibold">Class</th>
+                              <th className="px-6 py-3 text-left font-semibold">Subject</th>
+                              <th className="px-6 py-3 text-left font-semibold">Lesson Title</th>
+                              <th className="px-6 py-3 text-left font-semibold">Status</th>
+                              <th className="px-6 py-3 text-left font-semibold">Action</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {lessons.map((lesson) => (
+                              <tr key={lesson.id} className="border-b hover:bg-gray-50 transition-colors">
+                                <td className="px-6 py-3 whitespace-nowrap">
+                                  {lesson.period.startTime} - {lesson.period.endTime}
+                                </td>
+                                <td className="px-6 py-3">{lesson.teacher.name}</td>
+                                <td className="px-6 py-3">{lesson.class.name}</td>
+                                <td className="px-6 py-3">{lesson.subject.name}</td>
+                                <td className="px-6 py-3 max-w-xs truncate">{lesson.lessonTitle}</td>
+                                <td className="px-6 py-3">
+                                  <Badge className={statusColors[lesson.status as keyof typeof statusColors]}>
+                                    {lesson.status}
+                                  </Badge>
+                                </td>
+                                <td className="px-6 py-3">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => setSelectedLesson(lesson)}
+                                  >
+                                    View
+                                  </Button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="lg:col-span-1">
+              <div className="bg-white rounded-2xl border border-slate-200/70 shadow-sm p-4 space-y-3 sticky top-6">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-semibold text-sm uppercase tracking-wide text-slate-600">Submission Status Tracker</h3>
+                  <Badge variant="outline" className="text-xs">
+                    {planningStatusSummary.length} day{planningStatusSummary.length === 1 ? '' : 's'}
+                  </Badge>
+                </div>
+
+                <div className="space-y-2 max-h-[70vh] overflow-y-auto pr-1">
+                  {planningStatusSummary.length === 0 ? (
+                    <div className="rounded-xl border border-dashed border-slate-200 p-4 text-sm text-slate-500 text-center">
+                      No planning data for the selected range.
+                    </div>
+                  ) : (
+                    planningStatusSummary.map((day) => {
+                      const isExpanded = expandedDates.includes(day.date);
+                      return (
+                        <div key={day.date} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                          <button
+                            type="button"
+                            className="flex w-full items-center justify-between gap-2 text-left"
+                            onClick={() => toggleExpandedDate(day.date)}
+                          >
+                            <p className="text-sm font-semibold text-slate-800">
+                              {format(new Date(`${day.date}T00:00:00`), 'MMM d, yyyy')}
+                            </p>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-slate-500">
+                                {day.entries.filter((entry) => entry.status !== 'NOT_SUBMITTED').length}/{day.entries.length} active
+                              </span>
+                              <ChevronDown className={`h-4 w-4 text-slate-500 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                            </div>
+                          </button>
+                          {isExpanded && (
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              {day.entries.map((entry) => (
+                                <span
+                                  key={`${day.date}-${entry.teacherId}`}
+                                  className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-medium ${
+                                    entry.status === 'SUBMITTED'
+                                      ? 'bg-emerald-100 text-emerald-700'
+                                      : entry.status === 'DRAFT'
+                                      ? 'bg-amber-100 text-amber-700'
+                                      : 'bg-slate-200 text-slate-600'
+                                  }`}
+                                >
+                                  {entry.teacherName}: {entry.status === 'NOT_SUBMITTED' ? 'Not submitted' : entry.status}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Detail View Modal */}
+          {selectedLesson && (
+            <LessonDetailView
+              lesson={selectedLesson}
+              onClose={() => setSelectedLesson(null)}
+              onCommentAdded={() => {
+                fetchLessonPlans();
+              }}
+            />
+          )}
         </div>
       </div>
     </ProtectedFeature>

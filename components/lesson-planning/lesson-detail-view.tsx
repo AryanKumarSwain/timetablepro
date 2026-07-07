@@ -13,9 +13,49 @@ interface LessonDetailViewProps {
   onCommentAdded?: () => void;
 }
 
+const CUSTOM_FIELD_PREFIX = '__CUSTOM_FIELD__';
+
+function parseCustomFields(value?: string) {
+  if (!value) return { baseActivities: '', customFields: [] as Array<{ id: string; name: string; type: string; value: string }> };
+
+  const lines = value.split('\n');
+  const baseLines: string[] = [];
+  const customFields: Array<{ id: string; name: string; type: string; value: string }> = [];
+
+  lines.forEach((line) => {
+    if (!line.startsWith(CUSTOM_FIELD_PREFIX)) {
+      baseLines.push(line);
+      return;
+    }
+
+    const payload = line.replace(CUSTOM_FIELD_PREFIX, '').trim();
+    if (!payload) return;
+
+    const [rawName, rawType, rawValue] = payload.split('|');
+    const name = decodeURIComponent(rawName || '').trim();
+    const type = (rawType || 'text').trim();
+    const fieldValue = decodeURIComponent(rawValue || '').trim();
+
+    if (name) {
+      customFields.push({
+        id: `${name}-${Math.random().toString(36).slice(2, 8)}`,
+        name,
+        type,
+        value: fieldValue,
+      });
+    }
+  });
+
+  return {
+    baseActivities: baseLines.join('\n').trim(),
+    customFields,
+  };
+}
+
 export function LessonDetailView({ lesson, onClose, onCommentAdded }: LessonDetailViewProps) {
   const [comment, setComment] = useState('');
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
+  const { baseActivities, customFields } = parseCustomFields(lesson.activities);
 
   const handleAddComment = async () => {
     if (!comment.trim()) {
@@ -147,12 +187,12 @@ export function LessonDetailView({ lesson, onClose, onCommentAdded }: LessonDeta
           )}
 
           {/* Activities & Assessment */}
-          {(lesson.activities || lesson.homework || lesson.assessmentMethod) && (
+          {(baseActivities || lesson.homework || lesson.assessmentMethod) && (
             <div className="space-y-3">
-              {lesson.activities && (
+              {baseActivities && (
                 <div>
                   <h3 className="font-semibold mb-2">Activities</h3>
-                  <p className="whitespace-pre-wrap text-sm text-gray-700">{lesson.activities}</p>
+                  <p className="whitespace-pre-wrap text-sm text-gray-700">{baseActivities}</p>
                 </div>
               )}
               {lesson.homework && (
@@ -167,6 +207,22 @@ export function LessonDetailView({ lesson, onClose, onCommentAdded }: LessonDeta
                   <p className="whitespace-pre-wrap text-sm text-gray-700">{lesson.assessmentMethod}</p>
                 </div>
               )}
+            </div>
+          )}
+
+          {customFields.length > 0 && (
+            <div className="space-y-3">
+              <h3 className="font-semibold mb-2">Custom Fields</h3>
+              <div className="space-y-3 rounded-lg border border-gray-200 bg-gray-50 p-4">
+                {customFields.map((field) => (
+                  <div key={field.id}>
+                    <p className="text-sm font-semibold text-gray-800">{field.name}</p>
+                    <p className="whitespace-pre-wrap text-sm text-gray-700 mt-1">
+                      {field.value || '—'}
+                    </p>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 

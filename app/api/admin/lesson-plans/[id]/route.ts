@@ -62,7 +62,7 @@ export async function POST(
 ) {
   try {
     const { id } = await params;
-    const { user, schoolId } = await requireSchoolAdmin();
+    const { id: authUserId, email, schoolId } = await requireSchoolAdmin();
 
     const lessonPlan = await prisma.lessonPlan.findUnique({
       where: { id },
@@ -89,10 +89,20 @@ export async function POST(
       );
     }
 
+    const resolvedUserId = authUserId || (email
+      ? (await prisma.user.findUnique({
+          where: { email: email.trim().toLowerCase() },
+        }))?.id
+      : null);
+
+    if (!resolvedUserId) {
+      return NextResponse.json({ error: 'Authenticated user not found' }, { status: 401 });
+    }
+
     const comment = await prisma.lessonPlanComment.create({
       data: {
         lessonPlanId: id,
-        userId: user.id,
+        userId: resolvedUserId,
         content,
       },
       include: { user: true },

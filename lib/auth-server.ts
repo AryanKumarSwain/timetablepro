@@ -17,6 +17,28 @@ export async function requireSession(): Promise<SessionUser> {
   if (!session.isLoggedIn || !session.user) {
     throw new AuthError('Unauthorized', 401);
   }
+
+  if (!session.user.id && session.user.email) {
+    const dbUser = await prisma.user.findUnique({
+      where: { email: session.user.email.trim().toLowerCase() },
+    });
+
+    if (dbUser) {
+      session.user = {
+        id: dbUser.id,
+        email: dbUser.email,
+        role: dbUser.role,
+        schoolId: dbUser.schoolId,
+        onboardingDone: dbUser.onboardingDone,
+      };
+      await session.save();
+    }
+  }
+
+  if (!session.user.id) {
+    throw new AuthError('Unauthorized', 401);
+  }
+
   return session.user;
 }
 

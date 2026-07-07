@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { requireSession, handleApiError } from '@/lib/auth-server';
+import { requireSession, requireFeatureAccess, handleApiError } from '@/lib/auth-server';
 
 export async function GET(
   request: NextRequest,
@@ -9,6 +9,7 @@ export async function GET(
   try {
     const { id } = await params;
     const sessionUser = await requireSession();
+    await requireFeatureAccess('lesson-planning');
     const teacher = await prisma.teacher.findFirst({ where: { userId: sessionUser.id } });
 
     if (!teacher) {
@@ -61,6 +62,7 @@ export async function PATCH(
   try {
     const { id } = await params;
     const sessionUser = await requireSession();
+    await requireFeatureAccess('lesson-planning');
     const teacher = await prisma.teacher.findFirst({ where: { userId: sessionUser.id } });
 
     if (!teacher) {
@@ -131,6 +133,7 @@ export async function DELETE(
   try {
     const { id } = await params;
     const sessionUser = await requireSession();
+    await requireFeatureAccess('lesson-planning');
     const teacher = await prisma.teacher.findFirst({ where: { userId: sessionUser.id } });
 
     if (!teacher) {

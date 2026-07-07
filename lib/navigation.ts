@@ -54,7 +54,7 @@ export const ADMIN_NAV: NavItem[] = [
 export const TEACHER_NAV: NavItem[] = [
   { label: 'Today', href: '/teacher/schedule', icon: LayoutDashboard },
   { label: 'Weekly Routine', href: '/teacher/weekly-schedule', icon: CalendarRange },
-  { label: 'Lesson Planning', href: '/teacher/lesson-planning', icon: BookMarked },
+  { label: 'Lesson Planning', href: '/teacher/lesson-planning', icon: BookMarked, featureKey: 'lesson-planning' },
   { label: "Today's Report", href: '/teacher/report/today', icon: FileText },
   { label: 'Report History', href: '/teacher/report/history', icon: History },
   { label: 'Settings', href: '/teacher/settings', icon: Settings },

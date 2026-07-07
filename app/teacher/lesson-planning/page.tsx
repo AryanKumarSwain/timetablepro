@@ -6,6 +6,9 @@ import { BookMarked, Search, Filter } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { PageHeader } from '@/components/enterprise/page-header';
+import { ProtectedFeature } from '@/components/protected-feature';
+import { useAuth, useRequireAuth } from '@/lib/auth-context';
+import { getSchoolDetails } from '@/lib/api-services';
 import {
   Select,
   SelectContent,
@@ -63,6 +66,8 @@ interface SubjectOption {
 }
 
 export default function LessonPlanningPage() {
+  const auth = useRequireAuth('teacher');
+  const { user } = useAuth();
   const [view, setView] = useState<'day' | 'week' | 'month' | 'year'>('week');
   const [selectedDate, setSelectedDate] = useState(() => format(new Date(), 'yyyy-MM-dd'));
   const [lessonPlans, setLessonPlans] = useState<LessonPlan[]>([]);
@@ -80,6 +85,7 @@ export default function LessonPlanningPage() {
   const [selectedClassId, setSelectedClassId] = useState('');
   const [selectedSubjectId, setSelectedSubjectId] = useState('');
   const [selectedDateFilter, setSelectedDateFilter] = useState('');
+  const [featureEnabled, setFeatureEnabled] = useState(true);
 
   // Fetch all lesson plans on mount (removed filter dependencies to preserve daily schedule)
   useEffect(() => {
@@ -87,9 +93,25 @@ export default function LessonPlanningPage() {
   }, []);
 
   useEffect(() => {
+    if (auth.loading || !auth.user) return;
+    void fetchFeatureAccess();
+  }, [auth.loading, auth.user]);
+
+  useEffect(() => {
     fetchTimetableSlots(selectedDate);
     fetchClassesAndSubjects();
   }, [selectedDate]);
+
+  const fetchFeatureAccess = async () => {
+    try {
+      const schoolData = await getSchoolDetails();
+      const plan = schoolData?.plan;
+      setFeatureEnabled(plan?.lessonPlanningEnabled || false);
+    } catch (error) {
+      console.error('Failed to fetch lesson planning feature access', error);
+      setFeatureEnabled(false);
+    }
+  };
 
   const fetchClassesAndSubjects = async () => {
     try {
@@ -181,7 +203,7 @@ export default function LessonPlanningPage() {
     try {
       setIsLoading(true);
       const res = await fetch(`/api/teacher/lesson-plans/${selectedLesson.id}`, {
-        method: 'PUT',
+        method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       });
@@ -286,13 +308,20 @@ export default function LessonPlanningPage() {
   const pendingLessons = lessonPlans.filter((p) => p.status === 'DRAFT' || p.status === 'PLANNED').length;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-6">
-      <div className="mx-auto max-w-7xl space-y-6">
-        <PageHeader
-          title="Lesson Planning"
-          description="Plan and manage your lessons for all your classes"
-          breadcrumbs={[{ label: 'Teacher', href: '/teacher/schedule' }, { label: 'Lesson Planning' }]}
-        />
+    <ProtectedFeature
+      featureKey="lesson-planning"
+      featureName="Lesson Planning"
+      isEnabled={featureEnabled}
+      schoolId={user?.schoolId || undefined}
+      showUpgradeButton={false}
+    >
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-6">
+        <div className="mx-auto max-w-7xl space-y-6">
+          <PageHeader
+            title="Lesson Planning"
+            description="Plan and manage your lessons for all your classes"
+            breadcrumbs={[{ label: 'Teacher', href: '/teacher/schedule' }, { label: 'Lesson Planning' }]}
+          />
 
       {/* Stats */}
       <div className="mb-8">
@@ -367,7 +396,6 @@ export default function LessonPlanningPage() {
                     status={lesson?.status ?? 'PENDING'}
                     topic={lesson?.topic}
                     estimatedDuration={lesson?.estimatedDuration}
-                    isEmpty={!lesson}
                     onClick={() => {
                       if (lesson) {
                         handleOpenEditDialog(lesson);
@@ -497,7 +525,8 @@ export default function LessonPlanningPage() {
           />
         </DialogContent>
       </Dialog>
+        </div>
       </div>
-    </div>
+    </ProtectedFeature>
   );
 }

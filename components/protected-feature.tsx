@@ -13,6 +13,7 @@ interface ProtectedFeatureProps {
   isEnabled: boolean;
   children: React.ReactNode;
   schoolId?: string;
+  showUpgradeButton?: boolean;
 }
 
 export function ProtectedFeature({ 
@@ -20,7 +21,8 @@ export function ProtectedFeature({
   featureName, 
   isEnabled, 
   children,
-  schoolId 
+  schoolId,
+  showUpgradeButton = true,
 }: ProtectedFeatureProps) {
   const [showUnlockAnimation, setShowUnlockAnimation] = useState(false);
   const [showGlow, setShowGlow] = useState(false);
@@ -123,13 +125,15 @@ export function ProtectedFeature({
             {featureName} is locked under your current active tier. Upgrade your system subscription plan to gain instantaneous structural access.
           </p>
 
-          <Button
-            onClick={handleUpgrade}
-            className="w-full bg-gradient-to-r from-violet-600 via-indigo-600 to-indigo-700 hover:opacity-95 text-white gap-2 rounded-xl py-5 shadow-md shadow-indigo-600/10 font-semibold tracking-wide transition-all active:scale-[0.99]"
-          >
-            <Crown className="h-4 w-4 fill-white/20" />
-            Upgrade Account
-          </Button>
+          {showUpgradeButton && (
+            <Button
+              onClick={handleUpgrade}
+              className="w-full bg-gradient-to-r from-violet-600 via-indigo-600 to-indigo-700 hover:opacity-95 text-white gap-2 rounded-xl py-5 shadow-md shadow-indigo-600/10 font-semibold tracking-wide transition-all active:scale-[0.99]"
+            >
+              <Crown className="h-4 w-4 fill-white/20" />
+              Upgrade Account
+            </Button>
+          )}
         </div>
       </div>
     );
