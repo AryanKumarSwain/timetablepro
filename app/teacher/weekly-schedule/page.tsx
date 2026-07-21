@@ -516,8 +516,8 @@ export default function TeacherWeeklySchedulePage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <p className="text-muted-foreground animate-pulse text-sm font-semibold tracking-wide">
+      <div className="min-h-screen bg-background flex items-center justify-center px-4">
+        <p className="text-muted-foreground animate-pulse text-sm font-semibold tracking-wide text-center">
           Synchronizing engine state with live admin master blueprints...
         </p>
       </div>
@@ -525,9 +525,9 @@ export default function TeacherWeeklySchedulePage() {
   }
 
   return (
-    <div className="max-w-[1600px] mx-auto p-6 space-y-6 bg-background text-foreground min-h-screen">
+    <div className="max-w-[1600px] mx-auto p-3 sm:p-6 space-y-6 bg-background text-foreground min-h-screen">
 
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-card p-5 rounded-2xl border border-border shadow-sm">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-card p-4 sm:p-5 rounded-2xl border border-border shadow-sm">
         <div className="flex flex-wrap items-center gap-4">
           <div className="w-full sm:w-[280px]">
             <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1.5">
@@ -548,19 +548,19 @@ export default function TeacherWeeklySchedulePage() {
           </div>
 
           {classCurrentlyViewingLabel && (
-            <div className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-500/10 px-3 py-2 text-xs font-bold uppercase tracking-wider text-emerald-500 border border-emerald-500/20 self-end h-10 shadow-sm">
-              <Layers className="h-3.5 w-3.5 text-emerald-500" />
+            <div className="inline-flex items-center gap-1.5 rounded-xl bg-blue-500/10 px-3 py-2 text-xs font-bold uppercase tracking-wider text-blue-500 border border-blue-500/20 self-end h-10 shadow-sm">
+              <Layers className="h-3.5 w-3.5 text-blue-500" />
               <span>{classCurrentlyViewingLabel}</span>
             </div>
           )}
         </div>
 
-        <div className="flex items-center gap-2.5 self-end md:self-center">
+        <div className="flex flex-wrap items-center gap-2.5 self-end md:self-center">
 
-          <div className="flex items-center gap-1.5 text-xs bg-emerald-500/10 text-emerald-500 font-bold px-3 py-2 h-10 rounded-xl border border-emerald-500/20 shadow-sm">
+          <div className="flex items-center gap-1.5 text-xs bg-blue-500/10 text-blue-500 font-bold px-3 py-2 h-10 rounded-xl border border-blue-500/20 shadow-sm">
             <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
             </span>
             LIVE TIMETABLE
           </div>
@@ -572,20 +572,25 @@ export default function TeacherWeeklySchedulePage() {
       </div>
 
       <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
-        <div className="p-4 border-b border-border bg-muted/30 flex items-center justify-between">
+        <div className="p-3 sm:p-4 border-b border-border bg-muted/30 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Calendar className="h-4 w-4 text-emerald-500" />
+            <Calendar className="h-4 w-4 text-blue-500" />
             <span className="text-xs font-bold text-card-foreground uppercase tracking-wider">
               My Weekly Routines
             </span>
           </div>
         </div>
 
+        {/* Mobile scroll hint */}
+        <div className="sm:hidden text-[10px] font-semibold text-muted-foreground text-center py-2 border-b border-border/40 tracking-wide">
+          ← Scroll sideways to see all days →
+        </div>
+
         <div className="overflow-x-auto">
           <table className="w-full border-collapse text-left min-w-[1100px]">
             <thead>
               <tr className="bg-muted/50 border-b border-border">
-                <th className="p-4 text-xs font-black uppercase tracking-widest text-muted-foreground w-[180px]">
+                <th className="p-4 text-xs font-black uppercase tracking-widest text-muted-foreground w-[180px] sticky left-0 bg-muted/50 z-10">
                   TIME PLANNER
                 </th>
                 {DAYS.map((day, idx) => {
@@ -608,7 +613,7 @@ export default function TeacherWeeklySchedulePage() {
                     <th
                       key={day}
                       className={cn(
-                        "p-4 text-center text-xs font-bold uppercase tracking-wider text-card-foreground border-l min-w-[160px]",
+                        "p-3 sm:p-4 text-center text-xs font-bold uppercase tracking-wider text-card-foreground border-l min-w-[140px] sm:min-w-[160px]",
                         showUndoButton && selectedDayIndex === DAY_INDICES[idx] 
                           ? "border-rose-500 bg-rose-50/50" 
                           : "border-border/40"
@@ -622,7 +627,7 @@ export default function TeacherWeeklySchedulePage() {
                               size="sm"
                               variant="outline"
                               onClick={handleUndoAbsentRequest}
-                              className="h-6 w-6 p-0 rounded-lg border-rose-500/30 text-rose-600 hover:bg-rose-500/10"
+                              className="h-7 w-7 sm:h-6 sm:w-6 p-0 rounded-lg border-rose-500/30 text-rose-600 hover:bg-rose-500/10"
                               title="Undo Request"
                             >
                               <Undo className="h-3 w-3" />
@@ -631,7 +636,7 @@ export default function TeacherWeeklySchedulePage() {
                             <Button
                               size="sm"
                               variant="ghost"
-                              className="h-6 w-6 p-0 rounded-lg hover:bg-rose-500/10 text-rose-500 hover:text-rose-600"
+                              className="h-7 w-7 sm:h-6 sm:w-6 p-0 rounded-lg hover:bg-rose-500/10 text-rose-500 hover:text-rose-600"
                               onClick={() => handleFullDayAbsent(DAY_INDICES[idx])}
                               title="Request full-day absence"
                             >
@@ -655,7 +660,7 @@ export default function TeacherWeeklySchedulePage() {
 
                 return (
                   <tr key={period.id} className="hover:bg-muted/20 transition-colors">
-                    <td className="p-4 font-medium whitespace-nowrap bg-muted/20 border-r border-border">
+                    <td className="p-3 sm:p-4 font-medium whitespace-nowrap bg-muted/20 border-r border-border sticky left-0 z-10">
                       <div className="text-xs font-bold text-foreground uppercase tracking-wide">
                         {period.label || `Period ${period.periodNumber}`}
                       </div>
@@ -669,7 +674,7 @@ export default function TeacherWeeklySchedulePage() {
                         return (
                           <td
                             key={`${dayIndex}-${period.id}`}
-                            className="p-4 border-l border-border/40 bg-amber-500/[0.02] text-center align-middle"
+                            className="p-3 sm:p-4 border-l border-border/40 bg-amber-500/[0.02] text-center align-middle"
                           >
                             <span className="text-[10px] font-bold tracking-widest text-amber-500 uppercase bg-amber-500/10 px-2.5 py-1 rounded-lg border border-amber-500/20">
                               LUNCH BREAK
@@ -692,8 +697,8 @@ export default function TeacherWeeklySchedulePage() {
                         <td
                           key={`${dayIndex}-${period.id}`}
                           className={cn(
-                            'p-3 border-l border-border/40 align-top min-h-[105px]',
-                            teacherSpecificSlot ? (isProxySlot ? `bg-${theme.primary}/[0.06]` : 'bg-emerald-500/[0.06]') : 'bg-transparent'
+                            'p-2 sm:p-3 border-l border-border/40 align-top min-h-[105px]',
+                            teacherSpecificSlot ? (isProxySlot ? `bg-${theme.primary}/[0.06]` : 'bg-blue-500/[0.06]') : 'bg-transparent'
                           )}
                         >
                           {teacherSpecificSlot ? (
@@ -702,12 +707,12 @@ export default function TeacherWeeklySchedulePage() {
                                 "p-3 border shadow-md flex flex-col justify-between min-h-[85px] rounded-xl group transition-colors",
                                 isProxySlot
                                   ? `bg-${theme.primary} dark:bg-${theme.primaryDark} border-${theme.primaryDark} dark:border-${theme.primaryBorderDark} hover:bg-${theme.primaryHover} dark:hover:bg-${theme.primary}`
-                                  : "bg-emerald-600 dark:bg-emerald-700 border-emerald-700 dark:border-emerald-800 hover:bg-emerald-700 dark:hover:bg-emerald-600"
+                                  : "bg-teal-500 dark:bg-teal-600 border-teal-600 dark:border-teal-700 hover:bg-teal-600 dark:hover:bg-teal-500"
                               )}>
                                 <div>
                                   <span className={cn(
                                     "inline-block px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider mb-2 shadow-sm",
-                                    isProxySlot ? `bg-background ${theme.primaryText}` : "bg-background text-emerald-500"
+                                    isProxySlot ? `bg-background ${theme.primaryText}` : "bg-background text-blue-500"
                                   )}>
                                     {isProxySlot ? 'PROXY' : getSubjectName(teacherSpecificSlot.subjectId)}
                                   </span>
@@ -717,7 +722,7 @@ export default function TeacherWeeklySchedulePage() {
                                 </div>
                                 <div className={cn(
                                   "text-[10px] font-bold uppercase tracking-wider pt-1.5 border-t mt-2 flex items-center gap-1",
-                                  isProxySlot ? `text-${theme.primaryLight} border-${theme.primary}/40` : "text-emerald-100 border-emerald-500/40"
+                                  isProxySlot ? `text-${theme.primaryLight} border-${theme.primary}/40` : "text-blue-100 border-blue-500/40"
                                 )}>
                                   <BookOpen className="h-2.5 w-2.5 text-white" /> {isProxySlot ? 'Substitution' : 'Active Session'}
                                 </div>
@@ -727,12 +732,12 @@ export default function TeacherWeeklySchedulePage() {
                                   {getTodosForSlot(teacherSpecificSlot).length}
                                 </div>
                               )}
-                              <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <div className="absolute top-2 right-2 flex gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                                 <Button
                                   size="sm"
                                   variant="outline"
                                   onClick={() => handleAddTodo(teacherSpecificSlot, dayIndex)}
-                                  className="h-6 w-6 p-0 rounded-full bg-white/90 hover:bg-white border-indigo-500/30 text-indigo-600 shadow-sm"
+                                  className="h-7 w-7 sm:h-6 sm:w-6 p-0 rounded-full bg-white/90 hover:bg-white border-indigo-500/30 text-indigo-600 shadow-sm"
                                   title="Add TODO"
                                 >
                                   <Plus className="h-3 w-3" />
@@ -756,7 +761,7 @@ export default function TeacherWeeklySchedulePage() {
       </div>
 
       <Dialog open={absentDialogOpen} onOpenChange={setAbsentDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-[95vw] sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Mark as Absent</DialogTitle>
             <DialogDescription>
@@ -785,11 +790,11 @@ export default function TeacherWeeklySchedulePage() {
               className="w-full min-h-[80px] px-3 py-2 text-sm rounded-lg border border-input bg-background focus:outline-none focus:ring-2 focus:ring-primary/20"
             />
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setAbsentDialogOpen(false)}>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button variant="outline" onClick={() => setAbsentDialogOpen(false)} className="w-full sm:w-auto">
               Cancel
             </Button>
-            <Button onClick={handleSubmitAbsentRequest}>
+            <Button onClick={handleSubmitAbsentRequest} className="w-full sm:w-auto">
               Submit Request
             </Button>
           </DialogFooter>
@@ -797,7 +802,7 @@ export default function TeacherWeeklySchedulePage() {
       </Dialog>
 
       <Dialog open={fullDayAbsentDialogOpen} onOpenChange={setFullDayAbsentDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-[95vw] sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Request Full-Day Absence</DialogTitle>
             <DialogDescription>
@@ -820,11 +825,11 @@ export default function TeacherWeeklySchedulePage() {
               className="w-full min-h-[80px] px-3 py-2 text-sm rounded-lg border border-input bg-background focus:outline-none focus:ring-2 focus:ring-primary/20"
             />
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setFullDayAbsentDialogOpen(false)}>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button variant="outline" onClick={() => setFullDayAbsentDialogOpen(false)} className="w-full sm:w-auto">
               Cancel
             </Button>
-            <Button onClick={handleSubmitFullDayAbsentRequest}>
+            <Button onClick={handleSubmitFullDayAbsentRequest} className="w-full sm:w-auto">
               Submit Request
             </Button>
           </DialogFooter>
@@ -832,7 +837,7 @@ export default function TeacherWeeklySchedulePage() {
       </Dialog>
 
       <Dialog open={todoDialogOpen} onOpenChange={setTodoDialogOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-[95vw] sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Add TODOs</DialogTitle>
             <DialogDescription>
@@ -858,7 +863,7 @@ export default function TeacherWeeklySchedulePage() {
                   <ul className="space-y-1">
                     {getTodosForSlot(selectedSlot).map((t: any) => (
                       <li key={t.id} className="text-xs text-foreground/80 flex items-center gap-1.5">
-                        <CheckCircle2 className="h-3 w-3 text-emerald-500 flex-shrink-0" />
+                        <CheckCircle2 className="h-3 w-3 text-blue-500 flex-shrink-0" />
                         {t.title}
                         <button
                           onClick={() => handleDeleteTodo(t.id)}
@@ -915,14 +920,14 @@ export default function TeacherWeeklySchedulePage() {
               <Plus className="h-4 w-4 mr-2" /> Add Another TODO
             </Button>
           </div>
-          <DialogFooter>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
             <Button variant="outline" onClick={() => {
               setTodoDialogOpen(false);
               setTodoItems(['']);
-            }}>
+            }} className="w-full sm:w-auto">
               Cancel
             </Button>
-            <Button onClick={handleSubmitTodo}>
+            <Button onClick={handleSubmitTodo} className="w-full sm:w-auto">
               Add TODOs
             </Button>
           </DialogFooter>
@@ -930,7 +935,7 @@ export default function TeacherWeeklySchedulePage() {
       </Dialog>
 
       <Dialog open={editTodoDialogOpen} onOpenChange={setEditTodoDialogOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-[95vw] sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Edit TODOs</DialogTitle>
             <DialogDescription>
@@ -991,15 +996,15 @@ export default function TeacherWeeklySchedulePage() {
               <Plus className="h-4 w-4 mr-2" /> Add Another TODO
             </Button>
           </div>
-          <DialogFooter>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
             <Button variant="outline" onClick={() => {
               setEditTodoDialogOpen(false);
               setTodoItems(['']);
               setEditingTodos([]);
-            }}>
+            }} className="w-full sm:w-auto">
               Cancel
             </Button>
-            <Button onClick={handleSubmitEditTodo}>
+            <Button onClick={handleSubmitEditTodo} className="w-full sm:w-auto">
               Update TODOs
             </Button>
           </DialogFooter>

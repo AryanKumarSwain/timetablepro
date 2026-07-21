@@ -46,9 +46,10 @@ import { cn, isTeacherActive } from '@/lib/utils';
 import { getSchoolDetails } from '@/lib/api-services';
 import { usePlanTheme } from '@/lib/plan-theme';
 
-const ZOOM_MIN = 0.6;
+const ZOOM_MIN = 0.4;
 const ZOOM_MAX = 1.4;
 const ZOOM_STEP = 0.1;
+const MOBILE_BREAKPOINT = 640;
 
 export default function DailyDeskPage() {
   // 1. Setup layout configurations & identify view contexts
@@ -76,7 +77,14 @@ export default function DailyDeskPage() {
     reason: 'Leave',
   });
 
-  const [zoomLevel, setZoomLevel] = useState(1);
+  // Default to a smaller zoom on narrow/mobile viewports so the matrix
+  // doesn't force an oversized horizontal scroll on first load.
+  const [zoomLevel, setZoomLevel] = useState(() => {
+    if (typeof window !== 'undefined' && window.innerWidth < MOBILE_BREAKPOINT) {
+      return ZOOM_MIN;
+    }
+    return 1;
+  });
   const [freeTeachersPeriodId, setFreeTeachersPeriodId] = useState('');
   const [history, setHistory] = useState<{ date: string; replacementCount: number }[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
@@ -736,7 +744,7 @@ export default function DailyDeskPage() {
   const busyInSelectedPeriod = new Set(gridData?.busyTeachersByPeriod?.[replacementForm.periodId] ?? []);
 
   return (
-    <div className='max-w-[1600px] mx-auto space-y-6 px-4 py-2 print:p-0 print:max-w-full'>
+    <div className='max-w-[1600px] mx-auto space-y-6 px-3 sm:px-4 py-2 print:p-0 print:max-w-full'>
       {/* HEADER SECTION */}
       {!isPublicView && (
         <div className="print:hidden">
@@ -768,29 +776,29 @@ export default function DailyDeskPage() {
 
         {/* TIMETABLE MAIN CARD CONTAINER */}
         <div className='min-w-0 w-full overflow-visible print:border-none print:p-0'>
-          <GlassCard className='p-5 print:bg-transparent print:border-none print:p-0 print:shadow-none'>
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-5 print:mb-8">
-              <div>
-                <h2 className='text-base font-bold uppercase tracking-wide text-foreground print:text-xl print:text-black'>
+          <GlassCard className='p-3 sm:p-5 print:bg-transparent print:border-none print:p-0 print:shadow-none'>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 mb-5 print:mb-8">
+              <div className="min-w-0">
+                <h2 className='text-sm sm:text-base font-bold uppercase tracking-wide text-foreground print:text-xl print:text-black'>
                   Daily Operations Layout Matrix
                 </h2>
-                <div className="flex items-center gap-3 mt-0.5">
-                  <p className='text-xs text-muted-foreground print:text-sm print:text-gray-600'>
+                <div className="flex flex-wrap items-center gap-2 mt-1">
+                  <p className='hidden sm:block text-xs text-muted-foreground print:text-sm print:text-gray-600'>
                     Live scheduling run verified for calendar timeline:
                   </p>
                   <input
                     type="date"
                     value={selectedDate}
                     onChange={(e) => setSelectedDate(e.target.value)}
-                    className="text-xs font-bold text-foreground bg-background border border-border/60 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-primary/20 print:hidden"
+                    className="text-xs font-bold text-foreground bg-background border border-border/60 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-primary/20 print:hidden"
                   />
-                  <strong className='text-xs text-foreground print:text-sm print:text-black'>{selectedDate}</strong>
+                  <strong className='hidden sm:inline text-xs text-foreground print:text-sm print:text-black'>{selectedDate}</strong>
                 </div>
               </div>
 
               {/* CONTROLS BAR */}
-              <div className="flex items-center gap-2 self-start sm:self-center print:hidden">
-                <div className="flex items-center gap-1 rounded-xl border border-border/80 bg-muted/40 p-1">
+              <div className="flex flex-wrap items-center gap-2 self-start sm:self-center print:hidden">
+                <div className="hidden sm:flex items-center gap-1 rounded-xl border border-border/80 bg-muted/40 p-1">
                   <Button
                     size="sm"
                     variant="ghost"
@@ -840,7 +848,7 @@ export default function DailyDeskPage() {
                   className="rounded-xl text-xs font-semibold h-9 border-border/80 hover:bg-muted"
                 >
                   <Download className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
-                  Download PDF
+                  <span className="hidden xs:inline">Download </span>PDF
                 </Button>
               </div>
             </div>
@@ -857,191 +865,197 @@ export default function DailyDeskPage() {
                 </p>
               </div>
             ) : (
-              <div
-                id="timetable-capture"
-                className='timetable-matrix-scroll w-full overflow-x-auto rounded-xl border border-border/60 bg-background p-4 scrollbar-thin scrollbar-thumb-accent print:overflow-visible print:border-none print:bg-transparent'
-              >
+              <>
+                {/* Mobile scroll hint */}
+                <div className="sm:hidden text-[10px] font-semibold text-muted-foreground text-center mb-2 tracking-wide">
+                  ← Scroll to see more periods · pinch to zoom →
+                </div>
                 <div
-                  className='timetable-inner-container print:min-w-full origin-top-left transition-transform duration-150 ease-out'
-                  style={{ transform: `scale(${zoomLevel})`, width: zoomLevel !== 1 ? `${100 / zoomLevel}%` : undefined }}
+                  id="timetable-capture"
+                  className='timetable-matrix-scroll w-full overflow-x-auto rounded-xl border border-border/60 bg-background p-2 sm:p-4 scrollbar-thin scrollbar-thumb-accent print:overflow-visible print:border-none print:bg-transparent'
                 >
-                  <table className='w-full border-collapse text-left min-w-[800px] print:min-w-full print:table-layout-fixed'>
-                    <thead>
-                      <tr className='bg-muted/80 backdrop-blur border-b border-border/40 print:bg-gray-100 print:border-b-2 print:border-gray-300'>
-                        <th className='p-4 text-xs font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400 w-[140px] sticky left-0 bg-muted z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] border-r border-border/40 print:static print:bg-gray-100 print:text-black print:shadow-none'>
-                          Timetable
-                        </th>
-                        {(gridData.periods ?? []).map((p) => (
-                          <th key={p.id} className='p-3 border-l border-border/40 text-center min-w-[180px] w-[200px] print:border-gray-300 print:p-2'>
-                            <div className='text-xs font-bold text-foreground uppercase tracking-wider print:text-black print:text-[11px]'>
-                              {p.isBreak ? (p.label || 'BREAK') : `P${p.periodNumber}`}
-                            </div>
-                            <div className='text-[10px] text-muted-foreground font-medium mt-0.5 print:text-gray-600 print:text-[9px]'>
-                              {p.startTime}–{p.endTime}
-                            </div>
+                  <div
+                    className='timetable-inner-container print:min-w-full origin-top-left transition-transform duration-150 ease-out'
+                    style={{ transform: `scale(${zoomLevel})`, width: zoomLevel !== 1 ? `${100 / zoomLevel}%` : undefined }}
+                  >
+                    <table className='w-full border-collapse text-left min-w-[800px] print:min-w-full print:table-layout-fixed'>
+                      <thead>
+                        <tr className='bg-muted/80 backdrop-blur border-b border-border/40 print:bg-gray-100 print:border-b-2 print:border-gray-300'>
+                          <th className='p-4 text-xs font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400 w-[140px] sticky left-0 bg-muted z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] border-r border-border/40 print:static print:bg-gray-100 print:text-black print:shadow-none'>
+                            Timetable
                           </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody className='divide-y divide-border/40 bg-background/40 print:bg-transparent print:divide-gray-300'>
-                      {(gridData.classes ?? []).map((cls) => (
-                        <tr key={cls.id} className='hover:bg-muted/10 transition-colors print:hover:bg-transparent print:break-inside-avoid'>
-                          <td className='p-4 font-bold text-sm text-foreground bg-background/90 sticky left-0 z-10 border-r border-border/40 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] print:static print:bg-transparent print:text-black print:shadow-none print:p-2 print:border-r print:border-gray-300'>
-                            {cls.name}
-                          </td>
+                          {(gridData.periods ?? []).map((p) => (
+                            <th key={p.id} className='p-3 border-l border-border/40 text-center min-w-[180px] w-[200px] print:border-gray-300 print:p-2'>
+                              <div className='text-xs font-bold text-foreground uppercase tracking-wider print:text-black print:text-[11px]'>
+                                {p.isBreak ? (p.label || 'BREAK') : `P${p.periodNumber}`}
+                              </div>
+                              <div className='text-[10px] text-muted-foreground font-medium mt-0.5 print:text-gray-600 print:text-[9px]'>
+                                {p.startTime}–{p.endTime}
+                              </div>
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody className='divide-y divide-border/40 bg-background/40 print:bg-transparent print:divide-gray-300'>
+                        {(gridData.classes ?? []).map((cls) => (
+                          <tr key={cls.id} className='hover:bg-muted/10 transition-colors print:hover:bg-transparent print:break-inside-avoid'>
+                            <td className='p-4 font-bold text-sm text-foreground bg-background/90 sticky left-0 z-10 border-r border-border/40 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] print:static print:bg-transparent print:text-black print:shadow-none print:p-2 print:border-r print:border-gray-300'>
+                              {cls.name}
+                            </td>
 
-                          {(gridData.periods ?? []).map((period) => {
-                            const periodRow = (gridData.grid ?? []).find((row) => row.periodId === period.id);
-                            const cell = periodRow?.cells?.find((c) => c.classId === cls.id);
+                            {(gridData.periods ?? []).map((period) => {
+                              const periodRow = (gridData.grid ?? []).find((row) => row.periodId === period.id);
+                              const cell = periodRow?.cells?.find((c) => c.classId === cls.id);
 
-                            if (!cell || cell.empty) {
+                              if (!cell || cell.empty) {
+                                return (
+                                  <td key={`${cls.id}-${period.id}`} className='p-3 border-l border-border/40 text-center text-muted-foreground/20 bg-background/5 min-h-[115px] print:border-gray-300 print:p-1'>
+                                    <span className="text-xs font-semibold tracking-widest print:text-gray-300">—</span>
+                                  </td>
+                                );
+                              }
+
+                              const hasServerReplacement = !!cell.replacement;
+                              const isCovered = hasServerReplacement && (cell.replacement?.status === 'confirmed' || cell.replacement?.status === 'approved');
+                              const isPendingCover = hasServerReplacement && cell.replacement?.status === 'pending';
+                              const isCoverMissing = cell.isReplacementAbsent === true;
+                              const subjectColorClass = getSubjectClass(cell.subjectName);
+
                               return (
-                                <td key={`${cls.id}-${period.id}`} className='p-3 border-l border-border/40 text-center text-muted-foreground/20 bg-background/5 min-h-[115px] print:border-gray-300 print:p-1'>
-                                  <span className="text-xs font-semibold tracking-widest print:text-gray-300">—</span>
-                                </td>
-                              );
-                            }
-
-                            const hasServerReplacement = !!cell.replacement;
-                            const isCovered = hasServerReplacement && (cell.replacement?.status === 'confirmed' || cell.replacement?.status === 'approved');
-                            const isPendingCover = hasServerReplacement && cell.replacement?.status === 'pending';
-                            const isCoverMissing = cell.isReplacementAbsent === true;
-                            const subjectColorClass = getSubjectClass(cell.subjectName);
-
-                            return (
-                              <td
-                                key={`${cls.id}-${period.id}`}
-                                className={cn(
-                                  'p-2 border-l border-border/40 h-full min-h-[115px] align-top transition-colors print:border-gray-300 print:p-1',
-                                  cell.isAbsent
-                                    ? (isCovered && !isCoverMissing ? 'bg-emerald-50 dark:bg-emerald-950/30 print:bg-green-50' : 'bg-rose-50 dark:bg-rose-950/30 print:bg-red-50')
-                                    : 'bg-background/10'
-                                )}
-                              >
-                                <Card
+                                <td
+                                  key={`${cls.id}-${period.id}`}
                                   className={cn(
-                                    'p-3 rounded-lg h-full text-xs flex flex-col justify-between shadow-none transition-all border print:p-1.5 print:border-gray-300 print:bg-white',
+                                    'p-2 border-l border-border/40 h-full min-h-[115px] align-top transition-colors print:border-gray-300 print:p-1',
                                     cell.isAbsent
-                                      ? (isCovered && !isCoverMissing)
-                                        ? 'border-emerald-500/40 bg-emerald-50 dark:bg-emerald-950/20'
-                                        : 'border-rose-500/40 bg-rose-500/5 ring-1 ring-rose-500/10'
-                                      : cn('border-border/60 bg-background hover:border-indigo-500/40', subjectColorClass)
+                                      ? (isCovered && !isCoverMissing ? 'bg-emerald-50 dark:bg-emerald-950/30 print:bg-green-50' : 'bg-rose-50 dark:bg-rose-950/30 print:bg-red-50')
+                                      : 'bg-background/10'
                                   )}
                                 >
-                                  <div>
-                                    <div className="flex items-start justify-between gap-1 mb-1">
-                                      <p className='font-bold text-foreground truncate flex-1 print:text-black print:text-[11px]'>{cell.subjectName}</p>
+                                  <Card
+                                    className={cn(
+                                      'p-3 rounded-lg h-full text-xs flex flex-col justify-between shadow-none transition-all border print:p-1.5 print:border-gray-300 print:bg-white',
+                                      cell.isAbsent
+                                        ? (isCovered && !isCoverMissing)
+                                          ? 'border-emerald-500/40 bg-emerald-50 dark:bg-emerald-950/20'
+                                          : 'border-rose-500/40 bg-rose-500/5 ring-1 ring-rose-500/10'
+                                        : cn('border-border/60 bg-background hover:border-indigo-500/40', subjectColorClass)
+                                    )}
+                                  >
+                                    <div>
+                                      <div className="flex items-start justify-between gap-1 mb-1">
+                                        <p className='font-bold text-foreground truncate flex-1 print:text-black print:text-[11px]'>{cell.subjectName}</p>
+                                      </div>
+                                      <p className={cn(
+                                        'font-medium truncate mb-2 print:text-[10px] print:mb-1',
+                                        cell.isAbsent ? 'text-muted-foreground/60 line-through print:text-gray-400' : 'text-muted-foreground print:text-gray-700'
+                                      )}>
+                                        {cell.teacherName}
+                                      </p>
                                     </div>
-                                    <p className={cn(
-                                      'font-medium truncate mb-2 print:text-[10px] print:mb-1',
-                                      cell.isAbsent ? 'text-muted-foreground/60 line-through print:text-gray-400' : 'text-muted-foreground print:text-gray-700'
-                                    )}>
-                                      {cell.teacherName}
-                                    </p>
-                                  </div>
 
-                                  <div className='flex flex-col gap-1 mt-auto print:mt-0'>
-                                    {cell.isAbsent ? (
-                                      <>
-                                        {isCovered && !isCoverMissing && (
-                                          <div className="space-y-1.5 print:space-y-0.5">
-                                            <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 shadow-sm print:bg-transparent print:border-none print:p-0 print:text-green-700">
-                                              <CheckCircle2 className='h-3 w-3 shrink-0 text-emerald-500 print:hidden' />
-                                              <span className="text-[10px] font-bold uppercase tracking-wider print:text-[8px]">Cover Active</span>
+                                    <div className='flex flex-col gap-1 mt-auto print:mt-0'>
+                                      {cell.isAbsent ? (
+                                        <>
+                                          {isCovered && !isCoverMissing && (
+                                            <div className="space-y-1.5 print:space-y-0.5">
+                                              <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 shadow-sm print:bg-transparent print:border-none print:p-0 print:text-green-700">
+                                                <CheckCircle2 className='h-3 w-3 shrink-0 text-emerald-500 print:hidden' />
+                                                <span className="text-[10px] font-bold uppercase tracking-wider print:text-[8px]">Cover Active</span>
+                                              </div>
+                                              <p className="text-[11px] font-medium text-foreground bg-muted/60 px-1.5 py-1 rounded border border-border/40 truncate print:text-[9px] print:bg-gray-50 print:p-0.5">
+                                                <span className="text-muted-foreground font-normal print:text-gray-600">Sub:</span> {cell.replacement?.replacementTeacherName}
+                                              </p>
                                             </div>
-                                            <p className="text-[11px] font-medium text-foreground bg-muted/60 px-1.5 py-1 rounded border border-border/40 truncate print:text-[9px] print:bg-gray-50 print:p-0.5">
-                                              <span className="text-muted-foreground font-normal print:text-gray-600">Sub:</span> {cell.replacement?.replacementTeacherName}
-                                            </p>
+                                          )}
+
+                                          {isCovered && isCoverMissing && (
+                                            <div className="space-y-1.5 print:space-y-0.5">
+                                              <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-amber-500/10 text-amber-600 border border-amber-500/20">
+                                                <AlertTriangle className='h-3 w-3 shrink-0' />
+                                                <span className="text-[10px] font-bold uppercase">Sub Absent!</span>
+                                              </div>
+                                              <p className="text-[11px] font-medium text-muted-foreground bg-rose-500/5 px-1.5 py-1 rounded border border-rose-500/20 line-through truncate">
+                                                Sub: {cell.replacement?.replacementTeacherName}
+                                              </p>
+                                              <Button
+                                                size='sm'
+                                                variant='secondary'
+                                                className='h-7 text-[10px] font-bold rounded bg-indigo-500/10 text-indigo-600 border border-indigo-500/20 hover:bg-indigo-500/20 w-full'
+                                                onClick={() => openCoverForm(
+                                                  cell.classId,
+                                                  period.id,
+                                                  cell.replacement?.replacementTeacherId || cell.teacherId
+                                                )}
+                                              >
+                                                Re-Assign Cover
+                                              </Button>
+                                            </div>
+                                          )}
+
+                                          {!isCovered && (
+                                            <>
+                                              <div className="flex items-center gap-1.5 px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 mb-1 print:bg-transparent print:border-none print:p-0 print:text-red-700 print:mb-0">
+                                                <AlertTriangle className='h-3 w-3 shrink-0 text-rose-500 print:hidden' />
+                                                <span className="text-[9px] font-bold uppercase tracking-wide print:text-[8px]">ABSENT (ALL DAY)</span>
+                                              </div>
+                                              {!isPublicView && (
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
+                                                  <Button
+                                                    size='sm'
+                                                    variant='outline'
+                                                    className='h-7 text-[10px] font-bold rounded border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/10 transition-colors px-1'
+                                                    onClick={() => void handleMarkAttendance(cell.classId, period.id, cell.teacherId, false)}
+                                                  >
+                                                    Present
+                                                  </Button>
+                                                  <Button
+                                                    size='sm'
+                                                    variant='secondary'
+                                                    className='h-7 text-[10px] font-bold rounded bg-indigo-500/10 text-indigo-600 border border-indigo-500/20 hover:bg-indigo-500/20 transition-colors px-1'
+                                                    onClick={() => openCoverForm(cell.classId, period.id, cell.teacherId)}
+                                                  >
+                                                    Assign Cover
+                                                  </Button>
+                                                </div>
+                                              )}
+                                            </>
+                                          )}
+                                        </>
+                                      ) : (
+                                        <div className="flex flex-col gap-1 mt-auto">
+                                          <div className="text-[10px] text-muted-foreground italic">
+                                            Present
                                           </div>
-                                        )}
-
-                                        {isCovered && isCoverMissing && (
-                                          <div className="space-y-1.5 print:space-y-0.5">
-                                            <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-amber-500/10 text-amber-600 border border-amber-500/20">
-                                              <AlertTriangle className='h-3 w-3 shrink-0' />
-                                              <span className="text-[10px] font-bold uppercase">Sub Absent!</span>
-                                            </div>
-                                            <p className="text-[11px] font-medium text-muted-foreground bg-rose-500/5 px-1.5 py-1 rounded border border-rose-500/20 line-through truncate">
-                                              Sub: {cell.replacement?.replacementTeacherName}
-                                            </p>
+                                          {!isPublicView && (
                                             <Button
                                               size='sm'
-                                              variant='secondary'
-                                              className='h-6 text-[10px] font-bold rounded bg-indigo-500/10 text-indigo-600 border border-indigo-500/20 hover:bg-indigo-500/20 w-full'
-                                              onClick={() => openCoverForm(
-                                                cell.classId,
-                                                period.id,
-                                                cell.replacement?.replacementTeacherId || cell.teacherId
-                                              )}
+                                              variant='outline'
+                                              className='h-7 text-[10px] font-bold rounded border-rose-500/30 text-rose-600 hover:bg-rose-500/10 transition-colors px-1'
+                                              onClick={() => void handleMarkAttendance(cell.classId, period.id, cell.teacherId, true)}
                                             >
-                                              Re-Assign Cover
+                                              Mark Absent
                                             </Button>
-                                          </div>
-                                        )}
-
-                                        {!isCovered && (
-                                          <>
-                                            <div className="flex items-center gap-1.5 px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 mb-1 print:bg-transparent print:border-none print:p-0 print:text-red-700 print:mb-0">
-                                              <AlertTriangle className='h-3 w-3 shrink-0 text-rose-500 print:hidden' />
-                                              <span className="text-[9px] font-bold uppercase tracking-wide print:text-[8px]">ABSENT (ALL DAY)</span>
-                                            </div>
-                                            {!isPublicView && (
-                                              <div className="grid grid-cols-2 gap-1">
-                                                <Button
-                                                  size='sm'
-                                                  variant='outline'
-                                                  className='h-6 text-[10px] font-bold rounded border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/10 transition-colors px-1'
-                                                  onClick={() => void handleMarkAttendance(cell.classId, period.id, cell.teacherId, false)}
-                                                >
-                                                  Present
-                                                </Button>
-                                                <Button
-                                                  size='sm'
-                                                  variant='secondary'
-                                                  className='h-6 text-[10px] font-bold rounded bg-indigo-500/10 text-indigo-600 border border-indigo-500/20 hover:bg-indigo-500/20 transition-colors px-1'
-                                                  onClick={() => openCoverForm(cell.classId, period.id, cell.teacherId)}
-                                                >
-                                                  Assign Cover
-                                                </Button>
-                                              </div>
-                                            )}
-                                          </>
-                                        )}
-                                      </>
-                                    ) : (
-                                      <div className="flex flex-col gap-1 mt-auto">
-                                        <div className="text-[10px] text-muted-foreground italic">
-                                          Present
+                                          )}
                                         </div>
-                                        {!isPublicView && (
-                                          <Button
-                                            size='sm'
-                                            variant='outline'
-                                            className='h-6 text-[10px] font-bold rounded border-rose-500/30 text-rose-600 hover:bg-rose-500/10 transition-colors px-1'
-                                            onClick={() => void handleMarkAttendance(cell.classId, period.id, cell.teacherId, true)}
-                                          >
-                                            Mark Absent
-                                          </Button>
-                                        )}
-                                      </div>
-                                    )}
-                                  </div>
-                                </Card>
-                              </td>
-                            );
-                          })}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                                      )}
+                                    </div>
+                                  </Card>
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
-              </div>
+              </>
             )}
           </GlassCard>
 
           {/* HISTORICAL TIMELINE SNAPSHOT LOG */}
           {!isPublicView && (
-            <GlassCard className='p-5 mt-6 print:hidden'>
+            <GlassCard className='p-3 sm:p-5 mt-6 print:hidden'>
               <div className='flex items-center justify-between pb-3 mb-3 border-b border-border/40'>
                 <div className='flex items-center gap-2'>
                   <div className='p-1.5 rounded-lg bg-indigo-500/10 text-indigo-500'>
@@ -1095,8 +1109,8 @@ export default function DailyDeskPage() {
 
         {/* SIDEBAR DASHBOARD DISPATCH CONTROL PANEL */}
         {!isPublicView && (
-          <div className='w-full max-w-[360px] ml-auto print:hidden space-y-6'>
-            <GlassCard className='p-5 sticky top-6 space-y-4'>
+          <div className='w-full max-w-full xl:max-w-[360px] xl:ml-auto print:hidden space-y-6'>
+            <GlassCard className='p-3 sm:p-5 xl:sticky xl:top-6 space-y-4'>
               <div className='flex items-center justify-between pb-2 border-b border-border/40'>
                 <div>
                   <h2 className='text-sm font-bold uppercase tracking-wider text-foreground'>Cover Assignments</h2>
@@ -1230,7 +1244,7 @@ export default function DailyDeskPage() {
             </GlassCard>
 
             {/* MARK TEACHER ABSENT MODULE */}
-            <GlassCard className='p-5 space-y-3'>
+            <GlassCard className='p-3 sm:p-5 space-y-3'>
               <div className='flex items-center justify-between pb-2 border-b border-border/40'>
                 <div>
                   <h2 className='text-sm font-bold uppercase tracking-wider text-foreground'>Mark Attendance</h2>
@@ -1322,7 +1336,7 @@ export default function DailyDeskPage() {
 
             {/* PENDING ABSENT REQUESTS MODULE */}
             {absentRequests.length > 0 && (
-              <GlassCard className='p-5 space-y-3'>
+              <GlassCard className='p-3 sm:p-5 space-y-3'>
                 <div className='flex items-center justify-between pb-2 border-b border-border/40'>
                   <div>
                     <h2 className='text-sm font-bold uppercase tracking-wider text-foreground'>Absent Requests</h2>
@@ -1349,7 +1363,7 @@ export default function DailyDeskPage() {
                         <Button
                           size='sm'
                           variant='outline'
-                          className='h-7 text-[10px] font-bold rounded border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/10 flex-1'
+                          className='h-8 text-[10px] font-bold rounded border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/10 flex-1'
                           onClick={() => handleApproveAbsentRequest(request.id)}
                         >
                           Approve
@@ -1357,7 +1371,7 @@ export default function DailyDeskPage() {
                         <Button
                           size='sm'
                           variant='outline'
-                          className='h-7 text-[10px] font-bold rounded border-rose-500/30 text-rose-600 hover:bg-rose-500/10 flex-1'
+                          className='h-8 text-[10px] font-bold rounded border-rose-500/30 text-rose-600 hover:bg-rose-500/10 flex-1'
                           onClick={() => handleRejectAbsentRequest(request.id)}
                         >
                           Reject
@@ -1370,7 +1384,7 @@ export default function DailyDeskPage() {
             )}
 
             {/* LIVE AVAILABLE TEACHERS MODULE */}
-            <GlassCard className='p-5 space-y-3'>
+            <GlassCard className='p-3 sm:p-5 space-y-3'>
               <div className='flex items-center justify-between pb-2 border-b border-border/40'>
                 <div>
                   <h2 className='text-sm font-bold uppercase tracking-wider text-foreground'>Free Teachers</h2>
@@ -1421,7 +1435,7 @@ export default function DailyDeskPage() {
 
       {/* HISTORY MODAL */}
       <Dialog open={historyModalOpen} onOpenChange={setHistoryModalOpen}>
-        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-[95vw] sm:max-w-6xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Daily Desk - {selectedHistoryDate ? formatHistoryDate(selectedHistoryDate) : ''}</DialogTitle>
             <DialogDescription>
@@ -1429,7 +1443,7 @@ export default function DailyDeskPage() {
             </DialogDescription>
           </DialogHeader>
           
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
             <div className="flex items-center gap-2">
               <div className="flex items-center gap-1 rounded-xl border border-border/80 bg-muted/40 p-1">
                 <Button
@@ -1461,7 +1475,7 @@ export default function DailyDeskPage() {
                 </Button>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <Button
                 size="sm"
                 variant="outline"
@@ -1470,7 +1484,7 @@ export default function DailyDeskPage() {
                 className="rounded-xl text-xs font-semibold h-9 border-border/80 hover:bg-muted"
               >
                 <Download className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
-                Download PDF
+                <span className="hidden xs:inline">Download </span>PDF
               </Button>
               <Button
                 size="sm"
@@ -1480,7 +1494,7 @@ export default function DailyDeskPage() {
                 className="rounded-xl text-xs font-semibold h-9 border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20"
               >
                 <FileSpreadsheet className="h-3.5 w-3.5 mr-1.5" />
-                Download Excel
+                <span className="hidden xs:inline">Download </span>Excel
               </Button>
             </div>
           </div>
@@ -1503,7 +1517,7 @@ export default function DailyDeskPage() {
             <div
               ref={historyModalRef}
               id="history-timetable-capture"
-              className='w-full overflow-x-auto rounded-xl border border-border/60 bg-background p-4 scrollbar-thin scrollbar-thumb-accent'
+              className='w-full overflow-x-auto rounded-xl border border-border/60 bg-background p-2 sm:p-4 scrollbar-thin scrollbar-thumb-accent'
             >
               <div
                 className='origin-top-left transition-transform duration-150 ease-out'
