@@ -481,6 +481,7 @@ export default function UpgradePage() {
               ['Reports', !!plan.reportEnabled],
               ['Attendance', !!plan.attendanceEnabled],
               ['Homework', !!plan.homeworkEnabled],
+              ['Lesson Planning', !!plan.lessonPlanningEnabled],
               [
                 `Exports: ${plan.exportFormats && plan.exportFormats.length > 0 ? plan.exportFormats.join(', ').toUpperCase() : 'None'}`,
                 !!(plan.exportFormats && plan.exportFormats.length > 0),
