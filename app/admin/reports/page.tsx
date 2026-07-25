@@ -6,6 +6,7 @@ import {
   getAdminReports,
   getDailyDeskGrid,
   downloadReportsCsv,
+  getAdminReport,
   type DailyReportData,
 } from '@/lib/api-services';
 import { PageHeader } from '@/components/enterprise/page-header';
@@ -13,7 +14,7 @@ import { PageSkeleton } from '@/components/enterprise/page-skeleton';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
-import { Download, Eye, FileSpreadsheet, FileText, User, CalendarSearch, CheckCircle2 } from 'lucide-react';
+import { Download, Eye, FileSpreadsheet, FileText, User, CalendarSearch, CheckCircle2, X } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { ProtectedFeature } from '@/components/protected-feature';
 import { getSchoolDetails } from '@/lib/api-services';
@@ -40,6 +41,8 @@ export default function AdminReportsPage() {
   const [calendarSearchDate, setCalendarSearchDate] = useState('');
   const [featureEnabled, setFeatureEnabled] = useState(true);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [viewReportId, setViewReportId] = useState<string | null>(null);
+  const [viewReportData, setViewReportData] = useState<DailyReportData | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -124,9 +127,14 @@ export default function AdminReportsPage() {
     window.open(`${baseUrl}/api/admin/reports/${reportId}/${format}`, '_blank');
   };
 
-  const handleIndividualView = (reportId: string) => {
-    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
-    window.open(`${baseUrl}/api/admin/reports/${reportId}/pdf`, '_blank');
+  const handleIndividualView = async (reportId: string) => {
+    setViewReportId(reportId);
+    try {
+      const reportData = await getAdminReport(reportId);
+      setViewReportData(reportData);
+    } catch (error) {
+      console.error('Failed to load report:', error);
+    }
   };
 
   const byDate = reports.reduce((acc: Record<string, DailyReportData[]>, r) => {
@@ -257,7 +265,8 @@ export default function AdminReportsPage() {
                   <thead className='bg-muted/50 text-xs font-semibold text-muted-foreground uppercase tracking-wider'>
                     <tr>
                       <th className='px-4 py-3'>Target Date</th>
-                      <th className='px-4 py-3 text-center'>Entries</th>
+                      <th className='px-4 py-3 text-center'>Classroom</th>
+                      <th className='px-4 py-3 text-center'>Activities</th>
                       <th className='px-4 py-3'>Status</th>
                       <th className='px-4 py-3 text-right'>Actions</th>
                     </tr>
@@ -265,17 +274,20 @@ export default function AdminReportsPage() {
                   <tbody className='divide-y divide-border bg-card text-card-foreground'>
                     {selectedTeacherReports.length === 0 ? (
                       <tr>
-                        <td colSpan={4} className='px-4 py-8 text-center text-muted-foreground text-xs'>
+                        <td colSpan={5} className='px-4 py-8 text-center text-muted-foreground text-xs'>
                           No logging entries recorded for this individual track.
                         </td>
                       </tr>
                     ) : (
                       selectedTeacherReports.map((r) => {
                         const cleanRepDate = r.reportDate ? String(r.reportDate).split('T')[0] : '—';
+                        const lessonsCount = r.entries?.filter(e => e.entryType === 'LESSON' || !e.entryType).length || 0;
+                        const activitiesCount = r.entries?.filter(e => e.entryType === 'ACTIVITY').length || 0;
                         return (
                           <tr key={r.id} className='hover:bg-muted/40 transition-colors'>
                             <td className='px-4 py-3 font-semibold text-foreground whitespace-nowrap'>{cleanRepDate}</td>
-                            <td className='px-4 py-3 text-center font-bold'>{r.entries?.length || 0}</td>
+                            <td className='px-4 py-3 text-center font-bold text-blue-600'>{lessonsCount}</td>
+                            <td className='px-4 py-3 text-center font-bold text-purple-600'>{activitiesCount}</td>
                             <td className='px-4 py-3 whitespace-nowrap'>
                               <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-bold border ${
                                 r.status === 'SUBMITTED'
@@ -435,6 +447,175 @@ export default function AdminReportsPage() {
               );
             })()}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Report View Dialog */}
+      <Dialog open={!!viewReportId} onOpenChange={(open) => { if (!open) { setViewReportId(null); setViewReportData(null); } }}>
+        <DialogContent className='sm:max-w-4xl max-h-[85vh] overflow-y-auto p-6 bg-card border border-border text-card-foreground'>
+          <DialogHeader>
+            <div className='flex items-center justify-between'>
+              <div>
+                <DialogTitle className='text-lg font-bold text-foreground'>Report Details</DialogTitle>
+                <DialogDescription className='text-xs text-muted-foreground'>
+                  {viewReportData ? `${viewReportData.teacherName} — ${viewReportData.reportDate}` : 'Loading...'}
+                </DialogDescription>
+              </div>
+              <Button variant='ghost' size='sm' onClick={() => { setViewReportId(null); setViewReportData(null); }}>
+                <X className='h-4 w-4' />
+              </Button>
+            </div>
+          </DialogHeader>
+
+          {viewReportData ? (
+            <div className='mt-4 space-y-4'>
+              {/* Report Info */}
+              <div className='grid grid-cols-2 gap-4 text-sm bg-muted/30 p-4 rounded-xl'>
+                <div>
+                  <p className='text-muted-foreground text-xs'>Teacher</p>
+                  <p className='font-semibold'>{viewReportData.teacherName}</p>
+                </div>
+                <div>
+                  <p className='text-muted-foreground text-xs'>Email</p>
+                  <p>{viewReportData.teacherEmail}</p>
+                </div>
+                <div>
+                  <p className='text-muted-foreground text-xs'>Report Date</p>
+                  <p>{viewReportData.reportDate}</p>
+                </div>
+                <div>
+                  <p className='text-muted-foreground text-xs'>Status</p>
+                  <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-bold border ${
+                    viewReportData.status === 'SUBMITTED'
+                      ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
+                      : 'bg-amber-500/10 text-amber-500 border-amber-500/20'
+                  }`}>
+                    {viewReportData.status}
+                  </span>
+                </div>
+              </div>
+
+              {/* Entries Table */}
+              <div className='overflow-x-auto rounded-xl border border-border/60'>
+                <table className='min-w-full divide-y divide-border text-left text-sm'>
+                  <thead className='bg-muted/50 text-xs font-semibold text-muted-foreground uppercase tracking-wider'>
+                    <tr>
+                      <th className='px-4 py-3'>Type</th>
+                      <th className='px-4 py-3'>Class</th>
+                      <th className='px-4 py-3'>Subject</th>
+                      <th className='px-4 py-3'>Details</th>
+                      <th className='px-4 py-3'>Completed</th>
+                    </tr>
+                  </thead>
+                  <tbody className='divide-y divide-border bg-card text-card-foreground'>
+                    {viewReportData.entries.map((e, i) => {
+                      const isActivity = e.entryType === 'ACTIVITY';
+                      const entryLabel = isActivity ? 'Activity' : 'Classroom';
+                      const entryBadgeColor = isActivity ? 'bg-purple-500/15 text-purple-600' : 'bg-blue-500/15 text-blue-600';
+
+                      return (
+                        <tr key={e.id} className='hover:bg-muted/40 transition-colors'>
+                          <td className='px-4 py-3'>
+                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${entryBadgeColor}`}>
+                              {entryLabel}
+                            </span>
+                          </td>
+                          <td className='px-4 py-3'>{e.className}</td>
+                          <td className='px-4 py-3'>{e.subjectName}</td>
+                          <td className='px-4 py-3 max-w-md'>
+                            {isActivity ? (
+                              <div className='space-y-1'>
+                                {e.activityCategory && (
+                                  <div className='text-xs font-semibold text-purple-600'>
+                                    {e.activityCategory}
+                                  </div>
+                                )}
+                                {e.activityDescription && (
+                                  <div className='text-xs text-muted-foreground'>
+                                    {e.activityDescription}
+                                  </div>
+                                )}
+                                {e.learningOutcome && (
+                                  <div className='text-xs text-muted-foreground italic'>
+                                    Outcome: {e.learningOutcome}
+                                  </div>
+                                )}
+                                {e.evidenceFiles && e.evidenceFiles.length > 0 && (
+                                  <div className='space-y-1'>
+                                    <div className='text-xs font-semibold text-purple-600'>
+                                      Evidence Files ({e.evidenceFiles.length})
+                                    </div>
+                                    {e.evidenceFiles.some(f => (typeof f === 'string' ? f : f.url).startsWith('blob:')) && (
+                                      <div className='text-xs text-amber-600 bg-amber-50 p-2 rounded border border-amber-200'>
+                                        ⚠️ Some files need to be re-uploaded by the teacher
+                                      </div>
+                                    )}
+                                    <div className='flex flex-wrap gap-2'>
+                                      {e.evidenceFiles.map((file, idx) => {
+                                        const fileUrl = typeof file === 'string' ? file : file.url;
+                                        const fileName = typeof file === 'string' ? `File ${idx + 1}` : file.name;
+                                        const isBlobUrl = fileUrl.startsWith('blob:');
+
+                                        return (
+                                          <div key={idx} className="flex items-center gap-1">
+                                            {isBlobUrl ? (
+                                              <span className="text-xs text-amber-600 italic">
+                                                {fileName} (not accessible)
+                                              </span>
+                                            ) : (
+                                              <a
+                                                href={fileUrl}
+                                                target='_blank'
+                                                rel='noopener noreferrer'
+                                                className='text-xs text-blue-600 hover:text-blue-800 underline'
+                                              >
+                                                {fileName}
+                                              </a>
+                                            )}
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <div className='text-xs'>{e.description || '—'}</div>
+                            )}
+                          </td>
+                          <td className='px-4 py-3'>
+                            {e.isCompleted ? (
+                              <span className='text-xs px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600'>
+                                Yes
+                              </span>
+                            ) : (
+                              <span className='text-xs text-muted-foreground'>No</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Download Buttons */}
+              <div className='flex gap-2 justify-end pt-4 border-t border-border'>
+                <Button size='sm' variant='outline' onClick={() => handleIndividualDownload(viewReportId, 'csv')}>
+                  <FileSpreadsheet className='h-4 w-4 mr-2 text-emerald-500' />
+                  Download CSV
+                </Button>
+                <Button size='sm' variant='outline' onClick={() => handleIndividualDownload(viewReportId, 'pdf')}>
+                  <FileText className='h-4 w-4 mr-2 text-destructive' />
+                  Download PDF
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className='flex items-center justify-center py-12'>
+              <div className='text-sm text-muted-foreground'>Loading report details...</div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
       </ProtectedFeature>

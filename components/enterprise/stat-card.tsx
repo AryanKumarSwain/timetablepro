@@ -65,7 +65,7 @@ export function StatCard({
             : undefined
         }
         className={cn(
-          'p-5 bg-gradient-to-br border',
+          'p-4 sm:p-5 bg-gradient-to-br border',
           variantStyles[variant],
           onClick &&
             'cursor-pointer hover:border-indigo-500/40 hover:shadow-lg transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/40'

@@ -374,6 +374,11 @@ enum DailyReportStatus {
   SUBMITTED
 }
 
+enum EntryType {
+  LESSON
+  ACTIVITY
+}
+
 enum TimetableStatus {
   DRAFT
   PUBLISHED
@@ -427,21 +432,27 @@ model DailyReport {
 }
 
 model ReportEntry {
-  id          String      @id @default(cuid())
-  reportId    String
-  report      DailyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
-  classId     String
-  class       ClassRoom   @relation(fields: [classId], references: [id], onDelete: Cascade)
-  subjectId   String
-  subject     Subject     @relation(fields: [subjectId], references: [id], onDelete: Cascade)
-  description String      @db.Text
-  isCompleted Boolean     @default(false)
-  isProxy     Boolean     @default(false)
-  createdAt   DateTime    @default(now())
+  id                  String      @id @default(cuid())
+  reportId            String
+  report              DailyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  classId             String
+  class               ClassRoom   @relation(fields: [classId], references: [id], onDelete: Cascade)
+  subjectId           String
+  subject             Subject     @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  description         String      @db.Text
+  isCompleted         Boolean     @default(false)
+  isProxy             Boolean     @default(false)
+  entryType           EntryType   @default(LESSON)
+  activityCategory   String?     @db.Text
+  activityDescription String?     @db.Text
+  learningOutcome     String?     @db.Text
+  evidenceFiles       Json?       @default("[]")
+  createdAt           DateTime    @default(now())
 
   @@index([reportId])
   @@index([classId])
   @@index([subjectId])
+  @@index([entryType])
 }
 
 model Timetable {

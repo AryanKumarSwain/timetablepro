@@ -61,6 +61,15 @@ function getUniqueColor(str: string): string {
   return `hsl(${h}, ${s}%, ${l}%)`;
 }
 
+type ActivityStat = {
+  lessonsToday: number;
+  activitiesToday: number;
+  submittedToday: boolean;
+};
+
+// Sentinel value used in the activityDate <select> to mean "aggregate every report, no date filter".
+const ALL_TIME = 'all-time';
+
 export default function AdminDashboard() {
   const auth = useRequireAuth('admin');
   const { theme } = usePlanTheme();
@@ -82,6 +91,17 @@ export default function AdminDashboard() {
   const [dbWorkload, setDbWorkload] = useState<any[]>([]);
   const [dbSubjects, setDbSubjects] = useState<any[]>([]);
   const [totalDatabaseSlots, setTotalDatabaseSlots] = useState(0);
+  const [activityDate, setActivityDate] = useState('');
+  const [availableDates, setAvailableDates] = useState<string[]>([]);
+  // Filter for which series show in the Activity vs Classroom chart: both, activities only, or classroom only.
+  const [entryTypeFilter, setEntryTypeFilter] = useState<'all' | 'activity' | 'classroom'>('all');
+
+  // NEW: activity stats now live in their OWN state, keyed by teacherId.
+  // This is what fixes the bug — dbWorkload (from /api/admin/analytics) and
+  // activityStats (from /api/admin/reports) are no longer both writing into
+  // the same `dbWorkload` array, so neither fetch can silently wipe the other
+  // out depending on which one resolves last.
+  const [activityStats, setActivityStats] = useState<Record<string, ActivityStat>>({});
 
   // Extract the school name dynamically from the session data
   const dynamicSchoolName = useMemo(() => {
@@ -134,6 +154,9 @@ export default function AdminDashboard() {
         if (response.ok && contentType && contentType.includes('application/json')) {
           const liveAnalyticsRes = await response.json();
           if (liveAnalyticsRes && !liveAnalyticsRes.error) {
+            // Only sets base workload (name/classes/etc). No longer clobbers
+            // lessonsToday/activitiesToday/submittedToday because those are
+            // never part of this payload — they're merged in via useMemo below.
             setDbWorkload(liveAnalyticsRes.teacherWorkload || []);
             setDbSubjects(liveAnalyticsRes.subjectDistribution || []);
             setTotalDatabaseSlots(liveAnalyticsRes.totalSlots || 0);
@@ -158,17 +181,145 @@ export default function AdminDashboard() {
     };
   }, [auth.loading, auth.session, timeFilter, classFilter, dateRange]);
 
+  // Shared helper: fetch /api/admin/reports for a given date and turn it
+  // into a teacherId -> ActivityStat map. Used by both effects below so the
+  // parsing logic only lives in one place.
+  const fetchActivityStatsForDate = async (dateParam?: string) => {
+    const url = dateParam ? `/api/admin/reports?date=${dateParam}` : `/api/admin/reports`;
+    const response = await fetch(url);
+
+    if (!response.ok) {
+      console.error('[ADMIN_DASHBOARD] /api/admin/reports request failed:', response.status);
+      return null;
+    }
+
+    const data = await response.json();
+    console.log('[ADMIN_DASHBOARD] Activity data fetched:', data);
+
+    const teacherActivityStats: Record<string, ActivityStat> = {};
+
+    data.forEach((report: any) => {
+      // NOTE: this assumes the /api/admin/reports payload (produced by
+      // mapReportResponse) exposes `teacherId`, `status`, and
+      // `entries[].entryType`. If mapReportResponse renames or nests any of
+      // these (e.g. `teacher.id` instead of `teacherId`, or a different
+      // status enum), this block needs to be updated to match — see notes
+      // below the code.
+      const teacherId = report.teacherId ?? report.teacher?.id;
+      if (!teacherId) {
+        console.warn('[ADMIN_DASHBOARD] Report missing teacherId, skipping:', report);
+        return;
+      }
+
+      if (!teacherActivityStats[teacherId]) {
+        teacherActivityStats[teacherId] = { lessonsToday: 0, activitiesToday: 0, submittedToday: false };
+      }
+
+      teacherActivityStats[teacherId].submittedToday = report.status === 'SUBMITTED';
+
+      report.entries?.forEach((entry: any) => {
+        if (entry.entryType === 'ACTIVITY') {
+          teacherActivityStats[teacherId].activitiesToday++;
+        } else {
+          teacherActivityStats[teacherId].lessonsToday++;
+        }
+      });
+    });
+
+    console.log('[ADMIN_DASHBOARD] Teacher activity stats:', teacherActivityStats);
+    return teacherActivityStats;
+  };
+
+  // Effect 1: on mount, fetch ALL reports to discover available dates,
+  // then fetch stats for the most recent date (or today).
+  useEffect(() => {
+    if (auth.loading || !auth.session) return;
+
+    const init = async () => {
+      try {
+        const schoolId = (auth.session?.user as any)?.schoolId;
+        if (!schoolId || schoolId === 'default-id') return;
+
+        const allReportsResponse = await fetch(`/api/admin/reports`);
+        if (allReportsResponse.ok) {
+          const allReports = await allReportsResponse.json();
+
+          const uniqueDates = [
+            ...new Set(
+              allReports
+                .map((r: any) => {
+                  if (r.reportDate) {
+                    return String(r.reportDate).includes('T')
+                      ? String(r.reportDate).split('T')[0]
+                      : String(r.reportDate);
+                  }
+                  return null;
+                })
+                .filter(Boolean)
+            ),
+          ].sort((a: any, b: any) => new Date(b).getTime() - new Date(a).getTime()) as string[];
+
+          setAvailableDates(uniqueDates);
+
+          if (!activityDate && uniqueDates.length > 0) {
+            setActivityDate(uniqueDates[0]);
+          }
+        }
+
+        const targetDate = activityDate || new Date().toISOString().split('T')[0];
+        const teacherActivityStats = await fetchActivityStatsForDate(targetDate);
+        if (teacherActivityStats) {
+          setActivityStats(teacherActivityStats);
+        }
+      } catch (error) {
+        console.error('Error fetching activity data:', error);
+      }
+    };
+
+    init();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [auth.loading, auth.session]);
+
+  // Effect 2: whenever the selected activityDate changes, re-fetch stats.
+  // ALL_TIME means "no date filter" — fetchActivityStatsForDate(undefined)
+  // hits /api/admin/reports with no ?date= param, so the backend returns
+  // (and this aggregates) every report across all dates.
+  useEffect(() => {
+    if (auth.loading || !auth.session || !activityDate) return;
+
+    const run = async () => {
+      const dateParam = activityDate === ALL_TIME ? undefined : activityDate;
+      const teacherActivityStats = await fetchActivityStatsForDate(dateParam);
+      if (teacherActivityStats) {
+        setActivityStats(teacherActivityStats);
+      }
+    };
+
+    run();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [auth.loading, auth.session, activityDate]);
+
+  // Merge base workload (from /api/admin/analytics) with activity stats
+  // (from /api/admin/reports) at render time instead of mutating either
+  // source array in place. This is the actual fix: no matter which fetch
+  // resolves first, both pieces of data survive and get combined here.
   const sortedWorkload = useMemo(() => {
-    const dataCopy = dbWorkload.map((item) => ({
-      ...item,
-      color: getUniqueColor(item.name || 'Unknown Teacher')
-    }));
+    const dataCopy = dbWorkload.map((item) => {
+      const stat = activityStats[item.id];
+      return {
+        ...item,
+        lessonsToday: stat?.lessonsToday || 0,
+        activitiesToday: stat?.activitiesToday || 0,
+        submittedToday: stat?.submittedToday || false,
+        color: getUniqueColor(item.name || 'Unknown Teacher'),
+      };
+    });
 
     if (sortFilter === 'a-z') return dataCopy.sort((a, b) => a.name.localeCompare(b.name));
     if (sortFilter === 'z-a') return dataCopy.sort((a, b) => b.name.localeCompare(a.name));
     if (sortFilter === 'low-high') return dataCopy.sort((a, b) => a.classes - b.classes);
     return dataCopy.sort((a, b) => b.classes - a.classes);
-  }, [dbWorkload, sortFilter]);
+  }, [dbWorkload, activityStats, sortFilter]);
 
   const formattedSubjects = useMemo(() => {
     return dbSubjects.map((subject) => ({
@@ -220,6 +371,33 @@ export default function AdminDashboard() {
         <KPICard label="Total Classes" value={stats?.totalClasses || 0} subtext="Classes managed" index={1} />
         <KPICard label="Today's Absences" value={stats?.todayAbsent || 0} variant="danger" subtext="Teachers absent today" index={2} />
         <KPICard label="Pending Absent Requests" value={stats?.pendingAbsentRequests || 0} variant="warning" subtext="Awaiting approval" index={3} />
+      </div>
+
+      {/* Activity Analytics Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <KPICard label="Today's Lessons" value={dbWorkload.reduce((acc, t) => acc + (activityStats[t.id]?.lessonsToday || 0), 0)} subtext="Classroom conducted" index={4} />
+        <KPICard label="Today's Activities" value={dbWorkload.reduce((acc, t) => acc + (activityStats[t.id]?.activitiesToday || 0), 0)} subtext="Activities conducted" index={5} variant="info" />
+        <KPICard label="Teachers Submitted" value={dbWorkload.filter(t => activityStats[t.id]?.submittedToday).length} subtext="Reports submitted" index={6} />
+        <KPICard
+          label="Activity Participation"
+          value={
+            dbWorkload.length > 0
+              ? Math.round(
+                  (dbWorkload.reduce((acc, t) => acc + (activityStats[t.id]?.activitiesToday || 0), 0) /
+                    (dbWorkload.reduce(
+                      (acc, t) =>
+                        acc + (activityStats[t.id]?.lessonsToday || 0) + (activityStats[t.id]?.activitiesToday || 0),
+                      0
+                    ) || 1)) *
+                    100
+                )
+              : 0
+          }
+          subtext="% of total entries"
+          index={7}
+          variant="success"
+          suffix="%"
+        />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -400,6 +578,89 @@ export default function AdminDashboard() {
           </div>
         </GlassCard>
       </div>
+
+      {/* Activity vs Lesson Chart — single stacked bar per teacher, two colors */}
+      <GlassCard className="p-6 rounded-2xl">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <BarChart3 className="h-5 w-5 text-purple-500" />
+            <h3 className="font-semibold">Activity vs Classroom</h3>
+          </div>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            {entryTypeFilter !== 'classroom' && entryTypeFilter !== 'activity' ? (
+              <div className="flex items-center gap-3 text-xs font-medium text-muted-foreground">
+                <span className="flex items-center gap-1.5">
+                  <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: '#6366f1' }} />
+                  Classroom
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: '#a855f7' }} />
+                  Activities
+                </span>
+              </div>
+            ) : null}
+
+            <select
+              className="text-xs bg-background border border-input rounded-lg h-8 px-2 focus:outline-none focus:ring-1 focus:ring-ring"
+              value={entryTypeFilter}
+              onChange={(e) => setEntryTypeFilter(e.target.value as 'all' | 'activity' | 'classroom')}
+            >
+              <option value="all">Activities & Classes</option>
+              <option value="activity">Activities Only</option>
+              <option value="classroom">Classes Only</option>
+            </select>
+
+            <select
+              className="text-xs bg-background border border-input rounded-lg h-8 px-2 focus:outline-none focus:ring-1 focus:ring-ring"
+              value={activityDate || ''}
+              onChange={(e) => setActivityDate(e.target.value)}
+            >
+              <option value="">Select Date</option>
+              <option value={ALL_TIME}>All Time</option>
+              {availableDates.map(date => (
+                <option key={date} value={date}>{date}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+        <div className="h-72">
+          {sortedWorkload.length > 0 ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={sortedWorkload.map(t => ({ name: t.name, lessons: t.lessonsToday || 0, activities: t.activitiesToday || 0 }))} barSize={22} margin={{ top: 20, right: 10, left: 10, bottom: 60 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-border/40" />
+                <XAxis
+                  dataKey="name"
+                  axisLine={false}
+                  tickLine={false}
+                  angle={-45}
+                  textAnchor="end"
+                  interval={0}
+                  className="text-[9px] font-bold text-muted-foreground"
+                />
+                <YAxis axisLine={false} tickLine={false} allowDecimals={false} className="text-[11px] font-semibold text-muted-foreground" />
+                <Tooltip
+                  cursor={{ fill: 'rgba(0,0,0,0.02)' }}
+                  contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', padding: '4px 8px', borderRadius: '6px', fontSize: '12px' }}
+                />
+                {entryTypeFilter !== 'activity' && (
+                  <Bar
+                    dataKey="lessons"
+                    stackId="entries"
+                    fill="#6366f1"
+                    radius={entryTypeFilter === 'classroom' ? [4, 4, 0, 0] : [0, 0, 0, 0]}
+                    name="Classroom"
+                  />
+                )}
+                {entryTypeFilter !== 'classroom' && (
+                  <Bar dataKey="activities" stackId="entries" fill="#a855f7" radius={[4, 4, 0, 0]} name="Activities" />
+                )}
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="h-full flex items-center justify-center text-xs text-muted-foreground">No data available</div>
+          )}
+        </div>
+      </GlassCard>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Attendance Pipeline Card */}

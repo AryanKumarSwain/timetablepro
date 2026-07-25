@@ -108,30 +108,102 @@ export default function AdminReportDetailPage() {
           <DataGridHead>
             <tr>
               <DataGridTh>#</DataGridTh>
+              <DataGridTh>Type</DataGridTh>
               <DataGridTh>Class</DataGridTh>
               <DataGridTh>Subject</DataGridTh>
-              <DataGridTh>Description</DataGridTh>
+              <DataGridTh>Details</DataGridTh>
               <DataGridTh>Completed</DataGridTh>
             </tr>
           </DataGridHead>
           <tbody>
-            {report.entries.map((e, i) => (
-              <DataGridRow key={e.id}>
-                <DataGridTd>{i + 1}</DataGridTd>
-                <DataGridTd>{e.className}</DataGridTd>
-                <DataGridTd>{e.subjectName}</DataGridTd>
-                <DataGridTd className='max-w-md'>{e.description || '—'}</DataGridTd>
-                <DataGridTd>
-                  {e.isCompleted ? (
-                    <span className='text-xs px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600'>
-                      Yes
+            {report.entries.map((e, i) => {
+              const isActivity = e.entryType === 'ACTIVITY';
+              const entryLabel = isActivity ? 'Activity' : 'Classroom';
+              const entryBadgeColor = isActivity ? 'bg-purple-500/15 text-purple-600' : 'bg-blue-500/15 text-blue-600';
+              
+              return (
+                <DataGridRow key={e.id}>
+                  <DataGridTd>{i + 1}</DataGridTd>
+                  <DataGridTd>
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${entryBadgeColor}`}>
+                      {entryLabel}
                     </span>
-                  ) : (
-                    <span className='text-xs text-muted-foreground'>No</span>
-                  )}
-                </DataGridTd>
-              </DataGridRow>
-            ))}
+                  </DataGridTd>
+                  <DataGridTd>{e.className}</DataGridTd>
+                  <DataGridTd>{e.subjectName}</DataGridTd>
+                  <DataGridTd className='max-w-md'>
+                    {isActivity ? (
+                      <div className='space-y-1'>
+                        {e.activityCategory && (
+                          <div className='text-xs font-semibold text-purple-600'>
+                            {e.activityCategory}
+                          </div>
+                        )}
+                        {e.activityDescription && (
+                          <div className='text-xs text-muted-foreground'>
+                            {e.activityDescription}
+                          </div>
+                        )}
+                        {e.learningOutcome && (
+                          <div className='text-xs text-muted-foreground italic'>
+                            Outcome: {e.learningOutcome}
+                          </div>
+                        )}
+                        {e.evidenceFiles && e.evidenceFiles.length > 0 && (
+                          <div className='space-y-1'>
+                            <div className='text-xs font-semibold text-purple-600'>
+                              Evidence Files ({e.evidenceFiles.length})
+                            </div>
+                            {e.evidenceFiles.some(f => (typeof f === 'string' ? f : f.url).startsWith('blob:')) && (
+                              <div className='text-xs text-amber-600 bg-amber-50 p-2 rounded border border-amber-200'>
+                                ⚠️ Some files need to be re-uploaded by the teacher
+                              </div>
+                            )}
+                            <div className='flex flex-wrap gap-2'>
+                              {e.evidenceFiles.map((file, idx) => {
+                                const fileUrl = typeof file === 'string' ? file : file.url;
+                                const fileName = typeof file === 'string' ? `File ${idx + 1}` : file.name;
+                                const isBlobUrl = fileUrl.startsWith('blob:');
+
+                                return (
+                                  <div key={idx} className="flex items-center gap-1">
+                                    {isBlobUrl ? (
+                                      <span className="text-xs text-amber-600 italic">
+                                        {fileName} (not accessible)
+                                      </span>
+                                    ) : (
+                                      <a
+                                        href={fileUrl}
+                                        target='_blank'
+                                        rel='noopener noreferrer'
+                                        className='text-xs text-blue-600 hover:text-blue-800 underline'
+                                      >
+                                        {fileName}
+                                      </a>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className='text-xs'>{e.description || '—'}</div>
+                    )}
+                  </DataGridTd>
+                  <DataGridTd>
+                    {e.isCompleted ? (
+                      <span className='text-xs px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600'>
+                        Yes
+                      </span>
+                    ) : (
+                      <span className='text-xs text-muted-foreground'>No</span>
+                    )}
+                  </DataGridTd>
+                </DataGridRow>
+              );
+            })}
           </tbody>
         </DataGridTable>
       </DataGrid>

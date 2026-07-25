@@ -23,7 +23,14 @@ import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
-import { BookOpen, Send, Trash2, Edit, AlertCircle, CheckCircle2, X } from 'lucide-react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { BookOpen, Send, Trash2, Edit, AlertCircle, CheckCircle2, X, Upload } from 'lucide-react';
 
 // Helper to separate text from comma-separated items
 function splitDescription(desc = '') {
@@ -91,6 +98,32 @@ const TEACHER_COLORS = [
   'bg-[#06b6d4]', // cyan
   'bg-[#3b82f6]', // blue
 ];
+
+// Activity categories
+const ACTIVITY_CATEGORIES = [
+  'Smart Class',
+  'Group Discussion',
+  'Quiz',
+  'Debate',
+  'Practical',
+  'Experiment',
+  'Project Work',
+  'Role Play',
+  'Storytelling',
+  'Art & Craft',
+  'Reading Activity',
+  'Writing Activity',
+  'Lab Activity',
+  'Sports',
+  'Yoga',
+  'Music',
+  'Dance',
+  'Educational Tour',
+  'Assembly Activity',
+  'Club Activity',
+  'Life Skills',
+  'AI & Coding Activity',
+] as const;
 
 // Generate consistent color based on string
 function getColorFromString(str: string): string {
@@ -188,6 +221,11 @@ export default function TeacherReportsPage() {
     endTime: string;
     isCompleted: boolean;
     isProxy?: boolean;
+    entryType: 'lesson' | 'activity';
+    activityCategory?: string;
+    activityDescription?: string;
+    learningOutcome?: string;
+    evidenceFiles: Array<{ name: string; url: string; type: string }>;
   }>>([]);
   const [submitting, setSubmitting] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
@@ -207,6 +245,26 @@ export default function TeacherReportsPage() {
       void load();
     }
   }, [auth.loading, auth.user]);
+
+  // Check for stored success message from today's submission
+  useEffect(() => {
+    const storedTimestamp = localStorage.getItem('reportSubmitSuccess');
+    const storedMessage = localStorage.getItem('reportSubmitMessage');
+    
+    if (storedTimestamp && storedMessage) {
+      const submitDate = new Date(storedTimestamp);
+      const today = new Date();
+      
+      // Check if submission was today
+      if (submitDate.toDateString() === today.toDateString()) {
+        setSubmitSuccess(storedMessage);
+      } else {
+        // Clear old storage if from previous day
+        localStorage.removeItem('reportSubmitSuccess');
+        localStorage.removeItem('reportSubmitMessage');
+      }
+    }
+  }, []);
 
   const load = async () => {
     try {
@@ -231,7 +289,13 @@ export default function TeacherReportsPage() {
       try {
         existingReport = await getDraftReportToday();
       } catch (error) {
-        console.warn('Draft report record not found.', error);
+        console.warn('Draft report record not found, checking for submitted report.', error);
+        // Try to get submitted report if draft doesn't exist
+        try {
+          existingReport = await getSubmittedReportToday();
+        } catch (submitError) {
+          console.warn('Submitted report record not found either.', submitError);
+        }
       }
 
       const savedEntries = existingReport?.entries ?? [];
@@ -258,7 +322,8 @@ export default function TeacherReportsPage() {
       const integratedRows = slots.map((slot) => {
         const matchingEntry = savedEntries.find(
           (e) => String(e.classId) === String(slot.classId) &&
-            String(e.subjectId) === String(slot.subjectId)
+            String(e.subjectId) === String(slot.subjectId) &&
+            String(e.periodNumber) === String(slot.periodNumber)
         );
 
         const { description, tlm, homework } = splitHomeworkDescription(matchingEntry?.description ?? '');
@@ -286,6 +351,11 @@ export default function TeacherReportsPage() {
           homework,
           isCompleted: matchingEntry?.isCompleted ?? false,
           isProxy,
+          entryType: (matchingEntry?.entryType as 'lesson' | 'activity') || 'lesson',
+          activityCategory: matchingEntry?.activityCategory || undefined,
+          activityDescription: matchingEntry?.activityDescription || undefined,
+          learningOutcome: matchingEntry?.learningOutcome || undefined,
+          evidenceFiles: (matchingEntry?.evidenceFiles as Array<{ name: string; url: string; type: string }>) || [],
         };
       }).sort((a, b) => String(a.periodNumber).localeCompare(String(b.periodNumber), undefined, { numeric: true }));
 
@@ -303,9 +373,19 @@ export default function TeacherReportsPage() {
     }
   };
 
-  const readOnly = useMemo(() => report?.status === 'SUBMITTED', [report]);
+  const readOnly = useMemo(() => report?.status === 'SUBMITTED' && !report?.isEditing, [report]);
 
-  const updateRow = (idx: number, patch: Partial<{ description: string; tlm: string[]; homework: string; isCompleted: boolean }>) => {
+  const updateRow = (idx: number, patch: Partial<{
+    description: string;
+    tlm: string[];
+    homework: string;
+    isCompleted: boolean;
+    entryType: 'lesson' | 'activity';
+    activityCategory?: string;
+    activityDescription?: string;
+    learningOutcome?: string;
+    evidenceFiles: Array<{ name: string; url: string; type: string }>;
+  }>) => {
     setRows((prev) => {
       const next = [...prev];
       next[idx] = { ...next[idx], ...patch };
@@ -480,19 +560,37 @@ export default function TeacherReportsPage() {
     if (rows.length === 0) return;
     setSubmitSuccess(null);
 
-    // MANDATORY DESCRIPTION VALIDATION: Ensure every row has text in descriptions
-    const missingDescriptions = rows.filter(r => !r.description || !r.description.trim());
-    if (missingDescriptions.length > 0) {
-      setValidationError("Please fill out 'What did you cover today?' for all listed periods before submitting.");
-      setAttemptedSubmit(true);
-      return;
-    }
+    // Validation based on entry type
+    for (const r of rows) {
+      if (r.entryType === 'lesson') {
+        // Lesson mode: require description and homework
+        if (!r.description || !r.description.trim()) {
+          setValidationError(`Please fill out 'What did you cover today?' for Period ${r.periodNumber} before submitting.`);
+          setAttemptedSubmit(true);
+          return;
+        }
+      } else if (r.entryType === 'activity') {
+        // Activity mode: require category, description, learning outcome, and homework
+        if (!r.activityCategory || !r.activityCategory.trim()) {
+          setValidationError(`Please select 'Activity Category' for Period ${r.periodNumber} before submitting.`);
+          setAttemptedSubmit(true);
+          return;
+        }
+        if (!r.activityDescription || !r.activityDescription.trim()) {
+          setValidationError(`Please fill out 'Activity Description' for Period ${r.periodNumber} before submitting.`);
+          setAttemptedSubmit(true);
+          return;
+        }
+        if (!r.learningOutcome || !r.learningOutcome.trim()) {
+          setValidationError(`Please fill out 'Learning Outcome' for Period ${r.periodNumber} before submitting.`);
+          setAttemptedSubmit(true);
+          return;
+        }
+      }
 
-    // MANDATORY HOMEWORK VALIDATION: Ensure every row has homework filled (only if homework is enabled)
-    if (homeworkEnabled) {
-      const missingHomework = rows.filter(r => !r.homework || !r.homework.trim());
-      if (missingHomework.length > 0) {
-        setValidationError("Please fill out 'Homework' for all listed periods before submitting.");
+      // Homework is required for both modes if enabled
+      if (homeworkEnabled && (!r.homework || !r.homework.trim())) {
+        setValidationError(`Please fill out 'Homework' for Period ${r.periodNumber} before submitting.`);
         setAttemptedSubmit(true);
         return;
       }
@@ -502,27 +600,47 @@ export default function TeacherReportsPage() {
     setSubmitting(true);
     try {
       const entriesPayload = rows.map((r) => {
-        // TLM is optional: if empty, it falls back to blank string notation safely
-        const tlmString = (r.tlm || []).join(', ');
-        return {
-          id: r.entryId,
-          classId: r.classId,
-          className: r.className,
-          subjectId: r.subjectId,
-          subjectName: r.subjectName,
-          periodNumber: Number(r.periodNumber) || r.periodNumber,
-          startTime: r.startTime,
-          endTime: r.endTime,
-          description: `${r.description.trim()}${tlmString ? `\n\nTLM: ${tlmString}` : ''}${r.homework ? `\n\nHomework: ${r.homework}` : ''}`,
-          isCompleted: true, // Always mark as completed since we removed the checkbox
-        };
+        if (r.entryType === 'lesson') {
+          // Lesson mode: use existing format
+          const tlmString = (r.tlm || []).join(', ');
+          return {
+            id: r.entryId,
+            classId: r.classId,
+            className: r.className,
+            subjectId: r.subjectId,
+            subjectName: r.subjectName,
+            periodNumber: Number(r.periodNumber) || r.periodNumber,
+            startTime: r.startTime,
+            endTime: r.endTime,
+            description: `${r.description.trim()}${tlmString ? `\n\nTLM: ${tlmString}` : ''}${r.homework ? `\n\nHomework: ${r.homework}` : ''}`,
+            isCompleted: true,
+            entryType: 'LESSON',
+          };
+        } else {
+          // Activity mode: use new format
+          return {
+            id: r.entryId,
+            classId: r.classId,
+            className: r.className,
+            subjectId: r.subjectId,
+            subjectName: r.subjectName,
+            periodNumber: Number(r.periodNumber) || r.periodNumber,
+            startTime: r.startTime,
+            endTime: r.endTime,
+            description: r.homework || '',
+            isCompleted: true,
+            entryType: 'ACTIVITY',
+            activityCategory: r.activityCategory,
+            activityDescription: r.activityDescription,
+            learningOutcome: r.learningOutcome,
+            evidenceFiles: r.evidenceFiles,
+          };
+        }
       });
 
-      // 🔥 EXPLICIT DATE STRING INSTEAD OF "today" VALUE
-      // This prevents runtime offset shifts from saving the report to June 4th
       const todayObj = new Date();
       const yyyy = todayObj.getFullYear();
-      const mm = String(todayObj.getMonth() + 1).padStart(2, '0'); // Months are 0-indexed
+      const mm = String(todayObj.getMonth() + 1).padStart(2, '0');
       const dd = String(todayObj.getDate()).padStart(2, '0');
 
       const explicitLocalDate = `${yyyy}-${mm}-${dd}`;
@@ -533,10 +651,13 @@ export default function TeacherReportsPage() {
         entries: entriesPayload,
       });
 
-      setSubmitSuccess("Report submitted successfully!");
-      // Update report status locally to SUBMITTED without reloading data
-      // This keeps the entered text visible in readOnly mode
-      setReport(prev => prev ? { ...prev, status: 'SUBMITTED' } : null);
+      const isResubmission = report?.status === 'SUBMITTED';
+      setSubmitSuccess(isResubmission ? "Report resubmitted successfully!" : "Report submitted successfully!");
+      setReport(prev => prev ? { ...prev, status: 'SUBMITTED', isEditing: false } : null);
+      
+      // Store submission timestamp to show success message for the full day
+      localStorage.setItem('reportSubmitSuccess', new Date().toISOString());
+      localStorage.setItem('reportSubmitMessage', isResubmission ? "Report resubmitted successfully!" : "Report submitted successfully!");
     } catch (e) {
       console.error(e);
       setValidationError("Failed to submit the report. Please try again.");
@@ -553,19 +674,40 @@ export default function TeacherReportsPage() {
 
     try {
       const entriesPayload = rows.map((r) => {
-        const tlmString = (r.tlm || []).join(', ');
-        return {
-          id: r.entryId,
-          classId: r.classId,
-          className: r.className,
-          subjectId: r.subjectId,
-          subjectName: r.subjectName,
-          periodNumber: Number(r.periodNumber) || r.periodNumber,
-          startTime: r.startTime,
-          endTime: r.endTime,
-          description: `${r.description.trim()}${tlmString ? `\n\nTLM: ${tlmString}` : ''}${r.homework ? `\n\nHomework: ${r.homework}` : ''}`,
-          isCompleted: true,
-        };
+        if (r.entryType === 'lesson') {
+          const tlmString = (r.tlm || []).join(', ');
+          return {
+            id: r.entryId,
+            classId: r.classId,
+            className: r.className,
+            subjectId: r.subjectId,
+            subjectName: r.subjectName,
+            periodNumber: Number(r.periodNumber) || r.periodNumber,
+            startTime: r.startTime,
+            endTime: r.endTime,
+            description: `${r.description.trim()}${tlmString ? `\n\nTLM: ${tlmString}` : ''}${r.homework ? `\n\nHomework: ${r.homework}` : ''}`,
+            isCompleted: true,
+            entryType: 'LESSON',
+          };
+        } else {
+          return {
+            id: r.entryId,
+            classId: r.classId,
+            className: r.className,
+            subjectId: r.subjectId,
+            subjectName: r.subjectName,
+            periodNumber: Number(r.periodNumber) || r.periodNumber,
+            startTime: r.startTime,
+            endTime: r.endTime,
+            description: r.homework || '',
+            isCompleted: true,
+            entryType: 'ACTIVITY',
+            activityCategory: r.activityCategory,
+            activityDescription: r.activityDescription,
+            learningOutcome: r.learningOutcome,
+            evidenceFiles: r.evidenceFiles,
+          };
+        }
       });
 
       const todayObj = new Date();
@@ -648,7 +790,7 @@ export default function TeacherReportsPage() {
             const periodTodos = getTodosForPeriod(r.periodId, r.periodNumber, r.classId);
             const incompleteTodos = periodTodos.filter((todo) => !todo.completed);
             return (
-              <GlassCard key={`${r.classId}-${r.subjectId}-${i}`} className='p-5 shadow-sm border border-muted/60'>
+              <GlassCard key={`${r.classId}-${r.subjectId}-${r.periodNumber}-${i}`} className='p-5 shadow-sm border border-muted/60'>
 
               {/* Dynamic Badge Row Info Section */}
               <div className='flex flex-wrap items-center gap-2 mb-4 text-sm font-semibold text-foreground'>
@@ -669,93 +811,252 @@ export default function TeacherReportsPage() {
                 </span>
               </div>
 
+              {/* Lesson/Activity Toggle */}
+              {!readOnly && (
+                <div className='mb-4 flex items-center gap-4'>
+                  <span className='text-xs font-semibold text-muted-foreground'>Entry Type:</span>
+                  <div className='flex gap-2'>
+                    <button
+                      type='button'
+                      onClick={() => updateRow(i, { entryType: 'lesson' })}
+                      className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+                        r.entryType === 'lesson'
+                          ? 'bg-[#6366f1] text-white'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                    >
+                      Classroom
+                    </button>
+                    <button
+                      type='button'
+                      onClick={() => updateRow(i, { entryType: 'activity' })}
+                      className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+                        r.entryType === 'activity'
+                          ? 'bg-[#6366f1] text-white'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                    >
+                      Activity
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* Input Workspace Interface Layout */}
-              <div className='grid grid-cols-1 md:grid-cols-4 gap-4 items-start'>
+              {r.entryType === 'lesson' ? (
+                <div className='grid grid-cols-1 md:grid-cols-4 gap-4 items-start'>
 
-                <div className='md:col-span-2 space-y-1.5'>
-                  <label className='text-xs font-semibold text-muted-foreground'>
-                    What did you cover today? <span className="text-red-500">*</span>
-                  </label>
-                  <Textarea
-                    value={r.description}
-                    onChange={(e) => updateRow(i, { description: e.target.value })}
-                    readOnly={readOnly}
-                    placeholder="Enter what you covered in class (Required)"
-                    className='min-h-[95px] resize-none focus-visible:ring-1'
-                  />
-                </div>
-
-                <div className='md:col-span-1 space-y-1.5'>
-                  <div className='flex items-start justify-between gap-2'>
-                    <label className='text-xs font-semibold text-muted-foreground flex items-center gap-1.5'>
-                      <CheckCircle2 className="h-3 w-3" /> TODOs
-                      {periodTodos.length > 0 && (
-                        <span className="text-[10px] bg-indigo-500/20 text-indigo-600 px-1.5 py-0.5 rounded-full font-medium">
-                          {periodTodos.length}
-                        </span>
-                      )}
+                  <div className='md:col-span-2 space-y-1.5'>
+                    <label className='text-xs font-semibold text-muted-foreground'>
+                      What did you cover today? <span className="text-red-500">*</span>
                     </label>
-                    {!readOnly && incompleteTodos.length > 0 && (
-                      <button
-                        type="button"
-                        onClick={() => void handleCheckAllTodos(r.periodId, r.periodNumber, r.classId)}
-                        className="text-[11px] font-semibold text-indigo-600 hover:text-indigo-800 transition-colors"
-                      >
-                        Check all
-                      </button>
-                    )}
+                    <Textarea
+                      value={r.description}
+                      onChange={(e) => updateRow(i, { description: e.target.value })}
+                      readOnly={readOnly}
+                      placeholder="Enter what you covered in class (Required)"
+                      className='min-h-[95px] resize-none focus-visible:ring-1'
+                    />
                   </div>
-                  <div className="border rounded-xl bg-background/50 min-h-[95px] p-2 space-y-1.5 overflow-y-auto max-h-[160px]">
-                    {getTodosForPeriod(r.periodId, r.periodNumber, r.classId).length === 0 ? (
-                      <p className="text-xs text-muted-foreground/70 flex items-center justify-center h-full min-h-[75px]">
-                        No TODOs
-                      </p>
-                    ) : (
-                      getTodosForPeriod(r.periodId, r.periodNumber, r.classId).map((todo) => (
-                        <div
-                          key={todo.id}
-                          className="flex items-center gap-2 p-1.5 rounded-lg bg-muted/50 border border-border/60 text-xs"
-                        >
-                          <button
-                            onClick={() => handleToggleTodo(todo.id, todo.completed)}
-                            disabled={readOnly}
-                            className={`flex-shrink-0 w-3.5 h-3.5 rounded border flex items-center justify-center transition-colors ${
-                              todo.completed
-                                ? 'bg-emerald-500 border-emerald-500 text-white'
-                                : 'border-gray-300 hover:border-emerald-500'
-                            }`}
-                          >
-                            {todo.completed && <CheckCircle2 className="h-2.5 w-2.5" />}
-                          </button>
-                          <span className={`flex-1 ${todo.completed ? 'line-through text-muted-foreground' : ''}`}>
-                            {todo.title}
-                          </span>
-                          {!readOnly && (
-                            <button
-                              onClick={() => handleDeleteTodo(todo.id)}
-                              className="flex-shrink-0 text-gray-400 hover:text-red-500 transition-colors"
-                            >
-                              <X className="h-2.5 w-2.5" />
-                            </button>
-                          )}
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
 
-                <div className='md:col-span-1 space-y-1.5'>
-                  <label className='text-xs font-semibold text-muted-foreground'>
-                    TLM Materials Used <span className="text-xs font-normal text-muted-foreground/70">(Optional)</span>
-                  </label>
-                  <TagInput
-                    tags={r.tlm || []}
-                    onChange={(tags) => updateRow(i, { tlm: tags })}
-                    readOnly={readOnly}
-                    placeholder="Type item & press Enter"
-                  />
+                  <div className='md:col-span-1 space-y-1.5'>
+                    <div className='flex items-start justify-between gap-2'>
+                      <label className='text-xs font-semibold text-muted-foreground flex items-center gap-1.5'>
+                        <CheckCircle2 className="h-3 w-3" /> TODOs
+                        {periodTodos.length > 0 && (
+                          <span className="text-[10px] bg-indigo-500/20 text-indigo-600 px-1.5 py-0.5 rounded-full font-medium">
+                            {periodTodos.length}
+                          </span>
+                        )}
+                      </label>
+                      {!readOnly && incompleteTodos.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => void handleCheckAllTodos(r.periodId, r.periodNumber, r.classId)}
+                          className="text-[11px] font-semibold text-indigo-600 hover:text-indigo-800 transition-colors"
+                        >
+                          Check all
+                        </button>
+                      )}
+                    </div>
+                    <div className="border rounded-xl bg-background/50 min-h-[95px] p-2 space-y-1.5 overflow-y-auto max-h-[160px]">
+                      {getTodosForPeriod(r.periodId, r.periodNumber, r.classId).length === 0 ? (
+                        <p className="text-xs text-muted-foreground/70 flex items-center justify-center h-full min-h-[75px]">
+                          No TODOs
+                        </p>
+                      ) : (
+                        getTodosForPeriod(r.periodId, r.periodNumber, r.classId).map((todo) => (
+                          <div
+                            key={todo.id}
+                            className="flex items-center gap-2 p-1.5 rounded-lg bg-muted/50 border border-border/60 text-xs"
+                          >
+                            <button
+                              onClick={() => handleToggleTodo(todo.id, todo.completed)}
+                              disabled={readOnly}
+                              className={`flex-shrink-0 w-3.5 h-3.5 rounded border flex items-center justify-center transition-colors ${
+                                todo.completed
+                                  ? 'bg-emerald-500 border-emerald-500 text-white'
+                                  : 'border-gray-300 hover:border-emerald-500'
+                              }`}
+                            >
+                              {todo.completed && <CheckCircle2 className="h-2.5 w-2.5" />}
+                            </button>
+                            <span className={`flex-1 ${todo.completed ? 'line-through text-muted-foreground' : ''}`}>
+                              {todo.title}
+                            </span>
+                            {!readOnly && (
+                              <button
+                                onClick={() => handleDeleteTodo(todo.id)}
+                                className="flex-shrink-0 text-gray-400 hover:text-red-500 transition-colors"
+                              >
+                                <X className="h-2.5 w-2.5" />
+                              </button>
+                            )}
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+
+                  <div className='md:col-span-1 space-y-1.5'>
+                    <label className='text-xs font-semibold text-muted-foreground'>
+                      TLM Materials Used <span className="text-xs font-normal text-muted-foreground/70">(Optional)</span>
+                    </label>
+                    <TagInput
+                      tags={r.tlm || []}
+                      onChange={(tags) => updateRow(i, { tlm: tags })}
+                      readOnly={readOnly}
+                      placeholder="Type item & press Enter"
+                    />
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className='grid grid-cols-1 md:grid-cols-2 gap-4 items-start'>
+                  <div className='space-y-1.5'>
+                    <label className='text-xs font-semibold text-muted-foreground'>
+                      Activity Category <span className="text-red-500">*</span>
+                    </label>
+                    <Select
+                      value={r.activityCategory || ''}
+                      onValueChange={(value) => updateRow(i, { activityCategory: value })}
+                      disabled={readOnly}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select activity category" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {ACTIVITY_CATEGORIES.map((category) => (
+                          <SelectItem key={category} value={category}>
+                            {category}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className='space-y-1.5'>
+                    <label className='text-xs font-semibold text-muted-foreground'>
+                      Activity Description <span className="text-red-500">*</span>
+                    </label>
+                    <Textarea
+                      value={r.activityDescription || ''}
+                      onChange={(e) => updateRow(i, { activityDescription: e.target.value })}
+                      readOnly={readOnly}
+                      placeholder="Describe the activity conducted (Required)"
+                      className='min-h-[95px] resize-none focus-visible:ring-1'
+                    />
+                  </div>
+
+                  <div className='space-y-1.5'>
+                    <label className='text-xs font-semibold text-muted-foreground'>
+                      Learning Outcome <span className="text-red-500">*</span>
+                    </label>
+                    <Textarea
+                      value={r.learningOutcome || ''}
+                      onChange={(e) => updateRow(i, { learningOutcome: e.target.value })}
+                      readOnly={readOnly}
+                      placeholder="What students learned from this activity (Required)"
+                      className='min-h-[95px] resize-none focus-visible:ring-1'
+                    />
+                  </div>
+
+                  <div className='space-y-1.5'>
+                    <label className='text-xs font-semibold text-muted-foreground'>
+                      Evidence Upload <span className="text-xs font-normal text-muted-foreground/70">(Optional)</span>
+                    </label>
+                    <div className="border rounded-xl bg-background/50 min-h-[95px] p-3">
+                      <div className="flex items-center gap-2">
+                        <Upload className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-xs text-muted-foreground">
+                          Upload images, videos, PDFs, worksheets, or audio files
+                        </span>
+                      </div>
+                      <input
+                        type="file"
+                        multiple
+                        accept="image/*,video/*,.pdf,audio/*,.xlsx,.xls,.doc,.docx"
+                        disabled={readOnly}
+                        className="mt-2 text-xs"
+                        onChange={async (e) => {
+                          const files = Array.from(e.target.files || []);
+                          if (files.length === 0) return;
+
+                          try {
+                            const uploadPromises = files.map(async (file) => {
+                              const formData = new FormData();
+                              formData.append('file', file);
+                              const response = await fetch('/api/reports/upload', {
+                                method: 'POST',
+                                body: formData,
+                              });
+                              if (!response.ok) throw new Error('Upload failed');
+                              return response.json();
+                            });
+
+                            const uploadedFiles = await Promise.all(uploadPromises);
+                            updateRow(i, { evidenceFiles: [...(r.evidenceFiles || []), ...uploadedFiles] });
+                          } catch (error) {
+                            console.error('File upload error:', error);
+                            alert('Failed to upload evidence files. Please try again.');
+                          }
+                        }}
+                      />
+                      {r.evidenceFiles && r.evidenceFiles.length > 0 && (
+                        <div className="mt-2 space-y-1">
+                          {r.evidenceFiles.some(f => typeof f === 'string' && f.startsWith('blob:')) && (
+                            <div className="text-xs text-amber-600 bg-amber-50 p-2 rounded border border-amber-200">
+                              ⚠️ Some evidence files are not accessible. Please re-upload them.
+                            </div>
+                          )}
+                          {r.evidenceFiles.map((file, idx) => {
+                            const isBlob = typeof file === 'string' && file.startsWith('blob:');
+                            return (
+                              <div key={idx} className={`flex items-center justify-between text-xs bg-muted/50 p-2 rounded ${isBlob ? 'border border-amber-300' : ''}`}>
+                                <span className="truncate">{typeof file === 'string' ? `File ${idx + 1}` : file.name}</span>
+                                <div className="flex items-center gap-2">
+                                  {isBlob && <span className="text-amber-600 text-[10px]">(needs re-upload)</span>}
+                                  {!readOnly && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const updated = r.evidenceFiles?.filter((_, fIdx) => fIdx !== idx) || [];
+                                        updateRow(i, { evidenceFiles: updated });
+                                      }}
+                                      className="text-red-500 hover:text-red-700"
+                                    >
+                                      <X className="h-3 w-3" />
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Homework Input - only shown if homework is enabled in plan */}
               {homeworkEnabled && (
@@ -787,14 +1088,25 @@ export default function TeacherReportsPage() {
               >
                 {submitting ? 'Saving…' : 'Save Draft'}
               </button>
-              <Button
-                size='lg'
-                onClick={() => void handleSubmit()}
-                disabled={submitting}
-                className='rounded-xl px-10 bg-[#6366f1] hover:bg-[#4f46e5] text-white font-medium shadow-sm'
-              >
-                {submitting ? 'Submitting…' : 'Submit Report'}
-              </Button>
+              {report?.status === 'SUBMITTED' ? (
+                <Button
+                  size='lg'
+                  onClick={() => setReport(prev => prev ? { ...prev, isEditing: true } : null)}
+                  disabled={submitting}
+                  className='rounded-xl px-10 bg-amber-500 hover:bg-amber-600 text-white font-medium shadow-sm'
+                >
+                  Resubmit Report
+                </Button>
+              ) : (
+                <Button
+                  size='lg'
+                  onClick={() => void handleSubmit()}
+                  disabled={submitting}
+                  className='rounded-xl px-10 bg-[#6366f1] hover:bg-[#4f46e5] text-white font-medium shadow-sm'
+                >
+                  {submitting ? 'Submitting…' : 'Submit Report'}
+                </Button>
+              )}
             </div>
           )}
         </div>

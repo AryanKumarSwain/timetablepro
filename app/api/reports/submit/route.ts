@@ -69,7 +69,11 @@ export async function POST(request: NextRequest) {
           subjectId: entry.subjectId,
           description: entry.description,
           isCompleted: entry.isCompleted,
-          
+          entryType: entry.entryType || 'LESSON',
+          activityCategory: entry.activityCategory,
+          activityDescription: entry.activityDescription,
+          learningOutcome: entry.learningOutcome,
+          evidenceFiles: entry.evidenceFiles || [],
         },
       });
     }

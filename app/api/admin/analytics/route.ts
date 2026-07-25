@@ -56,12 +56,44 @@ export async function GET(request: Request) {
       }
     }
 
-    // 3. FETCH METADATA RECORDS
-    const [teachersList, subjectsList, classesList] = await Promise.all([
+    // 3. FETCH METADATA RECORDS AND TODAY'S REPORT DATA
+    const selectedDate = searchParams.get('date');
+    const targetDate = selectedDate || new Date().toISOString().split('T')[0];
+    
+    const [teachersList, subjectsList, classesList, todayReports] = await Promise.all([
       (prisma as any).teacher.findMany({ where: { schoolId: targetedSchoolId }, select: { id: true, name: true } }).catch(() => []),
       (prisma as any).subject.findMany({ where: { schoolId: targetedSchoolId }, select: { id: true, name: true } }).catch(() => []),
-      prisma.classRoom.findMany({ where: { schoolId: targetedSchoolId }, select: { id: true, name: true, grade: true, section: true } }).catch(() => [])
+      prisma.classRoom.findMany({ where: { schoolId: targetedSchoolId }, select: { id: true, name: true, grade: true, section: true } }).catch(() => []),
+      prisma.dailyReport.findMany({
+        where: { 
+          schoolId: targetedSchoolId,
+          reportDate: targetDate,
+          status: 'SUBMITTED'
+        },
+        include: {
+          entries: true
+        }
+      }).catch(() => [])
     ]);
+
+    // Calculate today's activity stats per teacher
+    const teacherActivityStats: Record<string, { lessonsToday: number; activitiesToday: number; submittedToday: boolean }> = {};
+    teachersList.forEach((t: any) => {
+      teacherActivityStats[t.id] = { lessonsToday: 0, activitiesToday: 0, submittedToday: false };
+    });
+
+    todayReports.forEach((report: any) => {
+      if (teacherActivityStats[report.teacherId]) {
+        teacherActivityStats[report.teacherId].submittedToday = true;
+        report.entries.forEach((entry: any) => {
+          if (entry.entryType === 'ACTIVITY') {
+            teacherActivityStats[report.teacherId].activitiesToday++;
+          } else {
+            teacherActivityStats[report.teacherId].lessonsToday++;
+          }
+        });
+      }
+    });
 
     const workloadMap: Record<string, number> = {};
     teachersList.forEach((t: any) => { workloadMap[t.id] = 0; });
@@ -105,11 +137,20 @@ export async function GET(request: Request) {
 
     const colors = ['#6366f1', '#a855f7', '#ec4899', '#10b981', '#f97316', '#06b6d4'];
 
+    console.log('[ANALYTICS_API] Teachers list:', teachersList.map((t: any) => ({ id: t.id, name: t.name })));
+    console.log('[ANALYTICS_API] Teacher activity stats:', teacherActivityStats);
+
     const teacherWorkload = teachersList.map((t: any, index: number) => ({
       name: t.name,
+      id: t.id,
       classes: workloadMap[t.id] || 0,
-      color: colors[index % colors.length]
+      color: colors[index % colors.length],
+      lessonsToday: teacherActivityStats[t.id]?.lessonsToday || 0,
+      activitiesToday: teacherActivityStats[t.id]?.activitiesToday || 0,
+      submittedToday: teacherActivityStats[t.id]?.submittedToday || false,
     }));
+
+    console.log('[ANALYTICS_API] Teacher workload:', teacherWorkload);
 
     const filteredSlots = classId === 'all'
       ? activeSlots

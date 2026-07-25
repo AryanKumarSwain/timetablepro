@@ -14,19 +14,31 @@ function parseDescription(desc = '') {
   };
 }
 
-function buildCsv(reports: Array<{ teacherName: string; reportDate: Date; status: string; submittedAt: Date | null; entries: Array<{ className: string; subjectName: string; description: string }> }> ) {
-  const header = 'Teacher,Date,Class,Subject,Description,TLM,Status,SubmittedAt';
+function buildCsv(reports: Array<{ teacherName: string; reportDate: Date; status: string; submittedAt: Date | null; entries: Array<{ className: string; subjectName: string; description: string; entryType?: string; activityCategory?: string; activityDescription?: string; learningOutcome?: string; evidenceFiles?: any[] }> }> ) {
+  const header = 'Teacher,Date,Class,Subject,Type,Description,TLM,Activity Category,Activity Description,Learning Outcome,Evidence Files,Status,SubmittedAt';
   const rows = reports.flatMap((report) =>
     report.entries.map((entry) => {
       const { description, tlm } = parseDescription(entry.description);
       const escaped = (value: string) => `"${value.replace(/"/g, '""')}"`;
+      const isActivity = entry.entryType === 'ACTIVITY';
+      
+      // Format evidence files as comma-separated list
+      const evidenceFilesText = entry.evidenceFiles && entry.evidenceFiles.length > 0
+        ? entry.evidenceFiles.map(f => typeof f === 'string' ? f : f.url).join(', ')
+        : '';
+
       return [
         escaped(report.teacherName),
         escaped(report.reportDate.toISOString().split('T')[0]),
         escaped(entry.className),
         escaped(entry.subjectName),
-        escaped(description),
-        escaped(tlm),
+        escaped(isActivity ? 'Activity' : 'Lesson'),
+        escaped(isActivity ? '' : description),
+        escaped(isActivity ? '' : tlm),
+        escaped(isActivity ? (entry.activityCategory || '') : ''),
+        escaped(isActivity ? (entry.activityDescription || '') : ''),
+        escaped(isActivity ? (entry.learningOutcome || '') : ''),
+        escaped(evidenceFilesText),
         escaped(report.status),
         escaped(report.submittedAt ? report.submittedAt.toISOString() : ''),
       ].join(',');
@@ -86,6 +98,11 @@ export async function GET(_request: Request, context: RouteContext) {
           className: entry.class.name,
           subjectName: entry.subject.name,
           description: entry.description,
+          entryType: entry.entryType,
+          activityCategory: entry.activityCategory,
+          activityDescription: entry.activityDescription,
+          learningOutcome: entry.learningOutcome,
+          evidenceFiles: entry.evidenceFiles,
         })),
       }))
     );

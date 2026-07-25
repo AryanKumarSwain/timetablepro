@@ -52,7 +52,7 @@ export async function GET(_request: Request, context: RouteContext) {
       try {
         const chunks: Buffer[] = [];
         // @ts-ignore
-        const doc = new PDFDocument({ margin: 40, size: 'A4', bufferPages: true }); // Reduced page margin from 50 to 40
+        const doc = new PDFDocument({ margin: 40, size: 'A4', bufferPages: true });
         const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
         const left = doc.page.margins.left;
 
@@ -90,10 +90,10 @@ export async function GET(_request: Request, context: RouteContext) {
           bg: string
         ) => {
           doc.font('Helvetica-Bold').fontSize(7.5);
-          const padX = 8; // Reduced padding
+          const padX = 8;
           const textWidth = doc.widthOfString(text.toUpperCase());
           const w = textWidth + padX * 2;
-          const h = 15; // Reduced badge height
+          const h = 15;
           
           doc.roundedRect(x, y, w, h, h / 2).fill(bg);
           doc.fillColor(fg).text(text.toUpperCase(), x + padX, y + 4.5, {
@@ -142,12 +142,12 @@ export async function GET(_request: Request, context: RouteContext) {
         // ---- Header band (Compact) ---------------------------------------
         doc.rect(0, 0, doc.page.width, 5).fill(COLORS.brand);
 
-        const headerY = 25; // Moved up
+        const headerY = 25;
         
         doc
           .fillColor(COLORS.heading)
           .font('Helvetica-Bold')
-          .fontSize(20) // Slightly smaller header
+          .fontSize(20)
           .text('Daily Teaching Report', left, headerY);
 
         doc.y = headerY + 4;
@@ -166,13 +166,13 @@ export async function GET(_request: Request, context: RouteContext) {
 
         doc.moveTo(left, headerY + 32).lineTo(left + pageWidth, headerY + 32).lineWidth(1).stroke(COLORS.border);
 
-        doc.y = headerY + 44; // Reduced gap before teacher info
+        doc.y = headerY + 44;
         doc.x = left;
 
         // ---- Teacher info section (Compact block) -------------------------
         const cardTop = doc.y;
-        const cardPadding = 10; // Reduced padding
-        const infoLineHeight = 14; // Tighter lines
+        const cardPadding = 10;
+        const infoLineHeight = 14;
         const infoRows = [
           ['TEACHER', report.teacher?.name || 'N/A'],
           ['EMAIL', report.teacher?.email || 'N/A'],
@@ -216,26 +216,29 @@ export async function GET(_request: Request, context: RouteContext) {
           isDone ? COLORS.successBg : COLORS.warningBg
         );
 
-        doc.y = cardTop + infoCardHeight + 20; // Reduced spacing after teacher card
+        doc.y = cardTop + infoCardHeight + 20;
         doc.x = left;
 
         // ---- Section title (Compact) -----------------------------------------
+        const lessonsCount = report.entries?.filter((e: any) => e.entryType === 'LESSON' || !e.entryType).length || 0;
+        const activitiesCount = report.entries?.filter((e: any) => e.entryType === 'ACTIVITY').length || 0;
+
         doc
           .font('Helvetica-Bold')
           .fontSize(14)
           .fillColor(COLORS.heading)
-          .text('Lesson Entries', left, doc.y, { width: pageWidth });
-          
+          .text('Report Entries', left, doc.y, { width: pageWidth });
+
         doc.moveDown(0.2);
         doc
           .font('Helvetica')
           .fontSize(9)
           .fillColor(COLORS.body)
           .text(
-            `${report.entries?.length || 0} ${report.entries?.length === 1 ? 'entry' : 'entries'} recorded for this session`,
+            `${lessonsCount} lessons, ${activitiesCount} activities (${report.entries?.length || 0} total entries)`,
             left
           );
-        doc.moveDown(0.8); // Reduced gap before entries
+        doc.moveDown(0.8);
 
         const PAGE_BOTTOM = doc.page.height - doc.page.margins.bottom;
 
@@ -248,33 +251,80 @@ export async function GET(_request: Request, context: RouteContext) {
 
         if (Array.isArray(report.entries) && report.entries.length > 0) {
           report.entries.forEach((entry: any, index: number) => {
-            const parsed = parseEntryDescription(entry.description || '');
-            const summary = parsed.description || '-';
-            const homework = parsed.homework || '-';
-            const tlm = parsed.tlm || '-';
+            const isActivity = entry.entryType === 'ACTIVITY';
+            const entryTypeLabel = isActivity ? 'Activity' : 'Lesson';
+            const completed = !!entry.isCompleted;
+            const accentColor = isActivity ? '#9333EA' : (completed ? COLORS.success : COLORS.brand);
 
-            // Layout metrics (Tighter)
+            let summary = '-';
+            let homework = '-';
+            let tlm = '-';
+            let activityCategory = '-';
+            let activityDescription = '-';
+            let learningOutcome = '-';
+            let evidenceFilesText = '-';
+
+            if (isActivity) {
+              activityCategory = entry.activityCategory || '-';
+              activityDescription = entry.activityDescription || '-';
+              learningOutcome = entry.learningOutcome || '-';
+              homework = entry.description || '-';
+              if (entry.evidenceFiles && Array.isArray(entry.evidenceFiles) && entry.evidenceFiles.length > 0) {
+                evidenceFilesText = `${entry.evidenceFiles.length} file(s) attached`;
+              }
+            } else {
+              const parsed = parseEntryDescription(entry.description || '');
+              summary = parsed.description || '-';
+              homework = parsed.homework || '-';
+              tlm = parsed.tlm || '-';
+            }
+
+            // Layout metrics (Tighter & Column-based calculation)
             const padX = 12;
             const padY = 10;
             const gap = 12;
             const innerWidth = pageWidth - (padX * 2);
-            const colWidth = (innerWidth - (gap * 2)) / 3;
 
             doc.font('Helvetica').fontSize(9);
-            const textOpts = { width: colWidth, lineGap: 2.5 }; // Reduced line gap
             
-            const sumH = doc.heightOfString(summary, textOpts);
-            const hwH = doc.heightOfString(homework, textOpts);
-            const tlmH = doc.heightOfString(tlm, textOpts);
-            const maxTextH = Math.max(sumH, hwH, tlmH);
+            let maxTextH = 0;
+            let activityColWidth = 0;
+            let lessonColWidth = 0;
 
-            const headerH = 30; // Thinner card header
+            if (isActivity) {
+              // 4 Columns layout for Activity
+              const numCols = 4;
+              activityColWidth = (innerWidth - (gap * (numCols - 1))) / numCols;
+              const textOpts = { width: activityColWidth, lineGap: 2.5 };
+              
+              const catH = doc.heightOfString(activityCategory, textOpts);
+              const descH = doc.heightOfString(activityDescription, textOpts);
+              const outcomeH = doc.heightOfString(learningOutcome, textOpts);
+              
+              let hwText = homework;
+              if (evidenceFilesText !== '-') hwText += `\nEvidence: ${evidenceFilesText}`;
+              const hwH = doc.heightOfString(hwText, textOpts);
+              
+              maxTextH = Math.max(catH, descH, outcomeH, hwH);
+            } else {
+              // 3 Columns layout for Lesson
+              const numCols = 3;
+              lessonColWidth = (innerWidth - (gap * (numCols - 1))) / numCols;
+              const textOpts = { width: lessonColWidth, lineGap: 2.5 };
+              
+              const sumH = doc.heightOfString(summary, textOpts);
+              const hwH = doc.heightOfString(homework, textOpts);
+              const tlmH = doc.heightOfString(tlm, textOpts);
+              
+              maxTextH = Math.max(sumH, hwH, tlmH);
+            }
+
+            const headerH = 30;
             const estCardHeight = headerH + 18 + maxTextH + padY;
 
             ensureSpace(estCardHeight + 12);
 
             const startY = doc.y;
-            const completed = !!entry.isCompleted;
 
             // Main Card Box
             doc
@@ -283,35 +333,33 @@ export async function GET(_request: Request, context: RouteContext) {
               .lineWidth(1)
               .roundedRect(left, startY, pageWidth, estCardHeight, 6)
               .stroke(COLORS.border);
-              
+
             // Card Header Background
             doc
               .roundedRect(left, startY, pageWidth, headerH, 6)
               .fill(COLORS.cardHeader);
-            
+
             doc.rect(left, startY + headerH - 6, pageWidth, 6).fill(COLORS.cardHeader);
-            
+
             // Accent Line
-            doc.rect(left, startY, 4, headerH).fill(completed ? COLORS.success : COLORS.brand);
-            doc.circle(left + 4, startY + 4, 4).fill(completed ? COLORS.success : COLORS.brand);
-            doc.rect(left, startY, 4, 4).fill(completed ? COLORS.success : COLORS.brand);
+            doc.rect(left, startY, 4, headerH).fill(accentColor);
+            doc.circle(left + 4, startY + 4, 4).fill(accentColor);
+            doc.rect(left, startY, 4, 4).fill(accentColor);
 
             // Title & Status Badge
             const cy = startY + 10;
-            const titleText = `${entry.class?.name || 'N/A'}  —  ${entry.subject?.name || 'N/A'}`;
-            
+            const titleText = `${entryTypeLabel} ${index + 1}:  ${entry.class?.name || 'N/A'}  —  ${entry.subject?.name || 'N/A'}`;
+
             doc
               .font('Helvetica-Bold')
               .fontSize(10.5)
               .fillColor(COLORS.heading)
-              .text(`Entry ${index + 1}:  `, left + padX, cy, { continued: true })
-              .font('Helvetica')
-              .text(titleText);
+              .text(titleText, left + padX, cy);
 
             const entryBadgeText = completed ? 'Completed' : 'Pending';
             doc.font('Helvetica-Bold').fontSize(7.5);
             const entryBadgeW = doc.widthOfString(entryBadgeText.toUpperCase()) + 16;
-            
+
             drawStatusBadge(
               entryBadgeText,
               left + pageWidth - 10 - entryBadgeW,
@@ -327,27 +375,50 @@ export async function GET(_request: Request, context: RouteContext) {
               .lineWidth(1)
               .stroke(COLORS.borderLight);
 
-            // Column Labels
-            const colsY = startY + headerH + 8;
-            doc.font('Helvetica-Bold').fontSize(7.5).fillColor(COLORS.muted);
-            
-            const col1X = left + padX;
-            const col2X = col1X + colWidth + gap;
-            const col3X = col2X + colWidth + gap;
+            // Content
+            const contentY = startY + headerH + 8;
+            const textY = contentY + 12;
 
-            doc.text('SUMMARY', col1X, colsY, { width: colWidth, characterSpacing: 0.5 });
-            doc.text('HOMEWORK', col2X, colsY, { width: colWidth, characterSpacing: 0.5 });
-            doc.text('TLM / RESOURCES', col3X, colsY, { width: colWidth, characterSpacing: 0.5 });
+            if (isActivity) {
+              // Activity mode layout (4 columns)
+              const col1X = left + padX;
+              const col2X = col1X + activityColWidth + gap;
+              const col3X = col2X + activityColWidth + gap;
+              const col4X = col3X + activityColWidth + gap;
 
-            // Column Content Texts
-            const textY = colsY + 12;
-            doc.font('Helvetica').fontSize(9).fillColor(COLORS.body);
+              doc.font('Helvetica-Bold').fontSize(7.5).fillColor(COLORS.muted);
+              doc.text('CATEGORY', col1X, contentY, { width: activityColWidth, characterSpacing: 0.5 });
+              doc.text('DESCRIPTION', col2X, contentY, { width: activityColWidth, characterSpacing: 0.5 });
+              doc.text('OUTCOME', col3X, contentY, { width: activityColWidth, characterSpacing: 0.5 });
+              doc.text('HOMEWORK / EVIDENCE', col4X, contentY, { width: activityColWidth, characterSpacing: 0.5 });
 
-            doc.text(summary, col1X, textY, textOpts);
-            doc.text(homework, col2X, textY, textOpts);
-            doc.text(tlm, col3X, textY, textOpts);
+              doc.font('Helvetica').fontSize(9).fillColor(COLORS.body);
+              doc.text(activityCategory, col1X, textY, { width: activityColWidth, lineGap: 2.5 });
+              doc.text(activityDescription, col2X, textY, { width: activityColWidth, lineGap: 2.5 });
+              doc.text(learningOutcome, col3X, textY, { width: activityColWidth, lineGap: 2.5 });
+              
+              let hwText = homework;
+              if (evidenceFilesText !== '-') hwText += `\n[Evidence: ${evidenceFilesText}]`;
+              doc.text(hwText, col4X, textY, { width: activityColWidth, lineGap: 2.5 });
 
-            doc.y = startY + estCardHeight + 12; // Tighter gap between cards
+            } else {
+              // Lesson mode layout (3 columns)
+              const col1X = left + padX;
+              const col2X = col1X + lessonColWidth + gap;
+              const col3X = col2X + lessonColWidth + gap;
+
+              doc.font('Helvetica-Bold').fontSize(7.5).fillColor(COLORS.muted);
+              doc.text('SUMMARY', col1X, contentY, { width: lessonColWidth, characterSpacing: 0.5 });
+              doc.text('HOMEWORK', col2X, contentY, { width: lessonColWidth, characterSpacing: 0.5 });
+              doc.text('TLM / RESOURCES', col3X, contentY, { width: lessonColWidth, characterSpacing: 0.5 });
+
+              doc.font('Helvetica').fontSize(9).fillColor(COLORS.body);
+              doc.text(summary, col1X, textY, { width: lessonColWidth, lineGap: 2.5 });
+              doc.text(homework, col2X, textY, { width: lessonColWidth, lineGap: 2.5 });
+              doc.text(tlm, col3X, textY, { width: lessonColWidth, lineGap: 2.5 });
+            }
+
+            doc.y = startY + estCardHeight + 12;
             doc.x = left;
           });
         } else {
@@ -373,7 +444,7 @@ export async function GET(_request: Request, context: RouteContext) {
         const range = doc.bufferedPageRange();
         for (let i = range.start; i < range.start + range.count; i++) {
           doc.switchToPage(i);
-          const footerY = doc.page.height - doc.page.margins.bottom + 12; // Moved up slightly
+          const footerY = doc.page.height - doc.page.margins.bottom + 12;
           
           doc.moveTo(left, footerY - 8).lineTo(left + pageWidth, footerY - 8).lineWidth(0.5).stroke(COLORS.border);
           

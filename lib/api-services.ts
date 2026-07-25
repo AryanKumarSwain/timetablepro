@@ -676,6 +676,11 @@ export type DailyReportData = {
     description: string;
     isCompleted: boolean;
     isProxy?: boolean;
+    entryType?: 'LESSON' | 'ACTIVITY';
+    activityCategory?: string;
+    activityDescription?: string;
+    learningOutcome?: string;
+    evidenceFiles?: Array<{ name: string; url: string; type: string }>;
   }[];
   scheduleSlots?: {
     periodId: string;
@@ -772,6 +777,10 @@ export async function downloadReportsCsv(date: string): Promise<Blob> {
 
 export async function getDraftReportToday(): Promise<DailyReportData> {
   return apiFetch('/api/reports/draft/today');
+}
+
+export async function getSubmittedReportToday(): Promise<DailyReportData> {
+  return apiFetch('/api/reports/submitted/today');
 }
 
 export async function getReportClassesToday(): Promise<{ scheduleSlots: DailyReportData['scheduleSlots'] }> {

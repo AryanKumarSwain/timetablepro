@@ -21,6 +21,7 @@ export default function TeacherReportHistoryPage() {
   // Search/Filter state parameters
   const [searchDate, setSearchDate] = useState<string>('');
   const [selectedClass, setSelectedClass] = useState<string>('all');
+  const [selectedEntryType, setSelectedEntryType] = useState<string>('all');
 
   // Pagination State
   const [currentPage, setCurrentPage] = useState<number>(1);
@@ -51,17 +52,15 @@ export default function TeacherReportHistoryPage() {
   // Reset pagination to page 1 whenever filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchDate, selectedClass]);
+  }, [searchDate, selectedClass, selectedEntryType]);
 
   // Extract unique classes for dropdown matching
   const uniqueClasses = useMemo(() => {
     const classSet = new Set<string>();
     reports.forEach((report) => {
       (report.entries || []).forEach((entry) => {
-        if (entry.class?.name) {
-          classSet.add(entry.class.name);
-        } else if ((entry as any).className) {
-          classSet.add((entry as any).className);
+        if (entry.className) {
+          classSet.add(entry.className);
         }
       });
     });
@@ -77,15 +76,28 @@ export default function TeacherReportHistoryPage() {
 
       if (selectedClass !== 'all') {
         const matchesClass = (report.entries || []).some((entry) => {
-          const currentName = entry.class?.name || (entry as any).className || '';
+          const currentName = entry.className || '';
           return currentName.toLowerCase() === selectedClass.toLowerCase();
         });
         if (!matchesClass) return false;
       }
 
+      if (selectedEntryType !== 'all') {
+        const matchesEntryType = (report.entries || []).some((entry) => {
+          if (selectedEntryType === 'lesson') {
+            return !entry.entryType || entry.entryType === 'LESSON';
+          }
+          if (selectedEntryType === 'activity') {
+            return entry.entryType === 'ACTIVITY';
+          }
+          return true;
+        });
+        if (!matchesEntryType) return false;
+      }
+
       return true;
     });
-  }, [reports, searchDate, selectedClass]);
+  }, [reports, searchDate, selectedClass, selectedEntryType]);
 
   // ─── PAGINATION COMPILATION RUNNERS ───
   const totalPages = Math.ceil(filteredReports.length / ITEMS_PER_PAGE) || 1;
@@ -95,11 +107,12 @@ export default function TeacherReportHistoryPage() {
     return filteredReports.slice(startIndex, startIndex + ITEMS_PER_PAGE);
   }, [filteredReports, currentPage]);
 
-  const hasActiveFilters = searchDate !== '' || selectedClass !== 'all';
+  const hasActiveFilters = searchDate !== '' || selectedClass !== 'all' || selectedEntryType !== 'all';
 
   const handleResetFilters = () => {
     setSearchDate('');
     setSelectedClass('all');
+    setSelectedEntryType('all');
   };
 
   if (loading) {
@@ -124,8 +137,8 @@ export default function TeacherReportHistoryPage() {
       {/* Filter panel deck */}
       <GlassCard className="p-4 bg-card/40 border border-muted/50 rounded-xl">
         <div className="flex flex-col sm:flex-row gap-4 items-end justify-between">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full sm:max-w-xl">
-            
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full sm:max-w-2xl">
+
             <div className="flex flex-col space-y-1.5">
               <label className="text-xs font-semibold text-muted-foreground">Search by Date</label>
               <input
@@ -149,6 +162,19 @@ export default function TeacherReportHistoryPage() {
                     {cls}
                   </option>
                 ))}
+              </select>
+            </div>
+
+            <div className="flex flex-col space-y-1.5">
+              <label className="text-xs font-semibold text-muted-foreground">Filter by Type</label>
+              <select
+                value={selectedEntryType}
+                onChange={(e) => setSelectedEntryType(e.target.value)}
+                className="w-full text-sm bg-background border border-input rounded-lg h-9 px-2 focus:outline-none focus:ring-1 focus:ring-ring text-foreground"
+              >
+                <option value="all">All Types</option>
+                <option value="lesson">Classroom Only</option>
+                <option value="activity">Activities Only</option>
               </select>
             </div>
 
