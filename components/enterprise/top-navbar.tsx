@@ -213,6 +213,30 @@ export function TopNavbar({
     }
   };
 
+  const handleMarkAllAsRead = async () => {
+    try {
+      // First update local state for immediate feedback
+      setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+      
+      // Then call API to persist the changes
+      const res = await fetch('/api/notifications/read-all', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({ error: 'Unknown error' }));
+        console.error('Failed to mark all as read:', error);
+        // Revert local state if API call fails
+        syncNotifications();
+      }
+    } catch (e) {
+      console.error('Error marking all as read:', e);
+      // Revert local state on error
+      syncNotifications();
+    }
+  };
+
   const handleLeaveRequestAction = async (id: string, action: 'approve' | 'reject') => {
     if (processingLeaveIds.includes(id)) return;
     setProcessingLeaveIds((p) => [...p, id]);
@@ -450,7 +474,19 @@ export function TopNavbar({
             <DropdownMenuContent align='end' className='w-80 rounded-2xl border-border/80 shadow-xl p-0 overflow-hidden'>
               <div className="p-4 bg-muted/30 border-b border-border/50 flex items-center justify-between sticky top-0 z-10">
                 <span className="font-bold text-xs tracking-tight text-foreground">Workspace Comms Stream</span>
-                {unreadCount > 0 && <Badge variant="secondary" className={`bg-${planTheme.primary}/10 ${planTheme.primaryText} font-bold border-none text-[10px]`}>{unreadCount} New</Badge>}
+                <div className="flex items-center gap-2">
+                  {unreadCount > 0 && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleMarkAllAsRead}
+                      className="h-6 px-2 text-[10px] font-medium hover:bg-muted/60"
+                    >
+                      Read all
+                    </Button>
+                  )}
+                  {unreadCount > 0 && <Badge variant="secondary" className={`bg-${planTheme.primary}/10 ${planTheme.primaryText} font-bold border-none text-[10px]`}>{unreadCount} New</Badge>}
+                </div>
               </div>
               <div className="overflow-y-auto max-h-[400px]">
                 {mounted && parsedRole === 'admin' && pendingLeaveRequests.length > 0 && (

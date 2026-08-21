@@ -11,6 +11,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { Check, CheckCircle2, Sparkles, ChevronRight, Zap, Rocket, Crown, X, Clock } from 'lucide-react';
 import { fetchSaasPlans, submitTrialRequest } from '@/lib/api-services';
+import { getTeachers, deleteTeacher } from '@/lib/api-services';
 import type { SaasPlan } from '@/lib/api-services';
 import { QRCodeSVG } from 'qrcode.react';
 
@@ -63,6 +64,7 @@ const PLAN_TIER_CONFIG: PlanConfig[] = [
 
 export default function UpgradePage() {
   const [plans, setPlans] = useState<SaasPlan[]>([]);
+  const [allPlans, setAllPlans] = useState<SaasPlan[]>([]);
   const [currentPlanId, setCurrentPlanId] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
 
@@ -73,6 +75,9 @@ export default function UpgradePage() {
   const [verificationPending, setVerificationPending] = useState<{ show: boolean; utrNumber: string }>({ show: false, utrNumber: '' });
   const [timerExpired, setTimerExpired] = useState<boolean>(false);
   const [timeRemaining, setTimeRemaining] = useState<number>(300);
+  const [planCountdownSeconds, setPlanCountdownSeconds] = useState<number | null>(null);
+  const [autoRefreshedOnExpiry, setAutoRefreshedOnExpiry] = useState<boolean>(false);
+  const [suppressAutoDowngradePopup, setSuppressAutoDowngradePopup] = useState<boolean>(false);
 
   const [trialDialogOpen, setTrialDialogOpen] = useState<boolean>(false);
   const [submittingTrial, setSubmittingTrial] = useState<boolean>(false);
@@ -90,28 +95,65 @@ export default function UpgradePage() {
   const [couponValidating, setCouponValidating] = useState<boolean>(false);
   const [couponError, setCouponError] = useState<string>('');
   const [showQueuedPlans, setShowQueuedPlans] = useState<boolean>(false);
+  const [historyOpen, setHistoryOpen] = useState<boolean>(false);
+  const [historyLoading, setHistoryLoading] = useState<boolean>(false);
+  const [historyData, setHistoryData] = useState<any[]>([]);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+  const [downgradeWarning, setDowngradeWarning] = useState<{ show: boolean; currentLimit: number; newLimit: number; teachersToRemove: number }>({ show: false, currentLimit: 0, newLimit: 0, teachersToRemove: 0 });
+  const [teacherSelectionOpen, setTeacherSelectionOpen] = useState<boolean>(false);
+  const [teachersList, setTeachersList] = useState<any[]>([]);
+  const [selectedTeachersToRemove, setSelectedTeachersToRemove] = useState<string[]>([]);
 
   useEffect(() => {
     let isMounted = true;
     (async () => {
+      // Detect if we navigated here due to an automatic expiry refresh
+      const autoExpired = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('auto_expired') === '1';
+      if (autoExpired) setSuppressAutoDowngradePopup(true);
       try {
         const data = await fetchSaasPlans();
         if (!isMounted) return;
-        setPlans(data.filter(p => p.name.toLowerCase() !== 'free'));
+        setAllPlans(data || []);
+        setPlans((data || []).filter(p => p.name.toLowerCase() !== 'free'));
 
-        const schoolRes = await fetch('/api/admin/school');
+        const schoolRes = await fetch('/api/admin/school', { credentials: 'include' });
         if (schoolRes.ok && isMounted) {
           try {
             const schoolInfo: SchoolData = await schoolRes.json();
             setCurrentPlanId(schoolInfo.planId || null);
             setSchoolData(schoolInfo);
             setTeacherCount(schoolInfo.teacherCount || 0);
+
+              // If server marked this school as auto-downgraded, suppress the downgrade popup
+              if ((schoolInfo as any).autoDowngradedAt) {
+                setSuppressAutoDowngradePopup(true);
+              }
+
+            // After loading school and plans, if the current plan is Free and
+            // teacher count exceeds Free plan's teacherMax, prompt for removal
+            // so the school doesn't remain over the limit after automatic downgrade.
+            const freePlan = (data || []).find((p: SaasPlan) => p.name.toLowerCase() === 'free' || p.id === 'free-plan-default');
+                if (freePlan && schoolInfo.planId === freePlan.id) {
+                  const currentTeachers = schoolInfo.teacherCount || 0;
+                  const newLimit = freePlan.teacherMax || 0;
+                  // Only prompt the admin to remove teachers when they manually change plans.
+                  // Suppress this popup if the page was auto-refreshed due to plan expiry.
+                  if (currentTeachers > newLimit && !suppressAutoDowngradePopup) {
+                    setDowngradeWarning({ show: true, currentLimit: currentTeachers, newLimit, teachersToRemove: currentTeachers - newLimit });
+                    try {
+                      const teachers = await getTeachers();
+                      setTeachersList(teachers);
+                    } catch (err) {
+                      console.error('Failed to load teachers list for downgrade flow', err);
+                    }
+                  }
+                }
           } catch (jsonError) {
             console.error('Failed to parse school data:', jsonError);
           }
         }
 
-        const sessionRes = await fetch('/api/auth/session');
+        const sessionRes = await fetch('/api/auth/session', { credentials: 'include' });
         if (sessionRes.ok && isMounted) {
           try {
             const sessionData = await sessionRes.json();
@@ -122,7 +164,7 @@ export default function UpgradePage() {
         }
 
         try {
-          const upiRes = await fetch('/api/public/platform-settings');
+          const upiRes = await fetch('/api/public/platform-settings', { credentials: 'include' });
           if (upiRes.ok && isMounted) {
             try {
               const upiData = await upiRes.json();
@@ -141,6 +183,19 @@ export default function UpgradePage() {
         toast.error('Failed to load plans');
       } finally {
         if (isMounted) setLoading(false);
+        // Clean the auto_expired flag out of the URL so subsequent navigation behaves normally
+        try {
+          if (typeof window !== 'undefined') {
+            const params = new URLSearchParams(window.location.search);
+            if (params.get('auto_expired') === '1') {
+              params.delete('auto_expired');
+              const url = window.location.pathname + (params.toString() ? `?${params.toString()}` : '');
+              window.history.replaceState({}, '', url);
+            }
+          }
+        } catch (e) {
+          // ignore
+        }
       }
     })();
     return () => { isMounted = false; };
@@ -173,6 +228,73 @@ export default function UpgradePage() {
     return () => clearInterval(interval);
   }, [selectedPlanId, timerExpired]);
 
+  // Live countdown for current plan expiry
+  useEffect(() => {
+    if (!schoolData || !schoolData.planEndsAt) {
+      setPlanCountdownSeconds(null);
+      return;
+    }
+
+    const computeSeconds = () => {
+      const ends = new Date(schoolData.planEndsAt).getTime();
+      const now = Date.now();
+      const secs = Math.max(0, Math.floor((ends - now) / 1000));
+      return secs;
+    };
+
+    setPlanCountdownSeconds(computeSeconds());
+
+    const iv = setInterval(() => {
+      setPlanCountdownSeconds(prev => {
+        if (prev === null) return null;
+        if (prev <= 1) {
+          // expired
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(iv);
+  }, [schoolData?.planEndsAt]);
+
+  // Auto-refresh once when plan expires so UI reflects new plan/queued-plan
+  useEffect(() => {
+    if (planCountdownSeconds === null) return;
+    if (planCountdownSeconds <= 0 && schoolData && !autoRefreshedOnExpiry) {
+      setAutoRefreshedOnExpiry(true);
+      // small delay to allow any background cron to update DB
+      setTimeout(() => {
+        // reload page to fetch fresh server state (includes any queued plan activation)
+        if (typeof window !== 'undefined') {
+          try {
+            const u = new URL(window.location.href);
+            u.searchParams.set('auto_expired', '1');
+            window.location.href = u.toString();
+          } catch (e) {
+            window.location.reload();
+          }
+        }
+      }, 1500);
+    }
+  }, [planCountdownSeconds, schoolData, autoRefreshedOnExpiry]);
+
+  const formatPlanCountdown = (seconds: number | null) => {
+    if (seconds === null) return '';
+    if (seconds <= 0) return '00:00:00';
+    const days = Math.floor(seconds / 86400);
+    let rem = seconds % 86400;
+    const hours = Math.floor(rem / 3600);
+    rem = rem % 3600;
+    const mins = Math.floor(rem / 60);
+    const secs = rem % 60;
+    const hh = String(hours).padStart(2, '0');
+    const mm = String(mins).padStart(2, '0');
+    const ss = String(secs).padStart(2, '0');
+    if (days > 0) return `${days}d ${hh}:${mm}:${ss}`;
+    return `${hh}:${mm}:${ss}`;
+  };
+
   useEffect(() => {
     if (selectedPlanId) {
       setTimeRemaining(300);
@@ -203,6 +325,7 @@ export default function UpgradePage() {
       const res = await fetch('/api/coupons/validate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           code: couponCode,
           planId: selectedPlanId,
@@ -312,6 +435,7 @@ export default function UpgradePage() {
       const res = await fetch('/api/admin/subscription-requests', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           planId: selectedPlanId,
           amount: total,
@@ -373,6 +497,122 @@ export default function UpgradePage() {
     setTrialDialogOpen(true);
   };
 
+  const handlePlanSelection = async (planId: string) => {
+    const selectedPlan = plans.find(p => p.id === planId);
+    if (!selectedPlan) return;
+
+    const currentPlan = plans.find(p => p.id === currentPlanId);
+    const currentLimit = currentPlan?.teacherMax || 15;
+    const newLimit = selectedPlan.teacherMax;
+
+    console.log('Plan selection details:', {
+      currentPlanId,
+      selectedPlanId: planId,
+      currentLimit,
+      newLimit,
+      teacherCount
+    });
+
+    // Always fetch actual teacher count to ensure accuracy
+    let actualTeacherCount = 0;
+    try {
+      const teachers = await getTeachers();
+      actualTeacherCount = teachers.length;
+      setTeacherCount(actualTeacherCount);
+      console.log('Actual teacher count:', actualTeacherCount, 'New limit:', newLimit);
+    } catch (error) {
+      console.error('Failed to load teacher count:', error);
+      actualTeacherCount = teacherCount;
+    }
+
+    // Check if this is a downgrade
+    const isDowngrade = newLimit < currentLimit;
+    const exceedsLimit = actualTeacherCount > newLimit;
+    
+    console.log('Downgrade check:', {
+      isDowngrade,
+      exceedsLimit,
+      actualTeacherCount,
+      newLimit
+    });
+
+    if (isDowngrade && exceedsLimit) {
+      const teachersToRemove = actualTeacherCount - newLimit;
+      console.log('Teachers to remove:', teachersToRemove);
+      setDowngradeWarning({
+        show: true,
+        currentLimit,
+        newLimit,
+        teachersToRemove
+      });
+      
+      // Load teachers for selection
+      try {
+        const teachers = await getTeachers();
+        setTeachersList(teachers);
+      } catch (error) {
+        console.error('Failed to load teachers:', error);
+        toast.error('Failed to load teachers list');
+      }
+      
+      // Don't set selectedPlanId yet - wait until teachers are removed
+    } else {
+      setSelectedPlanId(planId);
+    }
+  };
+
+  const handleDowngradeConfirm = () => {
+    // Keep the warning data intact, just hide the warning dialog
+    setDowngradeWarning(prev => ({ ...prev, show: false }));
+    setTeacherSelectionOpen(true);
+  };
+
+  const handleTeacherSelection = (teacherId: string) => {
+    setSelectedTeachersToRemove(prev => {
+      if (prev.includes(teacherId)) {
+        return prev.filter(id => id !== teacherId);
+      } else {
+        const maxToRemove = downgradeWarning.teachersToRemove || 0;
+        if (maxToRemove === 0) {
+          toast.error('Error: No teachers need to be removed');
+          return prev;
+        }
+        if (prev.length >= maxToRemove) {
+          toast.error(`You can only select ${maxToRemove} teachers to remove`);
+          return prev;
+        }
+        return [...prev, teacherId];
+      }
+    });
+  };
+
+  const handleRemoveSelectedTeachers = async () => {
+    const requiredRemoval = downgradeWarning.teachersToRemove;
+    if (selectedTeachersToRemove.length !== requiredRemoval) {
+      toast.error(`Please select exactly ${requiredRemoval} teachers to remove`);
+      return;
+    }
+
+    try {
+      for (const teacherId of selectedTeachersToRemove) {
+        await deleteTeacher(teacherId);
+      }
+      toast.success(`${selectedTeachersToRemove.length} teachers removed successfully`);
+      setTeacherSelectionOpen(false);
+      setSelectedTeachersToRemove([]);
+      setTeacherCount(prev => prev - selectedTeachersToRemove.length);
+      
+      // Now proceed with plan change - find the plan that was being downgraded to
+      const targetPlan = plans.find(p => p.teacherMax === downgradeWarning.newLimit);
+      if (targetPlan) {
+        setSelectedPlanId(targetPlan.id);
+      }
+    } catch (error) {
+      console.error('Failed to remove teachers:', error);
+      toast.error('Failed to remove teachers');
+    }
+  };
+
   if (loading) return (
     <div className="flex items-center justify-center min-h-screen bg-slate-50 dark:bg-slate-950">
       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600" />
@@ -406,7 +646,7 @@ export default function UpgradePage() {
                     {schoolData.planEndsAt ? (
                       new Date(schoolData.planEndsAt) > new Date() ? (
                         <span className="font-semibold text-purple-700 dark:text-purple-300">
-                          Active until {new Date(schoolData.planEndsAt).toLocaleDateString()}
+                          Active — Expires in {formatPlanCountdown(planCountdownSeconds)} ({new Date(schoolData.planEndsAt).toLocaleDateString()})
                         </span>
                       ) : (
                         <span className="font-semibold text-red-600 dark:text-red-400">
@@ -437,6 +677,29 @@ export default function UpgradePage() {
                   <ChevronRight className={`h-3 w-3 text-amber-600 transition-transform ${showQueuedPlans ? 'rotate-90' : ''}`} />
                 </motion.div>
               )}
+              
+              <Button onClick={async () => {
+                setHistoryOpen(true);
+                setHistoryLoading(true);
+                setHistoryError(null);
+                try {
+                  const res = await fetch('/api/admin/subscription-history', { credentials: 'include' });
+                  const json = await res.json();
+                  if (res.ok) {
+                    setHistoryData(json || []);
+                  } else {
+                    console.error('Failed to load subscription history', json);
+                    setHistoryData([]);
+                    setHistoryError(json?.error || 'Failed to load subscription history');
+                  }
+                } catch (err: any) {
+                  console.error('Failed to load subscription history', err);
+                  setHistoryData([]);
+                  setHistoryError(err?.message || 'Failed to load subscription history');
+                } finally {
+                  setHistoryLoading(false);
+                }
+              }} className="px-3 py-2 rounded-full bg-purple-600 hover:bg-purple-700 text-white text-xs ml-2 shadow-sm">View Plan History</Button>
             </div>
           )}
 
@@ -469,11 +732,47 @@ export default function UpgradePage() {
           </AnimatePresence>
         </div>
 
+        {/* Plan History Dialog */}
+        <Dialog open={historyOpen} onOpenChange={setHistoryOpen}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Plan History</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3 py-2">
+              {historyLoading ? (
+                <div className="text-center py-8">Loading…</div>
+              ) : historyError ? (
+                <div className="text-center py-6 text-sm text-rose-600">{historyError}</div>
+              ) : historyData.length === 0 ? (
+                <div className="text-center py-8">No subscription history found.</div>
+              ) : (
+                <div className="space-y-2">
+                  {historyData.map((tx) => (
+                    <div key={tx.id} className="p-3 border rounded-lg">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="font-semibold">{tx.plan?.name || 'Plan'}</div>
+                          <div className="text-xs text-muted-foreground">{new Date(tx.createdAt).toLocaleString()}</div>
+                        </div>
+                        <div className="text-right text-sm">
+                          <div>₹{tx.amount}</div>
+                          <div className="text-xs">{tx.status}</div>
+                        </div>
+                      </div>
+                      <div className="mt-2 text-xs text-slate-500">UTR: {tx.utrNumber || '—'}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
+
         {/* Plan Cards */}
         <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-6 items-stretch mb-8">
           {plans.map((plan, idx) => {
             const style = PLAN_TIER_CONFIG[idx] || PLAN_TIER_CONFIG[2];
-            const isCurrentPlan = currentPlanId === plan.id;
+            const isCurrentPlan = currentPlanId === plan.id && (!schoolData || !schoolData.planEndsAt || new Date(schoolData.planEndsAt) > new Date());
 
             // Feature rows: [label, enabled]
             const features: [string, boolean][] = [
@@ -535,7 +834,7 @@ export default function UpgradePage() {
                 </div>
 
                 <Button
-                  onClick={() => setSelectedPlanId(plan.id)}
+                  onClick={() => handlePlanSelection(plan.id)}
                   className={`w-full py-5 font-semibold rounded-lg text-xs flex items-center justify-center gap-1.5 transition-all ${isCurrentPlan ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800' : style.btn}`}
                 >
                   {isCurrentPlan ? `Renew ${plan.name}` : `Switch to ${plan.name}`} <ChevronRight className="h-3 w-3" />
@@ -589,6 +888,83 @@ export default function UpgradePage() {
             </DialogContent>
           </Dialog>
         </div>
+
+        {/* Downgrade Warning Dialog */}
+        <Dialog
+          open={downgradeWarning.show}
+          onOpenChange={(open) => setDowngradeWarning((prev) => ({ ...prev, show: open }))}
+        >
+          <DialogContent className="max-w-md" showCloseButton>
+            <DialogHeader>
+              <DialogTitle className="text-amber-600">Plan Downgrade Warning</DialogTitle>
+              <DialogDescription>
+                You are downgrading from {downgradeWarning.currentLimit} to {downgradeWarning.newLimit} teachers.
+                You currently have {teacherCount} teachers and need to remove {downgradeWarning.teachersToRemove} teachers to continue.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex gap-3 mt-4">
+              <Button onClick={handleDowngradeConfirm} className="flex-1 bg-amber-600 hover:bg-amber-700">
+                Select Teachers to Remove
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Teacher Selection Dialog */}
+        <Dialog open={teacherSelectionOpen}>
+          <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto" showCloseButton={false}>
+            <DialogHeader>
+              <DialogTitle>Remove Teachers</DialogTitle>
+              <DialogDescription>
+                Select {downgradeWarning.teachersToRemove} teachers to remove to meet the new plan limit.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3 py-4">
+              {teachersList.map((teacher) => (
+                <div
+                  key={teacher.id}
+                  onClick={() => handleTeacherSelection(teacher.id)}
+                  className={`p-3 border rounded-lg cursor-pointer transition-colors ${
+                    selectedTeachersToRemove.includes(teacher.id)
+                      ? 'bg-rose-50 border-rose-300 dark:bg-rose-950/30 dark:border-rose-800'
+                      : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`w-5 h-5 rounded border flex items-center justify-center ${
+                      selectedTeachersToRemove.includes(teacher.id)
+                        ? 'bg-rose-500 border-rose-500'
+                        : 'border-slate-300 dark:border-slate-600'
+                    }`}>
+                      {selectedTeachersToRemove.includes(teacher.id) && (
+                        <X className="h-3 w-3 text-white" />
+                      )}
+                    </div>
+                    <div>
+                      <div className="font-medium text-sm">{teacher.name}</div>
+                      <div className="text-xs text-muted-foreground">{teacher.email}</div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="flex items-center justify-between text-sm text-muted-foreground mb-4">
+              <span>Selected: {selectedTeachersToRemove.length}/{downgradeWarning.teachersToRemove}</span>
+            </div>
+            <div className="flex gap-3">
+              <Button onClick={() => setTeacherSelectionOpen(false)} variant="outline" className="flex-1">
+                Cancel
+              </Button>
+              <Button
+                onClick={handleRemoveSelectedTeachers}
+                disabled={selectedTeachersToRemove.length !== downgradeWarning.teachersToRemove}
+                className="flex-1 bg-rose-600 hover:bg-rose-700"
+              >
+                Remove Selected Teachers
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
 
         {/* Custom Enterprise Plan Button */}
         <div className="flex justify-center items-center mt-4">

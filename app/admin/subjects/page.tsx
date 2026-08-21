@@ -7,6 +7,7 @@ import {
   createSubject,
   updateSubject,
   deleteSubject,
+  getSchoolDetails,
 } from '@/lib/api-services';
 import { Subject } from '@/lib/types';
 import { Button } from '@/components/ui/button';
@@ -36,6 +37,7 @@ export default function SubjectsPage() {
   const [importOpen, setImportOpen] = useState(false);
   
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [schoolPlan, setSchoolPlan] = useState<any>(null);
 
   // Kept only Name and Code properties
   const [formData, setFormData] = useState<Omit<Subject, 'id' | 'credits' | 'description'>>({
@@ -45,7 +47,17 @@ export default function SubjectsPage() {
 
   useEffect(() => {
     loadSubjects();
+    loadSchoolPlan();
   }, []);
+
+  const loadSchoolPlan = async () => {
+    try {
+      const schoolData = await getSchoolDetails();
+      setSchoolPlan(schoolData.plan);
+    } catch (error) {
+      console.error('Failed to load school plan:', error);
+    }
+  };
 
   // 2-second auto-dismiss timer for notifications
   useEffect(() => {
@@ -140,7 +152,7 @@ export default function SubjectsPage() {
     <div className='max-w-7xl mx-auto relative'>
       <PageHeader
         title='Subjects'
-        description='Manage course subjects'
+        description={`Manage course subjects (${subjects.length}/50)`}
         breadcrumbs={[
           { label: 'Admin', href: '/admin/dashboard' },
           { label: 'Subjects' },

@@ -7,6 +7,7 @@ import {
   createTeacher,
   updateTeacher,
   deleteTeacher,
+  getSchoolDetails,
 } from '@/lib/api-services';
 import { Teacher } from '@/lib/types';
 import { Button } from '@/components/ui/button';
@@ -50,11 +51,22 @@ export default function TeachersPage() {
   
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [schoolPlan, setSchoolPlan] = useState<any>(null);
 
   // 1. Core Initial Data Fetch
   useEffect(() => {
     loadTeachers();
+    loadSchoolPlan();
   }, []);
+
+  const loadSchoolPlan = async () => {
+    try {
+      const schoolData = await getSchoolDetails();
+      setSchoolPlan(schoolData.plan);
+    } catch (error) {
+      console.error('Failed to load school plan:', error);
+    }
+  };
 
   // 2. Separate Self-Dismissing Toast Timer
   useEffect(() => {
@@ -171,7 +183,7 @@ export default function TeachersPage() {
     <div className='max-w-7xl mx-auto relative'>
       <PageHeader
         title='Teachers'
-        description='Manage faculty profiles and specialties'
+        description={`Manage faculty profiles and specialties (${teachers.length}/${schoolPlan?.teacherMax || 15})`}
         breadcrumbs={[
           { label: 'Admin', href: '/admin/dashboard' },
           { label: 'Teachers' },

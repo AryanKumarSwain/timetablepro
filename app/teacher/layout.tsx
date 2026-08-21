@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { AppShell } from '@/components/enterprise/app-shell';
 import { LoginAlertProvider } from '@/components/enterprise/login-alert-provider';
 import { useAuth } from '@/lib/auth-context';
+import PlanExpiredModal from '@/components/plan/plan-expired-modal';
 
 export default function TeacherLayout({
   children,
@@ -53,6 +54,7 @@ export default function TeacherLayout({
 
   return (
     <LoginAlertProvider>
+      <PlanExpiredModal />
       <AppShell role='teacher' roleLabel='Teacher Portal'>
         {children}
       </AppShell>

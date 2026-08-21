@@ -6,29 +6,56 @@ export type DefaultSaaSPlan = {
   teacherMin: number;
   teacherMax: number;
   priceMonthly: number;
+  reportEnabled?: boolean;
+  attendanceEnabled?: boolean;
+  homeworkEnabled?: boolean;
+  lessonPlanningEnabled?: boolean;
 };
 
 export const defaultSaaSPlans: DefaultSaaSPlan[] = [
   {
-    id: 'plan-basic',
-    name: 'Basic',
+    id: 'plan-free',
+    name: 'Free',
     teacherMin: 0,
-    teacherMax: 50,
-    priceMonthly: 29,
+    teacherMax: 5,
+    priceMonthly: 0,
+    reportEnabled: false,
+    attendanceEnabled: false,
+    homeworkEnabled: false,
+    lessonPlanningEnabled: false,
   },
   {
-    id: 'plan-growth',
-    name: 'Growth',
-    teacherMin: 51,
-    teacherMax: 200,
-    priceMonthly: 79,
-  },
-  {
-    id: 'plan-enterprise-pro',
-    name: 'Enterprise Pro',
-    teacherMin: 201,
-    teacherMax: 9999,
+    id: 'plan-standard',
+    name: 'Standard',
+    teacherMin: 0,
+    teacherMax: 15,
     priceMonthly: 199,
+    reportEnabled: true,
+    attendanceEnabled: false,
+    homeworkEnabled: false,
+    lessonPlanningEnabled: true,
+  },
+  {
+    id: 'plan-premium',
+    name: 'Premium',
+    teacherMin: 16,
+    teacherMax: 30,
+    priceMonthly: 299,
+    reportEnabled: true,
+    attendanceEnabled: true,
+    homeworkEnabled: false,
+    lessonPlanningEnabled: true,
+  },
+  {
+    id: 'plan-elite',
+    name: 'Elite',
+    teacherMin: 31,
+    teacherMax: 100,
+    priceMonthly: 399,
+    reportEnabled: true,
+    attendanceEnabled: true,
+    homeworkEnabled: true,
+    lessonPlanningEnabled: true,
   },
 ];
 
@@ -42,6 +69,10 @@ export async function ensureDefaultPlans() {
           teacherMin: plan.teacherMin,
           teacherMax: plan.teacherMax,
           priceMonthly: plan.priceMonthly,
+          reportEnabled: plan.reportEnabled ?? false,
+          attendanceEnabled: plan.attendanceEnabled ?? false,
+          homeworkEnabled: plan.homeworkEnabled ?? false,
+          lessonPlanningEnabled: plan.lessonPlanningEnabled ?? false,
         },
         create: {
           id: plan.id,
@@ -49,6 +80,10 @@ export async function ensureDefaultPlans() {
           teacherMin: plan.teacherMin,
           teacherMax: plan.teacherMax,
           priceMonthly: plan.priceMonthly,
+          reportEnabled: plan.reportEnabled ?? false,
+          attendanceEnabled: plan.attendanceEnabled ?? false,
+          homeworkEnabled: plan.homeworkEnabled ?? false,
+          lessonPlanningEnabled: plan.lessonPlanningEnabled ?? false,
         },
       })
     )

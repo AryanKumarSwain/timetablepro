@@ -57,15 +57,21 @@ export async function PATCH(
       const planStartsAt = now;
       let planEndsAt: Date;
 
-      if (transaction.billingCycle === 'annual') {
-        planEndsAt = new Date(now);
-        planEndsAt.setFullYear(planEndsAt.getFullYear() + 1);
+      // For local testing, make plans short-lived (5 minutes) in non-production.
+      if (process.env.NODE_ENV !== 'production') {
+        const testMinutes = 5; // quick expiry for testing
+        planEndsAt = new Date(now.getTime() + testMinutes * 60 * 1000);
       } else {
-        planEndsAt = new Date(now);
-        planEndsAt.setMonth(planEndsAt.getMonth() + 1);
+        if (transaction.billingCycle === 'annual') {
+          planEndsAt = new Date(now);
+          planEndsAt.setFullYear(planEndsAt.getFullYear() + 1);
+        } else {
+          planEndsAt = new Date(now);
+          planEndsAt.setMonth(planEndsAt.getMonth() + 1);
+        }
       }
 
-      // If school has an active plan with end date, queue it
+      // If school has an active plan with end date, pause it (store remaining seconds)
       const hasActivePlan = school?.planId && school?.planEndsAt && new Date(school.planEndsAt) > now;
 
       await prisma.$transaction([
@@ -83,11 +89,15 @@ export async function PATCH(
             planStartsAt,
             planEndsAt,
             licenseStatus: 'ACTIVE',
-            // Queue current plan if it exists and is still active
-            ...(hasActivePlan && {
-              queuedPlanId: school.planId,
-              queuedPlanStartsAt: planEndsAt
-            })
+            // Pause current plan preserving remaining duration so it can resume
+            ...(hasActivePlan && (() => {
+              const remainingMs = new Date(school.planEndsAt).getTime() - now.getTime();
+              const remainingSeconds = Math.max(0, Math.floor(remainingMs / 1000));
+              return {
+                pausedPlanId: school.planId,
+                pausedPlanRemainingSeconds: remainingSeconds,
+              };
+            })())
           }
         }),
 

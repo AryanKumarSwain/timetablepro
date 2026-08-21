@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireSchoolContext, handleApiError, schoolWhere } from '@/lib/auth-server';
 import { mapClass } from '@/lib/mappers';
+import { checkClassLimit } from '@/lib/plan-limits';
 
 export async function GET() {
   try {
@@ -19,6 +20,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const { schoolId } = await requireSchoolContext();
+    await checkClassLimit(schoolId);
     const body = await request.json();
     const row = await prisma.classRoom.create({
       data: {

@@ -7,6 +7,7 @@ import {
   createClass,
   updateClass,
   deleteClass,
+  getSchoolDetails,
 } from '@/lib/api-services';
 import { Class } from '@/lib/types';
 import { Button } from '@/components/ui/button';
@@ -36,6 +37,7 @@ export default function ClassesPage() {
   const [importOpen, setImportOpen] = useState(false);
   
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [schoolPlan, setSchoolPlan] = useState<any>(null);
 
   // Cleaned up form state containing only Name, Section, and Room Number
   const [formData, setFormData] = useState<Omit<Class, 'id' | 'strength' | 'classTeacher'>>({
@@ -46,7 +48,17 @@ export default function ClassesPage() {
 
   useEffect(() => {
     loadData();
+    loadSchoolPlan();
   }, []);
+
+  const loadSchoolPlan = async () => {
+    try {
+      const schoolData = await getSchoolDetails();
+      setSchoolPlan(schoolData.plan);
+    } catch (error) {
+      console.error('Failed to load school plan:', error);
+    }
+  };
 
   // 2-second auto-dismiss timer for notifications
   useEffect(() => {
@@ -152,7 +164,7 @@ export default function ClassesPage() {
     <div className='max-w-7xl mx-auto relative'>
       <PageHeader
         title='Classes'
-        description='Manage school classes'
+        description={`Manage school classes (${classes.length}/50)`}
         breadcrumbs={[
           { label: 'Admin', href: '/admin/dashboard' },
         

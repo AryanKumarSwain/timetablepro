@@ -3,17 +3,20 @@
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import {
-  Sparkles,
-  Zap,
-  Shield,
-  BarChart3,
-  RefreshCw,
-  FileText,
-  Check,
   ArrowRight,
+  BarChart3,
+  BookOpenText,
+  CalendarRange,
+  Check,
+  Clock3,
+  FileText,
+  ShieldCheck,
+  Sparkles,
+  TrendingUp,
+  Users,
+  Zap,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { GlassCard } from '@/components/enterprise/glass-card';
 import { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { usePlanTheme } from '@/lib/plan-theme';
@@ -22,33 +25,51 @@ import { getSuperAdminPlans, type SaasPlan } from '@/lib/api-services';
 const landingFeatures = [
   {
     icon: Zap,
-    title: 'Smart Substitute Engine',
-    desc: 'Priority-ranked cover teachers by subject, department, and workload.',
+    title: 'Smart substitute engine',
+    desc: 'Autosuggest the best cover teacher based on subject match, availability, and workload.',
   },
   {
-    icon: Shield,
-    title: 'Conflict-Free Scheduling',
-    desc: 'Hard filters prevent double-booking and absent teacher conflicts.',
+    icon: CalendarRange,
+    title: 'Conflict-free scheduling',
+    desc: 'Create clean weekly plans without clashes, teacher gaps, or room conflicts.',
   },
   {
-    icon: Sparkles,
-    title: 'Multi-Tenant SaaS',
-    desc: 'Isolated schools, plans, and licenses on one platform.',
+    icon: ShieldCheck,
+    title: 'School-wide control',
+    desc: 'Manage roles, access, policies, and school operations from one secure dashboard.',
   },
   {
     icon: BarChart3,
-    title: 'Burnout Analytics',
-    desc: 'Workload meters and substitution load visibility per teacher.',
+    title: 'Live attendance analytics',
+    desc: 'Track classes, attendance, and workload performance with instant insights.',
   },
   {
-    icon: RefreshCw,
-    title: 'Real-Time Updates',
-    desc: 'Daily desk operations with live attendance and cover status.',
+    icon: BookOpenText,
+    title: 'Lesson planning hub',
+    desc: 'Keep homework, lesson plans, and teaching notes aligned across the academic calendar.',
   },
   {
     icon: FileText,
-    title: 'Advanced PDF Exports',
-    desc: 'Branded class and teacher timetables for any date range.',
+    title: 'Export-ready reports',
+    desc: 'Share professional class schedules and summaries in polished PDF and Excel formats.',
+  },
+];
+
+const steps = [
+  {
+    number: '01',
+    title: 'Set up your school',
+    text: 'Add classes, teachers, periods, and rooms in minutes with guided onboarding.',
+  },
+  {
+    number: '02',
+    title: 'Build and review timetables',
+    text: 'Use live conflict detection and drag-and-drop scheduling to plan each week.',
+  },
+  {
+    number: '03',
+    title: 'Track and improve',
+    text: 'Monitor daily execution, attendance, and teaching activity with simple dashboards.',
   },
 ];
 
@@ -72,225 +93,379 @@ export function LandingPage() {
   }, []);
 
   return (
-    <div className='min-h-screen bg-background overflow-x-hidden'>
-      <header className='sticky top-0 z-50 border-b border-border/50 bg-background/80 backdrop-blur-xl'>
-        <div className='max-w-6xl mx-auto px-4 h-16 flex items-center justify-between'>
-          <Link href='/' className='flex items-center gap-2 font-semibold'>
-            <div className='h-9 w-9 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center'>
-              <Sparkles className='h-4 w-4 text-white' />
+    <div className='min-h-screen overflow-x-hidden bg-[linear-gradient(180deg,#f8fbff_0%,#eef5ff_28%,#fdfcff_100%)] text-slate-800'>
+      <div className='absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(96,165,250,0.22),_transparent_22%),radial-gradient(circle_at_top_right,_rgba(167,139,250,0.20),_transparent_22%),radial-gradient(circle_at_bottom_left,_rgba(34,197,94,0.16),_transparent_25%)]' />
+
+      <header className='sticky top-0 z-50 border-b border-sky-100 bg-white/80 backdrop-blur-xl'>
+        <div className='mx-auto flex h-20 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8'>
+          <Link href='/' className='flex items-center gap-3 font-semibold text-slate-900'>
+            <div className='flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 via-indigo-500 to-violet-600 shadow-lg shadow-blue-500/25'>
+              <Sparkles className='h-5 w-5 text-white' />
             </div>
-            TimetablePro
+            <span className='text-lg tracking-tight'>TimetablePro</span>
           </Link>
-          <nav className='hidden md:flex items-center gap-8 text-sm text-muted-foreground'>
-            <a href='#features' className='hover:text-foreground transition-colors'>
-              Features
-            </a>
-            <a href='#pricing' className='hover:text-foreground transition-colors'>
-              Pricing
-            </a>
+
+          <nav className='hidden items-center gap-8 text-sm text-slate-600 md:flex'>
+            <a href='#features' className='transition-colors hover:text-slate-900'>Features</a>
+            <a href='#how-it-works' className='transition-colors hover:text-slate-900'>How it works</a>
+            <a href='#pricing' className='transition-colors hover:text-slate-900'>Pricing</a>
           </nav>
+
           <div className='flex items-center gap-2'>
-            <Button variant='ghost' asChild>
+            <Button variant='ghost' asChild className='hidden text-slate-700 hover:bg-sky-50 sm:inline-flex'>
               <Link href='/login'>Sign in</Link>
             </Button>
-            <Button asChild className='rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600'>
-              <Link href='/signup'>Start Free Trial</Link>
+            <Button asChild className='rounded-xl bg-gradient-to-r from-blue-600 to-violet-600 text-white shadow-lg shadow-blue-500/20 hover:brightness-110'>
+              <Link href='/signup'>Start free trial</Link>
             </Button>
           </div>
         </div>
       </header>
 
-      <section className='relative pt-20 pb-28 px-4 overflow-hidden'>
-        <div className='absolute inset-0 mesh-gradient pointer-events-none' />
-        <motion.div
-          animate={{ y: [0, -12, 0] }}
-          transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut' }}
-          className='absolute top-32 right-[10%] w-48 h-32 rounded-2xl glass-panel p-3 hidden lg:block rotate-3'
-        >
-          <p className='text-[10px] text-muted-foreground'>Period 3 · Class 10-A</p>
-          <p className='text-sm font-semibold mt-1'>Physics</p>
-          <p className='text-xs text-indigo-500'>Dr. Rajesh Kumar</p>
-        </motion.div>
-        <motion.div
-          animate={{ y: [0, 10, 0] }}
-          transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut', delay: 0.5 }}
-          className='absolute bottom-40 left-[8%] w-40 h-28 rounded-2xl glass-panel p-3 hidden lg:block -rotate-2'
-        >
-          <p className='text-xs font-medium text-emerald-600'>+12% efficiency</p>
-          <p className='text-2xl font-bold mt-2'>98%</p>
-          <p className='text-[10px] text-muted-foreground'>Cover rate this week</p>
-        </motion.div>
-
-        <div className='max-w-4xl mx-auto text-center relative'>
-          <motion.p
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            className='text-sm font-medium text-indigo-600 dark:text-indigo-400 mb-4'
-          >
-            Enterprise scheduling for modern schools
-          </motion.p>
-          <motion.h1
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-            className='text-4xl md:text-6xl font-bold tracking-tight leading-tight'
-          >
-            Effortlessly Manage School Timetables with{' '}
-            <span className='gradient-text'>AI Powered Automation</span>
-          </motion.h1>
-          <motion.p
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.2 }}
-            className='mt-6 text-lg text-muted-foreground max-w-2xl mx-auto'
-          >
-            TimetablePro unifies weekly scheduling, daily attendance, and
-            intelligent substitute assignment in one premium SaaS platform.
-          </motion.p>
-          <motion.div
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-            className='mt-10 flex flex-wrap justify-center gap-4'
-          >
-            <Button
-              size='lg'
-              asChild
-              className='rounded-xl h-12 px-8 bg-gradient-to-r from-indigo-600 to-violet-600 shadow-lg shadow-indigo-500/25'
-            >
-              <Link href='/signup'>
-                Start Free Trial
-                <ArrowRight className='ml-2 h-4 w-4' />
-              </Link>
-            </Button>
-            <Button size='lg' variant='outline' asChild className='rounded-xl h-12 px-8'>
-              <Link href='/login'>Book Personal Demo</Link>
-            </Button>
-          </motion.div>
-          <div className='mt-16 grid grid-cols-2 md:grid-cols-4 gap-4 max-w-3xl mx-auto'>
-            {[
-              { label: 'Schools', value: '120+' },
-              { label: 'Teachers', value: '8.4k' },
-              { label: 'Covers / mo', value: '24k' },
-              { label: 'Uptime', value: '99.9%' },
-            ].map((m, i) => (
-              <motion.div
-                key={m.label}
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 0.4 + i * 0.08 }}
-              >
-                <GlassCard className='p-4 text-center'>
-                  <p className='text-2xl font-bold'>{m.value}</p>
-                  <p className='text-xs text-muted-foreground mt-1'>{m.label}</p>
-                </GlassCard>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section id='features' className='py-24 px-4 max-w-6xl mx-auto'>
-        <h2 className='text-3xl font-bold text-center mb-4'>Built for operations teams</h2>
-        <p className='text-center text-muted-foreground mb-12 max-w-xl mx-auto'>
-          Everything you need to run a school day — without spreadsheet chaos.
-        </p>
-        <div className='grid md:grid-cols-2 lg:grid-cols-3 gap-6'>
-          {landingFeatures.map((f, i) => (
+      <main className='relative z-10'>
+        <section className='px-4 pb-20 pt-16 sm:px-6 lg:px-8'>
+          <div className='mx-auto grid max-w-7xl items-center gap-12 lg:grid-cols-[1.1fr_0.9fr]'>
             <motion.div
-              key={f.title}
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: i * 0.06 }}
+              initial={{ opacity: 0, y: 24 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5 }}
+              className='max-w-2xl'
             >
-              <GlassCard hover className='p-6 h-full'>
-                <div className='h-10 w-10 rounded-xl bg-indigo-500/15 flex items-center justify-center mb-4'>
-                  <f.icon className='h-5 w-5 text-indigo-500' />
-                </div>
-                <h3 className='font-semibold text-lg'>{f.title}</h3>
-                <p className='text-sm text-muted-foreground mt-2'>{f.desc}</p>
-              </GlassCard>
+              <div className='inline-flex items-center gap-2 rounded-full border border-blue-200 bg-blue-100 px-3 py-1.5 text-xs font-medium tracking-[0.18em] text-blue-700 uppercase'>
+                <span className='h-2 w-2 rounded-full bg-emerald-500' />
+                Smart school operations
+              </div>
+
+              <h1 className='mt-6 text-4xl font-black tracking-[-0.06em] text-slate-900 sm:text-5xl lg:text-7xl'>
+                Build smarter
+                <span className='block bg-gradient-to-r from-blue-600 via-indigo-500 to-violet-500 bg-clip-text text-transparent'>school time tables</span>
+              </h1>
+
+              <p className='mt-6 max-w-xl text-base leading-7 text-slate-600 sm:text-lg'>
+                TimetablePro helps schools schedule classes, manage staff, track attendance, and reduce daily chaos with automation built for serious academic operations.
+              </p>
+
+              <div className='mt-8 flex flex-wrap items-center gap-4'>
+                <Button asChild className='h-12 rounded-xl bg-gradient-to-r from-blue-600 to-violet-600 px-6 text-base font-semibold text-white shadow-lg shadow-blue-500/20 hover:brightness-110'>
+                  <Link href='/signup'>Get started free <ArrowRight className='ml-2 h-4 w-4' /></Link>
+                </Button>
+                <Button asChild variant='outline' className='h-12 rounded-xl border-sky-200 bg-white px-6 text-base font-semibold text-slate-800 hover:bg-sky-50'>
+                  <Link href='/login'>View demo</Link>
+                </Button>
+              </div>
+
+              <div className='mt-10 flex flex-wrap gap-6 text-sm text-slate-600'>
+                {['No setup hassle', 'Secure access', 'Built for schools'].map((item) => (
+                  <div key={item} className='inline-flex items-center gap-2'>
+                    <span className='flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100 text-emerald-600'>
+                      <Check className='h-3 w-3' />
+                    </span>
+                    {item}
+                  </div>
+                ))}
+              </div>
             </motion.div>
-          ))}
-        </div>
-      </section>
 
-      <section id='pricing' className='py-24 px-4 border-t border-border/50'>
-        <div className='max-w-6xl mx-auto'>
-          <h2 className='text-3xl font-bold text-center'>Simple, transparent pricing</h2>
-          <div className='flex justify-center items-center gap-3 mt-6'>
-            <span className={cn('text-sm', !yearly && 'font-semibold')}>Monthly</span>
-            <button
-              type='button'
-              onClick={() => setYearly((y) => !y)}
-              className={cn(
-                'relative w-12 h-6 rounded-full transition-colors',
-                yearly ? `bg-${theme.primary}` : 'bg-muted'
-              )}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              transition={{ duration: 0.55, delay: 0.08 }}
+              className='relative'
             >
-              <span
-                className={cn(
-                  'absolute top-1 h-4 w-4 rounded-full bg-white transition-transform',
-                  yearly ? 'left-7' : 'left-1'
-                )}
-              />
-            </button>
-            <span className={cn('text-sm', yearly && 'font-semibold')}>
-              Yearly <span className='text-emerald-600 text-xs'>(save 20%)</span>
-            </span>
-          </div>
-          <div className='grid md:grid-cols-3 gap-6 mt-12'>
-            {(plans && plans.length > 0 ? plans : defaultPlans).map((plan) => {
-              const yearlyPrice = Math.round(Number(plan.priceMonthly) * 12 * 0.8);
-              const range = `${plan.teacherMin}–${plan.teacherMax}${plan.teacherMax > 9999 ? '+' : ''}`;
-              const enabledFeatures: string[] = [
-                'Daily desk',
-                'Substitutions',
-                'Weekly timetable',
-              ];
-              if (plan.reportEnabled) enabledFeatures.push('Analytics');
-              if (plan.attendanceEnabled) enabledFeatures.push('Attendance');
-              if (plan.homeworkEnabled) enabledFeatures.push('Homework');
-              if ((plan as any).lessonPlanningEnabled) enabledFeatures.push('Lesson Planning');
-              const exportsList = (plan.exportFormats ?? []).map((f: string) => (f === 'docx' ? 'Word' : f.toUpperCase()));
+              <div className='absolute -left-5 top-10 h-24 w-24 rounded-full bg-blue-200/80 blur-3xl' />
+              <div className='absolute -right-3 bottom-8 h-24 w-24 rounded-full bg-violet-200/80 blur-3xl' />
 
-              return (
-                <GlassCard key={plan.id || plan.name} hover className='p-6 relative'>
-                  <h3 className='text-xl font-bold'>{plan.name}</h3>
-                  <p className='text-sm text-muted-foreground'>{range}</p>
-                  <p className='mt-4 text-4xl font-bold'>
-                    ₹{yearly ? yearlyPrice : Number(plan.priceMonthly)}
-                    <span className='text-sm font-normal text-muted-foreground'>/{yearly ? 'yr' : 'mo'}</span>
-                  </p>
+              <div className='relative overflow-hidden rounded-[28px] border border-sky-100 bg-white/80 p-4 shadow-[0_25px_80px_rgba(37,99,235,0.11)] backdrop-blur-xl'>
+                <div className='rounded-[22px] border border-sky-100 bg-white p-4'>
+                  <div className='flex items-center justify-between border-b border-slate-100 pb-4'>
+                    <div>
+                      <p className='text-xs uppercase tracking-[0.2em] text-slate-400'>Overview</p>
+                      <h3 className='mt-1 text-xl font-semibold text-slate-900'>School dashboard</h3>
+                    </div>
+                    <div className='rounded-full border border-emerald-200 bg-emerald-100 px-2 py-1 text-[10px] font-medium text-emerald-700'>Live</div>
+                  </div>
 
-                  <ul className='mt-6 space-y-2'>
-                    {enabledFeatures.map((feat) => (
-                      <li key={feat} className='flex items-center gap-2 text-sm'>
-                        <Check className='h-4 w-4 text-emerald-500 shrink-0' />
-                        {feat}
-                      </li>
+                  <div className='mt-5 grid gap-3 sm:grid-cols-3'>
+                    {[
+                      { value: '1,248', label: 'Classes', color: 'from-blue-500 to-cyan-400' },
+                      { value: '96%', label: 'Attendance', color: 'from-emerald-500 to-green-400' },
+                      { value: '24', label: 'Teacher covers', color: 'from-violet-500 to-indigo-400' },
+                    ].map((item) => (
+                      <div key={item.label} className='rounded-2xl border border-slate-100 bg-slate-50 p-3'>
+                        <div className={`mb-3 h-2 rounded-full bg-gradient-to-r ${item.color}`} />
+                        <div className='text-2xl font-bold text-slate-900'>{item.value}</div>
+                        <div className='mt-1 text-xs text-slate-500'>{item.label}</div>
+                      </div>
                     ))}
-                    {exportsList.length > 0 && (
-                      <li className='flex items-center gap-2 text-sm'>
-                        <Check className='h-4 w-4 text-emerald-500 shrink-0' />
-                        Exports: {exportsList.join(', ')}
-                      </li>
-                    )}
-                  </ul>
+                  </div>
 
-                  <Button asChild className='w-full mt-6 rounded-xl' variant='outline'>
-                    <Link href='/signup'>Get started</Link>
-                  </Button>
-                </GlassCard>
-              );
-            })}
+                  <div className='mt-5 rounded-2xl border border-slate-100 bg-slate-50 p-4'>
+                    <div className='mb-3 flex items-center justify-between'>
+                      <div className='text-sm font-medium text-slate-700'>Weekly timetable</div>
+                      <div className='flex items-center gap-2 text-xs text-emerald-600'>
+                        <TrendingUp className='h-3.5 w-3.5' />
+                        +12.4%
+                      </div>
+                    </div>
+
+                    <div className='space-y-3'>
+                      {[
+                        { name: 'Mon', value: '78%' },
+                        { name: 'Tue', value: '82%' },
+                        { name: 'Wed', value: '90%' },
+                        { name: 'Thu', value: '85%' },
+                        { name: 'Fri', value: '94%' },
+                      ].map((day, index) => (
+                        <div key={day.name} className='grid grid-cols-[40px_1fr_40px] items-center gap-3'>
+                          <span className='text-xs text-slate-500'>{day.name}</span>
+                          <div className='h-2.5 overflow-hidden rounded-full bg-slate-200'>
+                            <motion.div
+                              initial={{ width: 0 }}
+                              animate={{ width: day.value }}
+                              transition={{ duration: 0.8, delay: 0.25 + index * 0.1 }}
+                              className='h-full rounded-full bg-gradient-to-r from-blue-500 to-violet-500'
+                            />
+                          </div>
+                          <span className='text-right text-xs text-slate-700'>{day.value}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className='mt-5 grid gap-3 sm:grid-cols-2'>
+                    <div className='rounded-2xl border border-slate-100 bg-slate-50 p-3'>
+                      <div className='flex items-center gap-2 text-sm text-slate-600'>
+                        <Clock3 className='h-4 w-4 text-blue-500' />
+                        Cover status
+                      </div>
+                      <div className='mt-3 text-2xl font-bold text-slate-900'>18</div>
+                      <div className='text-xs text-slate-500'>Pending updates</div>
+                    </div>
+                    <div className='rounded-2xl border border-slate-100 bg-slate-50 p-3'>
+                      <div className='flex items-center gap-2 text-sm text-slate-600'>
+                        <Users className='h-4 w-4 text-violet-500' />
+                        Active teachers
+                      </div>
+                      <div className='mt-3 text-2xl font-bold text-slate-900'>142</div>
+                      <div className='text-xs text-slate-500'>Across 12 classes</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      <footer className='border-t border-border/50 py-8 text-center text-sm text-muted-foreground'>
-        © {new Date().getFullYear()} TimetablePro. Enterprise school scheduling.
+        <section className='border-y border-sky-100 bg-white/70 px-4 py-8 sm:px-6 lg:px-8'>
+          <div className='mx-auto flex max-w-7xl flex-wrap items-center justify-center gap-6 text-xs font-medium uppercase tracking-[0.24em] text-slate-500'>
+            <span>Trusted by schools</span>
+            <span className='text-slate-300'>•</span>
+            <span>Northview Academy</span>
+            <span className='text-slate-300'>•</span>
+            <span>St. Martin’s</span>
+            <span className='text-slate-300'>•</span>
+            <span>Horizon International</span>
+          </div>
+        </section>
+
+        <section id='features' className='px-4 py-24 sm:px-6 lg:px-8'>
+          <div className='mx-auto max-w-7xl'>
+            <div className='mx-auto max-w-2xl text-center'>
+              <p className='text-sm font-medium uppercase tracking-[0.2em] text-blue-600'>Features</p>
+              <h2 className='mt-3 text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl'>Everything modern schools need</h2>
+            </div>
+
+            <div className='mt-12 grid gap-6 md:grid-cols-2 xl:grid-cols-3'>
+              {landingFeatures.map((feature, index) => (
+                <motion.div
+                  key={feature.title}
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: index * 0.06 }}
+                  className='group rounded-3xl border border-sky-100 bg-white p-6 shadow-[0_18px_35px_rgba(148,163,184,0.12)] transition-all duration-300 hover:-translate-y-1 hover:border-blue-200 hover:shadow-[0_20px_45px_rgba(59,130,246,0.12)]'
+                >
+                  <div className='flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-100 to-violet-100 text-blue-600'>
+                    <feature.icon className='h-5 w-5' />
+                  </div>
+                  <h3 className='mt-5 text-xl font-semibold text-slate-900'>{feature.title}</h3>
+                  <p className='mt-3 text-sm leading-6 text-slate-600'>{feature.desc}</p>
+                </motion.div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section id='how-it-works' className='px-4 py-24 sm:px-6 lg:px-8'>
+          <div className='mx-auto max-w-7xl'>
+            <div className='mx-auto max-w-2xl text-center'>
+              <p className='text-sm font-medium uppercase tracking-[0.2em] text-violet-600'>How it works</p>
+              <h2 className='mt-3 text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl'>A clearer way to run your school day</h2>
+            </div>
+
+            <div className='mt-12 grid gap-6 md:grid-cols-3'>
+              {steps.map((step, index) => (
+                <motion.div
+                  key={step.number}
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: index * 0.08 }}
+                  className='rounded-3xl border border-sky-100 bg-white p-6 shadow-[0_18px_35px_rgba(148,163,184,0.12)]'
+                >
+                  <div className='text-sm font-semibold uppercase tracking-[0.2em] text-blue-600'>{step.number}</div>
+                  <h3 className='mt-4 text-2xl font-semibold text-slate-900'>{step.title}</h3>
+                  <p className='mt-3 text-sm leading-6 text-slate-600'>{step.text}</p>
+                </motion.div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section id='pricing' className='border-t border-sky-100 bg-white/70 px-4 py-24 sm:px-6 lg:px-8'>
+          <div className='mx-auto max-w-7xl'>
+            <div className='mx-auto max-w-2xl text-center'>
+              <p className='text-sm font-medium uppercase tracking-[0.2em] text-emerald-600'>Pricing</p>
+              <h2 className='mt-3 text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl'>Choose the right plan for your school</h2>
+            </div>
+
+            <div className='mt-8 flex items-center justify-center gap-3 text-sm'>
+              <span className={cn('text-slate-600', !yearly && 'font-semibold text-slate-900')}>Monthly</span>
+              <button
+                type='button'
+                onClick={() => setYearly((value) => !value)}
+                className={cn(
+                  'relative h-7 w-12 rounded-full border transition-colors',
+                  yearly ? 'border-violet-200 bg-violet-100' : 'border-slate-200 bg-slate-100'
+                )}
+              >
+                <span
+                  className={cn(
+                    'absolute top-1 h-5 w-5 rounded-full bg-white shadow-sm transition-transform',
+                    yearly ? 'left-6' : 'left-1'
+                  )}
+                />
+              </button>
+              <span className={cn('text-slate-600', yearly && 'font-semibold text-slate-900')}>
+                Yearly <span className='text-emerald-600'>-17%</span>
+              </span>
+            </div>
+
+            <div className='mt-12 grid gap-5 lg:grid-cols-3'>
+              {(() => {
+                const rawPlans = (plans && plans.length > 0 ? plans : [
+                  { id: 'standard', name: 'Standard', teacherMin: 0, teacherMax: 15, priceMonthly: 199, reportEnabled: true, attendanceEnabled: false, homeworkEnabled: false, lessonPlanningEnabled: true, exportFormats: ['pdf'] },
+                  { id: 'premium', name: 'Premium', teacherMin: 16, teacherMax: 30, priceMonthly: 299, reportEnabled: true, attendanceEnabled: true, homeworkEnabled: false, lessonPlanningEnabled: true, exportFormats: ['pdf', 'docx'] },
+                  { id: 'elite', name: 'Elite', teacherMin: 31, teacherMax: 100, priceMonthly: 399, reportEnabled: true, attendanceEnabled: true, homeworkEnabled: true, lessonPlanningEnabled: true, exportFormats: ['pdf', 'docx', 'csv'] },
+                ])
+                  .filter((plan) => Number(plan.priceMonthly) > 0)
+                  .sort((a, b) => Number(a.priceMonthly) - Number(b.priceMonthly));
+
+                return rawPlans.map((plan, index) => {
+                  const isPremium = plan.name.toLowerCase().includes('premium');
+                  const isElite = plan.name.toLowerCase().includes('elite');
+                  const baseAnnual = Math.round(Number(plan.priceMonthly) * 12 * 0.83);
+                  const gstAnnual = Math.round(baseAnnual * 0.18);
+                  const displayPrice = yearly ? baseAnnual : Number(plan.priceMonthly);
+                  const periodicLabel = yearly ? ' / year' : ' /month';
+
+                  const features = [
+                    `0-${plan.teacherMax} Teachers`,
+                    'Reports',
+                    'Attendance',
+                    'Homework',
+                    'Lesson Planning',
+                    `Exports: ${plan.exportFormats?.join(', ').toUpperCase() || 'PDF'}`,
+                    'No watermark',
+                  ];
+
+                  const includedSet = new Set<string>([
+                    'Reports',
+                    'Lesson Planning',
+                    'No watermark',
+                  ]);
+
+                  if (plan.attendanceEnabled) includedSet.add('Attendance');
+                  if (plan.homeworkEnabled) includedSet.add('Homework');
+
+                  return (
+                    <div
+                      key={plan.id || plan.name}
+                      className={cn(
+                        'relative flex min-h-[520px] flex-col rounded-[22px] border bg-white p-0 shadow-[0_20px_45px_rgba(15,23,42,0.08)]',
+                        isPremium && 'border-violet-500 ring-2 ring-violet-100',
+                        isElite && 'border-amber-400 bg-amber-50/40',
+                        !isPremium && !isElite && 'border-slate-200'
+                      )}
+                    >
+                      {isPremium && (
+                        <div className='absolute inset-x-6 -top-3 inline-flex justify-center'>
+                          <span className='rounded-full bg-gradient-to-r from-violet-700 to-purple-700 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-white shadow-md'>Most Popular</span>
+                        </div>
+                      )}
+
+                      {isElite && (
+                        <div className='absolute inset-x-6 -top-3 inline-flex justify-center'>
+                          <span className='rounded-full bg-gradient-to-r from-amber-500 to-lime-500 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-900 shadow-md'>Luxury Tier</span>
+                        </div>
+                      )}
+
+                      <div className={cn('rounded-t-[22px] px-5 pb-4 pt-7', isPremium ? 'bg-gradient-to-r from-violet-700 to-purple-700 text-white' : isElite ? 'bg-gradient-to-r from-amber-500 to-lime-500 text-slate-900' : 'bg-gradient-to-r from-slate-800 to-slate-900 text-white')}>
+                        <div className='flex items-center justify-between'>
+                          <h3 className='text-[1.75rem] font-bold tracking-[-0.04em]'>{plan.name}</h3>
+                        </div>
+                        <div className='mt-2 flex items-end gap-2'>
+                          <span className='text-4xl font-black'>₹{displayPrice.toLocaleString('en-IN')}</span>
+                          <span className={cn('pb-1 text-sm font-medium', isPremium ? 'text-violet-100' : isElite ? 'text-slate-800' : 'text-slate-200')}>{periodicLabel}</span>
+                        </div>
+                        {!yearly && (
+                          <p className={cn('mt-2 text-sm', isPremium ? 'text-violet-100' : isElite ? 'text-slate-800' : 'text-slate-300')}>
+                            {plan.name === 'Standard' ? 'Ideal for growing institutions' : plan.name === 'Premium' ? 'Ideal for growing institutions' : 'For large schools and districts'}
+                          </p>
+                        )}
+                      </div>
+
+                      <div className='flex flex-1 flex-col px-5 pb-5 pt-5'>
+                        <ul className='space-y-3'>
+                          {features.map((feature) => {
+                            const isPositive = feature === 'Reports' || feature === 'Lesson Planning' || feature === 'No watermark' || feature.startsWith('Exports:') || feature.startsWith('0-') || (isElite && (feature === 'Attendance' || feature === 'Homework')) || (isPremium && feature === 'Attendance') || (!isPremium && !isElite && feature === 'Reports');
+
+                            return (
+                              <li key={feature} className='flex items-center gap-3 text-sm text-slate-700'>
+                                <span className={cn('flex h-5 w-5 items-center justify-center rounded-full text-xs font-bold', isPositive ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-500')}>
+                                  {isPositive ? '✓' : '✕'}
+                                </span>
+                                <span className={cn(isPositive ? 'text-slate-800' : 'text-slate-500')}>{feature}</span>
+                              </li>
+                            );
+                          })}
+                        </ul>
+
+                        <div className='mt-auto pt-6'>
+                          <Button
+                            asChild
+                            className={cn(
+                              'h-12 w-full rounded-xl border-0 text-base font-semibold shadow-md',
+                              isPremium ? 'bg-gradient-to-r from-violet-700 to-purple-700 text-white hover:brightness-110' : isElite ? 'bg-gradient-to-r from-amber-500 to-lime-500 text-slate-900 hover:brightness-105' : 'bg-slate-900 text-white hover:bg-slate-800'
+                            )}
+                          >
+                            <Link href='/signup'>
+                              {index === 0 ? 'Switch to Standard' : index === 1 ? 'Switch to Premium' : 'Switch to Elite'}
+                            </Link>
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                });
+              })()}
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <footer className='border-t border-sky-100 px-4 py-8 text-center text-sm text-slate-500 sm:px-6 lg:px-8'>
+        © {new Date().getFullYear()} TimetablePro. Built for modern school operations.
       </footer>
     </div>
   );

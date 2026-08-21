@@ -94,6 +94,38 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    // Ensure the new account is associated with a School and the default Free plan
+    // so users never end up in a "No Plan" state.
+    let freePlan = await prisma.saaSPlan.findFirst({ where: { name: 'Free' } });
+
+    if (!freePlan) {
+      freePlan = await prisma.saaSPlan.create({
+        data: {
+          id: 'free-plan-default',
+          name: 'Free',
+          teacherMin: 0,
+          teacherMax: 5,
+          priceMonthly: 0,
+          reportEnabled: false,
+          attendanceEnabled: false,
+          homeworkEnabled: false,
+          lessonPlanningEnabled: false,
+          exportFormats: [],
+          watermarkRequired: true,
+        },
+      });
+    }
+
+    const school = await prisma.school.create({
+      data: {
+        name: `${user.name || 'My'} School`,
+        licenseStatus: 'ACTIVE',
+        planId: freePlan.id,
+      },
+    });
+
+    await prisma.user.update({ where: { id: user.id }, data: { schoolId: school.id } });
+
     // 6. Instantly destroy cache footprint
     await prisma.emailVerification.delete({
       where: { email },
@@ -106,7 +138,7 @@ export async function POST(request: NextRequest) {
       id: user.id,
       email: user.email,
       role: user.role,
-      schoolId: (user as any).schoolId || null, // Dynamic fallback handling to prevent structural crashes
+      schoolId: (school as any).id || null,
       onboardingDone: false,
     };
 

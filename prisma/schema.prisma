@@ -22,6 +22,7 @@ model SaaSPlan {
   trialSchools     School[] @relation("SchoolTrialPlan")
   originalSchools  School[] @relation("SchoolOriginalPlan")
   queuedSchools    School[] @relation("SchoolQueuedPlan")
+	pausedSchools    School[] @relation("SchoolPausedPlan")
 }
 
 model School {
@@ -37,9 +38,16 @@ model School {
   plan                    SaaSPlan?                @relation(fields: [planId], references: [id])
   planStartsAt            DateTime?
   planEndsAt              DateTime?
+	autoDowngradedAt       DateTime?
   queuedPlanId            String?
   queuedPlan              SaaSPlan?                @relation("SchoolQueuedPlan", fields: [queuedPlanId], references: [id])
   queuedPlanStartsAt      DateTime?
+	// For paused (queued) plans that resume after a newer plan ends but should
+	// preserve the remaining duration, we store the paused plan reference and
+	// remaining seconds to resume the exact remaining period later.
+	pausedPlanId            String?
+	pausedPlan              SaaSPlan?                @relation("SchoolPausedPlan", fields: [pausedPlanId], references: [id])
+	pausedPlanRemainingSeconds Int?
   trialEndsAt             DateTime?
   trialPlanId             String?
   trialPlan               SaaSPlan?                @relation("SchoolTrialPlan", fields: [trialPlanId], references: [id])
@@ -47,6 +55,7 @@ model School {
   hasNotifiedTrialEnding  Boolean                 @default(false)
   hasUsedTrial            Boolean                 @default(false)
   originalPlanId          String?
+	autoDowngradedAt       DateTime?
   originalPlan            SaaSPlan?                @relation("SchoolOriginalPlan", fields: [originalPlanId], references: [id])
   address                 String?
   phone                   String?
@@ -637,7 +646,6 @@ model LessonPlan {
   topic               String?
   chapter             String?
   subtopic            String?
-  learningObjectives  String?       @db.Text
   teachingMethod      String?
   teachingAids        String?       @db.Text // Resources/aids for teaching
   activities          String?       @db.Text

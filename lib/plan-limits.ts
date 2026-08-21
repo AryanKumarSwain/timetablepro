@@ -19,7 +19,7 @@ export async function checkTeacherLimit(schoolId: string): Promise<void> {
     throw new Error('School not found');
   }
 
-  let teacherMax = 15; // Default baseline limit for schools without a plan
+  let teacherMax = 5; // Default baseline limit for schools without a plan (Free plan)
 
   if (school.planId) {
     const plan = await prisma.saaSPlan.findUnique({
@@ -52,11 +52,11 @@ export async function getTeacherLimit(schoolId: string): Promise<number> {
   });
 
   if (!school) {
-    return 15; // Default baseline limit
+    return 5; // Default baseline limit (Free plan)
   }
 
   if (!school.planId) {
-    return 15; // Default baseline limit for schools without a plan
+    return 5; // Default baseline limit for schools without a plan (Free plan)
   }
 
   const plan = await prisma.saaSPlan.findUnique({
@@ -64,5 +64,41 @@ export async function getTeacherLimit(schoolId: string): Promise<number> {
     select: { teacherMax: true },
   });
 
-  return plan?.teacherMax ?? 15;
+  return plan?.teacherMax ?? 5;
+}
+
+export async function checkClassLimit(schoolId: string): Promise<void> {
+  const currentClassCount = await prisma.classRoom.count({
+    where: { schoolId },
+  });
+
+  if (currentClassCount >= 50) {
+    throw new PlanLimitError(
+      `Class limit reached. Your current plan allows a maximum of 50 classes. Please upgrade your plan to add more classes.`
+    );
+  }
+}
+
+export async function checkSubjectLimit(schoolId: string): Promise<void> {
+  const currentSubjectCount = await prisma.subject.count({
+    where: { schoolId },
+  });
+
+  if (currentSubjectCount >= 50) {
+    throw new PlanLimitError(
+      `Subject limit reached. Your current plan allows a maximum of 50 subjects. Please upgrade your plan to add more subjects.`
+    );
+  }
+}
+
+export async function checkTimetableLimit(schoolId: string): Promise<void> {
+  const currentTimetableCount = await prisma.weeklyTimetableSlot.count({
+    where: { schoolId },
+  });
+
+  if (currentTimetableCount >= 30) {
+    throw new PlanLimitError(
+      `Timetable limit reached. Your current plan allows a maximum of 30 timetable slots. Please upgrade your plan to add more slots.`
+    );
+  }
 }

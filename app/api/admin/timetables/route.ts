@@ -41,6 +41,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Name is required' }, { status: 400 });
     }
 
+    const timetableCount = await prisma.timetable.count({
+      where: schoolWhere(schoolId),
+    });
+
+    if (timetableCount >= 30) {
+      return NextResponse.json(
+        { error: 'Timetable creation limit reached. You can create up to 30 timetables.' },
+        { status: 400 }
+      );
+    }
+
     // Default configuration payload explicitly passed for the Json type block
     const defaultWorkingDays = [1, 2, 3, 4, 5];
 

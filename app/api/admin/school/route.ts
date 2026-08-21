@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireSchoolContext, handleApiError } from '@/lib/auth-server';
+import { checkAndUpdateSchoolPlanExpiry } from '@/lib/plan-expiry-helper';
 
 export async function PATCH(request: NextRequest) {
   try {
@@ -38,11 +39,15 @@ export async function GET(request: NextRequest) {
   try {
     const { schoolId } = await requireSchoolContext();
 
+    // Check and process auto-expiry or plan resumption
+    await checkAndUpdateSchoolPlanExpiry(schoolId);
+
     const school = await prisma.school.findUnique({
       where: { id: schoolId },
       include: {
         plan: true,
         queuedPlan: true,
+        pausedPlan: true,
         _count: {
           select: { teachers: true }
         }
@@ -77,6 +82,14 @@ export async function GET(request: NextRequest) {
         exportFormats: school.queuedPlan.exportFormats,
         watermarkRequired: school.queuedPlan.watermarkRequired,
       } : null,
+      pausedPlanId: (school as any).pausedPlanId,
+      pausedPlanRemainingSeconds: (school as any).pausedPlanRemainingSeconds,
+      pausedPlan: (school as any).pausedPlan ? {
+        id: (school as any).pausedPlan.id,
+        name: (school as any).pausedPlan.name,
+        teacherMax: (school as any).pausedPlan.teacherMax,
+      } : null,
+      autoDowngradedAt: (school as any).autoDowngradedAt || null,
       licenseStatus: school.licenseStatus,
       teacherCount: school._count.teachers,
       plan: school.plan ? {
@@ -97,3 +110,4 @@ export async function GET(request: NextRequest) {
     return handleApiError(error);
   }
 }
+

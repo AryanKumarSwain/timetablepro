@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { Sparkles, Shield, GraduationCap } from 'lucide-react';
+import { Sparkles, Shield, GraduationCap, CheckCircle2, CalendarRange, School, Users, BarChart3 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -14,7 +14,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { GlassCard } from '@/components/enterprise/glass-card';
 import { cn } from '@/lib/utils';
 import {
   COUNTRIES,
@@ -29,17 +28,17 @@ type FieldErrors = Record<string, string>;
 
 function GoogleIcon({ className }: { className?: string }) {
   return (
-    <svg className={className} viewBox='0 0 24 24' fill="currentColor">
-      <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
-      <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
-      <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" fill="#FBBC05" />
-      <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
+    <svg className={className} viewBox='0 0 24 24' fill='currentColor'>
+      <path d='M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z' fill='#4285F4' />
+      <path d='M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z' fill='#34A853' />
+      <path d='M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z' fill='#FBBC05' />
+      <path d='M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z' fill='#EA4335' />
     </svg>
   );
 }
 
 function RequiredMark() {
-  return <span className='text-rose-500 ml-0.5'>*</span>;
+  return <span className='ml-0.5 text-rose-500'>*</span>;
 }
 
 function StepShell({
@@ -68,17 +67,15 @@ function StepShell({
           type='button'
           variant='ghost'
           size='icon'
-          className='absolute -top-2 left-0 text-muted-foreground hover:text-foreground rounded-lg h-8 w-8'
+          className='absolute -top-2 left-0 h-8 w-8 rounded-lg text-slate-500 hover:text-slate-700'
           onClick={onBack}
         >
           ←
         </Button>
       )}
       <div className={cn('mb-6', onBack && 'pt-8')}>
-        <h1 className='text-2xl font-bold'>{title}</h1>
-        {subtitle && (
-          <p className='text-sm text-muted-foreground mt-1'>{subtitle}</p>
-        )}
+        <h1 className='text-2xl font-bold text-slate-900'>{title}</h1>
+        {subtitle && <p className='mt-1 text-sm text-slate-500'>{subtitle}</p>}
       </div>
       {children}
     </div>
@@ -93,25 +90,21 @@ export default function SignupPage() {
   const [formError, setFormError] = useState('');
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
-  // Step 1
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [countryCode, setCountryCode] = useState('+1');
   const [password, setPassword] = useState('');
-  
-  // Step 2
+
   const [otp, setOtp] = useState('');
   const [pendingEmail, setPendingEmail] = useState('');
   const [otpSent, setOtpSent] = useState(false);
 
-  // Step 3 (Google OAuth completion)
   const [googleEmail, setGoogleEmail] = useState('');
   const [googleFullName, setGoogleFullName] = useState('');
   const [googlePhone, setGooglePhone] = useState('');
   const [googleCountryCode, setGoogleCountryCode] = useState('+91');
 
-  // Step 4
   const [instituteName, setInstituteName] = useState('');
   const [instituteType, setInstituteType] = useState('');
   const [city, setCity] = useState('');
@@ -135,8 +128,6 @@ export default function SignupPage() {
           return;
         }
 
-        console.log('Google auth user data:', user);
-
         if (user.onboardingDone) {
           router.replace('/admin/dashboard');
           return;
@@ -145,12 +136,9 @@ export default function SignupPage() {
         setGoogleEmail(user.email);
         setGoogleFullName(user.name || '');
 
-        // Force step 3 for Google auth users to collect phone number
         if (!user.phone || user.phone === null) {
-          console.log('Phone missing, setting step to 3');
           setStep(3);
         } else {
-          console.log('Phone exists, setting step to 4');
           setStep(4);
         }
       } catch (error) {
@@ -174,7 +162,8 @@ export default function SignupPage() {
 
   const handleEmailSignup = async (e: React.FormEvent) => {
     e.preventDefault();
-    loading && setLoading(true);
+    if (loading) return;
+    setLoading(true);
     setFormError('');
     setFieldErrors({});
 
@@ -290,181 +279,226 @@ export default function SignupPage() {
 
   if (checkingSession) {
     return (
-      <div className='min-h-screen bg-slate-950 flex items-center justify-center'>
-        <p className='text-white/50 animate-pulse tracking-wide'>Loading Setup…</p>
+      <div className='flex min-h-screen items-center justify-center bg-slate-950'>
+        <p className='animate-pulse tracking-wide text-white/50'>Loading Setup…</p>
       </div>
     );
   }
 
   return (
-    <div className='min-h-screen grid lg:grid-cols-2'>
-      {/* Brand Sidebar Display - Left Column */}
-      <div className='hidden lg:flex flex-col justify-between p-12 relative overflow-hidden bg-gradient-to-br from-indigo-950 via-slate-900 to-violet-950 text-white'>
-        <div className='absolute inset-0 mesh-gradient opacity-50' />
-        <div className='relative flex items-center gap-2 font-semibold text-lg'>
-          <div className='h-10 w-10 rounded-xl bg-white/10 flex items-center justify-center backdrop-blur'>
-            <Sparkles className='h-5 w-5' />
-          </div>
-          TimetablePro
-        </div>
+    <div
+      className='relative min-h-screen overflow-hidden bg-slate-200'
+      style={{
+        backgroundImage:
+          "linear-gradient(rgba(255,255,255,0.72), rgba(255,255,255,0.74)), url('https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&w=1400&q=80')",
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+      }}
+    >
+      <div className='absolute inset-0 bg-white/10 backdrop-blur-[1px]' />
 
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className='relative space-y-6'
-        >
-          <h2 className='text-4xl font-bold leading-tight'>
-            Create your institutional control center
-          </h2>
-          <p className='text-white/70 max-w-md'>
-            Unify custom academic streams, track real-time faculty substitutions, and build fully automated schedules.
-          </p>
-          <div className='flex gap-4'>
-            <GlassCard className='p-4 flex-1 bg-white/5 border-white/10'>
-              <Shield className='h-5 w-5 text-indigo-300 mb-2' />
-              <p className='text-sm font-medium'>Multi-tenant secure</p>
-            </GlassCard>
-            <GlassCard className='p-4 flex-1 bg-white/5 border-white/10'>
-              <GraduationCap className='h-5 w-5 text-violet-300 mb-2' />
-              <p className='text-sm font-medium'>Role-based access</p>
-            </GlassCard>
-          </div>
-        </motion.div>
-
-        <p className='relative text-xs text-white/40'>
-          © TimetablePro · Trusted by schools worldwide
-        </p>
-      </div>
-
-      {/* Interactive Signup Canvas - Right Column */}
-      <div className='flex items-center justify-center p-6 md:p-10 mesh-gradient'>
-        <motion.div
-          initial={{ opacity: 0, scale: 0.98 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className='w-full max-w-md'
-        >
-          {/* Mobile Navigation Header */}
-          <div className='lg:hidden flex items-center gap-2 mb-8 font-semibold'>
-            <div className='h-9 w-9 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center'>
-              <Sparkles className='h-4 w-4 text-white' />
+      <div className='relative z-10 flex min-h-screen items-center justify-center px-4 py-6 lg:px-8 xl:px-12'>
+        <div className='flex w-full max-w-[1320px] items-center gap-8 lg:gap-10'>
+          <div className='hidden flex-1 max-w-[720px] flex-col justify-between lg:flex'>
+            <div className='mb-9 inline-flex items-center gap-3 rounded-full border border-white/40 bg-white/25 px-4 py-2 text-sm font-medium text-indigo-700 shadow-sm backdrop-blur-sm'>
+              <span className='flex h-6 w-6 items-center justify-center rounded-full border border-indigo-200 bg-white/40 text-indigo-600'>
+                <Sparkles className='h-3.5 w-3.5' />
+              </span>
+              Next-Gen School Platform
             </div>
-            TimetablePro
+
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className='space-y-8 pb-10'
+            >
+              <h1 className='max-w-[620px] text-[4.2rem] font-black leading-[0.9] tracking-[-0.05em] text-slate-900'>
+                Grow Your
+                <span className='block text-blue-600'>Time Table</span>
+              </h1>
+
+              <h2 className='text-[2.5rem] font-semibold tracking-[-0.04em] text-slate-800'>
+                School Scheduling System
+              </h2>
+
+              <p className='max-w-[620px] text-[1.05rem] leading-8 text-slate-700'>
+                Plan classes, manage teachers, track attendance, and organize every school day from one smart time table platform.
+              </p>
+
+              <div className='grid max-w-[620px] grid-cols-2 gap-4'>
+                <div className='rounded-2xl border border-white/60 bg-white/75 p-5 shadow-[0_12px_30px_rgba(15,23,42,0.08)] backdrop-blur-sm'>
+                  <div className='mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-blue-700 text-white shadow-md'>
+                    <CalendarRange className='h-5 w-5' />
+                  </div>
+                  <div className='flex items-center gap-3'>
+                    <div className='flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 text-blue-700'>
+                      <School className='h-4 w-4' />
+                    </div>
+                    <h3 className='text-xl font-semibold text-slate-800'>Class Planner</h3>
+                  </div>
+                  <p className='mt-3 text-sm leading-6 text-slate-600'>Build weekly schedules with room, teacher, and class allocations.</p>
+                </div>
+
+                <div className='rounded-2xl border border-white/60 bg-white/75 p-5 shadow-[0_12px_30px_rgba(15,23,42,0.08)] backdrop-blur-sm'>
+                  <div className='mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-700 text-white shadow-md'>
+                    <CheckCircle2 className='h-5 w-5' />
+                  </div>
+                  <div className='flex items-center gap-3'>
+                    <div className='flex h-8 w-8 items-center justify-center rounded-full bg-emerald-100 text-emerald-700'>
+                      <Users className='h-4 w-4' />
+                    </div>
+                    <h3 className='text-xl font-semibold text-slate-800'>Teacher Load</h3>
+                  </div>
+                  <p className='mt-3 text-sm leading-6 text-slate-600'>Balance classroom coverage and staffing across multiple periods.</p>
+                </div>
+
+                <div className='rounded-2xl border border-white/60 bg-white/75 p-5 shadow-[0_12px_30px_rgba(15,23,42,0.08)] backdrop-blur-sm'>
+                  <div className='mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 text-white shadow-md'>
+                    <CheckCircle2 className='h-5 w-5' />
+                  </div>
+                  <div className='flex items-center gap-3'>
+                    <div className='flex h-8 w-8 items-center justify-center rounded-full bg-amber-100 text-amber-700'>
+                      <Shield className='h-4 w-4' />
+                    </div>
+                    <h3 className='text-xl font-semibold text-slate-800'>Attendance</h3>
+                  </div>
+                  <p className='mt-3 text-sm leading-6 text-slate-600'>Track daily attendance with reporting and real-time insights.</p>
+                </div>
+
+                <div className='rounded-2xl border border-white/60 bg-white/75 p-5 shadow-[0_12px_30px_rgba(15,23,42,0.08)] backdrop-blur-sm'>
+                  <div className='mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-rose-500 to-pink-600 text-white shadow-md'>
+                    <CheckCircle2 className='h-5 w-5' />
+                  </div>
+                  <div className='flex items-center gap-3'>
+                    <div className='flex h-8 w-8 items-center justify-center rounded-full bg-rose-100 text-rose-700'>
+                      <BarChart3 className='h-4 w-4' />
+                    </div>
+                    <h3 className='text-xl font-semibold text-slate-800'>Reports</h3>
+                  </div>
+                  <p className='mt-3 text-sm leading-6 text-slate-600'>Monitor attendance, class utilization, and academic performance.</p>
+                </div>
+              </div>
+            </motion.div>
+
+            <p className='text-sm text-slate-600'>© 2026 TimetablePro. All rights reserved.</p>
           </div>
 
-          <GlassCard className='p-8'>
-            {/* Step 1: Base Registration */}
-            <StepShell
-              step={1}
-              currentStep={step}
-              title='Welcome'
-              subtitle='Sign up to create your operational workspace'
+          <div className='flex w-full max-w-[430px] justify-center'>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.98 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className='w-full rounded-[26px] border border-slate-200/80 bg-white/90 p-5 shadow-[0_24px_80px_rgba(15,23,42,0.18)] backdrop-blur-md md:p-6 lg:p-7'
             >
-              <form onSubmit={handleEmailSignup} className='mt-6 space-y-4' suppressHydrationWarning>
-                <div>
-                  <label className='text-sm font-medium'>Full Name</label>
-                  <Input
-                    className='mt-1.5 rounded-xl'
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    required
-                    disabled={loading}
-                    suppressHydrationWarning
-                  />
-                  {fieldErrors.fullName && (
-                    <p className='text-xs text-rose-500 mt-1'>{fieldErrors.fullName}</p>
-                  )}
+              <div className='mb-5 flex items-center justify-center'>
+                <div className='flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white shadow-md'>
+                  <GraduationCap className='h-5 w-5' />
                 </div>
+              </div>
 
-                <div>
-                  <label className='text-sm font-medium'>Work Email Address</label>
-                  <Input
-                    type='email'
-                    className='mt-1.5 rounded-xl'
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                    disabled={loading}
-                    suppressHydrationWarning
-                  />
-                  {fieldErrors.email && (
-                    <p className='text-xs text-rose-500 mt-1'>{fieldErrors.email}</p>
-                  )}
-                </div>
+              <div className='text-center'>
+                <h2 className='text-[2.15rem] font-bold tracking-[-0.03em] text-slate-900'>Create Account</h2>
+                <p className='mt-2 text-sm text-slate-500'>Start your 30-day free trial</p>
+              </div>
 
-                <div>
-                  <label className='text-sm font-medium'>Phone Number</label>
-                  <div className='mt-1.5 flex gap-2' suppressHydrationWarning>
-                    <Select value={countryCode} onValueChange={setCountryCode} disabled={loading}>
-                      <SelectTrigger className='w-[110px] rounded-xl'>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {COUNTRY_CODES.map((c) => (
-                          <SelectItem key={c.code} value={c.code}>
-                            {c.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+              {step === 1 && (
+                <form onSubmit={handleEmailSignup} className='mt-6 space-y-4' suppressHydrationWarning>
+                  <div>
+                    <label className='mb-2 block text-sm font-medium text-slate-700'>Full Name</label>
                     <Input
-                      type='tel'
-                      className='flex-1 rounded-xl'
-                      value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
+                      className='h-12 rounded-xl border-slate-200 bg-slate-50 text-slate-900 placeholder:text-slate-400 focus-visible:ring-blue-500'
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
                       required
                       disabled={loading}
+                      placeholder='John Smith'
                     />
+                    {fieldErrors.fullName && <p className='mt-1 text-xs text-rose-500'>{fieldErrors.fullName}</p>}
                   </div>
-                  {fieldErrors.phone && (
-                    <p className='text-xs text-rose-500 mt-1'>{fieldErrors.phone}</p>
+
+                  <div>
+                    <label className='mb-2 block text-sm font-medium text-slate-700'>Email</label>
+                    <Input
+                      type='email'
+                      className='h-12 rounded-xl border-slate-200 bg-slate-50 text-slate-900 placeholder:text-slate-400 focus-visible:ring-blue-500'
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      required
+                      disabled={loading}
+                      placeholder='you@example.com'
+                    />
+                    {fieldErrors.email && <p className='mt-1 text-xs text-rose-500'>{fieldErrors.email}</p>}
+                  </div>
+
+                  <div>
+                    <label className='mb-2 block text-sm font-medium text-slate-700'>Password</label>
+                    <Input
+                      type='password'
+                      minLength={6}
+                      className='h-12 rounded-xl border-slate-200 bg-slate-50 text-slate-900 placeholder:text-slate-400 focus-visible:ring-blue-500'
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                      disabled={loading}
+                      placeholder='••••••••'
+                    />
+                    {fieldErrors.password && <p className='mt-1 text-xs text-rose-500'>{fieldErrors.password}</p>}
+                  </div>
+
+                  <div>
+                    <label className='mb-2 block text-sm font-medium text-slate-700'>Phone</label>
+                    <div className='flex gap-2'>
+                      <Select value={countryCode} onValueChange={setCountryCode} disabled={loading}>
+                        <SelectTrigger className='h-12 w-[92px] rounded-xl border-slate-200 bg-slate-50 text-slate-700'>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {COUNTRY_CODES.map((c) => (
+                            <SelectItem key={c.code} value={c.code}>
+                              {c.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Input
+                        type='tel'
+                        className='h-12 flex-1 rounded-xl border-slate-200 bg-slate-50 text-slate-900 placeholder:text-slate-400 focus-visible:ring-blue-500'
+                        value={phone}
+                        onChange={(e) => setPhone(e.target.value)}
+                        required
+                        disabled={loading}
+                        placeholder='9876543210'
+                      />
+                    </div>
+                    {fieldErrors.phone && <p className='mt-1 text-xs text-rose-500'>{fieldErrors.phone}</p>}
+                  </div>
+
+                  {formError && (
+                    <p className='rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-600'>
+                      {formError}
+                    </p>
                   )}
-                </div>
 
-                <div>
-                  <label className='text-sm font-medium'>Secure Password</label>
-                  <Input
-                    type='password'
-                    minLength={6}
-                    className='mt-1.5 rounded-xl'
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                    disabled={loading}
-                    suppressHydrationWarning
-                  />
-                  {fieldErrors.password && (
-                    <p className='text-xs text-rose-500 mt-1'>{fieldErrors.password}</p>
+                  {fieldErrors._form && (
+                    <p className='rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-600'>
+                      {fieldErrors._form}
+                    </p>
                   )}
-                </div>
 
-                {formError && (
-                  <p className='text-sm text-rose-600 dark:text-rose-400 bg-rose-500/10 border border-rose-500/20 rounded-xl px-3 py-2'>
-                    {formError}
-                  </p>
-                )}
-                {fieldErrors._form && (
-                  <p className='text-sm text-rose-600 dark:text-rose-400 bg-rose-500/10 border border-rose-500/20 rounded-xl px-3 py-2'>
-                    {fieldErrors._form}
-                  </p>
-                )}
-
-                <div className='space-y-3 pt-2'>
                   <Button
                     type='submit'
                     disabled={loading}
                     className={cn(
-                      'w-full h-11 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 text-white',
+                      'h-12 w-full rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-base font-semibold text-white shadow-lg shadow-blue-600/20 hover:brightness-105',
                       loading && 'opacity-80'
                     )}
-                    suppressHydrationWarning
                   >
-                    {loading ? 'Creating account…' : 'Create Account'}
+                    {loading ? 'Creating account…' : 'Sign Up & Get Started'}
                   </Button>
 
-                  <div className="relative flex py-2 items-center text-xs text-muted-foreground">
-                    <div className="flex-grow border-t border-border/60"></div>
-                    <span className="flex-shrink mx-4 uppercase tracking-wider">or</span>
-                    <div className="flex-grow border-t border-border/60"></div>
+                  <div className='relative my-2 flex items-center'>
+                    <div className='h-px flex-1 bg-slate-200' />
+                    <span className='mx-4 text-[11px] font-medium uppercase tracking-[0.2em] text-slate-400'>or</span>
+                    <div className='h-px flex-1 bg-slate-200' />
                   </div>
 
                   <Button
@@ -472,51 +506,22 @@ export default function SignupPage() {
                     variant='outline'
                     onClick={handleGoogleSignup}
                     disabled={loading}
-                    className='w-full h-11 rounded-xl bg-white dark:bg-slate-900 border-gray-200 dark:border-slate-800 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors'
+                    className='h-12 w-full rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm hover:bg-slate-50'
                   >
-                    <GoogleIcon className='h-5 w-5 mr-2' />
+                    <GoogleIcon className='mr-2 h-5 w-5' />
                     Continue with Google
                   </Button>
-                </div>
-              </form>
+                </form>
+              )}
 
-              <p className='text-center text-sm text-muted-foreground mt-6'>
-                Already have an account?{' '}
-                <Link
-                  href='/login'
-                  className='text-indigo-500 hover:text-indigo-600 font-medium transition-colors'
-                >
-                  Sign in
-                </Link>
-              </p>
-
-              <p className='text-[11px] text-center text-muted-foreground mt-6 leading-relaxed'>
-                By signing up, you agree to our{' '}
-                <Link href='#' className='underline hover:text-foreground transition-colors'>
-                  Terms of Service
-                </Link>{' '}
-                and{' '}
-                <Link href='#' className='underline hover:text-foreground transition-colors'>
-                  Privacy Policy
-                </Link>
-              </p>
-            </StepShell>
-
-            {/* Step 2: OTP Verification */}
-            <StepShell
-              step={2}
-              currentStep={step}
-              title='Verify Email'
-              subtitle='Enter the 6-digit code sent to your email'
-              onBack={() => setStep(1)}
-            >
-              <div className='mb-4 text-sm text-muted-foreground'>
-                Verification code sent to:
-                <span className='font-semibold ml-1'>{pendingEmail}</span>
-              </div>
-
-              <form
-                onSubmit={async (e) => {
+              <StepShell
+                step={2}
+                currentStep={step}
+                title='Verify your email'
+                subtitle={`We sent a 6-digit code to ${pendingEmail || email}`}
+                onBack={() => setStep(1)}
+              >
+                <form onSubmit={async (e) => {
                   e.preventDefault();
                   setLoading(true);
                   setFormError('');
@@ -524,14 +529,9 @@ export default function SignupPage() {
                   try {
                     const res = await fetch('/api/auth/verify-email', {
                       method: 'POST',
-                      headers: {
-                        'Content-Type': 'application/json',
-                      },
+                      headers: { 'Content-Type': 'application/json' },
                       credentials: 'include',
-                      body: JSON.stringify({
-                        email: pendingEmail,
-                        otp,
-                      }),
+                      body: JSON.stringify({ email: pendingEmail || email, otp }),
                     });
 
                     const data = await res.json();
@@ -547,310 +547,276 @@ export default function SignupPage() {
                   } finally {
                     setLoading(false);
                   }
-                }}
-                className='space-y-4'
-              >
-                <div>
-                  <label className='text-sm font-medium'>
-                    Verification Code
-                  </label>
+                }} className='space-y-4'>
+                  <div>
+                    <label className='mb-2 block text-sm font-medium text-slate-700'>Verification Code</label>
+                    <Input
+                      value={otp}
+                      onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                      maxLength={6}
+                      placeholder='Enter 6-digit OTP'
+                      className='h-12 rounded-xl border-slate-200 bg-slate-50 text-center text-lg tracking-[0.3em] text-slate-900 focus-visible:ring-blue-500'
+                    />
+                  </div>
 
-                  <Input
-                    value={otp}
-                    onChange={(e) =>
-                      setOtp(e.target.value.replace(/\D/g, ''))
-                    }
-                    maxLength={6}
-                    placeholder='Enter 6-digit OTP'
-                    className='mt-1.5 rounded-xl text-center text-lg tracking-[0.3em]'
-                  />
-                </div>
-
-                {formError && (
-                  <p className='text-sm text-rose-600 dark:text-rose-400 bg-rose-500/10 border border-rose-500/20 rounded-xl px-3 py-2'>
-                    {formError}
-                  </p>
-                )}
-
-                <Button
-                  type='submit'
-                  disabled={loading || otp.length !== 6}
-                  className='w-full h-11 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 text-white'
-                >
-                  {loading ? 'Verifying...' : 'Verify Email'}
-                </Button>
-
-                <Button
-                  type='button'
-                  variant='outline'
-                  className='w-full'
-                  onClick={async () => {
-                    try {
-                      await fetch('/api/auth/signup', {
-                        method: 'POST',
-                        headers: {
-                          'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({
-                          fullName,
-                          email,
-                          phone,
-                          countryCode,
-                          password,
-                        }),
-                      });
-
-                      alert('OTP resent successfully');
-                    } catch {
-                      alert('Failed to resend OTP');
-                    }
-                  }}
-                >
-                  Resend OTP
-                </Button>
-              </form>
-            </StepShell>
-
-            {/* Step 3: Google Profile Setup Fallback Completion */}
-            <StepShell 
-              step={3} 
-              currentStep={step} 
-              title='Complete Registration'
-              onBack={() => setStep(1)}
-            >
-              <div className='flex flex-col items-center mt-6 mb-6 bg-muted/30 border border-border/40 p-4 rounded-xl'>
-                <div className='h-14 w-14 rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center text-white text-xl font-bold shadow-lg'>
-                  {googleEmail ? googleEmail.charAt(0).toUpperCase() : 'G'}
-                </div>
-                <p className='mt-3 text-sm font-semibold tracking-tight'>{googleEmail}</p>
-                <p className='text-xs text-muted-foreground mt-0.5'>Authorized Account Profile</p>
-              </div>
-
-              <form onSubmit={handleCompleteGoogleProfile} className='space-y-4' suppressHydrationWarning>
-                <div>
-                  <label className='text-sm font-medium'>Full Name</label>
-                  <Input
-                    className='mt-1.5 rounded-xl'
-                    value={googleFullName}
-                    onChange={(e) => setGoogleFullName(e.target.value)}
-                    required
-                    disabled={loading}
-                    suppressHydrationWarning
-                  />
-                  {fieldErrors.fullName && (
-                    <p className='text-xs text-rose-500 mt-1'>{fieldErrors.fullName}</p>
-                  )}
-                </div>
-
-                <div>
-                  <label className='text-sm font-medium'>Phone Number</label>
-                  <div className='mt-1.5 flex gap-2' suppressHydrationWarning>
-                    <Select
-                      value={googleCountryCode}
-                      onValueChange={setGoogleCountryCode}
-                      disabled={loading}
+                  {formError && (
+                    <p
+                      className={cn(
+                        'rounded-xl border px-3 py-2 text-sm',
+                        formError === 'OTP resent successfully'
+                          ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                          : 'border-rose-200 bg-rose-50 text-rose-600'
+                      )}
                     >
-                      <SelectTrigger className='w-[110px] rounded-xl'>
-                        <SelectValue />
+                      {formError}
+                    </p>
+                  )}
+
+                  <Button
+                    type='submit'
+                    disabled={loading || otp.length !== 6}
+                    className='h-12 w-full rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-base font-semibold text-white shadow-lg shadow-blue-600/20 hover:brightness-105'
+                  >
+                    {loading ? 'Verifying...' : 'Verify Email'}
+                  </Button>
+
+                  <Button
+                    type='button'
+                    variant='outline'
+                    className='h-12 w-full rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm hover:bg-slate-50'
+                    onClick={async () => {
+                      try {
+                        await fetch('/api/auth/signup', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          credentials: 'include',
+                          body: JSON.stringify({ fullName, email, phone, countryCode, password }),
+                        });
+                        setFormError('OTP resent successfully');
+                      } catch {
+                        setFormError('Failed to resend OTP');
+                      }
+                    }}
+                  >
+                    Resend OTP
+                  </Button>
+                </form>
+              </StepShell>
+
+              <StepShell
+                step={3}
+                currentStep={step}
+                title='Complete Registration'
+                onBack={() => setStep(1)}
+              >
+                <div className='mb-6 flex flex-col items-center rounded-2xl border border-slate-200 bg-slate-50 p-4'>
+                  <div className='flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-indigo-600 text-lg font-bold text-white shadow-lg'>
+                    {googleEmail ? googleEmail.charAt(0).toUpperCase() : 'G'}
+                  </div>
+                  <p className='mt-3 text-sm font-semibold text-slate-800'>{googleEmail || 'Google Account'}</p>
+                  <p className='mt-1 text-xs text-slate-500'>Authorized account profile</p>
+                </div>
+
+                <form onSubmit={handleCompleteGoogleProfile} className='space-y-4'>
+                  <div>
+                    <label className='mb-2 block text-sm font-medium text-slate-700'>Full Name</label>
+                    <Input
+                      className='h-12 rounded-xl border-slate-200 bg-slate-50 text-slate-900 focus-visible:ring-blue-500'
+                      value={googleFullName}
+                      onChange={(e) => setGoogleFullName(e.target.value)}
+                      required
+                      disabled={loading}
+                    />
+                    {fieldErrors.fullName && <p className='mt-1 text-xs text-rose-500'>{fieldErrors.fullName}</p>}
+                  </div>
+
+                  <div>
+                    <label className='mb-2 block text-sm font-medium text-slate-700'>Phone Number</label>
+                    <div className='flex gap-2'>
+                      <Select value={googleCountryCode} onValueChange={setGoogleCountryCode} disabled={loading}>
+                        <SelectTrigger className='h-12 w-[110px] rounded-xl border-slate-200 bg-slate-50 text-slate-700'>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {COUNTRY_CODES.map((c) => (
+                            <SelectItem key={c.code} value={c.code}>
+                              {c.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Input
+                        type='tel'
+                        className='h-12 flex-1 rounded-xl border-slate-200 bg-slate-50 text-slate-900 focus-visible:ring-blue-500'
+                        value={googlePhone}
+                        onChange={(e) => setGooglePhone(e.target.value)}
+                        required
+                        disabled={loading}
+                      />
+                    </div>
+                    {fieldErrors.phone && <p className='mt-1 text-xs text-rose-500'>{fieldErrors.phone}</p>}
+                  </div>
+
+                  {formError && (
+                    <p className='rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-600'>
+                      {formError}
+                    </p>
+                  )}
+
+                  <Button
+                    type='submit'
+                    disabled={loading}
+                    className='h-12 w-full rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-base font-semibold text-white shadow-lg shadow-blue-600/20 hover:brightness-105'
+                  >
+                    {loading ? 'Saving Profile…' : 'Complete Setup'}
+                  </Button>
+                </form>
+              </StepShell>
+
+              <StepShell
+                step={4}
+                currentStep={step}
+                title='One last step!'
+                subtitle='Tell us about your institute to personalize your experience'
+                onBack={() => {
+                  if (googleEmail) {
+                    setStep(3);
+                  } else {
+                    setStep(2);
+                  }
+                }}
+              >
+                <form onSubmit={handleOnboarding} className='space-y-4'>
+                  <div>
+                    <label className='mb-2 block text-sm font-medium text-slate-700'>
+                      Institute Name <RequiredMark />
+                    </label>
+                    <Input
+                      placeholder='e.g., Springfield High School'
+                      className='h-12 rounded-xl border-slate-200 bg-slate-50 text-slate-900 focus-visible:ring-blue-500'
+                      value={instituteName}
+                      onChange={(e) => setInstituteName(e.target.value)}
+                      required
+                      disabled={loading}
+                    />
+                    {fieldErrors.instituteName && <p className='mt-1 text-xs text-rose-500'>{fieldErrors.instituteName}</p>}
+                  </div>
+
+                  <div>
+                    <label className='mb-2 block text-sm font-medium text-slate-700'>
+                      Institute Type <RequiredMark />
+                    </label>
+                    <Select value={instituteType} onValueChange={setInstituteType} disabled={loading}>
+                      <SelectTrigger className='h-12 w-full rounded-xl border-slate-200 bg-slate-50 text-slate-700'>
+                        <SelectValue placeholder='Select institute type' />
                       </SelectTrigger>
                       <SelectContent>
-                        {COUNTRY_CODES.map((c) => (
-                          <SelectItem key={c.code} value={c.code}>
-                            {c.label}
+                        {INSTITUTE_TYPES.map((type) => (
+                          <SelectItem key={type} value={type}>
+                            {type}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
+                    {fieldErrors.instituteType && <p className='mt-1 text-xs text-rose-500'>{fieldErrors.instituteType}</p>}
+                  </div>
+
+                  <div>
+                    <label className='mb-2 block text-sm font-medium text-slate-700'>
+                      City <RequiredMark />
+                    </label>
                     <Input
-                      type='tel'
-                      className='flex-1 rounded-xl'
-                      value={googlePhone}
-                      onChange={(e) => setGooglePhone(e.target.value)}
+                      className='h-12 rounded-xl border-slate-200 bg-slate-50 text-slate-900 focus-visible:ring-blue-500'
+                      value={city}
+                      onChange={(e) => setCity(e.target.value)}
                       required
                       disabled={loading}
                     />
+                    {fieldErrors.city && <p className='mt-1 text-xs text-rose-500'>{fieldErrors.city}</p>}
                   </div>
-                  {fieldErrors.phone && (
-                    <p className='text-xs text-rose-500 mt-1'>{fieldErrors.phone}</p>
+
+                  <div>
+                    <label className='mb-2 block text-sm font-medium text-slate-700'>
+                      Country <RequiredMark />
+                    </label>
+                    <Select value={country} onValueChange={setCountry} disabled={loading}>
+                      <SelectTrigger className='h-12 w-full rounded-xl border-slate-200 bg-slate-50 text-slate-700'>
+                        <SelectValue placeholder='Select country' />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {COUNTRIES.map((c) => (
+                          <SelectItem key={c} value={c}>
+                            {c}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {fieldErrors.country && <p className='mt-1 text-xs text-rose-500'>{fieldErrors.country}</p>}
+                  </div>
+
+                  <div>
+                    <label className='mb-2 block text-sm font-medium text-slate-700'>
+                      No. of Students <RequiredMark />
+                    </label>
+                    <Select value={studentsRange} onValueChange={setStudentsRange} disabled={loading}>
+                      <SelectTrigger className='h-12 w-full rounded-xl border-slate-200 bg-slate-50 text-slate-700'>
+                        <SelectValue placeholder='Select student count' />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {STUDENT_RANGES.map((range) => (
+                          <SelectItem key={range} value={range}>
+                            {range}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {fieldErrors.studentsRange && <p className='mt-1 text-xs text-rose-500'>{fieldErrors.studentsRange}</p>}
+                  </div>
+
+                  <div>
+                    <label className='mb-2 block text-sm font-medium text-slate-700'>
+                      No. of Faculty <RequiredMark />
+                    </label>
+                    <Select value={facultyRange} onValueChange={setFacultyRange} disabled={loading}>
+                      <SelectTrigger className='h-12 w-full rounded-xl border-slate-200 bg-slate-50 text-slate-700'>
+                        <SelectValue placeholder='Select faculty size' />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {FACULTY_RANGES.map((range) => (
+                          <SelectItem key={range} value={range}>
+                            {range}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {fieldErrors.facultyRange && <p className='mt-1 text-xs text-rose-500'>{fieldErrors.facultyRange}</p>}
+                  </div>
+
+                  {formError && (
+                    <p className='rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-600'>
+                      {formError}
+                    </p>
                   )}
-                </div>
 
-                {formError && (
-                  <p className='text-sm text-rose-600 dark:text-rose-400 bg-rose-500/10 border border-rose-500/20 rounded-xl px-3 py-2'>
-                    {formError}
-                  </p>
-                )}
-
-                <div className='pt-2'>
                   <Button
                     type='submit'
                     disabled={loading}
-                    className='w-full h-11 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 text-white'
-                    suppressHydrationWarning
+                    className='h-12 w-full rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-base font-semibold text-white shadow-lg shadow-blue-600/20 hover:brightness-105'
                   >
-                    {loading ? 'Saving Profile…' : 'Complete Setup Architecture'}
+                    {loading ? 'Completing setup…' : 'Complete Setup'}
                   </Button>
-                </div>
-              </form>
-            </StepShell>
+                </form>
+              </StepShell>
 
-            {/* Step 4: Meta Onboarding Setup Data Operations */}
-            <StepShell
-              step={4}
-              currentStep={step}
-              title='One last step!'
-              subtitle='Tell us about your institute to personalize your experience'
-              onBack={() => {
-                if (googleEmail) {
-                  setStep(3);
-                } else {
-                  setStep(2);
-                }
-              }}
-            >
-              <form onSubmit={handleOnboarding} className='mt-6 space-y-4' suppressHydrationWarning>
-                <div>
-                  <label className='text-sm font-medium'>
-                    Institute Name<RequiredMark />
-                  </label>
-                  <Input
-                    placeholder='e.g., Springfield High School'
-                    className='mt-1.5 rounded-xl'
-                    value={instituteName}
-                    onChange={(e) => setInstituteName(e.target.value)}
-                    required
-                    disabled={loading}
-                    suppressHydrationWarning
-                  />
-                  {fieldErrors.instituteName && (
-                    <p className='text-xs text-rose-500 mt-1'>{fieldErrors.instituteName}</p>
-                  )}
-                </div>
-
-                <div>
-                  <label className='text-sm font-medium'>
-                    Institute Type<RequiredMark />
-                  </label>
-                  <Select value={instituteType} onValueChange={setInstituteType} disabled={loading}>
-                    <SelectTrigger className='mt-1.5 w-full rounded-xl'>
-                      <SelectValue placeholder='Select system model type' />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {INSTITUTE_TYPES.map((type) => (
-                        <SelectItem key={type} value={type}>
-                          {type}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {fieldErrors.instituteType && (
-                    <p className='text-xs text-rose-500 mt-1'>{fieldErrors.instituteType}</p>
-                  )}
-                </div>
-
-                <div>
-                  <label className='text-sm font-medium'>
-                    City<RequiredMark />
-                  </label>
-                  <Input
-                    className='mt-1.5 rounded-xl'
-                    value={city}
-                    onChange={(e) => setCity(e.target.value)}
-                    required
-                    disabled={loading}
-                    suppressHydrationWarning
-                  />
-                  {fieldErrors.city && (
-                    <p className='text-xs text-rose-500 mt-1'>{fieldErrors.city}</p>
-                  )}
-                </div>
-
-                <div>
-                  <label className='text-sm font-medium'>
-                    Country<RequiredMark />
-                  </label>
-                  <Select value={country} onValueChange={setCountry} disabled={loading}>
-                    <SelectTrigger className='mt-1.5 w-full rounded-xl'>
-                      <SelectValue placeholder='Select domain country' />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {COUNTRIES.map((c) => (
-                        <SelectItem key={c} value={c}>
-                          {c}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {fieldErrors.country && (
-                    <p className='text-xs text-rose-500 mt-1'>{fieldErrors.country}</p>
-                  )}
-                </div>
-
-                <div>
-                  <label className='text-sm font-medium'>
-                    No. of Students<RequiredMark />
-                  </label>
-                  <Select
-                    value={studentsRange}
-                    onValueChange={setStudentsRange}
-                    disabled={loading}
-                  >
-                    <SelectTrigger className='mt-1.5 w-full rounded-xl'>
-                      <SelectValue placeholder='Select active student count matrix' />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {STUDENT_RANGES.map((range) => (
-                        <SelectItem key={range} value={range}>
-                          {range}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {fieldErrors.studentsRange && (
-                    <p className='text-xs text-rose-500 mt-1'>{fieldErrors.studentsRange}</p>
-                  )}
-                </div>
-
-                <div>
-                  <label className='text-sm font-medium'>
-                    No. of Faculty<RequiredMark />
-                  </label>
-                  <Select value={facultyRange} onValueChange={setFacultyRange} disabled={loading}>
-                    <SelectTrigger className='mt-1.5 w-full rounded-xl'>
-                      <SelectValue placeholder='Select core faculty allocations' />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {FACULTY_RANGES.map((range) => (
-                        <SelectItem key={range} value={range}>
-                          {range}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {fieldErrors.facultyRange && (
-                    <p className='text-xs text-rose-500 mt-1'>{fieldErrors.facultyRange}</p>
-                  )}
-                </div>
-
-                {formError && (
-                  <p className='text-sm text-rose-600 dark:text-rose-400 bg-rose-500/10 border border-rose-500/20 rounded-xl px-3 py-2'>
-                    {formError}
-                  </p>
-                )}
-
-                <div className='pt-2'>
-                  <Button
-                    type='submit'
-                    disabled={loading}
-                    className='w-full h-11 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 text-white'
-                  >
-                    {loading ? 'Completing setup…' : 'Complete Platform Setup'}
-                  </Button>
-                </div>
-              </form>
-            </StepShell>
-          </GlassCard>
-        </motion.div>
+              <p className='mt-6 text-center text-sm text-slate-500'>
+                Already have an account?{' '}
+                <Link href='/login' className='font-semibold text-blue-600 transition-colors hover:text-blue-700'>
+                  Log In
+                </Link>
+              </p>
+            </motion.div>
+          </div>
+        </div>
       </div>
     </div>
   );

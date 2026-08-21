@@ -189,6 +189,8 @@ export default function TimetablesPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [newName, setNewName] = useState('');
   const [creating, setCreating] = useState(false);
+  const timetableLimit = 30;
+  const canCreateTimetable = timetables.length < timetableLimit;
 
   const load = useCallback(async () => {
     try {
@@ -216,6 +218,10 @@ export default function TimetablesPage() {
 
   const handleCreate = async () => {
     if (!newName.trim()) return;
+    if (!canCreateTimetable) {
+      window.alert('Timetable creation limit reached. You can create up to 30 timetables.');
+      return;
+    }
     setCreating(true);
     try {
       await createTimetable(newName.trim());
@@ -224,6 +230,7 @@ export default function TimetablesPage() {
       await load();
     } catch (e) {
       console.error(e);
+      window.alert('Timetable creation limit reached. You can create up to 30 timetables.');
     } finally {
       setCreating(false);
     }
@@ -240,20 +247,27 @@ export default function TimetablesPage() {
   return (
     <div className='max-w-5xl mx-auto'>
       <PageHeader
-        title='My Timetables'
-        description='Manage all your timetables and track their status'
+        title='My Time Tables'
+        description={`Manage all your time tables and track their status (${timetables.length}/${timetableLimit})`}
         breadcrumbs={[
           { label: 'Admin', href: '/admin/dashboard' },
-          { label: 'Timetables' },
+          { label: 'Time Tables' },
         ]}
         actions={
           <PlanButton
             variant="primary"
             className='rounded-xl shadow-md transition-all'
-            onClick={() => setModalOpen(true)}
+            onClick={() => {
+              if (!canCreateTimetable) {
+                window.alert('Timetable creation limit reached. You can create up to 30 timetables.');
+                return;
+              }
+              setModalOpen(true);
+            }}
+            disabled={!canCreateTimetable}
           >
             <Plus className='h-4 w-4 mr-1.5' />
-            New Timetable
+            {canCreateTimetable ? 'New Time Table' : 'Limit Reached'}
           </PlanButton>
         }
       />

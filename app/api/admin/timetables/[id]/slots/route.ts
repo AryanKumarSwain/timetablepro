@@ -5,12 +5,14 @@ import {
   handleApiError,
   schoolWhere,
 } from '@/lib/auth-server';
+import { checkTimetableLimit } from '@/lib/plan-limits';
 
 type RouteContext = { params: Promise<{ id: string }> };
 
 export async function POST(request: NextRequest, context: RouteContext) {
   try {
     const { schoolId } = await requireSchoolAdmin();
+    await checkTimetableLimit(schoolId);
     const { id: timetableId } = await context.params;
     const body = await request.json();
 
