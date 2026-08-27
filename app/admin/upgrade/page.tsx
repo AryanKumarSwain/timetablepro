@@ -308,10 +308,31 @@ export default function UpgradePage() {
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const handleRegenerateQR = () => {
-    setTimeRemaining(300);
-    setTimerExpired(false);
-  };
+  const loadRazorpayScript = () => new Promise<boolean>((resolve, reject) => {
+    if (typeof window === 'undefined') {
+      reject(new Error('Window not available'));
+      return;
+    }
+
+    if ((window as any).Razorpay) {
+      resolve(true);
+      return;
+    }
+
+    const existingScript = document.querySelector('script[src="https://checkout.razorpay.com/v1/checkout.js"]');
+    if (existingScript) {
+      existingScript.addEventListener('load', () => resolve(true), { once: true });
+      existingScript.addEventListener('error', () => reject(new Error('Failed to load Razorpay')), { once: true });
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    script.async = true;
+    script.onload = () => resolve(true);
+    script.onerror = () => reject(new Error('Failed to load Razorpay'));
+    document.body.appendChild(script);
+  });
 
   const handleValidateCoupon = async () => {
     if (!couponCode.trim() || !selectedPlanId) {
@@ -416,23 +437,26 @@ export default function UpgradePage() {
 
   // ── Payment ──────────────────────────────────────────────────────────────────
   const handlePayment = async () => {
+    if (!selectedPlanId || !selectedPlan) {
+      return toast.error('Please select a plan first');
+    }
+
     const cleanPhone = checkoutForm.mobileNumber.trim();
     const cleanState = checkoutForm.state.trim();
-    const cleanUtr = checkoutForm.utrNumber.trim();
 
-    if (!cleanPhone || !cleanState || !cleanUtr) {
-      return toast.error('Please fill in all required fields');
-    }
-    if (cleanPhone.length < 10 || cleanPhone.length > 11) {
+    if (cleanPhone && (cleanPhone.length < 10 || cleanPhone.length > 11)) {
       return toast.error('Please input a valid 10-digit phone number');
     }
-    if (cleanUtr.length < 8) {
-      return toast.error('Please enter a valid UTR number');
+
+    if (!cleanState) {
+      return toast.error('Please enter your state');
     }
 
     setSwitchingPlan(true);
     try {
-      const res = await fetch('/api/admin/subscription-requests', {
+      await loadRazorpayScript();
+
+      const orderRes = await fetch('/api/admin/razorpay/order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -440,21 +464,74 @@ export default function UpgradePage() {
           planId: selectedPlanId,
           amount: total,
           billingCycle: billingPeriod,
-          utrNumber: cleanUtr,
-          mobileNumber: cleanPhone,
-          state: cleanState,
-          adminEmail: userEmail,
           couponCode: couponCode || undefined,
         }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to submit request');
-      toast.success('Payment proof submitted successfully');
-      setVerificationPending({ show: true, utrNumber: data.utrNumber });
-      setSelectedPlanId(null);
-      setCheckoutForm({ mobileNumber: '', state: '', utrNumber: '' });
+
+      const orderData = await orderRes.json();
+      if (!orderRes.ok) {
+        throw new Error(orderData.error || 'Failed to create Razorpay order');
+      }
+
+      const razorpayOptions = {
+        key: orderData.keyId,
+        amount: orderData.amount,
+        currency: orderData.currency,
+        name: 'Timetable Pro',
+        description: `${selectedPlan.name} - ${billingPeriod === 'annual' ? 'Annual' : 'Monthly'} plan`,
+        order_id: orderData.orderId,
+        handler: async function (response: any) {
+          const confirmRes = await fetch('/api/admin/subscription-requests', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({
+              planId: selectedPlanId,
+              amount: total,
+              billingCycle: billingPeriod,
+              couponCode: couponCode || undefined,
+              razorpayPaymentId: response.razorpay_payment_id,
+              razorpayOrderId: response.razorpay_order_id,
+              razorpaySignature: response.razorpay_signature,
+              mobileNumber: cleanPhone,
+              state: cleanState,
+              adminEmail: userEmail,
+            }),
+          });
+
+          const confirmData = await confirmRes.json();
+          if (!confirmRes.ok) {
+            throw new Error(confirmData.error || 'Payment verification failed');
+          }
+
+          toast.success('Payment successful and plan activated');
+          setSelectedPlanId(null);
+          setCheckoutForm({ mobileNumber: '', state: '', utrNumber: '' });
+
+          if (typeof window !== 'undefined') {
+            window.location.reload();
+          }
+        },
+        prefill: {
+          name: schoolData?.name || '',
+          email: userEmail || '',
+          contact: cleanPhone || '',
+        },
+        notes: {
+          schoolName: schoolData?.name || '',
+          state: cleanState,
+          planId: selectedPlanId,
+          billingCycle: billingPeriod,
+        },
+        theme: {
+          color: '#7c3aed',
+        },
+      };
+
+      const razorpay = new (window as any).Razorpay(razorpayOptions);
+      razorpay.open();
     } catch (err: any) {
-      toast.error(err.message || 'Failed to submit payment proof');
+      toast.error(err.message || 'Failed to start Razorpay payment');
     } finally {
       setSwitchingPlan(false);
     }
@@ -1136,21 +1213,14 @@ export default function UpgradePage() {
                   <div className="space-y-4">
                     <h3 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">Payment Details</h3>
 
-                    {/* QR Code */}
-                    <div className={`flex flex-col items-center justify-center p-4 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800 transition-all ${timerExpired ? 'opacity-50 blur-sm' : ''}`}>
-                      <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-3">Scan to Pay via UPI</p>
-                      <div className="bg-white p-3 rounded-lg shadow-sm">
-                        <QRCodeSVG
-                          value={`upi://pay?pa=${upiId}&pn=TimetablePro&am=${total}&cu=INR`}
-                          size={140}
-                          level="M"
-                          includeMargin={false}
-                        />
+                    <div className="p-4 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800">
+                      <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-3">Secure payment</p>
+                      <div className="flex items-center justify-center rounded-xl bg-gradient-to-br from-violet-600 to-purple-700 p-3 text-white">
+                        <div className="text-center">
+                          <p className="text-[10px] uppercase tracking-[0.2em] text-violet-100">Razorpay</p>
+                          <p className="text-lg font-bold mt-1">₹{total}</p>
+                        </div>
                       </div>
-                      <p className="text-[10px] text-slate-400 mt-2">Total: ₹{total}</p>
-                      <p className={`text-[10px] font-semibold mt-2 ${timerExpired ? 'text-rose-500' : 'text-slate-500'}`}>
-                        {timerExpired ? 'QR Code Expired' : `Expires in ${formatTime(timeRemaining)}`}
-                      </p>
                     </div>
 
                     {/* Price breakdown */}
@@ -1256,36 +1326,17 @@ export default function UpgradePage() {
                           className="h-9"
                         />
                       </div>
-                      <div className="space-y-1">
-                        <Label htmlFor="checkoutUtr" className="text-[11px] font-semibold text-slate-400 uppercase">UPI Transaction ID / UTR *</Label>
-                        <Input
-                          id="checkoutUtr"
-                          type="text"
-                          placeholder="Enter 12-digit UTR number"
-                          value={checkoutForm.utrNumber}
-                          onChange={e => setCheckoutForm({ ...checkoutForm, utrNumber: e.target.value.toUpperCase() })}
-                          maxLength={12}
-                          className="h-9"
-                        />
-                        <p className="text-[9px] text-slate-400">Enter the UTR number from your payment app after scanning QR</p>
-                      </div>
                     </div>
                   </div>
 
                   <div className="mt-6">
-                    {timerExpired ? (
-                      <Button onClick={handleRegenerateQR} className="w-full h-10 text-xs font-bold rounded-lg bg-amber-500 hover:bg-amber-600 text-white shadow-sm">
-                        Regenerate QR Code
-                      </Button>
-                    ) : (
-                      <Button
-                        onClick={handlePayment}
-                        disabled={switchingPlan || !checkoutForm.mobileNumber.trim() || !checkoutForm.state.trim() || !checkoutForm.utrNumber.trim()}
-                        className="w-full h-10 text-xs font-bold rounded-lg bg-purple-600 hover:bg-purple-700 text-white shadow-sm"
-                      >
-                        {switchingPlan ? 'Submitting...' : 'Submit Payment Proof'}
-                      </Button>
-                    )}
+                    <Button
+                      onClick={handlePayment}
+                      disabled={switchingPlan || !checkoutForm.state.trim()}
+                      className="w-full h-10 text-xs font-bold rounded-lg bg-purple-600 hover:bg-purple-700 text-white shadow-sm"
+                    >
+                      {switchingPlan ? 'Preparing payment...' : 'Pay with Razorpay'}
+                    </Button>
                   </div>
                 </div>
               </motion.div>

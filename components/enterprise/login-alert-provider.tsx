@@ -52,16 +52,22 @@ export function LoginAlertProvider({ children }: { children: React.ReactNode }) 
     checkForNewNotifications();
   }, []);
 
+  const clearAlertPopup = () => {
+    setIsOpen(false);
+    setActiveAlert(null);
+  };
+
   const handleDismissAndMarkRead = async () => {
     if (!activeAlert) return;
-    setIsOpen(false);
-    
+
+    const notificationId = activeAlert.id;
+    clearAlertPopup();
+
     try {
-      // Clean read receipt registration
       await fetch('/api/notifications/read', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ notificationId: activeAlert.id })
+        body: JSON.stringify({ notificationId })
       });
     } catch (e) {
       console.error(e);
@@ -102,7 +108,7 @@ export function LoginAlertProvider({ children }: { children: React.ReactNode }) 
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               className="absolute inset-0 bg-slate-950/20"
-              onClick={() => setIsOpen(false)}
+              onClick={clearAlertPopup}
             />
 
             {/* Main Interactive Glass Card Alert Popup */}
@@ -115,7 +121,7 @@ export function LoginAlertProvider({ children }: { children: React.ReactNode }) 
             >
               {/* Corner Close Hook Button */}
               <button 
-                onClick={() => setIsOpen(false)} 
+                onClick={clearAlertPopup} 
                 className="absolute top-4 right-4 p-1 rounded-lg text-muted-foreground hover:bg-muted transition-colors"
               >
                 <X className="h-4 w-4" />

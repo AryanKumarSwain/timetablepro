@@ -1,34 +1,58 @@
+import crypto from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireSchoolAdmin, handleApiError } from '@/lib/auth-server';
 
-// POST /api/admin/subscription-requests - Create a new subscription request
+// POST /api/admin/subscription-requests - Activation after successful Razorpay payment
 export async function POST(request: NextRequest) {
   try {
     const user = await requireSchoolAdmin();
-    
     const body = await request.json();
-    const { planId, amount, billingCycle, utrNumber, mobileNumber, state, adminEmail, couponCode } = body;
-    
-    if (!planId || !amount || !billingCycle || !utrNumber) {
+    const {
+      planId,
+      amount,
+      billingCycle,
+      couponCode,
+      razorpayPaymentId,
+      razorpayOrderId,
+      razorpaySignature,
+      mobileNumber,
+      state,
+      adminEmail,
+    } = body;
+
+    if (!planId || !amount || !billingCycle) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
-    
-    if (!utrNumber.trim()) {
-      return NextResponse.json({ error: 'UTR number is required' }, { status: 400 });
+
+    const isRazorpayPayment = Boolean(razorpayPaymentId && razorpayOrderId && razorpaySignature);
+    if (!isRazorpayPayment) {
+      return NextResponse.json({ error: 'Razorpay payment required for plan activation' }, { status: 400 });
     }
-    
-    // Get school from user
+
+    const keySecret = process.env.RAZORPAY_KEY_SECRET;
+    if (!keySecret) {
+      return NextResponse.json({ error: 'Razorpay is not configured' }, { status: 500 });
+    }
+
+    const expectedSignature = crypto
+      .createHmac('sha256', keySecret)
+      .update(`${razorpayOrderId}|${razorpayPaymentId}`)
+      .digest('hex');
+
+    if (expectedSignature !== razorpaySignature) {
+      return NextResponse.json({ error: 'Invalid Razorpay signature' }, { status: 400 });
+    }
+
     const school = await prisma.school.findUnique({
       where: { id: user.schoolId },
       include: { plan: true }
     });
-    
+
     if (!school) {
       return NextResponse.json({ error: 'School not found' }, { status: 404 });
     }
 
-    // Validate coupon if provided
     let couponId: string | null = null;
     if (couponCode && couponCode.trim()) {
       const coupon = await prisma.coupon.findUnique({
@@ -53,40 +77,82 @@ export async function POST(request: NextRequest) {
 
       couponId = coupon.id;
     }
-    
-    // Create subscription transaction
-    const transaction = await prisma.subscriptionTransaction.create({
-      data: {
-        schoolId: school.id,
-        planId,
-        amount: amount.toString(),
-        billingCycle,
-        utrNumber: utrNumber.trim(),
-        phoneNumber: mobileNumber || null,
-        email: adminEmail || school.email || null,
-        couponId,
-        status: 'PENDING'
-      }
-    });
 
-    // Create system notification for super admins
-    await prisma.notification.create({
-      data: {
-        title: 'New Subscription Request',
-        message: `${school.name} has submitted a payment proof for plan upgrade. Amount: ₹${amount}${couponCode ? ' (Coupon applied)' : ''}`,
-        type: 'SYSTEM',
-        scope: 'ALL_ADMINS',
-        senderId: user.id,
-        schoolId: school.id
-      }
-    });
-    
-    return NextResponse.json({ 
-      success: true, 
-      transactionId: transaction.id,
-      utrNumber: transaction.utrNumber
+    const now = new Date();
+    const hasActivePlan = Boolean(school.planId && school.planEndsAt && new Date(school.planEndsAt) > now);
+    const newPlanStartsAt = now;
+    const newPlanEndsAt = billingCycle === 'annual'
+      ? new Date(now.getFullYear() + 1, now.getMonth(), now.getDate())
+      : new Date(now.getFullYear(), now.getMonth() + 1, now.getDate());
+
+    await prisma.$transaction([
+      prisma.subscriptionTransaction.create({
+        data: {
+          schoolId: school.id,
+          planId,
+          amount: Number(amount).toFixed(2),
+          billingCycle,
+          utrNumber: razorpayPaymentId,
+          phoneNumber: mobileNumber || null,
+          email: adminEmail || school.email || null,
+          couponId,
+          status: 'APPROVED',
+        }
+      }),
+
+      prisma.school.update({
+        where: { id: school.id },
+        data: hasActivePlan
+          ? {
+              planId,
+              planStartsAt: newPlanStartsAt,
+              planEndsAt: newPlanEndsAt,
+              queuedPlanId: null,
+              queuedPlanStartsAt: null,
+              pausedPlanId: school.planId,
+              pausedPlanRemainingSeconds: Math.max(0, Math.floor((new Date(school.planEndsAt as Date).getTime() - now.getTime()) / 1000)),
+              licenseStatus: 'ACTIVE',
+            }
+          : {
+              planId,
+              planStartsAt: newPlanStartsAt,
+              planEndsAt: newPlanEndsAt,
+              queuedPlanId: null,
+              queuedPlanStartsAt: null,
+              pausedPlanId: null,
+              pausedPlanRemainingSeconds: null,
+              licenseStatus: 'ACTIVE',
+            }
+      }),
+
+      ...(couponId ? [
+        prisma.coupon.update({
+          where: { id: couponId },
+          data: { currentUses: { increment: 1 } }
+        })
+      ] : []),
+
+      prisma.notification.create({
+        data: {
+          title: hasActivePlan ? 'Plan Swapped Successfully' : 'Plan Activated',
+          message: hasActivePlan
+            ? `${school.name} upgraded to the new ${billingCycle} plan immediately. The previous plan has been saved in queue and will resume after the current plan ends.`
+            : `${school.name} has successfully activated the ${billingCycle} ${planId} plan via Razorpay.`,
+          type: 'INFO',
+          scope: 'SCHOOL_TEACHERS',
+          senderId: user.id,
+          schoolId: school.id,
+        }
+      })
+    ]);
+
+    return NextResponse.json({
+      success: true,
+      message: 'Payment successful and plan activated',
+      paymentId: razorpayPaymentId,
     });
   } catch (error) {
     return handleApiError(error);
   }
 }
+
