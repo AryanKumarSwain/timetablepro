@@ -1,6 +1,7 @@
 "use client";
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { motion } from 'framer-motion';
 import {
   ArrowRight,
@@ -9,10 +10,14 @@ import {
   CalendarRange,
   Check,
   Clock3,
+  Facebook,
   FileText,
+  Instagram,
+  Linkedin,
   ShieldCheck,
   Sparkles,
   TrendingUp,
+  Twitter,
   Users,
   Zap,
 } from 'lucide-react';
@@ -99,8 +104,13 @@ export function LandingPage() {
       <header className='sticky top-0 z-50 border-b border-sky-100 bg-white/80 backdrop-blur-xl'>
         <div className='mx-auto flex h-20 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8'>
           <Link href='/' className='flex items-center gap-3 font-semibold text-slate-900'>
-            <div className='flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 via-indigo-500 to-violet-600 shadow-lg shadow-blue-500/25'>
-              <Sparkles className='h-5 w-5 text-white' />
+            <div className='relative h-10 w-10 overflow-hidden rounded-xl shadow-lg shadow-blue-500/25'>
+              <Image
+                src='/logo.png'
+                alt='TimetablePro Logo'
+                fill
+                className='object-cover'
+              />
             </div>
             <span className='text-lg tracking-tight'>TimetablePro</span>
           </Link>
@@ -256,19 +266,27 @@ export function LandingPage() {
           </div>
         </section>
 
-        <section className='border-y border-sky-100 bg-white/70 px-4 py-8 sm:px-6 lg:px-8'>
-          <div className='mx-auto flex max-w-7xl flex-wrap items-center justify-center gap-6 text-xs font-medium uppercase tracking-[0.24em] text-slate-500'>
-            <span>Trusted by schools</span>
-            <span className='text-slate-300'>•</span>
-            <span>Northview Academy</span>
-            <span className='text-slate-300'>•</span>
-            <span>St. Martin’s</span>
-            <span className='text-slate-300'>•</span>
-            <span>Horizon International</span>
+        <section className='border-y border-sky-100 bg-white/50 py-8'>
+          <div className='mx-auto max-w-7xl px-4 sm:px-6 lg:px-8'>
+            <p className='text-center text-sm font-semibold uppercase tracking-[0.2em] text-slate-500 mb-6'>Trusted by schools</p>
+            <div className='overflow-hidden'>
+              <div className='flex gap-12 animate-marquee'>
+                {['Northview Academy', "St. Martin's", 'Horizon International', 'Greenwood School', 'Springfield High', 'Oakridge Academy', 'Westside College', 'Riverside School', 'Mountain View High', 'Lakeside Academy', 'Sunrise International', 'Valley Creek School'].map((school, index) => (
+                  <span key={index} className='whitespace-nowrap text-base font-medium text-slate-400'>
+                    {school}
+                  </span>
+                ))}
+                {['Northview Academy', "St. Martin's", 'Horizon International', 'Greenwood School', 'Springfield High', 'Oakridge Academy', 'Westside College', 'Riverside School', 'Mountain View High', 'Lakeside Academy', 'Sunrise International', 'Valley Creek School'].map((school, index) => (
+                  <span key={`dup-${index}`} className='whitespace-nowrap text-base font-medium text-slate-400'>
+                    {school}
+                  </span>
+                ))}
+              </div>
+            </div>
           </div>
         </section>
 
-        <section id='features' className='px-4 py-24 sm:px-6 lg:px-8'>
+        <section id='features' className='border-t border-sky-100 bg-white/70 px-4 py-24 sm:px-6 lg:px-8'>
           <div className='mx-auto max-w-7xl'>
             <div className='mx-auto max-w-2xl text-center'>
               <p className='text-sm font-medium uppercase tracking-[0.2em] text-blue-600'>Features</p>
@@ -351,7 +369,7 @@ export function LandingPage() {
               </span>
             </div>
 
-            <div className='mt-12 grid gap-5 lg:grid-cols-3'>
+            <div className='mt-12 flex gap-5 overflow-x-auto pb-4 md:grid md:grid-cols-2 lg:grid-cols-3 md:overflow-visible'>
               {(() => {
                 const rawPlans = (plans && plans.length > 0 ? plans : [
                   { id: 'standard', name: 'Standard', teacherMin: 0, teacherMax: 15, priceMonthly: 199, reportEnabled: true, attendanceEnabled: false, homeworkEnabled: false, lessonPlanningEnabled: true, exportFormats: ['pdf'] },
@@ -392,7 +410,7 @@ export function LandingPage() {
                     <div
                       key={plan.id || plan.name}
                       className={cn(
-                        'relative flex min-h-[520px] flex-col rounded-[22px] border bg-white p-0 shadow-[0_20px_45px_rgba(15,23,42,0.08)]',
+                        'relative flex min-h-[520px] flex-col rounded-[22px] border bg-white p-0 shadow-[0_20px_45px_rgba(15,23,42,0.08)] min-w-[300px] md:min-w-0',
                         isPremium && 'border-violet-500 ring-2 ring-violet-100',
                         isElite && 'border-amber-400 bg-amber-50/40',
                         !isPremium && !isElite && 'border-slate-200'
@@ -418,11 +436,9 @@ export function LandingPage() {
                           <span className='text-4xl font-black'>₹{displayPrice.toLocaleString('en-IN')}</span>
                           <span className={cn('pb-1 text-sm font-medium', isPremium ? 'text-violet-100' : isElite ? 'text-slate-800' : 'text-slate-200')}>{periodicLabel}</span>
                         </div>
-                        {!yearly && (
-                          <p className={cn('mt-2 text-sm', isPremium ? 'text-violet-100' : isElite ? 'text-slate-800' : 'text-slate-300')}>
-                            {plan.name === 'Standard' ? 'Ideal for growing institutions' : plan.name === 'Premium' ? 'Ideal for growing institutions' : 'For large schools and districts'}
-                          </p>
-                        )}
+                        <p className={cn('mt-2 text-sm', isPremium ? 'text-violet-100' : isElite ? 'text-slate-800' : 'text-slate-300')}>
+                          {plan.name === 'Standard' ? 'Ideal for growing institutions' : plan.name === 'Premium' ? 'Ideal for growing institutions' : 'For large schools and districts'}
+                        </p>
                       </div>
 
                       <div className='flex flex-1 flex-col px-5 pb-5 pt-5'>
@@ -464,8 +480,83 @@ export function LandingPage() {
         </section>
       </main>
 
-      <footer className='border-t border-sky-100 px-4 py-8 text-center text-sm text-slate-500 sm:px-6 lg:px-8'>
-        © {new Date().getFullYear()} TimetablePro. Built for modern school operations.
+      <footer className='border-t border-slate-800 bg-slate-900 px-4 py-12 sm:px-6 lg:px-8'>
+        <div className='mx-auto max-w-7xl'>
+          <div className='grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-4'>
+            <div>
+              <div className='flex items-center gap-2 font-semibold text-white mb-4'>
+                <div className='flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 via-indigo-500 to-violet-600 shadow-lg shadow-blue-500/25'>
+                  <Sparkles className='h-4 w-4 text-white' />
+                </div>
+                <span className='text-lg tracking-tight'>TimetablePro</span>
+              </div>
+              <p className='text-sm text-slate-400 mb-4'>
+                Smart school operations platform for modern educational institutions.
+              </p>
+              <div className='flex gap-3 mb-4'>
+                <a href='https://www.facebook.com/webncodetechnologies' target='_blank' rel='noopener noreferrer' className='flex h-8 w-8 items-center justify-center rounded-full bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white transition-colors'>
+                  <Facebook className='h-4 w-4' />
+                </a>
+                <a href='https://www.instagram.com/webncodetechnologies' target='_blank' rel='noopener noreferrer' className='flex h-8 w-8 items-center justify-center rounded-full bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white transition-colors'>
+                  <Instagram className='h-4 w-4' />
+                </a>
+                <a href='https://x.com/webncodetech' target='_blank' rel='noopener noreferrer' className='flex h-8 w-8 items-center justify-center rounded-full bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white transition-colors'>
+                  <Twitter className='h-4 w-4' />
+                </a>
+                <a href='https://www.linkedin.com/company/webncodetechnologies' target='_blank' rel='noopener noreferrer' className='flex h-8 w-8 items-center justify-center rounded-full bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white transition-colors'>
+                  <Linkedin className='h-4 w-4' />
+                </a>
+              </div>
+              <p className='text-xs text-slate-500'>
+                © {new Date().getFullYear()} TimetablePro. All rights reserved.
+              </p>
+            </div>
+
+            <div>
+              <h3 className='font-semibold text-white mb-4'>Product</h3>
+              <ul className='space-y-2 text-sm text-slate-400'>
+                <li><a href='#features' className='hover:text-white transition-colors'>Features</a></li>
+                <li><a href='#pricing' className='hover:text-white transition-colors'>Pricing</a></li>
+                <li><a href='#how-it-works' className='hover:text-white transition-colors'>How it works</a></li>
+              </ul>
+            </div>
+
+            <div>
+              <h3 className='font-semibold text-white mb-4'>Company</h3>
+              <ul className='space-y-2 text-sm text-slate-400'>
+                <li><a href='#' className='hover:text-white transition-colors'>About Us</a></li>
+                <li><a href='#' className='hover:text-white transition-colors'>Contact</a></li>
+                <li><a href='#' className='hover:text-white transition-colors'>Privacy Policy</a></li>
+                <li><a href='#' className='hover:text-white transition-colors'>Terms of Service</a></li>
+              </ul>
+            </div>
+
+            <div>
+              <h3 className='font-semibold text-white mb-4'>Contact</h3>
+              <ul className='space-y-3 text-sm text-slate-400'>
+                <li className='flex items-start gap-2'>
+                  <svg className='h-5 w-5 text-slate-500 mt-0.5' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
+                    <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z' />
+                  </svg>
+                  <a href='mailto:support@schoolresult.app' className='hover:text-white transition-colors'>support@schoolresult.app</a>
+                </li>
+                <li className='flex items-start gap-2'>
+                  <svg className='h-5 w-5 text-slate-500 mt-0.5' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
+                    <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z' />
+                  </svg>
+                  <a href='tel:+918947919195' className='hover:text-white transition-colors'>+91 8947919195</a>
+                </li>
+                <li className='flex items-start gap-2'>
+                  <svg className='h-5 w-5 text-slate-500 mt-0.5' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
+                    <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z' />
+                    <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M15 11a3 3 0 11-6 0 3 3 0 016 0z' />
+                  </svg>
+                  <span className='hover:text-white transition-colors'>Jaipur, Rajasthan</span>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
       </footer>
     </div>
   );

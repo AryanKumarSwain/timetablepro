@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { Sparkles, Shield, GraduationCap, CheckCircle2, CalendarRange, School, Users, BarChart3 } from 'lucide-react';
+import { Sparkles, Shield, GraduationCap, CheckCircle2, CalendarRange, School, Users, BarChart3, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -389,6 +389,11 @@ export default function SignupPage() {
               animate={{ opacity: 1, scale: 1 }}
               className='w-full rounded-[26px] border border-slate-200/80 bg-white/90 p-5 shadow-[0_24px_80px_rgba(15,23,42,0.18)] backdrop-blur-md md:p-6 lg:p-7'
             >
+              <Link href='/' className='mb-4 inline-flex items-center gap-2 text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors'>
+                <ArrowLeft className='h-4 w-4' />
+                Back to home
+              </Link>
+
               <div className='mb-5 flex items-center justify-center'>
                 <div className='flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white shadow-md'>
                   <GraduationCap className='h-5 w-5' />

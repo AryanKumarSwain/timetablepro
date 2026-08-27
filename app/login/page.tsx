@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { Eye, EyeOff, Sparkles, Shield, GraduationCap, CheckCircle2, CalendarRange, School, Users, BarChart3 } from 'lucide-react';
+import { Eye, EyeOff, Sparkles, Shield, GraduationCap, CheckCircle2, CalendarRange, School, Users, BarChart3, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -174,6 +174,11 @@ export default function LoginPage() {
               animate={{ opacity: 1, scale: 1 }}
               className='w-full rounded-[26px] border border-slate-200/80 bg-white/90 p-5 shadow-[0_24px_80px_rgba(15,23,42,0.18)] backdrop-blur-md md:p-6 lg:p-7'
             >
+              <Link href='/' className='mb-4 inline-flex items-center gap-2 text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors'>
+                <ArrowLeft className='h-4 w-4' />
+                Back to home
+              </Link>
+
               <div className='lg:hidden mb-6 flex items-center gap-2 font-semibold text-slate-800'>
                 <div className='flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white'>
                   <Sparkles className='h-4 w-4' />
