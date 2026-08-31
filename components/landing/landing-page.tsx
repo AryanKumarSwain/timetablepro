@@ -115,8 +115,8 @@ export function LandingPage() {
       <div className='absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(96,165,250,0.22),_transparent_22%),radial-gradient(circle_at_top_right,_rgba(167,139,250,0.20),_transparent_22%),radial-gradient(circle_at_bottom_left,_rgba(34,197,94,0.16),_transparent_25%)]' />
 
       <header className='sticky top-0 z-50 border-b border-sky-100 bg-white/80 backdrop-blur-xl'>
-        <div className='mx-auto flex h-20 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8'>
-          <Link href='/' className='flex items-center gap-2 sm:gap-3 font-semibold text-slate-900'>
+        <div className='mx-auto flex h-16 sm:h-20 max-w-7xl items-center justify-between gap-2 px-3 sm:px-6 lg:px-8'>
+          <Link href='/' className='flex items-center gap-1.5 sm:gap-3 font-semibold text-slate-900 min-w-0 shrink'>
             <Image
               src='/logo-only.png'
               alt='TimetablePro Icon'
@@ -130,7 +130,7 @@ export function LandingPage() {
               alt='TimetablePro Text'
               width={180}
               height={48}
-              className='h-6 sm:h-9 w-auto object-contain shrink-0'
+              className='h-5 sm:h-9 max-w-[95px] min-[380px]:max-w-[120px] sm:max-w-none w-auto object-contain shrink min-w-0'
               priority
             />
           </Link>
@@ -141,11 +141,11 @@ export function LandingPage() {
             <a href='#pricing' className='transition-colors hover:text-slate-900'>Pricing</a>
           </nav>
 
-          <div className='flex items-center gap-2'>
-            <Button variant='ghost' asChild className='inline-flex rounded-xl font-medium text-slate-700 hover:text-slate-900 hover:bg-slate-100/80 transition-all duration-200 text-xs sm:text-sm px-2.5 sm:px-4'>
+          <div className='flex items-center gap-1 sm:gap-2 shrink-0'>
+            <Button variant='ghost' size='sm' asChild className='rounded-xl font-medium text-slate-700 hover:text-slate-900 hover:bg-slate-100/80 transition-all duration-200 text-[11px] sm:text-sm px-2 sm:px-4 h-8 sm:h-10'>
               <Link href='/login'>Sign in</Link>
             </Button>
-            <Button asChild className='rounded-xl bg-gradient-to-r from-blue-600 to-violet-600 text-white shadow-lg shadow-blue-500/20 hover:brightness-110 text-xs sm:text-sm px-3 sm:px-4'>
+            <Button size='sm' asChild className='rounded-xl bg-gradient-to-r from-blue-600 to-violet-600 text-white shadow-lg shadow-blue-500/20 hover:brightness-110 text-[11px] sm:text-sm px-2.5 sm:px-4 h-8 sm:h-10 whitespace-nowrap'>
               <Link href='/signup'>Start free trial</Link>
             </Button>
           </div>
