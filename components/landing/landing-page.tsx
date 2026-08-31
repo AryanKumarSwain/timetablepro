@@ -116,13 +116,13 @@ export function LandingPage() {
 
       <header className='sticky top-0 z-50 border-b border-sky-100 bg-white/80 backdrop-blur-xl'>
         <div className='mx-auto flex h-20 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8'>
-          <Link href='/' className='flex items-center gap-3 font-semibold text-slate-900'>
+          <Link href='/' className='flex items-center gap-2 sm:gap-3 font-semibold text-slate-900'>
             <Image
               src='/logo-only.png'
               alt='TimetablePro Icon'
               width={48}
               height={48}
-              className='h-9 w-auto object-contain shrink-0'
+              className='h-7 sm:h-9 w-auto object-contain shrink-0'
               priority
             />
             <Image
@@ -130,7 +130,7 @@ export function LandingPage() {
               alt='TimetablePro Text'
               width={180}
               height={48}
-              className='hidden sm:block h-9 w-auto object-contain shrink-0'
+              className='h-6 sm:h-9 w-auto object-contain shrink-0'
               priority
             />
           </Link>
@@ -522,15 +522,21 @@ export function LandingPage() {
           <div className='grid grid-cols-2 gap-8 md:grid-cols-2 lg:grid-cols-4'>
             {/* Brand Section */}
             <div className='col-span-2 md:col-span-1 space-y-4'>
-              <div className='flex items-center gap-3'>
+              <div className='flex items-center gap-2 sm:gap-3'>
                 <Image
                   src='/logo-only.png'
                   alt='TimetablePro Icon'
                   width={40}
                   height={40}
-                  className='h-9 w-auto object-contain shrink-0 brightness-0 invert'
+                  className='h-7 sm:h-9 w-auto object-contain shrink-0 brightness-0 invert'
                 />
-                <span className='text-xl font-bold tracking-tight text-white'>TimetablePro</span>
+                <Image
+                  src='/logo-text.png'
+                  alt='TimetablePro Text'
+                  width={180}
+                  height={48}
+                  className='h-6 sm:h-9 w-auto object-contain shrink-0 brightness-0 invert'
+                />
               </div>
               <p className='text-sm leading-relaxed text-slate-400 max-w-sm'>
                 Smart school operations platform for modern educational institutions.
