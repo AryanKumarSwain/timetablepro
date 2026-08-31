@@ -130,7 +130,7 @@ export function LandingPage() {
               alt='TimetablePro Text'
               width={180}
               height={48}
-              className='h-9 w-auto object-contain shrink-0'
+              className='hidden sm:block h-9 w-auto object-contain shrink-0'
               priority
             />
           </Link>
@@ -142,10 +142,10 @@ export function LandingPage() {
           </nav>
 
           <div className='flex items-center gap-2'>
-            <Button variant='ghost' asChild className='hidden rounded-xl font-medium text-slate-700 hover:text-slate-900 hover:bg-slate-100/80 transition-all duration-200 sm:inline-flex'>
+            <Button variant='ghost' asChild className='inline-flex rounded-xl font-medium text-slate-700 hover:text-slate-900 hover:bg-slate-100/80 transition-all duration-200 text-xs sm:text-sm px-2.5 sm:px-4'>
               <Link href='/login'>Sign in</Link>
             </Button>
-            <Button asChild className='rounded-xl bg-gradient-to-r from-blue-600 to-violet-600 text-white shadow-lg shadow-blue-500/20 hover:brightness-110'>
+            <Button asChild className='rounded-xl bg-gradient-to-r from-blue-600 to-violet-600 text-white shadow-lg shadow-blue-500/20 hover:brightness-110 text-xs sm:text-sm px-3 sm:px-4'>
               <Link href='/signup'>Start free trial</Link>
             </Button>
           </div>
@@ -517,60 +517,54 @@ export function LandingPage() {
         </section>
       </main>
 
-      <footer className='border-t border-slate-800 bg-slate-900 px-4 py-12 sm:px-6 lg:px-8'>
-        <div className='mx-auto max-w-7xl'>
-          <div className='grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-4'>
-            <div>
-              <div className='flex items-center gap-3 mb-4'>
+      <footer className='border-t border-slate-800 bg-slate-900 px-5 py-12 sm:px-8 lg:px-12 text-slate-400'>
+        <div className='mx-auto max-w-7xl space-y-10'>
+          <div className='grid grid-cols-2 gap-8 md:grid-cols-2 lg:grid-cols-4'>
+            {/* Brand Section */}
+            <div className='col-span-2 md:col-span-1 space-y-4'>
+              <div className='flex items-center gap-3'>
                 <Image
                   src='/logo-only.png'
                   alt='TimetablePro Icon'
-                  width={48}
-                  height={48}
+                  width={40}
+                  height={40}
                   className='h-9 w-auto object-contain shrink-0 brightness-0 invert'
                 />
-                <Image
-                  src='/logo-text.png'
-                  alt='TimetablePro Text'
-                  width={180}
-                  height={48}
-                  className='h-9 w-auto object-contain shrink-0 brightness-0 invert'
-                />
+                <span className='text-xl font-bold tracking-tight text-white'>TimetablePro</span>
               </div>
-              <p className='text-sm text-slate-400 mb-4'>
+              <p className='text-sm leading-relaxed text-slate-400 max-w-sm'>
                 Smart school operations platform for modern educational institutions.
               </p>
-              <div className='flex gap-3 mb-4'>
-                <a href='https://www.facebook.com/webncodetechnologies' target='_blank' rel='noopener noreferrer' className='flex h-8 w-8 items-center justify-center rounded-full bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white transition-colors'>
+              <div className='flex items-center gap-3 pt-1'>
+                <a href='https://www.facebook.com/webncodetechnologies' target='_blank' rel='noopener noreferrer' className='flex h-9 w-9 items-center justify-center rounded-full bg-slate-800 text-slate-400 hover:bg-blue-600 hover:text-white transition-all duration-200'>
                   <Facebook className='h-4 w-4' />
                 </a>
-                <a href='https://www.instagram.com/webncodetechnologies' target='_blank' rel='noopener noreferrer' className='flex h-8 w-8 items-center justify-center rounded-full bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white transition-colors'>
+                <a href='https://www.instagram.com/webncodetechnologies' target='_blank' rel='noopener noreferrer' className='flex h-9 w-9 items-center justify-center rounded-full bg-slate-800 text-slate-400 hover:bg-pink-600 hover:text-white transition-all duration-200'>
                   <Instagram className='h-4 w-4' />
                 </a>
-                <a href='https://x.com/webncodetech' target='_blank' rel='noopener noreferrer' className='flex h-8 w-8 items-center justify-center rounded-full bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white transition-colors'>
+                <a href='https://x.com/webncodetech' target='_blank' rel='noopener noreferrer' className='flex h-9 w-9 items-center justify-center rounded-full bg-slate-800 text-slate-400 hover:bg-sky-500 hover:text-white transition-all duration-200'>
                   <Twitter className='h-4 w-4' />
                 </a>
-                <a href='https://www.linkedin.com/company/webncodetechnologies' target='_blank' rel='noopener noreferrer' className='flex h-8 w-8 items-center justify-center rounded-full bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white transition-colors'>
+                <a href='https://www.linkedin.com/company/webncodetechnologies' target='_blank' rel='noopener noreferrer' className='flex h-9 w-9 items-center justify-center rounded-full bg-slate-800 text-slate-400 hover:bg-blue-700 hover:text-white transition-all duration-200'>
                   <Linkedin className='h-4 w-4' />
                 </a>
               </div>
-              <p className='text-xs text-slate-500'>
-                © {new Date().getFullYear()} TimetablePro. All rights reserved.
-              </p>
             </div>
 
-            <div>
-              <h3 className='font-semibold text-white mb-4'>Product</h3>
-              <ul className='space-y-2 text-sm text-slate-400'>
+            {/* Product Links */}
+            <div className='col-span-1 space-y-4'>
+              <h3 className='font-semibold text-white text-base tracking-wide'>Product</h3>
+              <ul className='space-y-2.5 text-sm text-slate-400'>
                 <li><a href='#features' className='hover:text-white transition-colors'>Features</a></li>
                 <li><a href='#pricing' className='hover:text-white transition-colors'>Pricing</a></li>
                 <li><a href='#how-it-works' className='hover:text-white transition-colors'>How it works</a></li>
               </ul>
             </div>
 
-            <div>
-              <h3 className='font-semibold text-white mb-4'>Company</h3>
-              <ul className='space-y-2 text-sm text-slate-400'>
+            {/* Company Links */}
+            <div className='col-span-1 space-y-4'>
+              <h3 className='font-semibold text-white text-base tracking-wide'>Company</h3>
+              <ul className='space-y-2.5 text-sm text-slate-400'>
                 <li><a href='#' className='hover:text-white transition-colors'>About Us</a></li>
                 <li><a href='#' className='hover:text-white transition-colors'>Contact</a></li>
                 <li><a href='#' className='hover:text-white transition-colors'>Privacy Policy</a></li>
@@ -578,23 +572,24 @@ export function LandingPage() {
               </ul>
             </div>
 
-            <div>
-              <h3 className='font-semibold text-white mb-4'>Contact</h3>
+            {/* Contact Information */}
+            <div className='col-span-2 md:col-span-1 space-y-4'>
+              <h3 className='font-semibold text-white text-base tracking-wide'>Contact</h3>
               <ul className='space-y-3 text-sm text-slate-400'>
-                <li className='flex items-start gap-2'>
-                  <svg className='h-5 w-5 text-slate-500 mt-0.5' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
+                <li className='flex items-center gap-2.5'>
+                  <svg className='h-4 w-4 text-blue-400 shrink-0' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
                     <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z' />
                   </svg>
-                  <a href='mailto:support@schoolresult.app' className='hover:text-white transition-colors'>support@schoolresult.app</a>
+                  <a href='mailto:support@schoolresult.app' className='hover:text-white transition-colors truncate'>support@schoolresult.app</a>
                 </li>
-                <li className='flex items-start gap-2'>
-                  <svg className='h-5 w-5 text-slate-500 mt-0.5' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
+                <li className='flex items-center gap-2.5'>
+                  <svg className='h-4 w-4 text-emerald-400 shrink-0' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
                     <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z' />
                   </svg>
                   <a href='tel:+918947919195' className='hover:text-white transition-colors'>+91 8947919195</a>
                 </li>
-                <li className='flex items-start gap-2'>
-                  <svg className='h-5 w-5 text-slate-500 mt-0.5' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
+                <li className='flex items-center gap-2.5'>
+                  <svg className='h-4 w-4 text-violet-400 shrink-0' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
                     <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z' />
                     <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M15 11a3 3 0 11-6 0 3 3 0 016 0z' />
                   </svg>
@@ -602,6 +597,12 @@ export function LandingPage() {
                 </li>
               </ul>
             </div>
+          </div>
+
+          {/* Bottom Copyright Divider */}
+          <div className='border-t border-slate-800/80 pt-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500'>
+            <p>© {new Date().getFullYear()} TimetablePro. All rights reserved.</p>
+            <p className='text-slate-600'>Empowering schools across India</p>
           </div>
         </div>
       </footer>

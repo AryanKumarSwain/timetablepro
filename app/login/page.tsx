@@ -72,7 +72,7 @@ export default function LoginPage() {
 
   return (
     <div
-      className='relative min-h-screen overflow-hidden bg-slate-200'
+      className='relative min-h-screen w-full overflow-y-auto bg-slate-200'
       style={{
         backgroundImage:
           "linear-gradient(rgba(255,255,255,0.7), rgba(255,255,255,0.72)), url('https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&w=1400&q=80')",
@@ -82,8 +82,8 @@ export default function LoginPage() {
     >
       <div className='absolute inset-0 bg-white/10 backdrop-blur-[1px]' />
 
-      <div className='relative z-10 flex min-h-screen items-center justify-center px-4 py-6 lg:px-8 xl:px-12'>
-        <div className='flex w-full max-w-[1320px] items-center gap-8 lg:gap-10'>
+      <div className='relative z-10 flex min-h-screen w-full items-center justify-center px-3 sm:px-6 py-6 lg:px-8 xl:px-12'>
+        <div className='flex w-full max-w-[1320px] items-center justify-center lg:justify-between gap-8 lg:gap-10'>
           <div className='hidden flex-1 max-w-[720px] flex-col justify-between lg:flex'>
             <div className='mb-9 inline-flex items-center gap-3 rounded-full border border-white/40 bg-white/25 px-4 py-2 text-sm font-medium text-indigo-700 shadow-sm backdrop-blur-sm'>
               <span className='flex h-6 w-6 items-center justify-center rounded-full border border-indigo-200 bg-white/40 text-indigo-600'>
@@ -168,7 +168,7 @@ export default function LoginPage() {
             <p className='text-sm text-slate-600'>© 2026 TimetablePro. All rights reserved.</p>
           </div>
 
-          <div className='flex w-full max-w-[430px] justify-center'>
+          <div className='flex w-full max-w-[430px] justify-center mx-auto'>
             <motion.div
               initial={{ opacity: 0, scale: 0.98 }}
               animate={{ opacity: 1, scale: 1 }}

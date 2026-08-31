@@ -14,8 +14,9 @@ export const metadata: Metadata = {
   description:
     'Enterprise school time table, attendance, and substitute management platform',
   icons: {
-    icon: '/logo-icon.png',
-    apple: '/logo-icon.png',
+    icon: '/logo-only.png',
+    shortcut: '/logo-only.png',
+    apple: '/logo-only.png',
   },
 };
 
@@ -30,6 +31,10 @@ export default function RootLayout({
       className='bg-background'
       suppressHydrationWarning
     >
+      <head>
+        <link rel="icon" href="/logo-only.png" type="image/png" />
+        <link rel="apple-touch-icon" href="/logo-only.png" />
+      </head>
       <body
         className={`${geist.variable} ${geistMono.variable} font-sans antialiased`}
         suppressHydrationWarning

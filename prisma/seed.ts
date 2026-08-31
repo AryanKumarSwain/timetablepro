@@ -1,8 +1,16 @@
+import 'dotenv/config';
 import bcrypt from 'bcryptjs';
 import { prisma } from '../lib/prisma';
 
 async function main() {
-  const adminPasswordHash = await bcrypt.hash('a@123', 10);
+  const superadminEmail = (process.env.SUPERADMIN_EMAIL || 'super@platform.edu').trim().toLowerCase();
+  const superadminPassword = process.env.SUPERADMIN_PASSWORD || 'a@123';
+  const superadminPasswordHash = await bcrypt.hash(superadminPassword, 10);
+
+  const schoolAdminEmail = (process.env.SCHOOLADMIN_EMAIL || 'a@123').trim().toLowerCase();
+  const schoolAdminPassword = process.env.SCHOOLADMIN_PASSWORD || 'a@123';
+  const schoolAdminPasswordHash = await bcrypt.hash(schoolAdminPassword, 10);
+
   const teacherPasswordHash = await bcrypt.hash('password', 10);
 
   // ── Plans ───────────────────────────────────────────────────────────────────
@@ -94,15 +102,15 @@ async function main() {
 
   // ── Super Admin ───────────────────────────────────────────────────────────
   await prisma.user.upsert({
-    where: { email: 'super@platform.edu' },
+    where: { email: superadminEmail },
     update: { 
-      password: adminPasswordHash, 
+      password: superadminPasswordHash, 
       role: 'SUPER_ADMIN', 
       schoolId: null 
     },
     create: {
-      email: 'super@platform.edu',
-      password: adminPasswordHash,
+      email: superadminEmail,
+      password: superadminPasswordHash,
       role: 'SUPER_ADMIN',
       schoolId: null,
     },
@@ -110,15 +118,15 @@ async function main() {
 
   // ── School Admin ───────────────────────────────────────────────────────────
   await prisma.user.upsert({
-    where: { email: 'a@123' },
+    where: { email: schoolAdminEmail },
     update: {
-      password: adminPasswordHash,
+      password: schoolAdminPasswordHash,
       role: 'ADMIN',
       schoolId: schoolId,
     },
     create: {
-      email: 'a@123',
-      password: adminPasswordHash,
+      email: schoolAdminEmail,
+      password: schoolAdminPasswordHash,
       role: 'ADMIN',
       schoolId: schoolId,
     },
@@ -216,8 +224,8 @@ async function main() {
   console.log('\n── Plans ────────────────────────────────');
   plans.forEach((plan) => console.log(`  ${plan.name.padEnd(12)}  ${plan.teacherMin}-${plan.teacherMax} teachers  ₹${plan.priceMonthly}/month`));
   console.log('\n── Admins ──────────────────────────────');
-  console.log('  super@platform.edu      / a@123     (SUPER_ADMIN)');
-  console.log('  a@123                   / a@123     (ADMIN)');
+  console.log(`  ${superadminEmail.padEnd(23)} / ${superadminPassword.padEnd(11)} (SUPER_ADMIN)`);
+  console.log(`  ${schoolAdminEmail.padEnd(23)} / ${schoolAdminPassword.padEnd(11)} (ADMIN)`);
   console.log('\n── Teachers ────────────────────────────');
   console.log(`  Created ${teachers.length} teachers`);
   console.log('\n── Classes ──────────────────────────────');
