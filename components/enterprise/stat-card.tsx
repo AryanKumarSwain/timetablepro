@@ -65,23 +65,23 @@ export function StatCard({
             : undefined
         }
         className={cn(
-          'p-4 sm:p-5 bg-gradient-to-br border',
+          'p-3.5 sm:p-5 bg-gradient-to-br border',
           variantStyles[variant],
           onClick &&
             'cursor-pointer hover:border-indigo-500/40 hover:shadow-lg transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/40'
         )}
       >
-        <div className='flex items-start justify-between gap-3'>
+        <div className='flex items-start justify-between gap-2'>
           <div className='min-w-0'>
-            <p className='text-xs font-medium uppercase tracking-wider text-muted-foreground'>
+            <p className='text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-muted-foreground truncate'>
               {label}
             </p>
-            <p className='text-3xl font-bold mt-2 tabular-nums'>{value}</p>
+            <p className='text-2xl sm:text-3xl font-bold mt-1 tabular-nums'>{value}</p>
             {subtext && (
-              <p className='text-xs text-muted-foreground mt-1.5'>{subtext}</p>
+              <p className='text-[11px] sm:text-xs text-muted-foreground mt-1 truncate'>{subtext}</p>
             )}
             {trend && (
-              <p className='text-xs text-emerald-600 dark:text-emerald-400 mt-1 font-medium'>
+              <p className='text-[11px] sm:text-xs text-emerald-600 dark:text-emerald-400 mt-0.5 font-medium'>
                 {trend}
               </p>
             )}
@@ -89,11 +89,11 @@ export function StatCard({
           {Icon && (
             <div
               className={cn(
-                'shrink-0 p-2.5 rounded-xl',
+                'shrink-0 p-2 sm:p-2.5 rounded-xl',
                 iconStyles[variant]
               )}
             >
-              <Icon className='h-5 w-5' />
+              <Icon className='h-4 w-4 sm:h-5 sm:w-5' />
             </div>
           )}
         </div>

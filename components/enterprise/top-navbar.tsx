@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import {
   Bell,
   Search,
@@ -97,9 +97,16 @@ export function TopNavbar({
   onLogout,
 }: TopNavbarProps) {
   const router = useRouter();
+  const pathname = usePathname();
   const { theme, setTheme } = useTheme();
   const { theme: planTheme } = usePlanTheme();
   const [mounted, setMounted] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // Auto close mobile drawer on route navigation
+  useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [pathname]);
 
   // Real Notification Stream States Data Tracks
   const [notifications, setNotifications] = useState<LiveNotification[]>([]);
@@ -342,28 +349,43 @@ export function TopNavbar({
       <header className='sticky top-0 z-40 h-14 border-b border-border/50 bg-background/70 backdrop-blur-xl supports-[backdrop-filter]:bg-background/60'>
         <div className='flex h-full items-center gap-3 px-4 md:px-6'>
           {/* MOBILE SIDE NAVIGATION DRAWERS */}
-          <Sheet>
+          <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
             <SheetTrigger asChild>
               <Button variant='ghost' size='icon' className='md:hidden'>
                 <Menu className='h-5 w-5' />
               </Button>
             </SheetTrigger>
-            <SheetContent side='left' className='w-72 p-0'>
+            <SheetContent side='left' className='w-72 p-0 flex flex-col'>
               <div className='p-4 border-b border-border'>
-                <p className='font-semibold'>TimetablePro</p>
-                <p className='text-xs text-muted-foreground'>{schoolName}</p>
+                <p className='font-semibold text-sm'>TimetablePro</p>
+                <p className='text-xs text-muted-foreground truncate'>{schoolName}</p>
               </div>
-              <nav className='p-2 space-y-1'>
+              <nav className='p-2 space-y-1 overflow-y-auto flex-1'>
                 {navItems.map((item, index) => {
                   const Icon = item.icon;
+                  const active =
+                    pathname === item.href ||
+                    (item.href !== '/' && pathname.startsWith(item.href + '/'));
+
                   return (
                     <Link
                       key={`${item.href}-${index}`}
                       href={item.href}
-                      className='flex items-center gap-3 rounded-lg px-3 py-2 text-sm hover:bg-muted'
+                      onClick={() => setMobileMenuOpen(false)}
+                      className={cn(
+                        'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors',
+                        active
+                          ? 'bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 font-semibold'
+                          : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'
+                      )}
                     >
-                      <Icon className='h-4 w-4' />
-                      {item.label}
+                      <Icon className={cn('h-4 w-4', active && 'text-purple-600 dark:text-purple-400')} />
+                      <span>{item.label}</span>
+                      {item.badge && (
+                        <span className='ml-auto text-[10px] px-1.5 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 font-bold'>
+                          {item.badge}
+                        </span>
+                      )}
                     </Link>
                   );
                 })}

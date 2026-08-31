@@ -366,7 +366,7 @@ export default function AdminDashboard() {
         </GlassCard>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <KPICard label="Total Teachers" value={stats?.totalTeachers || 0} subtext="Active in system" index={0} />
         <KPICard label="Total Classes" value={stats?.totalClasses || 0} subtext="Classes managed" index={1} />
         <KPICard label="Today's Absences" value={stats?.todayAbsent || 0} variant="danger" subtext="Teachers absent today" index={2} />
@@ -374,7 +374,7 @@ export default function AdminDashboard() {
       </div>
 
       {/* Activity Analytics Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <KPICard label="Today's Lessons" value={dbWorkload.reduce((acc, t) => acc + (activityStats[t.id]?.lessonsToday || 0), 0)} subtext="Classroom conducted" index={4} />
         <KPICard label="Today's Activities" value={dbWorkload.reduce((acc, t) => acc + (activityStats[t.id]?.activitiesToday || 0), 0)} subtext="Activities conducted" index={5} variant="info" />
         <KPICard label="Teachers Submitted" value={dbWorkload.filter(t => activityStats[t.id]?.submittedToday).length} subtext="Reports submitted" index={6} />
