@@ -395,9 +395,7 @@ export default function SignupPage() {
               </Link>
 
               <div className='mb-5 flex items-center justify-center'>
-                <div className='flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white shadow-md'>
-                  <GraduationCap className='h-5 w-5' />
-                </div>
+                <img src="/logo-only.png" alt="TimetablePro Logo" className="h-14 w-auto object-contain" />
               </div>
 
               <div className='text-center'>

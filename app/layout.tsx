@@ -14,8 +14,8 @@ export const metadata: Metadata = {
   description:
     'Enterprise school time table, attendance, and substitute management platform',
   icons: {
-    icon: '/icon.svg',
-    apple: '/apple-icon.png',
+    icon: '/logo-icon.png',
+    apple: '/logo-icon.png',
   },
 };
 

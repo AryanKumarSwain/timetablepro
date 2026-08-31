@@ -187,9 +187,7 @@ export default function LoginPage() {
               </div>
 
               <div className='mb-4 flex items-center justify-center'>
-                <div className='flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white shadow-md'>
-                  <GraduationCap className='h-5 w-5' />
-                </div>
+                <img src="/logo-only.png" alt="TimetablePro Logo" className="h-14 w-auto object-contain" />
               </div>
 
               <div className='text-center'>
@@ -279,7 +277,7 @@ export default function LoginPage() {
                     type='submit'
                     disabled={loading}
                     className={cn(
-                      'h-12 w-full rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-base font-semibold text-white shadow-lg shadow-blue-600/20 hover:brightness-105',
+                      'h-12 w-full rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-base font-semibold text-white shadow-lg shadow-blue-600/20 hover:shadow-blue-600/30 transition-all duration-200 active:scale-[0.99]',
                       loading && 'opacity-80'
                     )}
                   >

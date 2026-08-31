@@ -84,6 +84,7 @@ export function LandingPage() {
   const [yearly, setYearly] = useState(false);
   const { theme } = usePlanTheme();
   const [plans, setPlans] = useState<SaasPlan[] | null>(null);
+  const [trustedSchools, setTrustedSchools] = useState<string[]>([]);
 
   useEffect(() => {
     let mounted = true;
@@ -94,6 +95,18 @@ export function LandingPage() {
       .catch(() => {
         // ignore - keep showing empty state
       });
+
+    fetch('/api/trusted-schools')
+      .then((res) => res.json())
+      .then((data) => {
+        if (mounted && Array.isArray(data)) {
+          setTrustedSchools(data.map((school: { name: string }) => school.name));
+        }
+      })
+      .catch(() => {
+        // ignore - keep showing default schools
+      });
+
     return () => { mounted = false; };
   }, []);
 
@@ -104,15 +117,22 @@ export function LandingPage() {
       <header className='sticky top-0 z-50 border-b border-sky-100 bg-white/80 backdrop-blur-xl'>
         <div className='mx-auto flex h-20 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8'>
           <Link href='/' className='flex items-center gap-3 font-semibold text-slate-900'>
-            <div className='relative h-10 w-10 overflow-hidden rounded-xl shadow-lg shadow-blue-500/25'>
-              <Image
-                src='/logo.png'
-                alt='TimetablePro Logo'
-                fill
-                className='object-cover'
-              />
-            </div>
-            <span className='text-lg tracking-tight'>TimetablePro</span>
+            <Image
+              src='/logo-only.png'
+              alt='TimetablePro Icon'
+              width={48}
+              height={48}
+              className='h-9 w-auto object-contain shrink-0'
+              priority
+            />
+            <Image
+              src='/logo-text.png'
+              alt='TimetablePro Text'
+              width={180}
+              height={48}
+              className='h-9 w-auto object-contain shrink-0'
+              priority
+            />
           </Link>
 
           <nav className='hidden items-center gap-8 text-sm text-slate-600 md:flex'>
@@ -122,7 +142,7 @@ export function LandingPage() {
           </nav>
 
           <div className='flex items-center gap-2'>
-            <Button variant='ghost' asChild className='hidden text-slate-700 hover:bg-sky-50 sm:inline-flex'>
+            <Button variant='ghost' asChild className='hidden rounded-xl font-medium text-slate-700 hover:text-slate-900 hover:bg-slate-100/80 transition-all duration-200 sm:inline-flex'>
               <Link href='/login'>Sign in</Link>
             </Button>
             <Button asChild className='rounded-xl bg-gradient-to-r from-blue-600 to-violet-600 text-white shadow-lg shadow-blue-500/20 hover:brightness-110'>
@@ -271,16 +291,33 @@ export function LandingPage() {
             <p className='text-center text-sm font-semibold uppercase tracking-[0.2em] text-slate-500 mb-6'>Trusted by schools</p>
             <div className='overflow-hidden'>
               <div className='flex gap-12 animate-marquee'>
-                {['Northview Academy', "St. Martin's", 'Horizon International', 'Greenwood School', 'Springfield High', 'Oakridge Academy', 'Westside College', 'Riverside School', 'Mountain View High', 'Lakeside Academy', 'Sunrise International', 'Valley Creek School'].map((school, index) => (
-                  <span key={index} className='whitespace-nowrap text-base font-medium text-slate-400'>
-                    {school}
-                  </span>
-                ))}
-                {['Northview Academy', "St. Martin's", 'Horizon International', 'Greenwood School', 'Springfield High', 'Oakridge Academy', 'Westside College', 'Riverside School', 'Mountain View High', 'Lakeside Academy', 'Sunrise International', 'Valley Creek School'].map((school, index) => (
-                  <span key={`dup-${index}`} className='whitespace-nowrap text-base font-medium text-slate-400'>
-                    {school}
-                  </span>
-                ))}
+                {trustedSchools.length > 0 ? (
+                  <>
+                    {trustedSchools.map((school, index) => (
+                      <span key={index} className='whitespace-nowrap text-base font-medium text-slate-400'>
+                        {school}
+                      </span>
+                    ))}
+                    {trustedSchools.map((school, index) => (
+                      <span key={`dup-${index}`} className='whitespace-nowrap text-base font-medium text-slate-400'>
+                        {school}
+                      </span>
+                    ))}
+                  </>
+                ) : (
+                  <>
+                    {['Northview Academy', "St. Martin's", 'Horizon International', 'Greenwood School', 'Springfield High', 'Oakridge Academy', 'Westside College', 'Riverside School', 'Mountain View High', 'Lakeside Academy', 'Sunrise International', 'Valley Creek School'].map((school, index) => (
+                      <span key={index} className='whitespace-nowrap text-base font-medium text-slate-400'>
+                        {school}
+                      </span>
+                    ))}
+                    {['Northview Academy', "St. Martin's", 'Horizon International', 'Greenwood School', 'Springfield High', 'Oakridge Academy', 'Westside College', 'Riverside School', 'Mountain View High', 'Lakeside Academy', 'Sunrise International', 'Valley Creek School'].map((school, index) => (
+                      <span key={`dup-${index}`} className='whitespace-nowrap text-base font-medium text-slate-400'>
+                        {school}
+                      </span>
+                    ))}
+                  </>
+                )}
               </div>
             </div>
           </div>
@@ -484,11 +521,21 @@ export function LandingPage() {
         <div className='mx-auto max-w-7xl'>
           <div className='grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-4'>
             <div>
-              <div className='flex items-center gap-2 font-semibold text-white mb-4'>
-                <div className='flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 via-indigo-500 to-violet-600 shadow-lg shadow-blue-500/25'>
-                  <Sparkles className='h-4 w-4 text-white' />
-                </div>
-                <span className='text-lg tracking-tight'>TimetablePro</span>
+              <div className='flex items-center gap-3 mb-4'>
+                <Image
+                  src='/logo-only.png'
+                  alt='TimetablePro Icon'
+                  width={48}
+                  height={48}
+                  className='h-9 w-auto object-contain shrink-0 brightness-0 invert'
+                />
+                <Image
+                  src='/logo-text.png'
+                  alt='TimetablePro Text'
+                  width={180}
+                  height={48}
+                  className='h-9 w-auto object-contain shrink-0 brightness-0 invert'
+                />
               </div>
               <p className='text-sm text-slate-400 mb-4'>
                 Smart school operations platform for modern educational institutions.

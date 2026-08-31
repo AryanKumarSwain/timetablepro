@@ -36,6 +36,7 @@ model School {
 	licenseStatus         LicenseStatus           @default(ACTIVE)
 	planId                String?
 	plan                  SaaSPlan?               @relation(fields: [planId], references: [id])
+	planStartsAt          DateTime?
 	planEndsAt            DateTime?
 	autoDowngradedAt      DateTime?
 	queuedPlanId          String?
@@ -547,6 +548,18 @@ model PlatformSettings {
 	id        String  @id @default(uuid())
 	upiId     String? @default("example@upi")
 	updatedAt DateTime @updatedAt
+}
+
+model TrustedSchool {
+	id        String   @id @default(uuid())
+	name      String
+	isActive  Boolean  @default(true)
+	order     Int      @default(0)
+	createdAt DateTime @default(now())
+	updatedAt DateTime @updatedAt
+
+	@@index([isActive])
+	@@index([order])
 }
 
 enum TransactionStatus {

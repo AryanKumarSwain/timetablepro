@@ -32,7 +32,7 @@ export default function AdminSettingsPage() {
             Admin Settings Control Workspace
           </h1>
         </div>
-        <div className='flex flex-wrap gap-2 py-4'>
+        <div className='flex items-center gap-2 py-3 overflow-x-auto scrollbar-none no-scrollbar touch-pan-x max-w-full pb-2 scroll-smooth -mx-4 px-4 sm:mx-0 sm:px-0'>
           {[
             { value: 'profile', label: 'General' },
             { value: 'institute', label: 'Institute' },
@@ -42,9 +42,9 @@ export default function AdminSettingsPage() {
             <Link
               key={tab.value}
               href={`/admin/settings?tab=${tab.value}`}
-              className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${
+              className={`shrink-0 whitespace-nowrap rounded-full border px-4 py-2 text-xs sm:text-sm font-semibold transition ${
                 activeTab === tab.value
-                  ? `border-${theme.primary} bg-${theme.primary} text-white`
+                  ? `border-${theme.primary} bg-${theme.primary} text-white shadow-sm`
                   : `border-border/60 bg-background text-muted-foreground hover:border-${theme.primary} hover:text-foreground`
               }`}
             >

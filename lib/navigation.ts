@@ -17,6 +17,7 @@ import {
   UserCheck,
   Settings,
   BookMarked,
+  Building2,
 } from 'lucide-react';
 
 export type AppRole = 'super-admin' | 'admin' | 'teacher';
@@ -32,9 +33,10 @@ export interface NavItem {
 
 export const SUPER_ADMIN_NAV: NavItem[] = [
   { label: 'Dashboard', href: '/super-admin/dashboard', icon: LayoutDashboard },
-  { label: 'Schools', href: '/super-admin/schools', icon: School },      // Change from dashboard
-  { label: 'Plans', href: '/super-admin/plans', icon: CreditCard },      // Change from dashboard
-  { label: 'Analytics', href: '/super-admin/analytics', icon: BarChart3 },// Change from dashboard
+  { label: 'Schools', href: '/super-admin/schools', icon: School },
+  { label: 'Plans', href: '/super-admin/plans', icon: CreditCard },
+  { label: 'Analytics', href: '/super-admin/analytics', icon: BarChart3 },
+  { label: 'Trusted Schools', href: '/super-admin/trusted-schools', icon: Building2 },
 ];
 export const ADMIN_NAV: NavItem[] = [
   { label: 'Dashboard', href: '/admin/dashboard', icon: LayoutDashboard },

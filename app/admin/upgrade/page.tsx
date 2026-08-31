@@ -57,9 +57,9 @@ interface CustomPlanFormState {
 }
 
 const PLAN_TIER_CONFIG: PlanConfig[] = [
-  { border: 'border-slate-200 dark:border-slate-800', btn: 'bg-slate-900 hover:bg-slate-800 text-white', icon: <Zap className="h-5 w-5 text-amber-500" />, desc: 'Ideal for growing institutions' },
-  { border: 'border-purple-500 dark:border-purple-600 ring-2 ring-purple-500/20', btn: 'bg-purple-600 hover:bg-purple-700 text-white', icon: <Rocket className="h-5 w-5 text-white" />, desc: 'Ideal for growing institutions' },
-  { border: 'border-amber-400 dark:border-amber-500 shadow-md shadow-amber-500/5', btn: 'bg-amber-500 hover:bg-amber-600 text-white', icon: <Crown className="h-5 w-5 text-amber-500" />, desc: 'For large schools and districts' }
+  { border: 'border-slate-200 dark:border-slate-800 hover:border-slate-400 dark:hover:border-slate-700 hover:shadow-lg transition-all duration-300', btn: 'bg-slate-900 hover:bg-slate-800 text-white dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white shadow-md hover:shadow-lg hover:shadow-slate-900/20 hover:-translate-y-0.5 transition-all duration-200 cursor-pointer', icon: <Zap className="h-5 w-5 text-amber-500 group-hover:scale-110 transition-transform duration-300" />, desc: 'Ideal for growing institutions' },
+  { border: 'border-purple-500 dark:border-purple-600 ring-2 ring-purple-500/20 hover:border-purple-400 hover:shadow-purple-500/10 hover:shadow-xl transition-all duration-300', btn: 'bg-purple-600 hover:bg-purple-700 text-white shadow-md shadow-purple-500/20 hover:shadow-lg hover:shadow-purple-500/30 hover:-translate-y-0.5 transition-all duration-200 cursor-pointer', icon: <Rocket className="h-5 w-5 text-white group-hover:scale-110 transition-transform duration-300" />, desc: 'Ideal for growing institutions' },
+  { border: 'border-amber-400 dark:border-amber-500 shadow-md shadow-amber-500/5 hover:border-amber-300 hover:shadow-amber-500/15 hover:shadow-xl transition-all duration-300', btn: 'bg-amber-500 hover:bg-amber-600 text-white shadow-md shadow-amber-500/20 hover:shadow-lg hover:shadow-amber-500/30 hover:-translate-y-0.5 transition-all duration-200 cursor-pointer', icon: <Crown className="h-5 w-5 text-amber-500 group-hover:scale-110 transition-transform duration-300" />, desc: 'For large schools and districts' }
 ];
 
 export default function UpgradePage() {
@@ -776,7 +776,7 @@ export default function UpgradePage() {
                 } finally {
                   setHistoryLoading(false);
                 }
-              }} className="px-3 py-2 rounded-full bg-purple-600 hover:bg-purple-700 text-white text-xs ml-2 shadow-sm">View Plan History</Button>
+              }} className="px-3.5 py-2 rounded-full bg-purple-600 hover:bg-purple-700 text-white text-xs ml-2 shadow-xs hover:shadow-md hover:shadow-purple-500/20 hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer">View Plan History</Button>
             </div>
           )}
 
@@ -912,21 +912,33 @@ export default function UpgradePage() {
 
                 <Button
                   onClick={() => handlePlanSelection(plan.id)}
-                  className={`w-full py-5 font-semibold rounded-lg text-xs flex items-center justify-center gap-1.5 transition-all ${isCurrentPlan ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800' : style.btn}`}
+                  className={`w-full group py-5 font-semibold rounded-xl text-xs flex items-center justify-center gap-2 transition-all duration-200 cursor-pointer ${
+                    isCurrentPlan
+                      ? 'bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 border border-purple-300 dark:border-purple-700 hover:bg-purple-200 dark:hover:bg-purple-900/60 hover:shadow-md hover:-translate-y-0.5'
+                      : style.btn
+                  }`}
                 >
-                  {isCurrentPlan ? `Renew ${plan.name}` : `Switch to ${plan.name}`} <ChevronRight className="h-3 w-3" />
+                  <span>{isCurrentPlan ? `Renew ${plan.name}` : `Switch to ${plan.name}`}</span>
+                  <ChevronRight className="h-3.5 w-3.5 group-hover:translate-x-1 transition-transform duration-200" />
                 </Button>
               </motion.div>
             );
           })}
         </div>
 
-        {/* Free Trial Button */}
-        <div className="flex justify-center items-center mt-4">
+        {/* Bottom Actions: Free Trial & Custom Enterprise Plan */}
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mt-6">
+          {/* Free Trial Button */}
           <Dialog open={trialDialogOpen} onOpenChange={setTrialDialogOpen}>
             <DialogTrigger asChild>
-              <Button onClick={openTrialDialog} variant="outline" className="border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 gap-2 px-5 py-4 rounded-lg text-xs shadow-xs hover:bg-slate-50">
-                <Sparkles className="h-3.5 w-3.5 text-slate-500" /> Request 7-Day Free Trial
+              <Button
+                onClick={openTrialDialog}
+                variant="outline"
+                className="group border-purple-200 dark:border-purple-800/80 bg-purple-50/60 dark:bg-purple-950/30 text-purple-900 dark:text-purple-200 hover:bg-purple-100 dark:hover:bg-purple-900/50 hover:border-purple-400 dark:hover:border-purple-500 hover:text-purple-950 dark:hover:text-purple-100 gap-2.5 px-6 py-5 rounded-xl text-xs font-semibold shadow-xs hover:shadow-lg hover:shadow-purple-500/15 hover:-translate-y-0.5 transition-all duration-300 cursor-pointer"
+              >
+                <Sparkles className="h-4 w-4 text-purple-600 dark:text-purple-400 group-hover:scale-110 group-hover:rotate-12 transition-transform duration-300" />
+                <span>Request 7-Day Free Trial</span>
+                <ChevronRight className="h-3.5 w-3.5 opacity-60 group-hover:opacity-100 group-hover:translate-x-1 transition-all duration-300" />
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-md">
@@ -958,102 +970,38 @@ export default function UpgradePage() {
                   <Label>Reason for trial *</Label>
                   <Textarea placeholder="Describe requirements..." rows={3} value={trialForm.reason} onChange={e => setTrialForm({ ...trialForm, reason: e.target.value })} />
                 </div>
-                <Button onClick={handleTrialSubmit} disabled={submittingTrial} className="w-full bg-purple-600 hover:bg-purple-700 text-white mt-2">
-                  Submit Trial Claim
+                <Button
+                  onClick={handleTrialSubmit}
+                  disabled={submittingTrial}
+                  className="w-full bg-purple-600 hover:bg-purple-700 text-white mt-3 py-5 font-semibold text-xs rounded-xl shadow-md hover:shadow-purple-500/25 hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  {submittingTrial ? (
+                    <span className="flex items-center gap-2">
+                      <span className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      Submitting...
+                    </span>
+                  ) : (
+                    <>
+                      <Sparkles className="h-4 w-4" />
+                      Submit Trial Claim
+                    </>
+                  )}
                 </Button>
               </div>
             </DialogContent>
           </Dialog>
-        </div>
 
-        {/* Downgrade Warning Dialog */}
-        <Dialog
-          open={downgradeWarning.show}
-          onOpenChange={(open) => setDowngradeWarning((prev) => ({ ...prev, show: open }))}
-        >
-          <DialogContent className="max-w-md" showCloseButton>
-            <DialogHeader>
-              <DialogTitle className="text-amber-600">Plan Downgrade Warning</DialogTitle>
-              <DialogDescription>
-                You are downgrading from {downgradeWarning.currentLimit} to {downgradeWarning.newLimit} teachers.
-                You currently have {teacherCount} teachers and need to remove {downgradeWarning.teachersToRemove} teachers to continue.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="flex gap-3 mt-4">
-              <Button onClick={handleDowngradeConfirm} className="flex-1 bg-amber-600 hover:bg-amber-700">
-                Select Teachers to Remove
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
-
-        {/* Teacher Selection Dialog */}
-        <Dialog open={teacherSelectionOpen}>
-          <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto" showCloseButton={false}>
-            <DialogHeader>
-              <DialogTitle>Remove Teachers</DialogTitle>
-              <DialogDescription>
-                Select {downgradeWarning.teachersToRemove} teachers to remove to meet the new plan limit.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-3 py-4">
-              {teachersList.map((teacher) => (
-                <div
-                  key={teacher.id}
-                  onClick={() => handleTeacherSelection(teacher.id)}
-                  className={`p-3 border rounded-lg cursor-pointer transition-colors ${
-                    selectedTeachersToRemove.includes(teacher.id)
-                      ? 'bg-rose-50 border-rose-300 dark:bg-rose-950/30 dark:border-rose-800'
-                      : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800'
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className={`w-5 h-5 rounded border flex items-center justify-center ${
-                      selectedTeachersToRemove.includes(teacher.id)
-                        ? 'bg-rose-500 border-rose-500'
-                        : 'border-slate-300 dark:border-slate-600'
-                    }`}>
-                      {selectedTeachersToRemove.includes(teacher.id) && (
-                        <X className="h-3 w-3 text-white" />
-                      )}
-                    </div>
-                    <div>
-                      <div className="font-medium text-sm">{teacher.name}</div>
-                      <div className="text-xs text-muted-foreground">{teacher.email}</div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div className="flex items-center justify-between text-sm text-muted-foreground mb-4">
-              <span>Selected: {selectedTeachersToRemove.length}/{downgradeWarning.teachersToRemove}</span>
-            </div>
-            <div className="flex gap-3">
-              <Button onClick={() => setTeacherSelectionOpen(false)} variant="outline" className="flex-1">
-                Cancel
-              </Button>
-              <Button
-                onClick={handleRemoveSelectedTeachers}
-                disabled={selectedTeachersToRemove.length !== downgradeWarning.teachersToRemove}
-                className="flex-1 bg-rose-600 hover:bg-rose-700"
-              >
-                Remove Selected Teachers
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
-
-        {/* Custom Enterprise Plan Button */}
-        <div className="flex justify-center items-center mt-4">
+          {/* Custom Enterprise Plan Button */}
           <Dialog open={customPlanDialogOpen} onOpenChange={setCustomPlanDialogOpen}>
             <DialogTrigger asChild>
               <Button
                 onClick={openCustomPlanDialog}
                 variant="outline"
-                className="border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/20 gap-2 px-5 py-4 rounded-lg text-xs shadow-xs hover:bg-amber-100 dark:hover:bg-amber-950/30"
+                className="group border-amber-200 dark:border-amber-800/80 bg-amber-50/60 dark:bg-amber-950/30 text-amber-900 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-900/50 hover:border-amber-400 dark:hover:border-amber-500 hover:text-amber-950 dark:hover:text-amber-100 gap-2.5 px-6 py-5 rounded-xl text-xs font-semibold shadow-xs hover:shadow-lg hover:shadow-amber-500/15 hover:-translate-y-0.5 transition-all duration-300 cursor-pointer"
               >
-                <Crown className="h-4 w-4 text-amber-600" />
-                Request Custom Enterprise Plan
+                <Crown className="h-4 w-4 text-amber-600 dark:text-amber-400 group-hover:scale-110 group-hover:-rotate-6 transition-transform duration-300" />
+                <span>Request Custom Enterprise Plan</span>
+                <ChevronRight className="h-3.5 w-3.5 opacity-60 group-hover:opacity-100 group-hover:translate-x-1 transition-all duration-300" />
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-md">
@@ -1117,9 +1065,19 @@ export default function UpgradePage() {
                 <Button
                   onClick={handleCustomPlanSubmit}
                   disabled={submittingCustomPlan}
-                  className="w-full bg-amber-600 hover:bg-amber-700 text-white mt-2"
+                  className="w-full bg-amber-600 hover:bg-amber-700 text-white mt-3 py-5 font-semibold text-xs rounded-xl shadow-md hover:shadow-amber-500/25 hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer"
                 >
-                  {submittingCustomPlan ? 'Submitting...' : 'Submit Enterprise Request'}
+                  {submittingCustomPlan ? (
+                    <span className="flex items-center gap-2">
+                      <span className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      Submitting...
+                    </span>
+                  ) : (
+                    <>
+                      <Crown className="h-4 w-4" />
+                      Submit Enterprise Request
+                    </>
+                  )}
                 </Button>
               </div>
             </DialogContent>
