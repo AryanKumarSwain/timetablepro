@@ -107,16 +107,16 @@ export default function SuspendedPage() {
               <div className="space-y-3 pt-4">
                 <Button
                   className="w-full bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white"
-                  onClick={() => window.location.href = 'mailto:support@timetablepro.com?subject=Account Suspension Inquiry'}
+                  onClick={() => window.location.href = 'mailto:timetablepro@webncode.in?subject=Account Suspension Inquiry'}
                 >
                   Contact Us
                 </Button>
                 <div className="text-center">
                   <a
-                    href="mailto:support@timetablepro.com"
+                    href="mailto:timetablepro@webncode.in"
                     className="text-sm text-indigo-600 hover:text-indigo-700 underline"
                   >
-                    support@timetablepro.com
+                    timetablepro@webncode.in
                   </a>
                 </div>
               </div>
