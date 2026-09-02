@@ -23,6 +23,7 @@ export async function GET(_request: NextRequest, context: RouteContext) {
             class: true,
             subject: true,
             teacher: true,
+            room: true,
           },
         },
       },
@@ -34,7 +35,7 @@ export async function GET(_request: NextRequest, context: RouteContext) {
 
     const targetClassName = timetable.slots[0]?.class?.name || "General Schedule";
 
-    const [timetablePeriods, classes, subjects, teachers] = await Promise.all([
+    const [timetablePeriods, classes, rooms, subjects, teachers] = await Promise.all([
       prisma.period.findMany({
         where: { schoolId, timetableId: id },
         orderBy: { startTime: 'asc' },
@@ -42,6 +43,10 @@ export async function GET(_request: NextRequest, context: RouteContext) {
       prisma.classRoom.findMany({
         where: schoolWhere(schoolId),
         orderBy: { name: 'asc' },
+      }),
+      prisma.room.findMany({
+        where: schoolWhere(schoolId),
+        orderBy: { roomNumber: 'asc' },
       }),
       prisma.subject.findMany({
         where: schoolWhere(schoolId),
@@ -92,6 +97,13 @@ export async function GET(_request: NextRequest, context: RouteContext) {
         section: c.section,
         roomNumber: c.roomNumber,
       })),
+      rooms: rooms.map((r) => ({
+        id: r.id,
+        roomNumber: r.roomNumber,
+        name: r.roomNumber,
+        floor: r.floor || undefined,
+        block: r.block || undefined,
+      })),
       subjects: subjects.map((s) => ({
         id: s.id,
         name: s.name,
@@ -111,6 +123,8 @@ export async function GET(_request: NextRequest, context: RouteContext) {
         classId: s.classId,
         subjectId: s.subjectId,
         teacherId: s.teacherId,
+        roomId: s.roomId || undefined,
+        roomNumber: s.room?.roomNumber || undefined,
         periodNumber: s.period.periodNumber,
         className: s.class.name,
         subjectName: s.subject.name,

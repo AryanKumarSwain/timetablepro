@@ -38,7 +38,8 @@ import {
   History,
   ChevronRight,
   X,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Coffee,
 } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import * as XLSX from 'xlsx';
@@ -885,11 +886,17 @@ export default function DailyDeskPage() {
                             Timetable
                           </th>
                           {(gridData.periods ?? []).map((p) => (
-                            <th key={p.id} className='p-3 border-l border-border/40 text-center min-w-[180px] w-[200px] print:border-gray-300 print:p-2'>
-                              <div className='text-xs font-bold text-foreground uppercase tracking-wider print:text-black print:text-[11px]'>
+                            <th 
+                              key={p.id} 
+                              className={cn(
+                                'p-3 border-l border-border/40 text-center min-w-[180px] w-[200px] print:border-gray-300 print:p-2',
+                                p.isBreak ? 'bg-amber-500/15 dark:bg-amber-500/25 border-b-2 border-b-amber-500/50 print:bg-amber-100' : ''
+                              )}
+                            >
+                              <div className={cn('text-xs font-bold uppercase tracking-wider print:text-black print:text-[11px]', p.isBreak ? 'text-amber-700 dark:text-amber-400' : 'text-foreground')}>
                                 {p.isBreak ? (p.label || 'BREAK') : `P${p.periodNumber}`}
                               </div>
-                              <div className='text-[10px] text-muted-foreground font-medium mt-0.5 print:text-gray-600 print:text-[9px]'>
+                              <div className={cn('text-[10px] font-medium mt-0.5 print:text-gray-600 print:text-[9px]', p.isBreak ? 'text-amber-600 dark:text-amber-400/80' : 'text-muted-foreground')}>
                                 {p.startTime}–{p.endTime}
                               </div>
                             </th>
@@ -904,6 +911,25 @@ export default function DailyDeskPage() {
                             </td>
 
                             {(gridData.periods ?? []).map((period) => {
+                              if (period.isBreak) {
+                                return (
+                                  <td
+                                    key={`${cls.id}-${period.id}`}
+                                    className="p-2 border-l border-border/40 text-center bg-amber-500/10 dark:bg-amber-500/20 border-amber-500/20 text-amber-700 dark:text-amber-400 min-h-[115px] align-middle print:bg-amber-100 print:border-gray-300"
+                                  >
+                                    <div className="flex flex-col items-center justify-center gap-1.5 h-full py-4 min-h-[100px] rounded-lg border border-amber-500/20 bg-amber-500/5 dark:bg-amber-500/10">
+                                      <Coffee className="h-4 w-4 text-amber-600 dark:text-amber-400 opacity-80 print:hidden" />
+                                      <span className="text-xs font-extrabold uppercase tracking-wider text-amber-800 dark:text-amber-300 print:text-black">
+                                        {period.label || 'LUNCH BREAK'}
+                                      </span>
+                                      <span className="text-[10px] font-medium text-amber-600 dark:text-amber-400/80 print:text-gray-600">
+                                        {period.startTime} – {period.endTime}
+                                      </span>
+                                    </div>
+                                  </td>
+                                );
+                              }
+                              
                               const periodRow = (gridData.grid ?? []).find((row) => row.periodId === period.id);
                               const cell = periodRow?.cells?.find((c) => c.classId === cls.id);
 
@@ -1530,11 +1556,17 @@ export default function DailyDeskPage() {
                         Timetable
                       </th>
                       {(historyGridData.periods ?? []).map((p) => (
-                        <th key={p.id} className='p-3 border-l border-border/40 text-center min-w-[180px] w-[200px]'>
-                          <div className='text-xs font-bold text-foreground uppercase tracking-wider'>
+                        <th
+                          key={p.id}
+                          className={cn(
+                            'p-3 border-l border-border/40 text-center min-w-[180px] w-[200px]',
+                            p.isBreak ? 'bg-amber-500/15 dark:bg-amber-500/25 border-b-2 border-b-amber-500/50' : ''
+                          )}
+                        >
+                          <div className={cn('text-xs font-bold uppercase tracking-wider', p.isBreak ? 'text-amber-700 dark:text-amber-400' : 'text-foreground')}>
                             {p.isBreak ? (p.label || 'BREAK') : `P${p.periodNumber}`}
                           </div>
-                          <div className='text-[10px] text-muted-foreground font-medium mt-0.5'>
+                          <div className={cn('text-[10px] font-medium mt-0.5', p.isBreak ? 'text-amber-600 dark:text-amber-400/80' : 'text-muted-foreground')}>
                             {p.startTime}–{p.endTime}
                           </div>
                         </th>
@@ -1549,6 +1581,25 @@ export default function DailyDeskPage() {
                         </td>
 
                         {(historyGridData.periods ?? []).map((period) => {
+                          if (period.isBreak) {
+                            return (
+                              <td
+                                key={`${cls.id}-${period.id}`}
+                                className="p-2 border-l border-border/40 text-center bg-amber-500/10 dark:bg-amber-500/20 border-amber-500/20 text-amber-700 dark:text-amber-400 min-h-[115px] align-middle"
+                              >
+                                <div className="flex flex-col items-center justify-center gap-1.5 h-full py-4 min-h-[100px] rounded-lg border border-amber-500/20 bg-amber-500/5 dark:bg-amber-500/10">
+                                  <Coffee className="h-4 w-4 text-amber-600 dark:text-amber-400 opacity-80" />
+                                  <span className="text-xs font-extrabold uppercase tracking-wider text-amber-800 dark:text-amber-300">
+                                    {period.label || 'LUNCH BREAK'}
+                                  </span>
+                                  <span className="text-[10px] font-medium text-amber-600 dark:text-amber-400/80">
+                                    {period.startTime} – {period.endTime}
+                                  </span>
+                                </div>
+                              </td>
+                            );
+                          }
+
                           const periodRow = (historyGridData.grid ?? []).find((row) => row.periodId === period.id);
                           const cell = periodRow?.cells?.find((c) => c.classId === cls.id);
 

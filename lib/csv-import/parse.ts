@@ -122,6 +122,13 @@ export function csvRowsToRecords(
     errors.push({ row: 0, message: 'No data rows found after the header.' });
   }
 
+  if (rows.length > 100) {
+    errors.push({
+      row: 0,
+      message: `Maximum bulk upload limit is 100 rows per file. Your file contains ${rows.length} rows. Please reduce your CSV file size.`,
+    });
+  }
+
   return { rows, errors };
 }
 

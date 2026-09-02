@@ -45,6 +45,18 @@ export const CSV_IMPORT_CONFIGS: Record<CsvImportEntity, CsvImportConfig> = {
       ['Class 9-A', 'A', ''],
     ],
   },
+  rooms: {
+    entity: 'rooms',
+    title: 'Import Rooms',
+    description: 'Upload a CSV with room details (Room No, Floor, Block).',
+    headers: ['roomNumber', 'floor', 'block'],
+    requiredFields: ['roomNumber'], // floor and block are optional
+    sampleRows: [
+      ['101', '1st Floor', 'Block A'],
+      ['102', '1st Floor', 'Block A'],
+      ['Lab 1', 'Ground Floor', 'Science Wing'],
+    ],
+  },
 };
 
 export function getCsvImportConfig(entity: CsvImportEntity): CsvImportConfig {

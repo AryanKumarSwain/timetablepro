@@ -31,6 +31,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
     const classId = String(body.classId);
     const subjectId = String(body.subjectId);
     const teacherId = String(body.teacherId);
+    const roomId = body.roomId ? String(body.roomId) : null;
 
     if (!dayOfWeek || !periodId || !classId || !subjectId || !teacherId) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
@@ -53,13 +54,15 @@ export async function POST(request: NextRequest, context: RouteContext) {
         classId,
         subjectId,
         teacherId,
+        roomId: roomId || undefined,
       },
-      update: { subjectId, teacherId },
+      update: { subjectId, teacherId, roomId: roomId || undefined },
       include: {
         period: true,
         class: true,
         subject: true,
         teacher: true,
+        room: true,
       },
     });
 
@@ -70,6 +73,8 @@ export async function POST(request: NextRequest, context: RouteContext) {
       classId: slot.classId,
       subjectId: slot.subjectId,
       teacherId: slot.teacherId,
+      roomId: slot.roomId || undefined,
+      roomNumber: slot.room?.roomNumber || undefined,
       periodNumber: slot.period.periodNumber,
       className: slot.class.name,
       subjectName: slot.subject.name,

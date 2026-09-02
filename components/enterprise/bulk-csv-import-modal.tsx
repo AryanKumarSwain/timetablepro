@@ -230,7 +230,7 @@ export function BulkCsvImportModal({
                 Drag & drop your CSV here
               </p>
               <p className='text-xs text-muted-foreground mt-1'>
-                or click to browse · max recommended 500 rows
+                or click to browse · max 100 rows limit
               </p>
             </div>
             {fileName && (

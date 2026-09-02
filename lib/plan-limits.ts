@@ -72,9 +72,21 @@ export async function checkClassLimit(schoolId: string): Promise<void> {
     where: { schoolId },
   });
 
-  if (currentClassCount >= 50) {
+  if (currentClassCount >= 100) {
     throw new PlanLimitError(
-      `Class limit reached. Your current plan allows a maximum of 50 classes. Please upgrade your plan to add more classes.`
+      `Class limit reached. Your current plan allows a maximum of 100 classes. Please upgrade your plan to add more classes.`
+    );
+  }
+}
+
+export async function checkRoomLimit(schoolId: string): Promise<void> {
+  const currentRoomCount = await prisma.room.count({
+    where: { schoolId },
+  });
+
+  if (currentRoomCount >= 100) {
+    throw new PlanLimitError(
+      `Room limit reached. Your current plan allows a maximum of 100 rooms. Please upgrade your plan to add more rooms.`
     );
   }
 }

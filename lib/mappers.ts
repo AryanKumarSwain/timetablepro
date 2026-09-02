@@ -11,6 +11,7 @@ import type {
   Teacher,
   Subject,
   Class,
+  Room,
   Period,
   WeeklyTimetableEntry,
   DailyAttendance,
@@ -61,9 +62,21 @@ export function mapClass(c: ClassRoom): Class {
   };
 }
 
+export function mapRoom(r: any): Room {
+  return {
+    id: r.id,
+    roomNumber: r.roomNumber,
+    name: r.roomNumber,
+    floor: r.floor ?? undefined,
+    block: r.block ?? undefined,
+    capacity: r.capacity ?? 40,
+  };
+}
+
 export function mapPeriod(p: DbPeriod): Period {
   return {
     id: p.id,
+    name: p.label || `Period ${p.periodNumber}`,
     periodNumber: p.periodNumber,
     startTime: p.startTime,
     endTime: p.endTime,

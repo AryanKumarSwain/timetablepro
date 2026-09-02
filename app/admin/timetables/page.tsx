@@ -37,6 +37,9 @@ import {
   MoreVertical,
   Share2,
   Table2,
+  Pencil,
+  Trash2,
+  Edit3,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -65,11 +68,13 @@ function TimetableRow({
   item,
   onActivate,
   onDeactivate,
+  onRename,
   onDelete,
 }: {
   item: TimetableSummary;
   onActivate: () => void;
   onDeactivate: () => void;
+  onRename: () => void;
   onDelete: () => void;
 }) {
   const isActive = item.status === 'PUBLISHED';
@@ -164,15 +169,23 @@ function TimetableRow({
               <MoreVertical className='h-4 w-4' />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align='end'>
-            <DropdownMenuItem asChild>
-              <Link href={`/admin/timetables/${item.id}/edit`}>Edit</Link>
+          <DropdownMenuContent align='end' className="w-40 rounded-xl">
+            <DropdownMenuItem asChild className="cursor-pointer">
+              <Link href={`/admin/timetables/${item.id}/edit`} className="flex items-center gap-2">
+                <Edit3 className="h-4 w-4 text-indigo-500" />
+                <span>Edit Grid</span>
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={onRename} className="cursor-pointer flex items-center gap-2">
+              <Pencil className="h-4 w-4 text-amber-500" />
+              <span>Rename</span>
             </DropdownMenuItem>
             <DropdownMenuItem
-              className='text-destructive'
+              className='text-destructive cursor-pointer flex items-center gap-2'
               onClick={onDelete}
             >
-              Delete
+              <Trash2 className="h-4 w-4" />
+              <span>Delete</span>
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -189,6 +202,13 @@ export default function TimetablesPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [newName, setNewName] = useState('');
   const [creating, setCreating] = useState(false);
+
+  // Rename state
+  const [renameModalOpen, setRenameModalOpen] = useState(false);
+  const [targetTimetable, setTargetTimetable] = useState<TimetableSummary | null>(null);
+  const [renameInput, setRenameInput] = useState('');
+  const [renaming, setRenaming] = useState(false);
+
   const timetableLimit = 30;
   const canCreateTimetable = timetables.length < timetableLimit;
 
@@ -233,6 +253,29 @@ export default function TimetablesPage() {
       window.alert('Timetable creation limit reached. You can create up to 30 timetables.');
     } finally {
       setCreating(false);
+    }
+  };
+
+  const handleOpenRename = (t: TimetableSummary) => {
+    setTargetTimetable(t);
+    setRenameInput(t.name);
+    setRenameModalOpen(true);
+  };
+
+  const handleRenameSave = async () => {
+    if (!targetTimetable || !renameInput.trim()) return;
+    setRenaming(true);
+    try {
+      await updateTimetable(targetTimetable.id, { name: renameInput.trim() });
+      setRenameModalOpen(false);
+      setTargetTimetable(null);
+      setRenameInput('');
+      await load();
+    } catch (err) {
+      console.error('Failed to rename timetable:', err);
+      window.alert('Failed to rename timetable.');
+    } finally {
+      setRenaming(false);
     }
   };
 
@@ -309,6 +352,7 @@ export default function TimetablesPage() {
                 item={t}
                 onActivate={() => void updateTimetable(t.id, { status: 'PUBLISHED' }).then(load)}
                 onDeactivate={() => void updateTimetable(t.id, { status: 'DRAFT' }).then(load)}
+                onRename={() => handleOpenRename(t)}
                 onDelete={() => {
                   if (window.confirm('Delete this timetable?')) {
                     void deleteTimetable(t.id).then(load);
@@ -334,6 +378,7 @@ export default function TimetablesPage() {
                 item={t}
                 onActivate={() => void updateTimetable(t.id, { status: 'PUBLISHED' }).then(load)}
                 onDeactivate={() => void updateTimetable(t.id, { status: 'DRAFT' }).then(load)}
+                onRename={() => handleOpenRename(t)}
                 onDelete={() => {
                   if (window.confirm('Delete this timetable?')) {
                     void deleteTimetable(t.id).then(load);
@@ -345,6 +390,7 @@ export default function TimetablesPage() {
         )}
       </GlassCard>
 
+      {/* New Timetable Modal */}
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
         <DialogContent className='rounded-2xl border border-border/60 bg-background/95 backdrop-blur-md'>
           <DialogHeader>
@@ -369,6 +415,45 @@ export default function TimetablesPage() {
             >
               {creating ? 'Creating…' : 'Create'}
             </PlanButton>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Rename Timetable Modal */}
+      <Dialog open={renameModalOpen} onOpenChange={setRenameModalOpen}>
+        <DialogContent className='rounded-2xl border border-border/60 bg-background/95 backdrop-blur-md'>
+          <DialogHeader>
+            <DialogTitle className='text-xl font-bold flex items-center gap-2'>
+              <Pencil className="h-5 w-5 text-indigo-500" />
+              Rename Timetable
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground mb-1.5 block uppercase tracking-wider">
+                Timetable Name
+              </label>
+              <Input
+                placeholder='Enter new timetable name'
+                value={renameInput}
+                onChange={(e) => setRenameInput(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && void handleRenameSave()}
+                className='rounded-xl h-11'
+                autoFocus
+              />
+            </div>
+          </div>
+          <DialogFooter className='gap-2 sm:gap-0'>
+            <Button variant='outline' className='rounded-xl' onClick={() => setRenameModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button 
+              disabled={renaming || !renameInput.trim() || renameInput.trim() === targetTimetable?.name} 
+              onClick={() => void handleRenameSave()}
+              className='rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-medium'
+            >
+              {renaming ? 'Saving…' : 'Save Name'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

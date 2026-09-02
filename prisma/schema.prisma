@@ -78,6 +78,7 @@ model School {
 	customPlanRequests    CustomPlanRequest[]
 	teacherTodos          TeacherTodo[]
 	lessonPlans           LessonPlan[]
+	rooms                 Room[]
 }
 
 enum LicenseStatus {
@@ -263,6 +264,21 @@ model ClassRoom {
 	timetableSlots TimetableSlot[]
 	homework      Homework[]
 	lessonPlans   LessonPlan[]
+
+	@@index([schoolId])
+}
+
+model Room {
+	id            String         @id @default(uuid())
+	schoolId      String
+	school        School         @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+	roomNumber    String
+	floor         String?
+	block         String?
+	capacity      Int?           @default(40)
+	createdAt     DateTime       @default(now())
+	updatedAt     DateTime       @updatedAt
+	timetableSlots TimetableSlot[]
 
 	@@index([schoolId])
 }
@@ -494,12 +510,15 @@ model TimetableSlot {
 	subject     Subject   @relation(fields: [subjectId], references: [id])
 	teacherId   String
 	teacher     Teacher   @relation(fields: [teacherId], references: [id])
+	roomId      String?
+	room        Room?     @relation(fields: [roomId], references: [id], onDelete: SetNull)
 	replacements ReplacementAssignment[]
 	lessonPlans  LessonPlan[]
 
 	@@unique([timetableId, dayOfWeek, periodId, classId])
 	@@index([timetableId])
 	@@index([schoolId])
+	@@index([roomId])
 }
 
 enum HomeworkStatus {

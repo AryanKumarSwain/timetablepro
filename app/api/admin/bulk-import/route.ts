@@ -28,13 +28,20 @@ export async function POST(request: NextRequest) {
     const entity = body.entity as CsvImportEntity;
     const rows = (body.rows ?? []) as ParsedCsvRow[];
 
-    if (!['teachers', 'subjects', 'classes'].includes(entity)) {
+    if (!['teachers', 'subjects', 'classes', 'rooms'].includes(entity)) {
       return NextResponse.json({ error: 'Invalid import entity.' }, { status: 400 });
     }
 
     if (!Array.isArray(rows) || rows.length === 0) {
       return NextResponse.json(
         { error: 'No rows provided for import.' },
+        { status: 400 }
+      );
+    }
+
+    if (rows.length > 100) {
+      return NextResponse.json(
+        { error: `Maximum bulk upload limit is 100 rows per file. You uploaded ${rows.length} rows. Please reduce your CSV file size.` },
         { status: 400 }
       );
     }
@@ -133,6 +140,48 @@ export async function POST(request: NextRequest) {
             row: rowNumber,
             message:
               error instanceof Error ? error.message : 'Failed to create class.',
+          });
+        }
+      }
+
+      return NextResponse.json(result);
+    }
+
+    if (entity === 'rooms') {
+      for (let i = 0; i < rows.length; i++) {
+        const rowNumber = i + 2;
+        const row = rows[i];
+        const roomNumber = row.roomNumber?.trim() || row.name?.trim();
+        const floor = row.floor?.trim() || null;
+        const block = row.block?.trim() || null;
+
+        if (!roomNumber) {
+          result.failed++;
+          result.errors.push({
+            row: rowNumber,
+            message: 'roomNumber is required.',
+          });
+          continue;
+        }
+
+        try {
+          await client.room.create({
+            data: {
+              id: `room-${crypto.randomUUID()}`,
+              schoolId,
+              roomNumber,
+              floor,
+              block,
+              capacity: 40,
+            },
+          });
+          result.imported++;
+        } catch (error) {
+          result.failed++;
+          result.errors.push({
+            row: rowNumber,
+            message:
+              error instanceof Error ? error.message : 'Failed to create room.',
           });
         }
       }

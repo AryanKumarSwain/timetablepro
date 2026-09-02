@@ -3,6 +3,7 @@ import type {
   Teacher,
   Subject,
   Class,
+  Room,
   Period,
   WeeklyTimetableEntry,
   DailyAttendance,
@@ -169,6 +170,40 @@ export async function updateClass(
 
 export async function deleteClass(id: string): Promise<boolean> {
   await apiFetch(`/api/classes/${id}`, { method: 'DELETE' });
+  return true;
+}
+
+// ============================================================================
+// Rooms
+// ============================================================================
+export async function getRooms(): Promise<Room[]> {
+  return apiFetch('/api/rooms');
+}
+
+export async function getRoom(id: string): Promise<Room | null> {
+  const list = await getRooms();
+  return list.find((r) => r.id === id) ?? null;
+}
+
+export async function createRoom(data: Omit<Room, 'id'>): Promise<Room> {
+  return apiFetch('/api/rooms', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function updateRoom(
+  id: string,
+  data: Partial<Room>
+): Promise<Room | null> {
+  return apiFetch(`/api/rooms/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteRoom(id: string): Promise<boolean> {
+  await apiFetch(`/api/rooms/${id}`, { method: 'DELETE' });
   return true;
 }
 
@@ -519,6 +554,7 @@ export type TimetableSummary = {
 export type TimetableDetail = TimetableSummary & {
   periods: Period[];
   classes: { id: string; name: string; grade: string; section: string; roomNumber: string }[];
+  rooms: { id: string; roomNumber: string; name?: string; floor?: string; block?: string }[];
   subjects: { id: string; name: string; code: string; color: string }[];
   teachers: { id: string; name: string; email: string; active: boolean }[];
   slots: {
@@ -528,6 +564,8 @@ export type TimetableDetail = TimetableSummary & {
     classId: string;
     subjectId: string;
     teacherId: string;
+    roomId?: string;
+    roomNumber?: string;
     periodNumber: number;
     className: string;
     subjectName: string;
@@ -591,6 +629,7 @@ export async function upsertTimetableSlot(
     classId: string;
     subjectId: string;
     teacherId: string;
+    roomId?: string;
   }
 ) {
   return apiFetch(`/api/admin/timetables/${timetableId}/slots`, {

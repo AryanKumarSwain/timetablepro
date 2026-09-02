@@ -1,4 +1,4 @@
-export type CsvImportEntity = 'teachers' | 'subjects' | 'classes';
+export type CsvImportEntity = 'teachers' | 'subjects' | 'classes' | 'rooms';
 
 export type CsvImportRowError = {
   row: number;

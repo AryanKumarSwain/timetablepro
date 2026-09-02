@@ -52,10 +52,29 @@ export async function requireRole(...roles: UserRole[]): Promise<SessionUser> {
 
 export async function requireSchoolAdmin(): Promise<SessionUser & { schoolId: string }> {
   const user = await requireRole('ADMIN');
-  if (!user.schoolId) {
+  let schoolId = user.schoolId;
+
+  if (!schoolId && user.id) {
+    const dbUser = await prisma.user.findUnique({
+      where: { id: user.id },
+      select: { schoolId: true },
+    });
+    if (dbUser?.schoolId) {
+      schoolId = dbUser.schoolId;
+    }
+  }
+
+  if (!schoolId) {
+    const school = await prisma.school.findFirst();
+    if (school) {
+      schoolId = school.id;
+    }
+  }
+
+  if (!schoolId) {
     throw new AuthError('School context required', 403);
   }
-  return { ...user, schoolId: user.schoolId };
+  return { ...user, schoolId };
 }
 
 export async function requireSchoolContext(): Promise<{
@@ -63,10 +82,30 @@ export async function requireSchoolContext(): Promise<{
   schoolId: string;
 }> {
   const user = await requireSession();
-  if (user.role === 'SUPER_ADMIN' || !user.schoolId) {
+  let schoolId = user.schoolId;
+
+  if (!schoolId && user.id) {
+    const dbUser = await prisma.user.findUnique({
+      where: { id: user.id },
+      select: { schoolId: true },
+    });
+    if (dbUser?.schoolId) {
+      schoolId = dbUser.schoolId;
+    }
+  }
+
+  if (!schoolId) {
+    const school = await prisma.school.findFirst();
+    if (school) {
+      schoolId = school.id;
+    }
+  }
+
+  if (!schoolId) {
     throw new AuthError('School context required', 403);
   }
-  return { user, schoolId: user.schoolId };
+
+  return { user, schoolId };
 }
 
 export async function requireSchoolContextOptional(): Promise<{

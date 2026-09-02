@@ -18,6 +18,7 @@ import {
   Settings,
   BookMarked,
   Building2,
+  DoorOpen,
 } from 'lucide-react';
 
 export type AppRole = 'super-admin' | 'admin' | 'teacher';
@@ -42,6 +43,7 @@ export const ADMIN_NAV: NavItem[] = [
   { label: 'Dashboard', href: '/admin/dashboard', icon: LayoutDashboard },
   { label: 'Teachers', href: '/admin/teachers', icon: Users },
   { label: 'Classes', href: '/admin/classes', icon: GraduationCap },
+  { label: 'Rooms', href: '/admin/rooms', icon: DoorOpen },
   { label: 'Subjects', href: '/admin/subjects', icon: BookOpen },
   { label: 'Attendance', href: '/admin/attendance', icon: UserCheck, featureKey: 'attendance' },
   { label: 'Time Tables', href: '/admin/timetables', icon: Table2 },

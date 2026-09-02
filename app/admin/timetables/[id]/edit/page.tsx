@@ -63,7 +63,7 @@ export default function TimetableEditPage() {
     classId: string;
     slot?: TimetableDetail['slots'][number];
   } | null>(null);
-  const [draft, setDraft] = useState({ subjectId: '', teacherId: '' });
+  const [draft, setDraft] = useState({ subjectId: '', teacherId: '', roomId: '' });
   const [saving, setSaving] = useState(false);
 
   const addMinutesToTime = (timeStr: string, minsToAdd: number): string => {
@@ -181,12 +181,23 @@ export default function TimetableEditPage() {
     const totalExpectedSlotsCount = activePeriods.length * workingDays.length;
     if (totalExpectedSlotsCount === 0) return filledMap;
 
-    if (view === 'section' || view === 'room') {
+    if (view === 'section') {
       detail.classes.forEach(c => {
         const slotsForClass = detail.slots.filter(s => s.classId === c.id);
         const filledValidSlots = slotsForClass.filter(s => activePeriods.some(p => p.id === s.periodId));
         if (filledValidSlots.length >= totalExpectedSlotsCount) {
           filledMap.add(c.id);
+        }
+      });
+    } else if (view === 'room') {
+      const roomsList = (detail.rooms && detail.rooms.length > 0)
+        ? detail.rooms.map(r => ({ id: r.id, name: r.roomNumber }))
+        : detail.classes.map(c => ({ id: c.id, name: c.roomNumber || c.name }));
+      roomsList.forEach(r => {
+        const slotsForRoom = detail.slots.filter(s => s.roomId === r.id || s.classId === r.id);
+        const filledValidSlots = slotsForRoom.filter(s => activePeriods.some(p => p.id === s.periodId));
+        if (filledValidSlots.length >= totalExpectedSlotsCount) {
+          filledMap.add(r.id);
         }
       });
     } else if (view === 'faculty') {
@@ -204,18 +215,38 @@ export default function TimetableEditPage() {
   const sidebarItems = useMemo(() => {
     if (!detail) return [];
     const q = search.trim().toLowerCase();
-    if (view === 'section' || view === 'room') {
+    if (view === 'section') {
       return q ? detail.classes.filter((c) => c.name.toLowerCase().includes(q)) : detail.classes;
     }
     if (view === 'faculty') {
       return q ? detail.teachers.filter((t) => t.name.toLowerCase().includes(q)) : detail.teachers;
     }
-    return q ? detail.classes.filter((c) => `${c.name} ${c.roomNumber}`.toLowerCase().includes(q)) : detail.classes;
+    if (view === 'room') {
+      const roomsList = (detail.rooms && detail.rooms.length > 0)
+        ? detail.rooms.map((r) => ({ id: r.id, name: r.name || `Room ${r.roomNumber}` }))
+        : detail.classes.map((c) => ({ id: c.id, name: c.roomNumber ? `Room ${c.roomNumber}` : c.name }));
+      return q ? roomsList.filter((r) => r.name.toLowerCase().includes(q)) : roomsList;
+    }
+    return [];
   }, [detail, view, search]);
+
+  useEffect(() => {
+    if (sidebarItems.length > 0) {
+      if (!sidebarItems.some((item) => item.id === selectedId)) {
+        setSelectedId(sidebarItems[0].id);
+      }
+    }
+  }, [view, sidebarItems, selectedId]);
 
   const filteredSlots = useMemo(() => {
     if (!detail) return [];
-    return detail.slots.filter((s) => s.classId === selectedId || (view === 'faculty' && s.teacherId === selectedId));
+    if (view === 'room') {
+      return detail.slots.filter((s) => s.roomId === selectedId || s.classId === selectedId);
+    }
+    if (view === 'faculty') {
+      return detail.slots.filter((s) => s.teacherId === selectedId);
+    }
+    return detail.slots.filter((s) => s.classId === selectedId);
   }, [detail, view, selectedId]);
 
   const classCurrentlyEditing = useMemo(() => {
@@ -223,6 +254,12 @@ export default function TimetableEditPage() {
     if (view === 'faculty') {
       const activeSlot = detail.slots.find((s) => s.teacherId === selectedId);
       if (activeSlot) return activeSlot.className;
+    }
+    if (view === 'room') {
+      const roomObj = detail.rooms?.find((r) => r.id === selectedId);
+      if (roomObj) return `Room ${roomObj.roomNumber}`;
+      const currentClass = detail.classes.find((c) => c.id === selectedId);
+      return currentClass ? `Room ${currentClass.roomNumber || currentClass.name}` : null;
     }
     const currentClass = detail.classes.find((c) => c.id === selectedId);
     return currentClass ? currentClass.name : (detail.targetClassName || null);
@@ -246,12 +283,35 @@ export default function TimetableEditPage() {
     return detail.teachers.filter((teacher) => !busyTeacherIds.has(teacher.id) && isTeacherActive(teacher.active));
   }, [detail, editCell]);
 
+  const availableRoomsForCell = useMemo(() => {
+    if (!detail || !editCell) return detail?.rooms || [];
+    const busyRoomIds = new Set(
+      detail.slots
+        .filter((slot) =>
+          slot.dayOfWeek === editCell.dayOfWeek &&
+          slot.periodId === editCell.periodId &&
+          slot.classId !== editCell.classId &&
+          slot.roomId
+        )
+        .map((slot) => slot.roomId!)
+    );
+    return (detail.rooms || []).filter((room) => !busyRoomIds.has(room.id));
+  }, [detail, editCell]);
+
   const openEditor = (dayOfWeek: number, periodId: string, slot?: TimetableDetail['slots'][number]) => {
-    const classId = view === 'faculty' && slot ? slot.classId : selectedId;
+    let classId = selectedId;
+    if (view === 'faculty' && slot) {
+      classId = slot.classId;
+    } else if (view === 'room') {
+      classId = slot ? slot.classId : (detail?.classes[0]?.id || selectedId);
+    }
+    const defaultRoomId = view === 'room' && !slot ? selectedId : (slot?.roomId ?? '');
+
     setEditCell({ dayOfWeek, periodId, classId, slot });
     setDraft({
       subjectId: slot?.subjectId ?? '',
       teacherId: slot?.teacherId ?? '',
+      roomId: defaultRoomId,
     });
     setSheetOpen(true);
   };
@@ -266,6 +326,7 @@ export default function TimetableEditPage() {
         classId: editCell.classId,
         subjectId: draft.subjectId,
         teacherId: draft.teacherId,
+        roomId: draft.roomId || undefined,
       });
       setSheetOpen(false);
       await load();
@@ -444,15 +505,14 @@ export default function TimetableEditPage() {
 
           <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-3 border-border/60">
             <Tabs value={view} onValueChange={(v) => setView(v as ViewMode)} className="w-full sm:w-auto">
-              <TabsList className="rounded-xl p-1 bg-muted/80 w-full sm:w-auto grid grid-cols-3 sm:inline-flex">
-                <TabsTrigger value="section" className="rounded-lg text-xs font-semibold">Section</TabsTrigger>
+              <TabsList className="rounded-xl p-1 bg-muted/80 w-full sm:w-auto grid grid-cols-2 sm:inline-flex">
+                <TabsTrigger value="section" className="rounded-lg text-xs font-semibold">Class</TabsTrigger>
                 <TabsTrigger value="faculty" className="rounded-lg text-xs font-semibold">Faculty</TabsTrigger>
-                <TabsTrigger value="room" className="rounded-lg text-xs font-semibold">Room</TabsTrigger>
               </TabsList>
             </Tabs>
             <div className="w-full sm:w-auto flex items-center gap-2">
               <Input
-                placeholder={`Search ${view}...`}
+                placeholder={`Search ${view === 'section' ? 'class' : 'faculty'}...`}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className='rounded-xl text-xs bg-muted/40 focus-visible:ring-indigo-500/30 h-9 flex-1 sm:w-48'
@@ -468,7 +528,7 @@ export default function TimetableEditPage() {
         <GlassCard className="p-3 w-full">
           <div className="flex items-center gap-2 mb-2 text-xs font-bold text-muted-foreground uppercase tracking-wider px-1">
             <Layers className="h-3.5 w-3.5 text-indigo-500" />
-            <span>Select Active {view}</span>
+            <span>Select Active {view === 'section' ? 'Class' : 'Faculty'}</span>
           </div>
           <div className="flex items-center gap-2 overflow-x-auto pb-1 max-w-full scrollbar-none snap-x touch-pan-x">
             {sidebarItems.map((item) => {
@@ -544,11 +604,24 @@ export default function TimetableEditPage() {
                     renderCell={(_day, _period, slot) => {
                       if (!slot) return null;
                       const color = subjectColorMap.get(slot.subjectId) ?? '#6366f1';
+                      const roomText = slot.roomNumber ? ` (Rm ${slot.roomNumber})` : '';
+
+                      let name = slot.subjectName;
+                      let sublabel = `${slot.teacherName}${roomText}`;
+
+                      if (view === 'faculty') {
+                        name = slot.className;
+                        sublabel = `${slot.subjectName}${roomText}`;
+                      } else if (view === 'room') {
+                        name = slot.subjectName;
+                        sublabel = `${slot.className} — ${slot.teacherName}`;
+                      }
+
                       return (
                         <SubjectChip
-                          name={view === 'faculty' ? slot.className : slot.subjectName}
+                          name={name}
                           color={color}
-                          sublabel={view === 'faculty' ? slot.subjectName : slot.teacherName}
+                          sublabel={sublabel}
                         />
                       );
                     }}
@@ -575,6 +648,7 @@ export default function TimetableEditPage() {
         periodLabel={periodLabel}
         subjects={detail.subjects}
         teachers={availableTeachersForCell}
+        rooms={availableRoomsForCell}
         draft={draft}
         onDraftChange={(p) => setDraft((d) => ({ ...d, ...p }))}
         onSave={() => void handleSave()}

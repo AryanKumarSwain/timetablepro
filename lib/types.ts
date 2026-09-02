@@ -50,6 +50,19 @@ export interface Class {
   roomNumber?: string;
 }
 
+// ============================================================================
+// Room
+// ============================================================================
+
+export interface Room {
+  id: string;
+  roomNumber: string;
+  name?: string;
+  floor?: string;
+  block?: string;
+  capacity?: number;
+}
+
 export interface SaasPlan {
   id: string;
   name: string;

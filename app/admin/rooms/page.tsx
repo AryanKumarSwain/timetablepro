@@ -3,13 +3,12 @@
 import { useState, useEffect } from 'react';
 import { useRequireAuth } from '@/lib/auth-context';
 import {
-  getClasses,
-  createClass,
-  updateClass,
-  deleteClass,
-  getSchoolDetails,
+  getRooms,
+  createRoom,
+  updateRoom,
+  deleteRoom,
 } from '@/lib/api-services';
-import { Class } from '@/lib/types';
+import { Room } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { PlanButton } from '@/components/ui/plan-button';
 import { Card } from '@/components/ui/card';
@@ -25,65 +24,52 @@ import {
 } from '@/components/enterprise/data-grid';
 import { PageSkeleton } from '@/components/enterprise/page-skeleton';
 import { BulkCsvImportModal } from '@/components/enterprise/bulk-csv-import-modal';
-import { Upload, CheckCircle2 } from 'lucide-react';
+import { Upload, CheckCircle2, DoorOpen, AlertCircle } from 'lucide-react';
 
-export default function ClassesPage() {
+export default function RoomsPage() {
   useRequireAuth('admin');
 
-  const [classes, setClasses] = useState<Class[]>([]);
+  const [rooms, setRooms] = useState<Room[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [importOpen, setImportOpen] = useState(false);
-  
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
-  const [schoolPlan, setSchoolPlan] = useState<any>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  // Cleaned up form state containing only Name and Section
-  const [formData, setFormData] = useState<Omit<Class, 'id' | 'strength' | 'classTeacher' | 'roomNumber'>>({
-    name: '',
-    section: '',
+  const [formData, setFormData] = useState<Omit<Room, 'id'>>({
+    roomNumber: '',
+    floor: '',
+    block: '',
   });
 
   useEffect(() => {
     loadData();
-    loadSchoolPlan();
   }, []);
 
-  const loadSchoolPlan = async () => {
-    try {
-      const schoolData = await getSchoolDetails();
-      setSchoolPlan(schoolData.plan);
-    } catch (error) {
-      console.error('Failed to load school plan:', error);
-    }
-  };
-
-  // 2-second auto-dismiss timer for notifications
   useEffect(() => {
     if (!successMsg) return;
     const timer = setTimeout(() => {
       setSuccessMsg(null);
-    }, 2000);
+    }, 3000);
     return () => clearTimeout(timer);
   }, [successMsg]);
+
+  useEffect(() => {
+    if (!errorMsg) return;
+    const timer = setTimeout(() => {
+      setErrorMsg(null);
+    }, 4000);
+    return () => clearTimeout(timer);
+  }, [errorMsg]);
 
   const loadData = async () => {
     try {
       setLoading(true);
-      const classesData = await getClasses();
-      // Sort classes by grade (numeric) and then section (alphabetical)
-      const sortedClasses = classesData.sort((a, b) => {
-        const gradeA = parseInt(a.grade || '0');
-        const gradeB = parseInt(b.grade || '0');
-        if (gradeA !== gradeB) {
-          return gradeA - gradeB;
-        }
-        return (a.section || '').localeCompare(b.section || '');
-      });
-      setClasses(sortedClasses);
+      const roomsData = await getRooms();
+      setRooms(roomsData);
     } catch (error) {
-      console.error('Failed to load data:', error);
+      console.error('Failed to load rooms:', error);
     } finally {
       setLoading(false);
     }
@@ -92,58 +78,64 @@ export default function ClassesPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const currentFormData = { ...formData };
-    
+    setErrorMsg(null);
+    setSuccessMsg(null);
+
     try {
       if (editingId) {
-        setSuccessMsg(`Class ${currentFormData.name} updated successfully.`);
+        await updateRoom(editingId, currentFormData);
+        setSuccessMsg(`Room ${currentFormData.roomNumber} updated successfully.`);
         resetForm();
-        await updateClass(editingId, currentFormData);
-        loadData(); // Runs quietly in background
+        await loadData();
       } else {
-        // Optimistic UI clear and response toast
-        setSuccessMsg(`Class ${currentFormData.name} has been created successfully.`);
+        await createRoom(currentFormData);
+        setSuccessMsg(`Room ${currentFormData.roomNumber} created successfully.`);
         resetForm();
-        await createClass(currentFormData);
-        loadData(); // Runs quietly in background
+        await loadData();
       }
-    } catch (error) {
-      console.error('Failed to save class:', error);
+    } catch (error: any) {
+      console.error('Failed to save room:', error);
+      setErrorMsg(error?.message || 'Failed to save room.');
       setShowForm(true);
       setFormData(currentFormData);
     }
   };
 
   const handleBulkUploadSuccess = () => {
-    setSuccessMsg('Bulk import successful! All new classes have been saved.');
+    setSuccessMsg('Bulk import successful! All rooms have been saved.');
     loadData();
   };
 
-  const handleEdit = (cls: Class) => {
+  const handleEdit = (room: Room) => {
     setSuccessMsg(null);
+    setErrorMsg(null);
     setFormData({
-      name: cls.name,
-      section: cls.section,
+      roomNumber: room.roomNumber,
+      floor: room.floor || '',
+      block: room.block || '',
     });
-    setEditingId(cls.id);
+    setEditingId(room.id);
     setShowForm(true);
   };
 
   const handleDelete = async (id: string) => {
-    if (window.confirm('Are you sure?')) {
+    if (window.confirm('Are you sure you want to delete this room?')) {
       try {
-        setSuccessMsg('Class record removed successfully.');
-        await deleteClass(id);
+        setSuccessMsg('Room removed successfully.');
+        await deleteRoom(id);
         loadData();
-      } catch (error) {
-        console.error('Failed to delete class:', error);
+      } catch (error: any) {
+        console.error('Failed to delete room:', error);
+        setErrorMsg(error?.message || 'Failed to delete room.');
       }
     }
   };
 
   const resetForm = () => {
     setFormData({
-      name: '',
-      section: '',
+      roomNumber: '',
+      floor: '',
+      block: '',
     });
     setEditingId(null);
     setShowForm(false);
@@ -160,12 +152,11 @@ export default function ClassesPage() {
   return (
     <div className='max-w-7xl mx-auto relative'>
       <PageHeader
-        title='Classes'
-        description={`Manage school classes (${classes.length}/100)`}
+        title='Rooms'
+        description={`Manage school rooms (${rooms.length}/100)`}
         breadcrumbs={[
           { label: 'Admin', href: '/admin/dashboard' },
-        
-          { label: 'Classes' },
+          { label: 'Rooms' },
         ]}
         actions={
           !showForm ? (
@@ -181,19 +172,19 @@ export default function ClassesPage() {
               <PlanButton
                 onClick={() => {
                   setSuccessMsg(null);
+                  setErrorMsg(null);
                   setShowForm(true);
                 }}
-                variant="primary"
+                variant='primary'
                 className='rounded-xl'
               >
-                Add Class
+                Add Room
               </PlanButton>
             </div>
           ) : undefined
         }
       />
 
-      {/* TOP-RIGHT POPUP TOAST BOX */}
       {successMsg && (
         <div className='fixed top-6 right-6 z-50 max-w-sm p-4 bg-white dark:bg-zinc-900 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-sm rounded-xl shadow-xl flex items-start gap-3 animate-in slide-in-from-top-4 fade-in duration-300'>
           <CheckCircle2 className='h-5 w-5 shrink-0 text-emerald-500 mt-0.5' />
@@ -204,47 +195,65 @@ export default function ClassesPage() {
         </div>
       )}
 
+      {errorMsg && (
+        <div className='fixed top-6 right-6 z-50 max-w-sm p-4 bg-white dark:bg-zinc-900 border border-rose-500/30 text-rose-600 dark:text-rose-400 text-sm rounded-xl shadow-xl flex items-start gap-3 animate-in slide-in-from-top-4 fade-in duration-300'>
+          <AlertCircle className='h-5 w-5 shrink-0 text-rose-500 mt-0.5' />
+          <div>
+            <p className='font-semibold mb-0.5'>Action Failed</p>
+            <p className='text-zinc-600 dark:text-zinc-400 text-xs leading-relaxed'>{errorMsg}</p>
+          </div>
+        </div>
+      )}
+
       {showForm && (
         <Card className='p-6 mb-6 border-border animate-in fade-in duration-200'>
           <h2 className='text-xl font-semibold text-foreground mb-4'>
-            {editingId ? 'Edit Class' : 'Add New Class'}
+            {editingId ? 'Edit Room' : 'Add New Room'}
           </h2>
           <form onSubmit={handleSubmit} className='space-y-4'>
-            <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
+            <div className='grid grid-cols-1 md:grid-cols-3 gap-4'>
               <div>
                 <label className='block text-sm font-medium text-foreground mb-2'>
-                  Name
+                  Room No / Name <span className='text-rose-500'>*</span>
                 </label>
                 <Input
-                  value={formData.name}
+                  value={formData.roomNumber}
                   onChange={(e) =>
-                    setFormData({ ...formData, name: e.target.value })
+                    setFormData({ ...formData, roomNumber: e.target.value })
                   }
-                  placeholder='Class 10-A'
+                  placeholder='Room 101'
                   required
                 />
               </div>
               <div>
                 <label className='block text-sm font-medium text-foreground mb-2'>
-                  Section
+                  Floor (Optional)
                 </label>
                 <Input
-                  value={formData.section}
+                  value={formData.floor || ''}
                   onChange={(e) =>
-                    setFormData({ ...formData, section: e.target.value })
+                    setFormData({ ...formData, floor: e.target.value })
                   }
-                  placeholder='A'
-                  required
+                  placeholder='1st Floor'
+                />
+              </div>
+              <div>
+                <label className='block text-sm font-medium text-foreground mb-2'>
+                  Block (Optional)
+                </label>
+                <Input
+                  value={formData.block || ''}
+                  onChange={(e) =>
+                    setFormData({ ...formData, block: e.target.value })
+                  }
+                  placeholder='Block A'
                 />
               </div>
             </div>
 
             <div className='flex gap-2 pt-2'>
-              <Button
-                type='submit'
-                className='bg-primary hover:bg-primary/90'
-              >
-                {editingId ? 'Update' : 'Create'}
+              <Button type='submit' className='bg-primary hover:bg-primary/90'>
+                {editingId ? 'Update Room' : 'Create Room'}
               </Button>
               <Button
                 type='button'
@@ -262,32 +271,37 @@ export default function ClassesPage() {
       <BulkCsvImportModal
         open={importOpen}
         onOpenChange={setImportOpen}
-        entity='classes'
+        entity='rooms'
         onSuccess={handleBulkUploadSuccess}
       />
 
-      <DataGrid title='Classes list' empty={classes.length === 0}>
+      <DataGrid title='Rooms list' empty={rooms.length === 0}>
         <DataGridTable>
           <DataGridHead>
             <tr>
-              <DataGridTh>Name</DataGridTh>
-              <DataGridTh>Section</DataGridTh>
+              <DataGridTh>Room No</DataGridTh>
+              <DataGridTh>Floor</DataGridTh>
+              <DataGridTh>Block</DataGridTh>
               <DataGridTh>Actions</DataGridTh>
             </tr>
           </DataGridHead>
           <tbody>
-            {classes.map((cls) => (
-              <DataGridRow key={cls.id}>
-                <DataGridTd className='font-medium text-foreground'>
-                  {cls.name}
+            {rooms.map((room) => (
+              <DataGridRow key={room.id}>
+                <DataGridTd className='font-medium text-foreground flex items-center gap-2'>
+                  <DoorOpen className='h-4 w-4 text-indigo-500/70' />
+                  {room.roomNumber}
                 </DataGridTd>
                 <DataGridTd className='text-muted-foreground'>
-                  {cls.section}
+                  {room.floor || '—'}
+                </DataGridTd>
+                <DataGridTd className='text-muted-foreground'>
+                  {room.block || '—'}
                 </DataGridTd>
                 <DataGridTd>
                   <div className='flex gap-2'>
                     <Button
-                      onClick={() => handleEdit(cls)}
+                      onClick={() => handleEdit(room)}
                       size='sm'
                       variant='outline'
                       className='rounded-lg'
@@ -295,7 +309,7 @@ export default function ClassesPage() {
                       Edit
                     </Button>
                     <Button
-                      onClick={() => handleDelete(cls.id)}
+                      onClick={() => handleDelete(room.id)}
                       size='sm'
                       variant='outline'
                       className='rounded-lg border-rose-500/30 text-rose-600'

@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowRight,
   BarChart3,
@@ -20,12 +20,41 @@ import {
   Twitter,
   Users,
   Zap,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { usePlanTheme } from '@/lib/plan-theme';
 import { getSuperAdminPlans, type SaasPlan } from '@/lib/api-services';
+
+const heroSlides = [
+  {
+    src: '/slides/daily-desk.jpg',
+    title: 'Daily Desk Operations',
+    subtitle: 'Real-Time Attendance & Substitution Matrix',
+    tag: 'Live Operations',
+    statTop: { label: 'DAILY MATRIX', value: 'Live Schedule Active' },
+    statBottom: { label: 'COVER STATUS', value: '18 Pending Covers' },
+  },
+  {
+    src: '/slides/timetable-builder.jpg',
+    title: 'Timetable Builder',
+    subtitle: 'Conflict-Free Weekly Class & Room Grid',
+    tag: 'Smart Builder',
+    statTop: { label: 'TOTAL CLASSES', value: '100+ Managed' },
+    statBottom: { label: 'CONFLICT ENGINE', value: '0 Clashes / 100% Clean' },
+  },
+  {
+    src: '/slides/operations-dashboard.jpg',
+    title: 'Operations Dashboard',
+    subtitle: 'Faculty Workload & Subject Analytics',
+    tag: 'Live Analytics',
+    statTop: { label: 'TOTAL TEACHERS', value: '125 Active Staff' },
+    statBottom: { label: 'SUBJECT DISTRIBUTION', value: '210 Slots Tracked' },
+  },
+];
 
 const landingFeatures = [
   {
@@ -85,6 +114,17 @@ export function LandingPage() {
   const { theme } = usePlanTheme();
   const [plans, setPlans] = useState<SaasPlan[] | null>(null);
   const [trustedSchools, setTrustedSchools] = useState<string[]>([]);
+
+  const [activeSlide, setActiveSlide] = useState(0);
+  const [isHovered, setIsHovered] = useState(false);
+
+  useEffect(() => {
+    if (isHovered) return;
+    const timer = setInterval(() => {
+      setActiveSlide((prev) => (prev + 1) % heroSlides.length);
+    }, 4000);
+    return () => clearInterval(timer);
+  }, [isHovered]);
 
   useEffect(() => {
     let mounted = true;
@@ -153,20 +193,20 @@ export function LandingPage() {
       </header>
 
       <main className='relative z-10'>
-        <section className='px-4 pb-20 pt-16 sm:px-6 lg:px-8'>
-          <div className='mx-auto grid max-w-7xl items-center gap-12 lg:grid-cols-[1.1fr_0.9fr]'>
+        <section className='px-4 pb-20 pt-14 sm:px-6 lg:px-8'>
+          <div className='mx-auto grid max-w-7xl items-center gap-10 lg:grid-cols-[1fr_1.15fr]'>
             <motion.div
               initial={{ opacity: 0, y: 24 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5 }}
-              className='max-w-2xl'
+              className='max-w-xl'
             >
               <div className='inline-flex items-center gap-2 rounded-full border border-blue-200 bg-blue-100 px-3 py-1.5 text-xs font-medium tracking-[0.18em] text-blue-700 uppercase'>
                 <span className='h-2 w-2 rounded-full bg-emerald-500' />
                 Smart school operations
               </div>
 
-              <h1 className='mt-6 text-4xl font-black tracking-[-0.06em] text-slate-900 sm:text-5xl lg:text-7xl'>
+              <h1 className='mt-6 text-4xl font-black tracking-[-0.06em] text-slate-900 sm:text-5xl lg:text-6xl xl:text-7xl'>
                 Build smarter
                 <span className='block bg-gradient-to-r from-blue-600 via-indigo-500 to-violet-500 bg-clip-text text-transparent'>school time tables</span>
               </h1>
@@ -200,88 +240,116 @@ export function LandingPage() {
               initial={{ opacity: 0, scale: 0.96, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               transition={{ duration: 0.55, delay: 0.08 }}
-              className='relative'
+              className='relative w-full'
             >
-              <div className='absolute -left-5 top-10 h-24 w-24 rounded-full bg-blue-200/80 blur-3xl' />
-              <div className='absolute -right-3 bottom-8 h-24 w-24 rounded-full bg-violet-200/80 blur-3xl' />
-
-              <div className='relative overflow-hidden rounded-[28px] border border-sky-100 bg-white/80 p-4 shadow-[0_25px_80px_rgba(37,99,235,0.11)] backdrop-blur-xl'>
-                <div className='rounded-[22px] border border-sky-100 bg-white p-4'>
-                  <div className='flex items-center justify-between border-b border-slate-100 pb-4'>
-                    <div>
-                      <p className='text-xs uppercase tracking-[0.2em] text-slate-400'>Overview</p>
-                      <h3 className='mt-1 text-xl font-semibold text-slate-900'>School dashboard</h3>
-                    </div>
-                    <div className='rounded-full border border-emerald-200 bg-emerald-100 px-2 py-1 text-[10px] font-medium text-emerald-700'>Live</div>
-                  </div>
-
-                  <div className='mt-5 grid gap-3 sm:grid-cols-3'>
-                    {[
-                      { value: '1,248', label: 'Classes', color: 'from-blue-500 to-cyan-400' },
-                      { value: '96%', label: 'Attendance', color: 'from-emerald-500 to-green-400' },
-                      { value: '24', label: 'Teacher covers', color: 'from-violet-500 to-indigo-400' },
-                    ].map((item) => (
-                      <div key={item.label} className='rounded-2xl border border-slate-100 bg-slate-50 p-3'>
-                        <div className={`mb-3 h-2 rounded-full bg-gradient-to-r ${item.color}`} />
-                        <div className='text-2xl font-bold text-slate-900'>{item.value}</div>
-                        <div className='mt-1 text-xs text-slate-500'>{item.label}</div>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className='mt-5 rounded-2xl border border-slate-100 bg-slate-50 p-4'>
-                    <div className='mb-3 flex items-center justify-between'>
-                      <div className='text-sm font-medium text-slate-700'>Weekly timetable</div>
-                      <div className='flex items-center gap-2 text-xs text-emerald-600'>
-                        <TrendingUp className='h-3.5 w-3.5' />
-                        +12.4%
-                      </div>
-                    </div>
-
-                    <div className='space-y-3'>
-                      {[
-                        { name: 'Mon', value: '78%' },
-                        { name: 'Tue', value: '82%' },
-                        { name: 'Wed', value: '90%' },
-                        { name: 'Thu', value: '85%' },
-                        { name: 'Fri', value: '94%' },
-                      ].map((day, index) => (
-                        <div key={day.name} className='grid grid-cols-[40px_1fr_40px] items-center gap-3'>
-                          <span className='text-xs text-slate-500'>{day.name}</span>
-                          <div className='h-2.5 overflow-hidden rounded-full bg-slate-200'>
-                            <motion.div
-                              initial={{ width: 0 }}
-                              animate={{ width: day.value }}
-                              transition={{ duration: 0.8, delay: 0.25 + index * 0.1 }}
-                              className='h-full rounded-full bg-gradient-to-r from-blue-500 to-violet-500'
-                            />
-                          </div>
-                          <span className='text-right text-xs text-slate-700'>{day.value}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className='mt-5 grid gap-3 sm:grid-cols-2'>
-                    <div className='rounded-2xl border border-slate-100 bg-slate-50 p-3'>
-                      <div className='flex items-center gap-2 text-sm text-slate-600'>
-                        <Clock3 className='h-4 w-4 text-blue-500' />
-                        Cover status
-                      </div>
-                      <div className='mt-3 text-2xl font-bold text-slate-900'>18</div>
-                      <div className='text-xs text-slate-500'>Pending updates</div>
-                    </div>
-                    <div className='rounded-2xl border border-slate-100 bg-slate-50 p-3'>
-                      <div className='flex items-center gap-2 text-sm text-slate-600'>
-                        <Users className='h-4 w-4 text-violet-500' />
-                        Active teachers
-                      </div>
-                      <div className='mt-3 text-2xl font-bold text-slate-900'>142</div>
-                      <div className='text-xs text-slate-500'>Across 12 classes</div>
-                    </div>
-                  </div>
+              {/* Floating Stat Card - Top Left */}
+              <motion.div
+                animate={{ y: [0, -8, 0] }}
+                transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
+                whileHover={{ scale: 1.08, y: -12 }}
+                className="absolute -top-5 left-1 sm:-left-4 z-30 hidden sm:flex items-center gap-3 rounded-2xl border border-sky-100/90 bg-white/95 p-2.5 pr-4 shadow-[0_15px_35px_rgba(37,99,235,0.12)] backdrop-blur-md cursor-pointer transition-shadow hover:shadow-[0_20px_45px_rgba(37,99,235,0.22)]"
+              >
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-pink-500/10 text-pink-600 border border-pink-500/20 shrink-0">
+                  <Users className="h-4.5 w-4.5" />
                 </div>
-              </div>
+                <div>
+                  <AnimatePresence mode="wait">
+                    <motion.div
+                      key={activeSlide}
+                      initial={{ opacity: 0, y: 4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -4 }}
+                      transition={{ duration: 0.25 }}
+                    >
+                      <p className="text-[9px] font-extrabold uppercase tracking-widest text-slate-400">
+                        {heroSlides[activeSlide].statTop.label}
+                      </p>
+                      <p className="text-xs sm:text-sm font-black text-slate-900 leading-tight">
+                        {heroSlides[activeSlide].statTop.value}
+                      </p>
+                    </motion.div>
+                  </AnimatePresence>
+                </div>
+              </motion.div>
+
+              {/* Floating Stat Card - Bottom Right */}
+              <motion.div
+                animate={{ y: [0, 8, 0] }}
+                transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut', delay: 1 }}
+                whileHover={{ scale: 1.08, y: 12 }}
+                className="absolute -bottom-5 right-1 sm:-right-4 z-30 hidden sm:flex items-center gap-3 rounded-2xl border border-sky-100/90 bg-white/95 p-2.5 pr-4 shadow-[0_15px_35px_rgba(37,99,235,0.12)] backdrop-blur-md cursor-pointer transition-shadow hover:shadow-[0_20px_45px_rgba(37,99,235,0.22)]"
+              >
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 shrink-0">
+                  <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                </div>
+                <div>
+                  <AnimatePresence mode="wait">
+                    <motion.div
+                      key={activeSlide}
+                      initial={{ opacity: 0, y: 4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -4 }}
+                      transition={{ duration: 0.25 }}
+                    >
+                      <p className="text-[9px] font-extrabold uppercase tracking-widest text-slate-400">
+                        {heroSlides[activeSlide].statBottom.label}
+                      </p>
+                      <p className="text-xs sm:text-sm font-black text-slate-900 leading-tight">
+                        {heroSlides[activeSlide].statBottom.value}
+                      </p>
+                    </motion.div>
+                  </AnimatePresence>
+                </div>
+              </motion.div>
+
+              {/* Glow Blur Backgrounds */}
+              <div className='absolute -left-6 top-8 h-40 w-40 rounded-full bg-blue-400/20 blur-3xl' />
+              <div className='absolute -right-4 bottom-6 h-40 w-40 rounded-full bg-violet-400/20 blur-3xl' />
+
+              {/* Slideshow Frame */}
+              <motion.div
+                whileHover={{ scale: 1.025 }}
+                transition={{ duration: 0.3 }}
+                className='relative overflow-hidden rounded-[26px] border border-sky-100 bg-white p-2 sm:p-3 shadow-[0_25px_80px_rgba(37,99,235,0.14)] backdrop-blur-xl group transition-shadow duration-300 hover:shadow-[0_35px_95px_rgba(37,99,235,0.22)]'
+                onMouseEnter={() => setIsHovered(true)}
+                onMouseLeave={() => setIsHovered(false)}
+              >
+                <div className='relative overflow-hidden rounded-[20px] border border-slate-200/80 bg-slate-900 aspect-[16/10.5] sm:min-h-[380px] shadow-inner'>
+                  <AnimatePresence mode="wait">
+                    <motion.div
+                      key={activeSlide}
+                      initial={{ opacity: 0, scale: 1.03 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.97 }}
+                      transition={{ duration: 0.4 }}
+                      className="absolute inset-0"
+                    >
+                      <img
+                        src={heroSlides[activeSlide].src}
+                        alt={heroSlides[activeSlide].title}
+                        className="w-full h-full object-cover object-top"
+                      />
+                    </motion.div>
+                  </AnimatePresence>
+                </div>
+
+                {/* Pill Dot Indicators */}
+                <div className="mt-3 flex items-center justify-center gap-2">
+                  {heroSlides.map((slide, idx) => (
+                    <button
+                      key={slide.title}
+                      onClick={() => setActiveSlide(idx)}
+                      className={cn(
+                        'h-2.5 rounded-full transition-all duration-300',
+                        activeSlide === idx
+                          ? 'w-8 bg-blue-600 shadow-sm'
+                          : 'w-2.5 bg-slate-200 hover:bg-slate-300'
+                      )}
+                      title={`Go to ${slide.title}`}
+                    />
+                  ))}
+                </div>
+              </motion.div>
             </motion.div>
           </div>
         </section>

@@ -1,24 +1,176 @@
-'use client';
-
+import { useState, useRef, useEffect } from 'react';
 import { cn, isTeacherActive } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Trash2, Plus, Coffee } from 'lucide-react';
+import { Trash2, Plus, Coffee, Search, ChevronDown, Check } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import type { TimetableDetail } from '@/lib/api-services';
 import { usePlanTheme } from '@/lib/plan-theme';
+
+interface SearchableSelectOption {
+  id: string;
+  label: string;
+  sublabel?: string;
+}
+
+interface SearchableSelectProps {
+  label: string;
+  placeholder: string;
+  value: string;
+  onChange: (value: string) => void;
+  options: SearchableSelectOption[];
+  allowNone?: boolean;
+  noneLabel?: string;
+}
+
+export function SearchableSelect({
+  label,
+  placeholder,
+  value,
+  onChange,
+  options,
+  allowNone = false,
+  noneLabel = 'No Room / Default',
+}: SearchableSelectProps) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const filteredOptions = options.filter(
+    (opt) =>
+      opt.label.toLowerCase().includes(search.toLowerCase()) ||
+      (opt.sublabel && opt.sublabel.toLowerCase().includes(search.toLowerCase()))
+  );
+
+  const selectedOption = options.find((opt) => opt.id === value);
+  const displayLabel =
+    !value || value === 'none'
+      ? allowNone
+        ? noneLabel
+        : placeholder
+      : selectedOption
+      ? selectedOption.label
+      : placeholder;
+
+  return (
+    <div className="space-y-1.5 relative" ref={dropdownRef}>
+      <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider block">
+        {label}
+      </label>
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="w-full h-11 px-3.5 rounded-xl border border-input bg-background/50 hover:bg-accent/40 flex items-center justify-between text-sm transition-colors text-foreground font-medium shadow-xs"
+      >
+        <span
+          className={cn(
+            'truncate',
+            (!value || value === 'none') && !selectedOption && 'text-muted-foreground'
+          )}
+        >
+          {displayLabel}
+        </span>
+        <ChevronDown className="h-4 w-4 opacity-50 shrink-0 ml-2" />
+      </button>
+
+      {open && (
+        <div className="absolute left-0 right-0 top-full mt-1 z-50 bg-popover text-popover-foreground border border-border rounded-xl shadow-xl overflow-hidden animate-in fade-in-0 zoom-in-95 duration-150">
+          <div className="p-2 border-b border-border bg-muted/30 flex items-center gap-2">
+            <Search className="h-4 w-4 text-muted-foreground shrink-0 ml-1" />
+            <input
+              type="text"
+              autoFocus
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={`Search ${label.toLowerCase()}...`}
+              className="w-full text-xs bg-transparent border-none outline-none focus:outline-none text-foreground placeholder:text-muted-foreground py-1"
+            />
+          </div>
+          <div className="max-h-56 overflow-y-auto p-1.5 space-y-0.5">
+            {allowNone && (
+              <button
+                type="button"
+                onClick={() => {
+                  onChange('none');
+                  setOpen(false);
+                  setSearch('');
+                }}
+                className={cn(
+                  'w-full text-left px-3 py-2 text-xs rounded-lg flex items-center justify-between transition-colors',
+                  !value || value === 'none'
+                    ? 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 font-semibold'
+                    : 'hover:bg-muted/50 text-muted-foreground'
+                )}
+              >
+                <span>{noneLabel}</span>
+                {(!value || value === 'none') && (
+                  <Check className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />
+                )}
+              </button>
+            )}
+
+            {filteredOptions.length === 0 ? (
+              <div className="p-3 text-center text-xs text-muted-foreground font-medium">
+                No matching results found
+              </div>
+            ) : (
+              filteredOptions.map((opt) => {
+                const isSelected = opt.id === value;
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => {
+                      onChange(opt.id);
+                      setOpen(false);
+                      setSearch('');
+                    }}
+                    className={cn(
+                      'w-full text-left px-3 py-2 text-xs rounded-lg flex items-center justify-between transition-colors',
+                      isSelected
+                        ? 'bg-indigo-600 text-white font-semibold shadow-xs'
+                        : 'hover:bg-muted/60 text-foreground'
+                    )}
+                  >
+                    <div className="truncate pr-2">
+                      <span className="block truncate">{opt.label}</span>
+                      {opt.sublabel && (
+                        <span
+                          className={cn(
+                            'block text-[10px] truncate',
+                            isSelected ? 'text-indigo-100' : 'text-muted-foreground'
+                          )}
+                        >
+                          {opt.sublabel}
+                        </span>
+                      )}
+                    </div>
+                    {isSelected && <Check className="h-3.5 w-3.5 shrink-0" />}
+                  </button>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const;
 export const DAY_INDICES = [0, 1, 2, 3, 4, 5, 6] as const;
@@ -274,8 +426,9 @@ interface SlotEditorSheetProps {
   periodLabel: string;
   subjects: TimetableDetail['subjects'];
   teachers: TimetableDetail['teachers'];
-  draft: { subjectId: string; teacherId: string };
-  onDraftChange: (patch: Partial<{ subjectId: string; teacherId: string }>) => void;
+  rooms?: TimetableDetail['rooms'];
+  draft: { subjectId: string; teacherId: string; roomId?: string };
+  onDraftChange: (patch: Partial<{ subjectId: string; teacherId: string; roomId?: string }>) => void;
   onSave: () => void;
   onRemove: () => void;
   saving: boolean;
@@ -289,6 +442,7 @@ export function SlotEditorSheet({
   periodLabel,
   subjects,
   teachers,
+  rooms = [],
   draft,
   onDraftChange,
   onSave,
@@ -304,27 +458,43 @@ export function SlotEditorSheet({
           <p className="text-xs text-muted-foreground font-medium">{dayLabel} Layout Framework — <span className="text-indigo-600 font-semibold">{periodLabel}</span></p>
         </DialogHeader>
         <div className='space-y-5 mt-2'>
-          <div className="space-y-2">
-            <label className='text-xs font-bold text-muted-foreground uppercase tracking-wider block'>Subject</label>
-            <Select value={draft?.subjectId ?? ''} onValueChange={(v) => onDraftChange({ subjectId: v ?? '' })}>
-              <SelectTrigger className="rounded-xl h-11"><SelectValue placeholder='Choose subject configuration' /></SelectTrigger>
-              <SelectContent className="rounded-xl">
-                {(subjects ?? []).map((s) => (<SelectItem key={s.id} value={s.id} className="rounded-lg">{s.name}</SelectItem>))}
-              </SelectContent>
-            </Select>
-          </div>
+          <SearchableSelect
+            label="Subject"
+            placeholder="Choose subject configuration"
+            value={draft?.subjectId ?? ''}
+            onChange={(v) => onDraftChange({ subjectId: v })}
+            options={(subjects ?? []).map((s) => ({
+              id: s.id,
+              label: s.name,
+              sublabel: s.code,
+            }))}
+          />
 
-          <div className="space-y-2">
-            <label className='text-xs font-bold text-muted-foreground uppercase tracking-wider block'>Faculty / Teacher</label>
-            <Select value={draft?.teacherId ?? ''} onValueChange={(v) => onDraftChange({ teacherId: v ?? '' })}>
-              <SelectTrigger className="rounded-xl h-11"><SelectValue placeholder='Assign course tutor' /></SelectTrigger>
-              <SelectContent className="rounded-xl">
-                {((teachers ?? []).filter((t) => isTeacherActive(t.active))).map((t) => (
-                  <SelectItem key={t.id} value={t.id} className="rounded-lg">{t.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          <SearchableSelect
+            label="Faculty / Teacher"
+            placeholder="Assign course tutor"
+            value={draft?.teacherId ?? ''}
+            onChange={(v) => onDraftChange({ teacherId: v })}
+            options={((teachers ?? []).filter((t) => isTeacherActive(t.active))).map((t) => ({
+              id: t.id,
+              label: t.name,
+              sublabel: t.email,
+            }))}
+          />
+
+          <SearchableSelect
+            label="Room (Optional)"
+            placeholder="Select room"
+            value={draft?.roomId ? draft.roomId : 'none'}
+            onChange={(v) => onDraftChange({ roomId: v === 'none' ? '' : v })}
+            allowNone
+            noneLabel="No Room / Default"
+            options={(rooms ?? []).map((r) => ({
+              id: r.id,
+              label: `Room ${r.roomNumber}`,
+              sublabel: `${r.floor ? r.floor : ''}${r.block ? ` [${r.block}]` : ''}`.trim(),
+            }))}
+          />
 
           <div className="pt-4 space-y-2.5">
             <Button className='w-full h-11 rounded-xl font-semibold shadow-sm' disabled={saving} onClick={onSave}>{saving ? 'Processing Canvas…' : 'Save Assignment'}</Button>

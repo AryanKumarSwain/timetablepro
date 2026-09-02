@@ -194,6 +194,33 @@ async function main() {
     )
   );
 
+  // ── Rooms ───────────────────────────────────────────────────────────────────
+  const demoRooms = [
+    { roomNumber: '101', floor: '1st Floor', block: 'Block A' },
+    { roomNumber: '102', floor: '1st Floor', block: 'Block A' },
+    { roomNumber: '103', floor: '1st Floor', block: 'Block A' },
+    { roomNumber: '104', floor: '1st Floor', block: 'Block A' },
+    { roomNumber: '105', floor: '2nd Floor', block: 'Block A' },
+    { roomNumber: '106', floor: '2nd Floor', block: 'Block A' },
+    { roomNumber: 'Lab 1', floor: 'Ground Floor', block: 'Science Wing' },
+    { roomNumber: 'Lab 2', floor: 'Ground Floor', block: 'Science Wing' },
+  ];
+
+  await Promise.all(
+    demoRooms.map((rm) =>
+      prisma.room.create({
+        data: {
+          id: `room-seed-${rm.roomNumber.replace(/\s+/g, '-').toLowerCase()}-${schoolId}`,
+          roomNumber: rm.roomNumber,
+          floor: rm.floor,
+          block: rm.block,
+          capacity: 40,
+          schoolId,
+        },
+      }).catch(() => {})
+    )
+  );
+
   // ── Subjects ───────────────────────────────────────────────────────────────
   const subjects = [
     { name: 'Mathematics', code: 'MATH' },
