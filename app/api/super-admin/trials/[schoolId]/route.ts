@@ -4,11 +4,11 @@ import { requireSuperAdmin, handleApiError } from '@/lib/auth-server';
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { schoolId: string } }
+  { params }: { params: Promise<{ schoolId: string }> }
 ) {
   try {
     await requireSuperAdmin();
-    const { schoolId } = params;
+    const { schoolId } = await params;
     const body = await request.json();
     const { action } = body; // 'approve' or 'reject'
 
