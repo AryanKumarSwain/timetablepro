@@ -24,8 +24,27 @@ import {
   DataGridTd,
 } from '@/components/enterprise/data-grid';
 import { PageSkeleton } from '@/components/enterprise/page-skeleton';
-import { BulkCsvImportModal } from '@/components/enterprise/bulk-csv-import-modal';
-import { Upload, AlertCircle, CheckCircle2 } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import {
+  Upload,
+  AlertCircle,
+  CheckCircle2,
+  Eye,
+  Pencil,
+  Trash2,
+  Mail,
+  Phone,
+  Calendar,
+  GraduationCap,
+  BookOpen,
+} from 'lucide-react';
 
 type TeacherFormState = Omit<Teacher, 'id'>;
 
@@ -48,6 +67,7 @@ export default function TeachersPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState<TeacherFormState>(createEmptyTeacherForm);
   const [importOpen, setImportOpen] = useState(false);
+  const [selectedTeacherForView, setSelectedTeacherForView] = useState<Teacher | null>(null);
   
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
@@ -148,15 +168,19 @@ export default function TeachersPage() {
     });
     setEditingId(teacher.id);
     setShowForm(true);
+    setSelectedTeacherForView(null);
   };
 
   const handleDelete = async (id: string) => {
-    if (window.confirm('Are you sure?')) {
+    if (window.confirm('Are you sure you want to delete this teacher?')) {
       try {
         setSuccessMsg(null);
         await deleteTeacher(id);
         await loadTeachers();
         setSuccessMsg('Teacher record removed successfully.');
+        if (selectedTeacherForView?.id === id) {
+          setSelectedTeacherForView(null);
+        }
       } catch (error) {
         console.error('Failed to delete teacher:', error);
       }
@@ -338,62 +362,232 @@ export default function TeachersPage() {
       />
 
       <DataGrid title='Faculty directory' empty={teachers.length === 0}>
-        <DataGridTable>
-          <DataGridHead>
-            <tr>
-              <DataGridTh>Name</DataGridTh>
-              <DataGridTh>Email</DataGridTh>
-              <DataGridTh>Phone</DataGridTh>
-              <DataGridTh>Status</DataGridTh>
-              <DataGridTh>Actions</DataGridTh>
-            </tr>
-          </DataGridHead>
-          <tbody>
-            {teachers.map((teacher) => (
-              <DataGridRow key={teacher.id}>
-                <DataGridTd className='font-medium'>{teacher.name}</DataGridTd>
-                <DataGridTd className='text-muted-foreground'>
-                  {teacher.email}
-                </DataGridTd>
-                <DataGridTd className='text-muted-foreground'>
-                  {teacher.phone}
-                </DataGridTd>
-                <DataGridTd>
+        {/* DESKTOP TABLE VIEW */}
+        <div className='hidden md:block'>
+          <DataGridTable>
+            <DataGridHead>
+              <tr>
+                <DataGridTh>Name</DataGridTh>
+                <DataGridTh>Email</DataGridTh>
+                <DataGridTh>Phone</DataGridTh>
+                <DataGridTh>Status</DataGridTh>
+                <DataGridTh>Actions</DataGridTh>
+              </tr>
+            </DataGridHead>
+            <tbody>
+              {teachers.map((teacher) => (
+                <DataGridRow key={teacher.id}>
+                  <DataGridTd className='font-medium'>{teacher.name}</DataGridTd>
+                  <DataGridTd className='text-muted-foreground'>
+                    {teacher.email}
+                  </DataGridTd>
+                  <DataGridTd className='text-muted-foreground'>
+                    {teacher.phone}
+                  </DataGridTd>
+                  <DataGridTd>
+                    {teacher.active ? (
+                      <span className='px-2 py-1 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 text-xs rounded-full font-medium'>
+                        Active
+                      </span>
+                    ) : (
+                      <span className='px-2 py-1 bg-muted text-muted-foreground text-xs rounded-full'>
+                        Inactive
+                      </span>
+                    )}
+                  </DataGridTd>
+                  <DataGridTd>
+                    <div className='flex items-center gap-1.5'>
+                      <Button
+                        onClick={() => setSelectedTeacherForView(teacher)}
+                        size='sm'
+                        variant='ghost'
+                        className='rounded-lg text-primary hover:bg-primary/10'
+                      >
+                        <Eye className='h-3.5 w-3.5 mr-1' />
+                        View
+                      </Button>
+                      <Button
+                        onClick={() => handleEdit(teacher)}
+                        size='sm'
+                        variant='outline'
+                        className='rounded-lg'
+                      >
+                        <Pencil className='h-3.5 w-3.5 mr-1' />
+                        Edit
+                      </Button>
+                      <Button
+                        onClick={() => handleDelete(teacher.id)}
+                        size='sm'
+                        variant='outline'
+                        className='rounded-lg border-rose-500/30 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30'
+                      >
+                        <Trash2 className='h-3.5 w-3.5 mr-1' />
+                        Delete
+                      </Button>
+                    </div>
+                  </DataGridTd>
+                </DataGridRow>
+              ))}
+            </tbody>
+          </DataGridTable>
+        </div>
+
+        {/* MOBILE COMPACT LIST VIEW - NO HORIZONTAL SCROLL NEEDED */}
+        <div className='block md:hidden divide-y divide-border/40'>
+          {teachers.map((teacher) => (
+            <div key={teacher.id} className='p-3.5 flex items-center justify-between gap-3 hover:bg-muted/20 transition-colors'>
+              <div className='min-w-0 flex-1'>
+                <div className='flex items-center gap-2'>
+                  <p className='font-semibold text-sm text-foreground truncate'>{teacher.name}</p>
                   {teacher.active ? (
-                    <span className='px-2 py-1 bg-emerald-500/15 text-emerald-600 text-xs rounded-full font-medium'>
-                      Active
-                    </span>
+                    <span className='inline-block w-2 h-2 rounded-full bg-emerald-500 shrink-0' title='Active' />
                   ) : (
-                    <span className='px-2 py-1 bg-muted text-muted-foreground text-xs rounded-full'>
-                      Inactive
-                    </span>
+                    <span className='inline-block w-2 h-2 rounded-full bg-zinc-400 shrink-0' title='Inactive' />
                   )}
-                </DataGridTd>
-                <DataGridTd>
-                  <div className='flex gap-2'>
-                    <Button
-                      onClick={() => handleEdit(teacher)}
-                      size='sm'
-                      variant='outline'
-                      className='rounded-lg'
-                    >
-                      Edit
-                    </Button>
-                    <Button
-                      onClick={() => handleDelete(teacher.id)}
-                      size='sm'
-                      variant='outline'
-                      className='rounded-lg border-rose-500/30 text-rose-600'
-                    >
-                      Delete
-                    </Button>
-                  </div>
-                </DataGridTd>
-              </DataGridRow>
-            ))}
-          </tbody>
-        </DataGridTable>
+                </div>
+              </div>
+              
+              <div className='flex items-center gap-1 shrink-0'>
+                <Button
+                  onClick={() => setSelectedTeacherForView(teacher)}
+                  size='sm'
+                  variant='outline'
+                  className='h-8 px-2.5 text-xs text-primary border-primary/30 rounded-lg hover:bg-primary/10'
+                >
+                  <Eye className='h-3.5 w-3.5 mr-1' />
+                  View
+                </Button>
+                <Button
+                  onClick={() => handleEdit(teacher)}
+                  size='sm'
+                  variant='outline'
+                  className='h-8 px-2.5 text-xs rounded-lg'
+                >
+                  <Pencil className='h-3.5 w-3.5 mr-1' />
+                  Edit
+                </Button>
+                <Button
+                  onClick={() => handleDelete(teacher.id)}
+                  size='sm'
+                  variant='outline'
+                  className='h-8 px-2 text-xs border-rose-500/30 text-rose-600 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/30'
+                >
+                  <Trash2 className='h-3.5 w-3.5' />
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
       </DataGrid>
+
+      {/* TEACHER DETAILS MODAL / DIALOG */}
+      <Dialog open={!!selectedTeacherForView} onOpenChange={(open) => !open && setSelectedTeacherForView(null)}>
+        {selectedTeacherForView && (
+          <DialogContent className='sm:max-w-md rounded-2xl'>
+            <DialogHeader>
+              <div className='flex items-center justify-between gap-2 pr-4'>
+                <DialogTitle className='text-xl font-bold flex items-center gap-2'>
+                  {selectedTeacherForView.name}
+                </DialogTitle>
+                {selectedTeacherForView.active ? (
+                  <span className='px-2.5 py-0.5 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 text-xs font-semibold rounded-full'>
+                    Active
+                  </span>
+                ) : (
+                  <span className='px-2.5 py-0.5 bg-muted text-muted-foreground text-xs font-semibold rounded-full'>
+                    Inactive
+                  </span>
+                )}
+              </div>
+              <DialogDescription className='text-xs text-muted-foreground'>
+                Faculty Member Detailed Profile
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className='space-y-4 py-2 text-sm'>
+              <div className='flex items-center gap-3 p-3 rounded-xl bg-muted/40 border border-border/50'>
+                <Mail className='h-4 w-4 text-primary shrink-0' />
+                <div className='min-w-0 flex-1'>
+                  <p className='text-xs text-muted-foreground font-medium'>Email Address</p>
+                  <p className='font-semibold text-foreground truncate'>{selectedTeacherForView.email || 'N/A'}</p>
+                </div>
+              </div>
+
+              <div className='flex items-center gap-3 p-3 rounded-xl bg-muted/40 border border-border/50'>
+                <Phone className='h-4 w-4 text-primary shrink-0' />
+                <div className='min-w-0 flex-1'>
+                  <p className='text-xs text-muted-foreground font-medium'>Phone Number</p>
+                  <p className='font-semibold text-foreground'>{selectedTeacherForView.phone || 'N/A'}</p>
+                </div>
+              </div>
+
+              <div className='flex items-center gap-3 p-3 rounded-xl bg-muted/40 border border-border/50'>
+                <Calendar className='h-4 w-4 text-primary shrink-0' />
+                <div className='min-w-0 flex-1'>
+                  <p className='text-xs text-muted-foreground font-medium'>Joining Date</p>
+                  <p className='font-semibold text-foreground'>{selectedTeacherForView.joinDate || 'N/A'}</p>
+                </div>
+              </div>
+
+              {selectedTeacherForView.qualifications && selectedTeacherForView.qualifications.length > 0 && (
+                <div className='p-3 rounded-xl bg-muted/40 border border-border/50 space-y-1.5'>
+                  <div className='flex items-center gap-2 text-xs text-muted-foreground font-medium'>
+                    <GraduationCap className='h-4 w-4 text-primary' />
+                    <span>Qualifications</span>
+                  </div>
+                  <div className='flex flex-wrap gap-1.5 pt-1'>
+                    {selectedTeacherForView.qualifications.map((q, idx) => (
+                      <span key={idx} className='px-2 py-0.5 text-xs bg-background rounded-md border border-border font-medium'>
+                        {q}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {selectedTeacherForView.subjects && selectedTeacherForView.subjects.length > 0 && (
+                <div className='p-3 rounded-xl bg-muted/40 border border-border/50 space-y-1.5'>
+                  <div className='flex items-center gap-2 text-xs text-muted-foreground font-medium'>
+                    <BookOpen className='h-4 w-4 text-primary' />
+                    <span>Assigned Subjects</span>
+                  </div>
+                  <div className='flex flex-wrap gap-1.5 pt-1'>
+                    {selectedTeacherForView.subjects.map((sub, idx) => (
+                      <span key={idx} className='px-2 py-0.5 text-xs bg-primary/10 text-primary rounded-md font-medium'>
+                        {sub}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <DialogFooter className='flex gap-2 sm:justify-between pt-2'>
+              <Button
+                variant='outline'
+                size='sm'
+                onClick={() => {
+                  const teacher = selectedTeacherForView;
+                  setSelectedTeacherForView(null);
+                  handleEdit(teacher);
+                }}
+                className='rounded-xl flex-1'
+              >
+                <Pencil className='h-4 w-4 mr-1.5' />
+                Edit Profile
+              </Button>
+              <Button
+                variant='default'
+                size='sm'
+                onClick={() => setSelectedTeacherForView(null)}
+                className='rounded-xl flex-1'
+              >
+                Close
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        )}
+      </Dialog>
     </div>
   );
-}
+}
