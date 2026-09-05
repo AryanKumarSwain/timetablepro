@@ -9,17 +9,23 @@ const handle = app.getRequestHandler();
 
 app.prepare().then(() => {
   createServer((req, res) => {
-    // Apache / Hostinger DirectoryIndex fix:
-    // If Apache converted '/' to '/index.html', '/index.php', or stripped trailing slash
-    if (req.url) {
-      if (req.url === '/index.html' || req.url === '/index.php' || req.url === '/index' || req.url === '') {
-        req.url = '/';
-      } else if (req.url.startsWith('/index.html?') || req.url.startsWith('/index.php?')) {
-        req.url = '/' + req.url.slice(req.url.indexOf('?'));
-      }
+    // Apache / Reverse Proxy URL Normalization
+    if (!req.url || req.url === '' || req.url === '/index.html' || req.url === '/index.php' || req.url === '/index') {
+      req.url = '/';
+    } else if (req.url.startsWith('http://') || req.url.startsWith('https://')) {
+      try {
+        const u = new URL(req.url);
+        req.url = (u.pathname || '/') + (u.search || '');
+      } catch (_) {}
+    } else if (req.url.startsWith('/index.html?') || req.url.startsWith('/index.php?')) {
+      req.url = '/' + req.url.slice(req.url.indexOf('?'));
     }
 
     const parsedUrl = parse(req.url, true);
+    if (!parsedUrl.pathname || parsedUrl.pathname === '') {
+      parsedUrl.pathname = '/';
+    }
+
     handle(req, res, parsedUrl);
   }).listen(port, '0.0.0.0', (err) => {
     if (err) throw err;
