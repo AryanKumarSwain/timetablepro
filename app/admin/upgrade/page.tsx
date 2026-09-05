@@ -846,7 +846,7 @@ export default function UpgradePage() {
         </Dialog>
 
         {/* Plan Cards */}
-        <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-6 items-stretch mb-8">
+        <div className="flex sm:grid sm:grid-cols-2 md:grid-cols-3 gap-5 sm:gap-6 items-stretch mb-4 sm:mb-8 overflow-x-auto sm:overflow-x-visible pb-4 sm:pb-0 -mx-4 sm:mx-0 px-4 sm:px-0 snap-x snap-mandatory scroll-smooth [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
           {plans.map((plan, idx) => {
             const style = PLAN_TIER_CONFIG[idx] || PLAN_TIER_CONFIG[2];
             const isCurrentPlan = currentPlanId === plan.id && (!schoolData || !schoolData.planEndsAt || new Date(schoolData.planEndsAt) > new Date());
@@ -869,7 +869,7 @@ export default function UpgradePage() {
               <motion.div
                 key={plan.id}
                 whileHover={{ y: -4, scale: 1.005 }}
-                className={`relative bg-white dark:bg-slate-900 rounded-xl p-6 flex flex-col justify-between shadow-sm border ${style.border}`}
+                className={`relative bg-white dark:bg-slate-900 rounded-2xl p-6 flex flex-col justify-between shadow-sm border ${style.border} min-w-[84vw] sm:min-w-0 max-w-[340px] sm:max-w-none shrink-0 sm:shrink snap-center`}
               >
                 {idx === 1 && (
                   <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 bg-purple-600 text-white text-[10px] font-bold px-3 py-0.5 rounded-full uppercase tracking-wider">Most Popular</span>
@@ -924,6 +924,13 @@ export default function UpgradePage() {
               </motion.div>
             );
           })}
+        </div>
+
+        {/* Mobile Swipe Indicator */}
+        <div className="flex sm:hidden items-center justify-center -mt-2 mb-6">
+          <span className="text-[11px] text-muted-foreground font-medium flex items-center gap-1.5 bg-muted/60 px-3 py-1 rounded-full border border-border/40">
+            <span>← Swipe to compare plans →</span>
+          </span>
         </div>
 
         {/* Bottom Actions: Free Trial & Custom Enterprise Plan */}

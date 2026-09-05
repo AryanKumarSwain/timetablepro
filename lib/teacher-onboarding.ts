@@ -107,3 +107,99 @@ export async function provisionTeacherUserAccount(
     console.error('[provisionTeacherUserAccount] sendTeacherCredentials threw error:', err);
   }
 }
+
+export async function resendTeacherCredentials(
+  teacherId: string,
+  schoolId: string
+): Promise<{
+  success: boolean;
+  email: string;
+  sent: boolean;
+  tempPassword: string;
+  error?: string;
+}> {
+  const teacher = await prisma.teacher.findFirst({
+    where: { id: teacherId, schoolId },
+  });
+
+  if (!teacher) {
+    throw new Error('Teacher record not found');
+  }
+
+  if (!teacher.email) {
+    throw new Error('Teacher does not have an email address configured');
+  }
+
+  const school = await prisma.school.findUnique({ where: { id: schoolId } });
+  const schoolName = school?.name || 'Your School';
+
+  const plainPassword = generateTempPassword();
+  const hashedPassword = await bcrypt.hash(plainPassword, 10);
+
+  const existingUser = await prisma.user.findUnique({
+    where: { email: teacher.email.toLowerCase().trim() },
+  });
+
+  if (existingUser) {
+    await prisma.user.update({
+      where: { id: existingUser.id },
+      data: { password: hashedPassword, role: 'TEACHER', schoolId },
+    });
+
+    if (!teacher.userId) {
+      await prisma.teacher.update({
+        where: { id: teacher.id },
+        data: { userId: existingUser.id },
+      });
+    }
+  } else {
+    const newUser = await prisma.user.create({
+      data: {
+        email: teacher.email.toLowerCase().trim(),
+        password: hashedPassword,
+        role: 'TEACHER',
+        schoolId,
+      },
+    });
+
+    await prisma.teacher.update({
+      where: { id: teacher.id },
+      data: { userId: newUser.id },
+    });
+  }
+
+  const loginUrl =
+    process.env.APP_URL ??
+    process.env.NEXT_PUBLIC_APP_URL ??
+    'http://localhost:3000/login';
+
+  const formattedLoginUrl = loginUrl.endsWith('/login')
+    ? loginUrl
+    : `${loginUrl.replace(/\/$/, '')}/login`;
+
+  let sent = false;
+  let sendError: string | undefined;
+
+  try {
+    const sendResult = await sendTeacherCredentials(
+      teacher.email,
+      teacher.name,
+      schoolName,
+      plainPassword,
+      formattedLoginUrl
+    );
+    sent = sendResult.sent;
+    sendError = sendResult.error;
+  } catch (err: any) {
+    sendError = err?.message || 'Failed to dispatch email';
+  }
+
+  return {
+    success: true,
+    email: teacher.email,
+    sent,
+    tempPassword: plainPassword,
+    error: sendError,
+  };
+}
+

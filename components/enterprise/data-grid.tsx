@@ -147,5 +147,5 @@ export function DataGridTd({
   children: React.ReactNode;
   className?: string;
 }) {
-  return <td className={cn('px-4 py-3', className)}>{children}</td>;
+  return <td className={cn('px-4 py-3 align-middle', className)}>{children}</td>;
 }

@@ -24,7 +24,7 @@ import {
 } from '@/components/enterprise/data-grid';
 import { PageSkeleton } from '@/components/enterprise/page-skeleton';
 import { BulkCsvImportModal } from '@/components/enterprise/bulk-csv-import-modal';
-import { Upload, CheckCircle2, DoorOpen, AlertCircle } from 'lucide-react';
+import { Upload, CheckCircle2, DoorOpen, AlertCircle, Pencil, Trash2 } from 'lucide-react';
 
 export default function RoomsPage() {
   useRequireAuth('admin');
@@ -285,18 +285,20 @@ export default function RoomsPage() {
         <DataGridTable>
           <DataGridHead>
             <tr>
-              <DataGridTh>Room No</DataGridTh>
-              <DataGridTh>Floor</DataGridTh>
-              <DataGridTh>Block</DataGridTh>
-              <DataGridTh>Actions</DataGridTh>
+              <DataGridTh className='w-1/3 min-w-[150px]'>Room No</DataGridTh>
+              <DataGridTh className='w-1/4 min-w-[100px]'>Floor</DataGridTh>
+              <DataGridTh className='w-1/4 min-w-[100px]'>Block</DataGridTh>
+              <DataGridTh className='text-right pr-6'>Actions</DataGridTh>
             </tr>
           </DataGridHead>
           <tbody>
             {rooms.map((room) => (
               <DataGridRow key={room.id}>
-                <DataGridTd className='font-medium text-foreground flex items-center gap-2'>
-                  <DoorOpen className='h-4 w-4 text-indigo-500/70' />
-                  {room.roomNumber}
+                <DataGridTd className='font-medium text-foreground'>
+                  <div className='flex items-center gap-2'>
+                    <DoorOpen className='h-4 w-4 text-indigo-500/70' />
+                    <span>{room.roomNumber}</span>
+                  </div>
                 </DataGridTd>
                 <DataGridTd className='text-muted-foreground'>
                   {room.floor || '—'}
@@ -304,22 +306,24 @@ export default function RoomsPage() {
                 <DataGridTd className='text-muted-foreground'>
                   {room.block || '—'}
                 </DataGridTd>
-                <DataGridTd>
-                  <div className='flex gap-2'>
+                <DataGridTd className='text-right pr-6'>
+                  <div className='flex items-center justify-end gap-2'>
                     <Button
                       onClick={() => handleEdit(room)}
                       size='sm'
                       variant='outline'
-                      className='rounded-lg'
+                      className='rounded-lg h-8'
                     >
+                      <Pencil className='h-3.5 w-3.5 mr-1 text-muted-foreground' />
                       Edit
                     </Button>
                     <Button
                       onClick={() => handleDelete(room.id)}
                       size='sm'
                       variant='outline'
-                      className='rounded-lg border-rose-500/30 text-rose-600'
+                      className='rounded-lg h-8 border-rose-500/30 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30'
                     >
+                      <Trash2 className='h-3.5 w-3.5 mr-1' />
                       Delete
                     </Button>
                   </div>

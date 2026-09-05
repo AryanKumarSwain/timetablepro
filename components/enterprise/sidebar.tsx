@@ -217,7 +217,7 @@ export function EnterpriseSidebar({
           </Button>
         </div>
 
-        <nav className='flex-1 p-2 space-y-0.5 overflow-y-auto'>
+        <nav className='flex-1 min-h-0 p-2 space-y-0.5 overflow-y-auto'>
           {items.map((item, index) => {
             const active =
               pathname === item.href ||
@@ -269,24 +269,29 @@ export function EnterpriseSidebar({
         </nav>
 
         {/* Current Plan Footer */}
-        <div className='p-3 border-t border-border/40'>
+        <div className='p-3 border-t border-border/40 shrink-0 mt-auto'>
           <AnimatePresence mode='wait'>
             {!collapsed && currentPlan ? (
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className='space-y-2'
+                className='space-y-1.5'
               >
                 <div className='flex items-center gap-2 text-xs text-muted-foreground'>
-                  <ThemeIcon className={cn('h-3 w-3', theme.activeText)} />
-                  <span className='font-medium'>Current Plan</span>
+                  <ThemeIcon className={cn('h-3.5 w-3.5', theme.activeText)} />
+                  <span className='font-medium text-xs'>Current Plan</span>
                 </div>
-                <div className={cn('bg-gradient-to-r dark:bg-gradient-to-r border rounded-lg p-2.5', theme.footerGradient, theme.footerBorder, theme.footerDarkGradient, theme.footerDarkBorder)}>
-                  <p className='text-sm font-semibold text-slate-900 dark:text-white truncate'>
-                    {currentPlan.name}
-                  </p>
-                  <p className='text-[10px] text-slate-600 dark:text-slate-400'>
+                <div className={cn('bg-gradient-to-r dark:bg-gradient-to-r border rounded-xl p-2.5 shadow-xs', theme.footerGradient, theme.footerBorder, theme.footerDarkGradient, theme.footerDarkBorder)}>
+                  <div className='flex items-center justify-between gap-1'>
+                    <p className='text-xs font-semibold text-slate-900 dark:text-white truncate'>
+                      {currentPlan.name}
+                    </p>
+                    <span className={cn('text-[9px] px-1.5 py-0.2 rounded font-medium', theme.badgeBg, theme.badgeText)}>
+                      Active
+                    </span>
+                  </div>
+                  <p className='text-[10px] font-medium text-slate-600 dark:text-slate-400 mt-0.5'>
                     ₹{currentPlan.priceMonthly}/month
                   </p>
                 </div>

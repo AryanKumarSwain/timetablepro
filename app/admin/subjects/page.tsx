@@ -25,7 +25,7 @@ import {
 } from '@/components/enterprise/data-grid';
 import { PageSkeleton } from '@/components/enterprise/page-skeleton';
 import { BulkCsvImportModal } from '@/components/enterprise/bulk-csv-import-modal';
-import { Upload, CheckCircle2 } from 'lucide-react';
+import { Upload, CheckCircle2, Pencil, Trash2 } from 'lucide-react';
 
 export default function SubjectsPage() {
   useRequireAuth('admin');
@@ -266,9 +266,9 @@ export default function SubjectsPage() {
         <DataGridTable>
           <DataGridHead>
             <tr>
-              <DataGridTh>Name</DataGridTh>
-              <DataGridTh>Code</DataGridTh>
-              <DataGridTh>Actions</DataGridTh>
+              <DataGridTh className='w-1/2 min-w-[200px]'>Name</DataGridTh>
+              <DataGridTh className='w-1/4 min-w-[120px]'>Code</DataGridTh>
+              <DataGridTh className='w-1/4 text-right pr-6'>Actions</DataGridTh>
             </tr>
           </DataGridHead>
           <tbody>
@@ -278,24 +278,28 @@ export default function SubjectsPage() {
                   {subject.name}
                 </DataGridTd>
                 <DataGridTd className='text-muted-foreground'>
-                  {subject.code}
+                  <span className='inline-flex items-center px-2.5 py-0.5 rounded-md font-mono text-xs font-medium bg-muted text-muted-foreground border border-border/50'>
+                    {subject.code}
+                  </span>
                 </DataGridTd>
-                <DataGridTd>
-                  <div className='flex gap-2'>
+                <DataGridTd className='text-right pr-6'>
+                  <div className='flex items-center justify-end gap-2'>
                     <Button
                       onClick={() => handleEdit(subject)}
                       size='sm'
                       variant='outline'
-                      className='rounded-lg'
+                      className='rounded-lg h-8'
                     >
+                      <Pencil className='h-3.5 w-3.5 mr-1 text-muted-foreground' />
                       Edit
                     </Button>
                     <Button
                       onClick={() => handleDelete(subject.id)}
                       size='sm'
                       variant='outline'
-                      className='rounded-lg border-rose-500/30 text-rose-600'
+                      className='rounded-lg h-8 border-rose-500/30 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30'
                     >
+                      <Trash2 className='h-3.5 w-3.5 mr-1' />
                       Delete
                     </Button>
                   </div>

@@ -105,6 +105,18 @@ export async function deleteTeacher(id: string): Promise<boolean> {
   return true;
 }
 
+export async function resendTeacherCredentials(id: string): Promise<{
+  success: boolean;
+  email: string;
+  sent: boolean;
+  tempPassword?: string;
+  error?: string;
+}> {
+  return apiFetch(`/api/admin/teachers/${id}/resend-credentials`, {
+    method: 'POST',
+  });
+}
+
 // ============================================================================
 // Subjects
 // ============================================================================

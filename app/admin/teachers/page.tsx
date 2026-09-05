@@ -7,6 +7,7 @@ import {
   createTeacher,
   updateTeacher,
   deleteTeacher,
+  resendTeacherCredentials,
   getSchoolDetails,
 } from '@/lib/api-services';
 import { Teacher } from '@/lib/types';
@@ -45,6 +46,10 @@ import {
   Calendar,
   GraduationCap,
   BookOpen,
+  KeyRound,
+  Copy,
+  Check,
+  Loader2,
 } from 'lucide-react';
 
 type TeacherFormState = Omit<Teacher, 'id'>;
@@ -69,6 +74,15 @@ export default function TeachersPage() {
   const [formData, setFormData] = useState<TeacherFormState>(createEmptyTeacherForm);
   const [importOpen, setImportOpen] = useState(false);
   const [selectedTeacherForView, setSelectedTeacherForView] = useState<Teacher | null>(null);
+  const [resendingId, setResendingId] = useState<string | null>(null);
+  const [credentialsModal, setCredentialsModal] = useState<{
+    open: boolean;
+    teacherName: string;
+    email: string;
+    password?: string;
+    sent: boolean;
+  } | null>(null);
+  const [copied, setCopied] = useState(false);
   
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
@@ -190,6 +204,33 @@ export default function TeachersPage() {
       }
     }
   };
+
+  const handleResendCredentials = async (teacher: Teacher) => {
+    try {
+      setResendingId(teacher.id);
+      setErrorMsg(null);
+      setSuccessMsg(null);
+      const res = await resendTeacherCredentials(teacher.id);
+      setCredentialsModal({
+        open: true,
+        teacherName: teacher.name,
+        email: res.email,
+        password: res.tempPassword,
+        sent: res.sent,
+      });
+      if (res.sent) {
+        setSuccessMsg(`Login credentials successfully emailed to ${res.email}`);
+      } else {
+        setSuccessMsg(`New login credentials generated for ${teacher.name}`);
+      }
+    } catch (err: any) {
+      console.error('Failed to resend credentials:', err);
+      setErrorMsg(err.message || 'Failed to resend credentials');
+    } finally {
+      setResendingId(null);
+    }
+  };
+
 
   const resetForm = () => {
     setFormData(createEmptyTeacherForm());
@@ -374,11 +415,11 @@ export default function TeachersPage() {
           <DataGridTable>
             <DataGridHead>
               <tr>
-                <DataGridTh>Name</DataGridTh>
-                <DataGridTh>Email</DataGridTh>
-                <DataGridTh>Phone</DataGridTh>
-                <DataGridTh>Status</DataGridTh>
-                <DataGridTh>Actions</DataGridTh>
+                <DataGridTh className='w-[28%] min-w-[180px]'>Name</DataGridTh>
+                <DataGridTh className='w-[28%] min-w-[200px]'>Email</DataGridTh>
+                <DataGridTh className='w-[16%] min-w-[130px]'>Phone</DataGridTh>
+                <DataGridTh className='w-[10%] min-w-[90px] text-center'>Status</DataGridTh>
+                <DataGridTh className='w-[18%] min-w-[200px] text-right pr-6'>Actions</DataGridTh>
               </tr>
             </DataGridHead>
             <tbody>
@@ -389,35 +430,50 @@ export default function TeachersPage() {
                     {teacher.email}
                   </DataGridTd>
                   <DataGridTd className='text-muted-foreground'>
-                    {teacher.phone}
+                    {teacher.phone || '—'}
                   </DataGridTd>
-                  <DataGridTd>
+                  <DataGridTd className='text-center'>
                     {teacher.active ? (
-                      <span className='px-2 py-1 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 text-xs rounded-full font-medium'>
+                      <span className='inline-flex items-center px-2.5 py-0.5 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 text-xs rounded-full font-medium'>
                         Active
                       </span>
                     ) : (
-                      <span className='px-2 py-1 bg-muted text-muted-foreground text-xs rounded-full'>
+                      <span className='inline-flex items-center px-2.5 py-0.5 bg-muted text-muted-foreground text-xs rounded-full'>
                         Inactive
                       </span>
                     )}
                   </DataGridTd>
-                  <DataGridTd>
-                    <div className='flex items-center gap-1.5'>
+                  <DataGridTd className='text-right pr-6'>
+                    <div className='flex items-center justify-end gap-1.5'>
                       <Button
                         onClick={() => setSelectedTeacherForView(teacher)}
                         size='sm'
                         variant='ghost'
-                        className='rounded-lg text-primary hover:bg-primary/10'
+                        className='rounded-lg h-8 text-primary hover:bg-primary/10'
                       >
                         <Eye className='h-3.5 w-3.5 mr-1' />
                         View
                       </Button>
                       <Button
+                        onClick={() => handleResendCredentials(teacher)}
+                        size='sm'
+                        variant='outline'
+                        disabled={resendingId === teacher.id}
+                        className='rounded-lg h-8 border-amber-500/30 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/30'
+                        title='Resend login credentials to teacher email'
+                      >
+                        {resendingId === teacher.id ? (
+                          <Loader2 className='h-3.5 w-3.5 animate-spin mr-1' />
+                        ) : (
+                          <KeyRound className='h-3.5 w-3.5 mr-1' />
+                        )}
+                        Resend
+                      </Button>
+                      <Button
                         onClick={() => handleEdit(teacher)}
                         size='sm'
                         variant='outline'
-                        className='rounded-lg'
+                        className='rounded-lg h-8'
                       >
                         <Pencil className='h-3.5 w-3.5 mr-1' />
                         Edit
@@ -426,7 +482,7 @@ export default function TeachersPage() {
                         onClick={() => handleDelete(teacher.id)}
                         size='sm'
                         variant='outline'
-                        className='rounded-lg border-rose-500/30 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30'
+                        className='rounded-lg h-8 border-rose-500/30 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30'
                       >
                         <Trash2 className='h-3.5 w-3.5 mr-1' />
                         Delete
@@ -463,6 +519,20 @@ export default function TeachersPage() {
                 >
                   <Eye className='h-3.5 w-3.5 mr-1' />
                   View
+                </Button>
+                <Button
+                  onClick={() => handleResendCredentials(teacher)}
+                  size='sm'
+                  variant='outline'
+                  disabled={resendingId === teacher.id}
+                  className='h-8 px-2 text-xs border-amber-500/30 text-amber-600 rounded-lg hover:bg-amber-50 dark:hover:bg-amber-950/30'
+                  title='Resend credentials'
+                >
+                  {resendingId === teacher.id ? (
+                    <Loader2 className='h-3.5 w-3.5 animate-spin' />
+                  ) : (
+                    <KeyRound className='h-3.5 w-3.5' />
+                  )}
                 </Button>
                 <Button
                   onClick={() => handleEdit(teacher)}
@@ -567,6 +637,22 @@ export default function TeachersPage() {
                   </div>
                 </div>
               )}
+
+              <div className='pt-2'>
+                <Button
+                  onClick={() => handleResendCredentials(selectedTeacherForView)}
+                  disabled={resendingId === selectedTeacherForView.id}
+                  variant='outline'
+                  className='w-full rounded-xl border-amber-500/30 text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-950/30 font-medium'
+                >
+                  {resendingId === selectedTeacherForView.id ? (
+                    <Loader2 className='h-4 w-4 animate-spin mr-2' />
+                  ) : (
+                    <KeyRound className='h-4 w-4 mr-2 text-amber-500' />
+                  )}
+                  Resend Login Credentials
+                </Button>
+              </div>
             </div>
 
             <DialogFooter className='flex flex-row gap-2 pt-2 sm:justify-between'>
@@ -590,6 +676,104 @@ export default function TeachersPage() {
               >
                 <Pencil className='h-4 w-4 mr-1.5' />
                 Edit Profile
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        )}
+      </Dialog>
+
+      {/* CREDENTIALS SENT / GENERATED POPUP DIALOG */}
+      <Dialog
+        open={!!credentialsModal?.open}
+        onOpenChange={(open) => !open && setCredentialsModal(null)}
+      >
+        {credentialsModal && (
+          <DialogContent className='sm:max-w-md rounded-2xl'>
+            <DialogHeader>
+              <div className='flex items-center gap-2'>
+                <div className='p-2 rounded-xl bg-amber-500/15 text-amber-600'>
+                  <KeyRound className='h-5 w-5' />
+                </div>
+                <div>
+                  <DialogTitle className='text-lg font-bold'>
+                    Teacher Credentials
+                  </DialogTitle>
+                  <DialogDescription className='text-xs text-muted-foreground'>
+                    {credentialsModal.sent
+                      ? `Credentials emailed to ${credentialsModal.email}`
+                      : `New login password generated for ${credentialsModal.teacherName}`}
+                  </DialogDescription>
+                </div>
+              </div>
+            </DialogHeader>
+
+            <div className='space-y-3 py-2 text-sm'>
+              {credentialsModal.sent ? (
+                <div className='p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-xs flex items-center gap-2'>
+                  <CheckCircle2 className='h-4 w-4 shrink-0 text-emerald-600' />
+                  <span>Email sent successfully with portal login instructions!</span>
+                </div>
+              ) : (
+                <div className='p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-300 text-xs flex items-start gap-2'>
+                  <AlertCircle className='h-4 w-4 shrink-0 text-amber-600 mt-0.5' />
+                  <span>SMTP is not configured or email delivery failed. You can copy the credentials below and share them manually.</span>
+                </div>
+              )}
+
+              <div className='space-y-2 p-3.5 rounded-xl bg-muted/40 border border-border/50'>
+                <div>
+                  <span className='text-xs text-muted-foreground font-medium block'>Teacher Name</span>
+                  <span className='font-semibold text-sm'>{credentialsModal.teacherName}</span>
+                </div>
+                <div>
+                  <span className='text-xs text-muted-foreground font-medium block'>Login Email</span>
+                  <span className='font-semibold text-sm'>{credentialsModal.email}</span>
+                </div>
+                {credentialsModal.password && (
+                  <div>
+                    <span className='text-xs text-muted-foreground font-medium block'>Temporary Password</span>
+                    <div className='flex items-center gap-2 mt-1'>
+                      <code className='px-2.5 py-1 rounded-lg bg-background border border-border font-mono text-sm font-bold text-foreground'>
+                        {credentialsModal.password}
+                      </code>
+                      <Button
+                        size='sm'
+                        variant='outline'
+                        onClick={() => {
+                          if (typeof window !== 'undefined') {
+                            navigator.clipboard.writeText(
+                              `Teacher Portal Login\nEmail: ${credentialsModal.email}\nPassword: ${credentialsModal.password}\nLogin at: ${window.location.origin}/login`
+                            );
+                          }
+                          setCopied(true);
+                          setTimeout(() => setCopied(false), 2000);
+                        }}
+                        className='h-8 px-2.5 text-xs rounded-lg'
+                      >
+                        {copied ? (
+                          <>
+                            <Check className='h-3.5 w-3.5 mr-1 text-emerald-600' />
+                            Copied
+                          </>
+                        ) : (
+                          <>
+                            <Copy className='h-3.5 w-3.5 mr-1' />
+                            Copy Details
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button
+                onClick={() => setCredentialsModal(null)}
+                className='w-full rounded-xl'
+              >
+                Close
               </Button>
             </DialogFooter>
           </DialogContent>
