@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+
+export const dynamic = 'force-dynamic';
 import { requireSchoolContext, handleApiError, schoolWhere } from '@/lib/auth-server';
 import { mapSubject } from '@/lib/mappers';
 import { checkSubjectLimit } from '@/lib/plan-limits';

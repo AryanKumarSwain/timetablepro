@@ -471,17 +471,17 @@ export default function TimetableEditPage() {
       {/* Main Header Area */}
       <GlassCard className="p-4 sm:p-5">
         <div className="flex flex-col gap-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-              <Button variant="ghost" size="icon" className="rounded-xl h-9 w-9 shrink-0" asChild>
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0 flex-1">
+              <Button variant="ghost" size="icon" className="rounded-xl h-8 w-8 sm:h-9 sm:w-9 shrink-0" asChild>
                 <Link href="/admin/timetables"><ArrowLeft className="h-4 w-4" /></Link>
               </Button>
               <div className="min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
+                <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
                   <h1 className="text-base sm:text-2xl font-bold tracking-tight truncate">{detail.name}</h1>
                   {classCurrentlyEditing && (
                     <span className={cn(
-                      "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white shadow-xs transition-colors shrink-0",
+                      "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-white shadow-xs shrink-0",
                       isCurrentSelectionFullyFilled ? "bg-emerald-600 shadow-emerald-500/20" : "bg-indigo-600 shadow-indigo-500/20"
                     )}>
                       {classCurrentlyEditing}
@@ -492,12 +492,12 @@ export default function TimetableEditPage() {
               </div>
             </div>
             
-            <div className="flex items-center gap-1 bg-muted/80 p-1 rounded-xl shrink-0 self-end sm:self-auto">
-              <Button variant="outline" size="icon" className="h-7 w-7 rounded-lg" onClick={() => setZoom(Math.max(60, zoom - 10))} disabled={zoom <= 60}>
+            <div className="flex items-center gap-0.5 sm:gap-1 bg-muted/80 p-0.5 sm:p-1 rounded-xl shrink-0">
+              <Button variant="outline" size="icon" className="h-6 w-6 sm:h-7 sm:w-7 rounded-lg" onClick={() => setZoom(Math.max(60, zoom - 10))} disabled={zoom <= 60}>
                 <Minus className="h-3 w-3" />
               </Button>
-              <span className="text-[11px] font-bold w-10 text-center select-none">{zoom}%</span>
-              <Button variant="outline" size="icon" className="h-7 w-7 rounded-lg" onClick={() => setZoom(Math.min(140, zoom + 10))} disabled={zoom >= 140}>
+              <span className="text-[10px] sm:text-[11px] font-bold w-8 sm:w-10 text-center select-none">{zoom}%</span>
+              <Button variant="outline" size="icon" className="h-6 w-6 sm:h-7 sm:w-7 rounded-lg" onClick={() => setZoom(Math.min(140, zoom + 10))} disabled={zoom >= 140}>
                 <Plus className="h-3 w-3" />
               </Button>
             </div>
@@ -530,7 +530,7 @@ export default function TimetableEditPage() {
             <Layers className="h-3.5 w-3.5 text-indigo-500" />
             <span>Select Active {view === 'section' ? 'Class' : 'Faculty'}</span>
           </div>
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 max-w-full scrollbar-none snap-x touch-pan-x">
+          <div className="flex flex-wrap sm:flex-nowrap items-center gap-1.5 sm:gap-2 overflow-x-auto pb-1 max-w-full scrollbar-none snap-x touch-pan-x">
             {sidebarItems.map((item) => {
               const isActive = selectedId === item.id;
               const isFilled = fullyFilledEntities.has(item.id);
@@ -540,7 +540,7 @@ export default function TimetableEditPage() {
                   type='button'
                   onClick={() => setSelectedId(item.id)}
                   className={cn(
-                    "px-4 py-2 text-xs font-bold rounded-xl border transition-all shrink-0 uppercase tracking-wider text-center snap-center min-w-[95px] min-h-[40px] flex items-center justify-center gap-1",
+                    "px-3 py-1.5 sm:px-4 sm:py-2 text-[11px] sm:text-xs font-bold rounded-xl border transition-all shrink-0 uppercase tracking-wider text-center snap-center min-w-[80px] sm:min-w-[95px] min-h-[34px] sm:min-h-[40px] flex items-center justify-center gap-1",
                     isActive
                       ? isFilled
                         ? "bg-emerald-600 text-white border-emerald-600 shadow-md shadow-emerald-500/20 font-extrabold scale-102"

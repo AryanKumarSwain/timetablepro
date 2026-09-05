@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+
+export const dynamic = 'force-dynamic';
 import { requireSchoolContext, handleApiError, schoolWhere } from '@/lib/auth-server';
 import { provisionTeacherUserAccount } from '@/lib/teacher-onboarding';
 import { checkTeacherLimit, getTeacherLimit, PlanLimitError } from '@/lib/plan-limits';
