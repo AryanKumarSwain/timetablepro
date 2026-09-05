@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireSchoolAdmin, handleApiError } from '@/lib/auth-server';
 import { cloneOperationalDay } from '@/lib/clone-day';
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(request: NextRequest) {
   try {
     const { schoolId } = await requireSchoolAdmin();
