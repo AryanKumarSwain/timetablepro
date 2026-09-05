@@ -116,6 +116,9 @@ export default function RoomsPage() {
     });
     setEditingId(room.id);
     setShowForm(true);
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
   };
 
   const handleDelete = async (id: string) => {
@@ -174,6 +177,9 @@ export default function RoomsPage() {
                   setSuccessMsg(null);
                   setErrorMsg(null);
                   setShowForm(true);
+                  if (typeof window !== 'undefined') {
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }
                 }}
                 variant='primary'
                 className='rounded-xl'

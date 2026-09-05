@@ -473,36 +473,38 @@ export default function AdminDashboard() {
             </div>
           </div>
 
-          <div className="h-80">
-            {sortedWorkload.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={sortedWorkload} barSize={14} margin={{ top: 25, right: 10, left: 10, bottom: 65 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-border/40" />
-                  <XAxis
-                    dataKey="name"
-                    axisLine={false}
-                    tickLine={false}
-                    angle={-45}
-                    textAnchor="end"
-                    interval={0}
-                    className="text-[9px] font-bold text-muted-foreground"
-                  />
-                  <YAxis axisLine={false} tickLine={false} className="text-[11px] font-semibold text-muted-foreground" />
-                  <Tooltip
-                    cursor={{ fill: 'rgba(0,0,0,0.02)' }}
-                    contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', padding: '4px 8px', borderRadius: '6px', fontSize: '12px', height: 'auto', width: 'auto' }}
-                    itemStyle={{ margin: 0, padding: 0 }}
-                  />
-                  <Bar dataKey="classes" radius={[4, 4, 0, 0]}>
-                    {sortedWorkload.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="h-full flex items-center justify-center text-xs text-muted-foreground">No active schedule custom slots found</div>
-            )}
+          <div className="h-80 w-full overflow-x-auto">
+            <div className="h-full min-w-[550px] sm:min-w-full">
+              {sortedWorkload.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={sortedWorkload} barSize={14} margin={{ top: 25, right: 10, left: 10, bottom: 65 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-border/40" />
+                    <XAxis
+                      dataKey="name"
+                      axisLine={false}
+                      tickLine={false}
+                      angle={-45}
+                      textAnchor="end"
+                      interval={0}
+                      className="text-[9px] font-bold text-muted-foreground"
+                    />
+                    <YAxis axisLine={false} tickLine={false} className="text-[11px] font-semibold text-muted-foreground" />
+                    <Tooltip
+                      cursor={{ fill: 'rgba(0,0,0,0.02)' }}
+                      contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', padding: '4px 8px', borderRadius: '6px', fontSize: '12px', height: 'auto', width: 'auto' }}
+                      itemStyle={{ margin: 0, padding: 0 }}
+                    />
+                    <Bar dataKey="classes" radius={[4, 4, 0, 0]}>
+                      {sortedWorkload.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-full flex items-center justify-center text-xs text-muted-foreground">No active schedule custom slots found</div>
+              )}
+            </div>
           </div>
         </GlassCard>
 
@@ -623,42 +625,44 @@ export default function AdminDashboard() {
             </select>
           </div>
         </div>
-        <div className="h-72">
-          {sortedWorkload.length > 0 ? (
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={sortedWorkload.map(t => ({ name: t.name, lessons: t.lessonsToday || 0, activities: t.activitiesToday || 0 }))} barSize={22} margin={{ top: 20, right: 10, left: 10, bottom: 60 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-border/40" />
-                <XAxis
-                  dataKey="name"
-                  axisLine={false}
-                  tickLine={false}
-                  angle={-45}
-                  textAnchor="end"
-                  interval={0}
-                  className="text-[9px] font-bold text-muted-foreground"
-                />
-                <YAxis axisLine={false} tickLine={false} allowDecimals={false} className="text-[11px] font-semibold text-muted-foreground" />
-                <Tooltip
-                  cursor={{ fill: 'rgba(0,0,0,0.02)' }}
-                  contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', padding: '4px 8px', borderRadius: '6px', fontSize: '12px' }}
-                />
-                {entryTypeFilter !== 'activity' && (
-                  <Bar
-                    dataKey="lessons"
-                    stackId="entries"
-                    fill="#6366f1"
-                    radius={entryTypeFilter === 'classroom' ? [4, 4, 0, 0] : [0, 0, 0, 0]}
-                    name="Classroom"
+        <div className="h-72 w-full overflow-x-auto">
+          <div className="h-full min-w-[550px] sm:min-w-full">
+            {sortedWorkload.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={sortedWorkload.map(t => ({ name: t.name, lessons: t.lessonsToday || 0, activities: t.activitiesToday || 0 }))} barSize={22} margin={{ top: 20, right: 10, left: 10, bottom: 60 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-border/40" />
+                  <XAxis
+                    dataKey="name"
+                    axisLine={false}
+                    tickLine={false}
+                    angle={-45}
+                    textAnchor="end"
+                    interval={0}
+                    className="text-[9px] font-bold text-muted-foreground"
                   />
-                )}
-                {entryTypeFilter !== 'classroom' && (
-                  <Bar dataKey="activities" stackId="entries" fill="#a855f7" radius={[4, 4, 0, 0]} name="Activities" />
-                )}
-              </BarChart>
-            </ResponsiveContainer>
-          ) : (
-            <div className="h-full flex items-center justify-center text-xs text-muted-foreground">No data available</div>
-          )}
+                  <YAxis axisLine={false} tickLine={false} allowDecimals={false} className="text-[11px] font-semibold text-muted-foreground" />
+                  <Tooltip
+                    cursor={{ fill: 'rgba(0,0,0,0.02)' }}
+                    contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', padding: '4px 8px', borderRadius: '6px', fontSize: '12px' }}
+                  />
+                  {entryTypeFilter !== 'activity' && (
+                    <Bar
+                      dataKey="lessons"
+                      stackId="entries"
+                      fill="#6366f1"
+                      radius={entryTypeFilter === 'classroom' ? [4, 4, 0, 0] : [0, 0, 0, 0]}
+                      name="Classroom"
+                    />
+                  )}
+                  {entryTypeFilter !== 'classroom' && (
+                    <Bar dataKey="activities" stackId="entries" fill="#a855f7" radius={[4, 4, 0, 0]} name="Activities" />
+                  )}
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-full flex items-center justify-center text-xs text-muted-foreground">No data available</div>
+            )}
+          </div>
         </div>
       </GlassCard>
 

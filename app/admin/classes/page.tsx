@@ -126,6 +126,9 @@ export default function ClassesPage() {
     });
     setEditingId(cls.id);
     setShowForm(true);
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
   };
 
   const handleDelete = async (id: string) => {
@@ -182,6 +185,9 @@ export default function ClassesPage() {
                 onClick={() => {
                   setSuccessMsg(null);
                   setShowForm(true);
+                  if (typeof window !== 'undefined') {
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }
                 }}
                 variant="primary"
                 className='rounded-xl'

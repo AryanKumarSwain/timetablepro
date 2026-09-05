@@ -112,57 +112,66 @@ function TimetableRow({
   };
 
   return (
-    <div className='flex items-center gap-4 p-4 rounded-xl border border-border/60 bg-card/50 hover:bg-muted/20 transition-colors'>
-      <div
-        className={cn(
-          'h-10 w-10 rounded-xl flex items-center justify-center text-white font-bold shrink-0',
-          avatarColor(item.name)
-        )}
-      >
-        {item.name.charAt(0).toUpperCase()}
-      </div>
-      <div className='flex-1 min-w-0'>
-        <Link
-          href={`/admin/timetables/${item.id}/edit`}
-          className='font-semibold hover:text-indigo-600 transition-colors truncate block'
+    <div className='flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-xl border border-border/60 bg-card/50 hover:bg-muted/20 transition-colors'>
+      <div className='flex items-center gap-3 min-w-0 flex-1'>
+        <div
+          className={cn(
+            'h-10 w-10 rounded-xl flex items-center justify-center text-white font-bold shrink-0',
+            avatarColor(item.name)
+          )}
         >
-          {item.name}
-        </Link>
-        <p className='text-xs text-muted-foreground mt-0.5'>
-          {item.slotCount} slots · Updated {formatDate(item.updatedAt)}
-        </p>
-      </div>
-      <Badge
-        variant='outline'
-        className={cn(
-          isActive
-            ? 'border-emerald-500/30 text-emerald-600 bg-emerald-500/10'
-            : 'border-amber-500/30 text-amber-600 bg-amber-500/10'
-        )}
-      >
-        {isActive ? 'ACTIVATED' : 'INACTIVE'}
-      </Badge>
-      <div className='flex items-center gap-2 shrink-0'>
-        {isActive ? (
-          <>
-            <Button size='sm' variant='outline' className='rounded-lg text-amber-600 hover:text-amber-700' onClick={onDeactivate}>
-              Deactivate
-            </Button>
-            <Button
-              size='sm'
-              variant='outline'
-              className='rounded-lg'
-              onClick={handleShareClick}
+          {item.name.charAt(0).toUpperCase()}
+        </div>
+        <div className='flex-1 min-w-0'>
+          <div className='flex items-center gap-2 flex-wrap'>
+            <Link
+              href={`/admin/timetables/${item.id}/edit`}
+              className='font-semibold text-foreground hover:text-indigo-600 transition-colors truncate'
             >
-              <Share2 className='h-3.5 w-3.5 mr-1' />
-              Share
+              {item.name}
+            </Link>
+            <Badge
+              variant='outline'
+              className={cn(
+                'text-[10px] px-2 py-0.5 rounded-full shrink-0',
+                isActive
+                  ? 'border-emerald-500/30 text-emerald-600 bg-emerald-500/10'
+                  : 'border-amber-500/30 text-amber-600 bg-amber-500/10'
+              )}
+            >
+              {isActive ? 'ACTIVATED' : 'INACTIVE'}
+            </Badge>
+          </div>
+          <p className='text-xs text-muted-foreground mt-0.5'>
+            {item.slotCount} slots · Updated {formatDate(item.updatedAt)}
+          </p>
+        </div>
+      </div>
+
+      <div className='flex items-center gap-2 justify-between sm:justify-end border-t sm:border-t-0 pt-2.5 sm:pt-0 border-border/40 shrink-0'>
+        <div className='flex items-center gap-2'>
+          {isActive ? (
+            <>
+              <Button size='sm' variant='outline' className='rounded-lg text-xs h-8 text-amber-600 hover:text-amber-700' onClick={onDeactivate}>
+                Deactivate
+              </Button>
+              <Button
+                size='sm'
+                variant='outline'
+                className='rounded-lg text-xs h-8'
+                onClick={handleShareClick}
+              >
+                <Share2 className='h-3.5 w-3.5 mr-1' />
+                Share
+              </Button>
+            </>
+          ) : (
+            <Button size='sm' className='rounded-lg text-xs h-8 bg-emerald-600 hover:bg-emerald-500 text-white' onClick={onActivate}>
+              Activate
             </Button>
-          </>
-        ) : (
-          <Button size='sm' className='rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white' onClick={onActivate}>
-            Activate
-          </Button>
-        )}
+          )}
+        </div>
+        
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button size='icon' variant='ghost' className='h-8 w-8 rounded-lg'>

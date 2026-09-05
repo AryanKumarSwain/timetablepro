@@ -117,6 +117,9 @@ export default function SubjectsPage() {
     });
     setEditingId(subject.id);
     setShowForm(true);
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
   };
 
   const handleDelete = async (id: string) => {
@@ -172,6 +175,9 @@ export default function SubjectsPage() {
                 onClick={() => {
                   setSuccessMsg(null);
                   setShowForm(true);
+                  if (typeof window !== 'undefined') {
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }
                 }}
                 variant="primary"
                 className='rounded-xl'

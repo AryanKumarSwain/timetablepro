@@ -471,17 +471,17 @@ export default function TimetableEditPage() {
       {/* Main Header Area */}
       <GlassCard className="p-4 sm:p-5">
         <div className="flex flex-col gap-4">
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2 sm:gap-3">
-              <Button variant="ghost" size="icon" className="rounded-xl h-9 w-9" asChild>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+              <Button variant="ghost" size="icon" className="rounded-xl h-9 w-9 shrink-0" asChild>
                 <Link href="/admin/timetables"><ArrowLeft className="h-4 w-4" /></Link>
               </Button>
-              <div>
+              <div className="min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <h1 className="text-lg sm:text-2xl font-bold tracking-tight">{detail.name}</h1>
+                  <h1 className="text-base sm:text-2xl font-bold tracking-tight truncate">{detail.name}</h1>
                   {classCurrentlyEditing && (
                     <span className={cn(
-                      "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white shadow-sm transition-colors",
+                      "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white shadow-xs transition-colors shrink-0",
                       isCurrentSelectionFullyFilled ? "bg-emerald-600 shadow-emerald-500/20" : "bg-indigo-600 shadow-indigo-500/20"
                     )}>
                       {classCurrentlyEditing}
@@ -492,12 +492,12 @@ export default function TimetableEditPage() {
               </div>
             </div>
             
-            <div className="flex items-center gap-1 bg-muted/80 p-1 rounded-lg">
-              <Button variant="outline" size="icon" className="h-7 w-7 rounded" onClick={() => setZoom(Math.max(60, zoom - 10))} disabled={zoom <= 60}>
+            <div className="flex items-center gap-1 bg-muted/80 p-1 rounded-xl shrink-0 self-end sm:self-auto">
+              <Button variant="outline" size="icon" className="h-7 w-7 rounded-lg" onClick={() => setZoom(Math.max(60, zoom - 10))} disabled={zoom <= 60}>
                 <Minus className="h-3 w-3" />
               </Button>
-              <span className="text-[11px] font-bold w-10 text-center">{zoom}%</span>
-              <Button variant="outline" size="icon" className="h-7 w-7 rounded" onClick={() => setZoom(Math.min(140, zoom + 10))} disabled={zoom >= 140}>
+              <span className="text-[11px] font-bold w-10 text-center select-none">{zoom}%</span>
+              <Button variant="outline" size="icon" className="h-7 w-7 rounded-lg" onClick={() => setZoom(Math.min(140, zoom + 10))} disabled={zoom >= 140}>
                 <Plus className="h-3 w-3" />
               </Button>
             </div>

@@ -170,6 +170,9 @@ export default function TeachersPage() {
     setEditingId(teacher.id);
     setShowForm(true);
     setSelectedTeacherForView(null);
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
   };
 
   const handleDelete = async (id: string) => {
@@ -229,6 +232,9 @@ export default function TeachersPage() {
                   setErrorMsg(null);
                   setSuccessMsg(null);
                   setShowForm(true);
+                  if (typeof window !== 'undefined') {
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }
                 }}
                 variant="primary"
                 className='rounded-xl'
@@ -563,9 +569,17 @@ export default function TeachersPage() {
               )}
             </div>
 
-            <DialogFooter className='flex gap-2 sm:justify-between pt-2'>
+            <DialogFooter className='flex flex-row gap-2 pt-2 sm:justify-between'>
               <Button
                 variant='outline'
+                size='sm'
+                onClick={() => setSelectedTeacherForView(null)}
+                className='rounded-xl flex-1'
+              >
+                Close
+              </Button>
+              <Button
+                variant='default'
                 size='sm'
                 onClick={() => {
                   const teacher = selectedTeacherForView;
@@ -576,14 +590,6 @@ export default function TeachersPage() {
               >
                 <Pencil className='h-4 w-4 mr-1.5' />
                 Edit Profile
-              </Button>
-              <Button
-                variant='default'
-                size='sm'
-                onClick={() => setSelectedTeacherForView(null)}
-                className='rounded-xl flex-1'
-              >
-                Close
               </Button>
             </DialogFooter>
           </DialogContent>

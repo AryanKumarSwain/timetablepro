@@ -395,8 +395,8 @@ export default function AdminAttendancePage() {
             </div>
           </div>
 
-          {/* CORE MATRIX TABLE DESIGN */}
-          <div className="glass-panel rounded-2xl overflow-hidden shadow-xl border overflow-x-auto">
+          {/* CORE MATRIX TABLE DESIGN - DESKTOP VIEW */}
+          <div className="hidden md:block glass-panel rounded-2xl overflow-hidden shadow-xl border overflow-x-auto">
             <table className="w-full border-collapse text-left min-w-[800px]">
               <thead>
                 <tr className="bg-muted/80 border-b text-[10px] font-black uppercase tracking-widest text-muted-foreground">
@@ -511,16 +511,103 @@ export default function AdminAttendancePage() {
             </table>
           </div>
 
+          {/* MOBILE CARD VIEW - NO OVERFLOW/SCROLL ISSUES */}
+          <div className="block md:hidden space-y-3">
+            {filteredTeachers.map((teacher) => {
+              const liveStatus = getTeacherCurrentStatus(teacher.id);
+              const isWorking = updatingId === teacher.id;
+              const teacherLogs = rangeSummary[teacher.id] || [];
+
+              return (
+                <div
+                  key={teacher.id}
+                  className={cn(
+                    "p-4 rounded-xl border bg-card space-y-3 transition-colors shadow-sm",
+                    liveStatus === 'ABSENT' ? "border-destructive/30 bg-destructive/5" : "border-border"
+                  )}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <h4 className="font-extrabold text-sm text-foreground truncate">{teacher.name}</h4>
+                      <p className="text-[11px] text-muted-foreground truncate">{teacher.email || 'No email'}</p>
+                    </div>
+                    <span
+                      className={cn(
+                        "px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider shrink-0 inline-flex items-center gap-1",
+                        liveStatus === 'PRESENT' ? "bg-emerald-500 text-white" : "bg-destructive text-white"
+                      )}
+                    >
+                      {liveStatus === 'PRESENT' ? <Check className="h-2.5 w-2.5" /> : <X className="h-2.5 w-2.5" />}
+                      {liveStatus}
+                    </span>
+                  </div>
+
+                  {/* Range history badges if present */}
+                  {uniqueDates.length > 0 && (
+                    <div className="flex flex-wrap gap-1 pt-1 border-t border-border/50 text-[10px]">
+                      {uniqueDates.map((d) => {
+                        const match = teacherLogs.find((l) => l.date === d);
+                        const statusLetter = match ? match.status : '-';
+                        return (
+                          <span
+                            key={d}
+                            className={cn(
+                              "px-1.5 py-0.5 rounded font-mono font-bold",
+                              statusLetter === 'P' && "bg-emerald-500/15 text-emerald-600",
+                              statusLetter === 'A' && "bg-destructive/15 text-destructive",
+                              statusLetter === '-' && "bg-muted text-muted-foreground"
+                            )}
+                            title={`${d}: ${statusLetter}`}
+                          >
+                            {d.slice(5)}: {statusLetter}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Action Buttons */}
+                  <div className="flex items-center gap-2 pt-1">
+                    <button
+                      disabled={isWorking || !isEditable}
+                      onClick={() => void handleStatusChange(teacher.id, 'PRESENT')}
+                      className={cn(
+                        "flex-1 py-2 rounded-lg text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1 transition-all",
+                        liveStatus === 'PRESENT' && isEditable
+                          ? "bg-emerald-600 text-white shadow-sm"
+                          : "bg-muted/60 border text-muted-foreground hover:bg-emerald-500/10 hover:text-emerald-600"
+                      )}
+                    >
+                      <Check className="h-3.5 w-3.5" /> Present
+                    </button>
+                    <button
+                      disabled={isWorking || !isEditable}
+                      onClick={() => void handleStatusChange(teacher.id, 'ABSENT')}
+                      className={cn(
+                        "flex-1 py-2 rounded-lg text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1 transition-all",
+                        liveStatus === 'ABSENT' && isEditable
+                          ? "bg-destructive text-white shadow-sm"
+                          : "bg-muted/60 border text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                      )}
+                    >
+                      <X className="h-3.5 w-3.5" /> Absent
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
           {/* EXPORT CONTROL DESK */}
-          <div className="flex items-center justify-between pt-4 border-t print:hidden">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-4 border-t print:hidden">
             <p className="text-[11px] text-muted-foreground font-semibold">
               Active roster grid contains <span className="text-foreground font-black">{filteredTeachers.length}</span> faculty tracks.
             </p>
-            <div className="flex gap-3">
-              <button onClick={() => window.print()} className="inline-flex items-center h-10 px-5 rounded-xl border bg-card text-xs font-black uppercase tracking-wider gap-2">
+            <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+              <button onClick={() => window.print()} className="flex-1 sm:flex-initial inline-flex items-center justify-center h-10 px-4 rounded-xl border bg-card text-xs font-black uppercase tracking-wider gap-2">
                 <FileText className="h-4 w-4 text-destructive" /> Print Report
               </button>
-              <button onClick={exportToExcel} className="inline-flex items-center h-10 px-5 rounded-xl bg-primary text-primary-foreground text-xs font-black uppercase tracking-wider gap-2">
+              <button onClick={exportToExcel} className="flex-1 sm:flex-initial inline-flex items-center justify-center h-10 px-4 rounded-xl bg-primary text-primary-foreground text-xs font-black uppercase tracking-wider gap-2">
                 <Download className="h-4 w-4" /> Export Matrix CSV
               </button>
             </div>
