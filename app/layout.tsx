@@ -50,7 +50,7 @@ export default function RootLayout({
             {children}
             <Toaster richColors position='top-right' />
           </AuthProvider>
-          {process.env.NODE_ENV === 'production' && <Analytics />}
+          {process.env.NODE_ENV === 'production' && Boolean(process.env.VERCEL) && <Analytics />}
         </ThemeProvider>
       </body>
     </html>

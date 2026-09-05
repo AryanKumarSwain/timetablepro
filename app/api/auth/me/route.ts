@@ -8,7 +8,7 @@ import bcrypt from 'bcryptjs';
 export async function GET() {
   const session = await getSession();
   if (!session.isLoggedIn || !session.user) {
-    return NextResponse.json({ user: null }, { status: 401 });
+    return NextResponse.json({ user: null }, { status: 200 });
   }
 
   const { user } = session;

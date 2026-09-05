@@ -18,6 +18,7 @@ export function getMysqlConfig() {
       password: process.env.DATABASE_PASSWORD,
       database: process.env.DATABASE_NAME,
       connectionLimit: 10,
+      allowPublicKeyRetrieval: true,
     };
   }
 
@@ -30,6 +31,7 @@ export function getMysqlConfig() {
       password: decodeURIComponent(parsed.password),
       database: parsed.pathname.replace(/^\//, ''),
       connectionLimit: 10,
+      allowPublicKeyRetrieval: true,
     };
   }
 
@@ -40,5 +42,6 @@ export function getMysqlConfig() {
     password: process.env.DATABASE_PASSWORD ?? '',
     database: process.env.DATABASE_NAME ?? 'school_timetable',
     connectionLimit: 10,
+    allowPublicKeyRetrieval: true,
   };
 }

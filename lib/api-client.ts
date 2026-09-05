@@ -11,19 +11,21 @@ function buildApiUrl(path: string) {
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const url = buildApiUrl(path);
   
-  // Fetch current session to get school context
+  // Fetch current session to get school context (skip when calling auth endpoints)
   let schoolId: string | null = null;
-  try {
-    const sessionRes = await fetch('/api/auth/me', {
-      credentials: 'include',
-      cache: 'no-store',
-    });
-    if (sessionRes.ok) {
-      const sessionData = await sessionRes.json();
-      schoolId = sessionData.user?.schoolId || null;
+  if (path !== '/api/auth/me' && !path.startsWith('/api/auth/')) {
+    try {
+      const sessionRes = await fetch('/api/auth/me', {
+        credentials: 'include',
+        cache: 'no-store',
+      });
+      if (sessionRes.ok) {
+        const sessionData = await sessionRes.json();
+        schoolId = sessionData.user?.schoolId || null;
+      }
+    } catch (error) {
+      console.warn('[apiFetch] Failed to fetch session for school context:', error);
     }
-  } catch (error) {
-    console.warn('[apiFetch] Failed to fetch session for school context:', error);
   }
 
   const headers = new Headers();
