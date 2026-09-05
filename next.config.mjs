@@ -6,7 +6,6 @@ const __dirname = dirname(__filename);
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: 'standalone',
   typescript: {
     ignoreBuildErrors: true,
   },
@@ -15,6 +14,22 @@ const nextConfig = {
   },
   turbopack: {
     root: __dirname,
+  },
+  async rewrites() {
+    return [
+      {
+        source: '/index.html',
+        destination: '/',
+      },
+      {
+        source: '/index.php',
+        destination: '/',
+      },
+      {
+        source: '/index',
+        destination: '/',
+      },
+    ];
   },
 };
 
