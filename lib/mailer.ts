@@ -177,11 +177,18 @@ export async function sendTeacherCredentials(
   const transporter = getTransporter();
   const from = process.env.SMTP_FROM ?? process.env.MAIL_FROM ?? 'noreply@school.com';
 
+  const safeLoginUrl = loginUrl.includes('localhost')
+    ? loginUrl.replace(/http:\/\/localhost(:\d+)?/g, 'https://timetablepro.webncode.in')
+    : loginUrl;
+
   const html = buildEmailLayout({
-    title: 'Welcome to the teacher portal',
-    subtitle: `${schoolName} • secure access`,
+    title: `Welcome to ${schoolName} - TimeTablePro`,
+    subtitle: `${schoolName} • Teacher Portal Access`,
     lead: `Hello ${name},`,
     content: `
+      <div style="margin:0 0 16px; padding:12px 16px; background:#eef4ff; border-left:4px solid ${BRAND_PRIMARY}; border-radius:8px; font-size:15px; font-weight:700; color:${BRAND_PRIMARY};">
+        Welcome to ${schoolName} - TimeTablePro
+      </div>
       <p style="margin:0 0 18px; font-size:15px; line-height:1.7; color:${MUTED_TEXT};">
         Your teacher account has been created successfully. Use the details below to log in and begin managing your timetable and classroom workflow.
       </p>
@@ -193,7 +200,7 @@ export async function sendTeacherCredentials(
         </tr>
         <tr>
           <td style="padding:16px; font-size:14px; color:${DARK_TEXT};">
-            <div style="margin-bottom:10px;"><strong style="display:inline-block; width:110px; color:${MUTED_TEXT};">Login URL</strong><a href="${loginUrl}" style="color:${BRAND_PRIMARY}; text-decoration:none;">${loginUrl}</a></div>
+            <div style="margin-bottom:10px;"><strong style="display:inline-block; width:110px; color:${MUTED_TEXT};">Login URL</strong><a href="${safeLoginUrl}" style="color:${BRAND_PRIMARY}; text-decoration:none; word-break:break-all;">${safeLoginUrl}</a></div>
             <div style="margin-bottom:10px;"><strong style="display:inline-block; width:110px; color:${MUTED_TEXT};">Email</strong>${to}</div>
             <div><strong style="display:inline-block; width:110px; color:${MUTED_TEXT};">Password</strong><code style="background:#ffffff; border:1px solid ${BORDER}; border-radius:8px; padding:6px 10px; font-size:13px; color:${DARK_TEXT};">${password}</code></div>
           </td>
@@ -215,10 +222,11 @@ export async function sendTeacherCredentials(
     await transporter.sendMail({
       from,
       to,
-      subject: `${schoolName} — Your teacher portal credentials`,
+      subject: `Welcome to ${schoolName} - TimeTablePro — Your teacher portal credentials`,
       html,
     });
     return { sent: true };
+
   } catch (err) {
     console.error('[mailer] Failed to send credentials:', err);
     return {

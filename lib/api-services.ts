@@ -108,7 +108,10 @@ export async function deleteTeacher(id: string): Promise<boolean> {
 export async function resendTeacherCredentials(id: string): Promise<{
   success: boolean;
   email: string;
+  phone?: string;
   sent: boolean;
+  whatsappSent?: boolean;
+  whatsappError?: string;
   tempPassword?: string;
   error?: string;
 }> {

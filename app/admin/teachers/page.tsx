@@ -79,8 +79,10 @@ export default function TeachersPage() {
     open: boolean;
     teacherName: string;
     email: string;
+    phone?: string;
     password?: string;
     sent: boolean;
+    whatsappSent?: boolean;
   } | null>(null);
   const [copied, setCopied] = useState(false);
   
@@ -215,11 +217,18 @@ export default function TeachersPage() {
         open: true,
         teacherName: teacher.name,
         email: res.email,
+        phone: res.phone || teacher.phone,
         password: res.tempPassword,
         sent: res.sent,
+        whatsappSent: res.whatsappSent,
       });
-      if (res.sent) {
-        setSuccessMsg(`Login credentials successfully emailed to ${res.email}`);
+
+      const channels: string[] = [];
+      if (res.sent) channels.push('Email');
+      if (res.whatsappSent) channels.push('WhatsApp');
+
+      if (channels.length > 0) {
+        setSuccessMsg(`Login credentials dispatched via ${channels.join(' and ')} for ${teacher.name}`);
       } else {
         setSuccessMsg(`New login credentials generated for ${teacher.name}`);
       }
@@ -230,6 +239,7 @@ export default function TeachersPage() {
       setResendingId(null);
     }
   };
+
 
 
   const resetForm = () => {
@@ -699,8 +709,8 @@ export default function TeachersPage() {
                     Teacher Credentials
                   </DialogTitle>
                   <DialogDescription className='text-xs text-muted-foreground'>
-                    {credentialsModal.sent
-                      ? `Credentials emailed to ${credentialsModal.email}`
+                    {credentialsModal.sent || credentialsModal.whatsappSent
+                      ? `Credentials dispatched for ${credentialsModal.teacherName}`
                       : `New login password generated for ${credentialsModal.teacherName}`}
                   </DialogDescription>
                 </div>
@@ -708,17 +718,31 @@ export default function TeachersPage() {
             </DialogHeader>
 
             <div className='space-y-3 py-2 text-sm'>
-              {credentialsModal.sent ? (
-                <div className='p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-xs flex items-center gap-2'>
-                  <CheckCircle2 className='h-4 w-4 shrink-0 text-emerald-600' />
-                  <span>Email sent successfully with portal login instructions!</span>
-                </div>
-              ) : (
-                <div className='p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-300 text-xs flex items-start gap-2'>
-                  <AlertCircle className='h-4 w-4 shrink-0 text-amber-600 mt-0.5' />
-                  <span>SMTP is not configured or email delivery failed. You can copy the credentials below and share them manually.</span>
-                </div>
-              )}
+              <div className='grid grid-cols-1 sm:grid-cols-2 gap-2'>
+                {credentialsModal.sent ? (
+                  <div className='p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-xs flex items-center gap-2'>
+                    <CheckCircle2 className='h-4 w-4 shrink-0 text-emerald-600' />
+                    <span>Email sent successfully</span>
+                  </div>
+                ) : (
+                  <div className='p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-300 text-xs flex items-start gap-2'>
+                    <AlertCircle className='h-4 w-4 shrink-0 text-amber-600 mt-0.5' />
+                    <span>Email delivery failed / skipped</span>
+                  </div>
+                )}
+
+                {credentialsModal.whatsappSent ? (
+                  <div className='p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-xs flex items-center gap-2'>
+                    <CheckCircle2 className='h-4 w-4 shrink-0 text-emerald-600' />
+                    <span>WhatsApp sent successfully</span>
+                  </div>
+                ) : (
+                  <div className='p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-300 text-xs flex items-start gap-2'>
+                    <AlertCircle className='h-4 w-4 shrink-0 text-amber-600 mt-0.5' />
+                    <span>WhatsApp not sent</span>
+                  </div>
+                )}
+              </div>
 
               <div className='space-y-2 p-3.5 rounded-xl bg-muted/40 border border-border/50'>
                 <div>
@@ -741,8 +765,11 @@ export default function TeachersPage() {
                         variant='outline'
                         onClick={() => {
                           if (typeof window !== 'undefined') {
+                            const baseOrigin = window.location.origin.includes('localhost')
+                              ? 'https://timetablepro.webncode.in'
+                              : window.location.origin;
                             navigator.clipboard.writeText(
-                              `Teacher Portal Login\nEmail: ${credentialsModal.email}\nPassword: ${credentialsModal.password}\nLogin at: ${window.location.origin}/login`
+                              `Welcome to Teacher Portal - TimeTablePro\nTeacher: ${credentialsModal.teacherName}\nEmail: ${credentialsModal.email}\nPassword: ${credentialsModal.password}\nLogin at: ${baseOrigin}/login`
                             );
                           }
                           setCopied(true);

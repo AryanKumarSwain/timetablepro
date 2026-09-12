@@ -1,7 +1,9 @@
 import bcrypt from 'bcryptjs';
 import { prisma } from '@/lib/prisma';
 import { sendTeacherCredentials } from '@/lib/mailer';
+import { sendWhatsAppTeacherCredentials } from '@/lib/whatsapp';
 import type { Teacher as DbTeacher } from '@prisma/client';
+
 
 const PASSWORD_CHARS =
   'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
@@ -86,25 +88,54 @@ export async function provisionTeacherUserAccount(
     });
   }
 
-  const loginUrl =
+  const rawLoginUrl =
     process.env.APP_URL ??
     process.env.NEXT_PUBLIC_APP_URL ??
-    'http://localhost:3000/login';
+    'https://timetablepro.webncode.in/login';
 
-  // Log send result to help debug SMTP issues during teacher provisioning
+  const loginUrl = rawLoginUrl.includes('localhost')
+    ? rawLoginUrl.replace(/http:\/\/localhost(:\d+)?/g, 'https://timetablepro.webncode.in')
+    : rawLoginUrl;
+
+  const formattedLoginUrl = loginUrl.endsWith('/login')
+    ? loginUrl
+    : `${loginUrl.replace(/\/$/, '')}/login`;
+
+  // 1. Send credentials via Email
   try {
     const result = await sendTeacherCredentials(
       teacher.email,
       teacher.name,
       schoolName,
       plainPassword,
-      loginUrl.endsWith('/login') ? loginUrl : `${loginUrl.replace(/\/$/, '')}/login`
+      formattedLoginUrl
     );
     if (!result.sent) {
       console.warn('[provisionTeacherUserAccount] Credentials email not sent:', result.error ?? 'unknown');
     }
   } catch (err) {
-    console.error('[provisionTeacherUserAccount] sendTeacherCredentials threw error:', err);
+    console.error('[provisionTeacherUserAccount] sendTeacherCredentials email threw error:', err);
+  }
+
+  // 2. Send credentials via WhatsApp (if phone number configured)
+  if (teacher.phone) {
+    try {
+      const waResult = await sendWhatsAppTeacherCredentials({
+        toPhone: teacher.phone,
+        teacherName: teacher.name,
+        schoolName,
+        email: teacher.email,
+        password: plainPassword,
+        loginUrl: formattedLoginUrl,
+      });
+      if (!waResult.sent) {
+        console.warn('[provisionTeacherUserAccount] Credentials WhatsApp not sent:', waResult.error ?? 'unknown');
+      } else {
+        console.log(`[provisionTeacherUserAccount] Credentials WhatsApp sent to ${teacher.phone} via ${waResult.method}`);
+      }
+    } catch (waErr) {
+      console.error('[provisionTeacherUserAccount] sendWhatsAppTeacherCredentials threw error:', waErr);
+    }
   }
 }
 
@@ -114,7 +145,10 @@ export async function resendTeacherCredentials(
 ): Promise<{
   success: boolean;
   email: string;
+  phone?: string;
   sent: boolean;
+  whatsappSent?: boolean;
+  whatsappError?: string;
   tempPassword: string;
   error?: string;
 }> {
@@ -168,10 +202,14 @@ export async function resendTeacherCredentials(
     });
   }
 
-  const loginUrl =
+  const rawLoginUrl =
     process.env.APP_URL ??
     process.env.NEXT_PUBLIC_APP_URL ??
-    'http://localhost:3000/login';
+    'https://timetablepro.webncode.in/login';
+
+  const loginUrl = rawLoginUrl.includes('localhost')
+    ? rawLoginUrl.replace(/http:\/\/localhost(:\d+)?/g, 'https://timetablepro.webncode.in')
+    : rawLoginUrl;
 
   const formattedLoginUrl = loginUrl.endsWith('/login')
     ? loginUrl
@@ -180,6 +218,7 @@ export async function resendTeacherCredentials(
   let sent = false;
   let sendError: string | undefined;
 
+  // 1. Send via Email
   try {
     const sendResult = await sendTeacherCredentials(
       teacher.email,
@@ -194,12 +233,37 @@ export async function resendTeacherCredentials(
     sendError = err?.message || 'Failed to dispatch email';
   }
 
+  // 2. Send via WhatsApp
+  let whatsappSent = false;
+  let whatsappError: string | undefined;
+
+  if (teacher.phone) {
+    try {
+      const waResult = await sendWhatsAppTeacherCredentials({
+        toPhone: teacher.phone,
+        teacherName: teacher.name,
+        schoolName,
+        email: teacher.email,
+        password: plainPassword,
+        loginUrl: formattedLoginUrl,
+      });
+      whatsappSent = waResult.sent;
+      whatsappError = waResult.error;
+    } catch (waErr: any) {
+      whatsappError = waErr?.message || 'Failed to dispatch WhatsApp message';
+    }
+  }
+
   return {
     success: true,
     email: teacher.email,
+    phone: teacher.phone,
     sent,
+    whatsappSent,
+    whatsappError,
     tempPassword: plainPassword,
     error: sendError,
   };
 }
+
 
