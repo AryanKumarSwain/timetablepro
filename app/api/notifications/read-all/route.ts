@@ -17,18 +17,22 @@ export async function POST() {
 
     // 1. Assign visibility constraints context matching structural roles
     if (user.role === 'SUPER_ADMIN') {
-      whereClause.OR = [
-        { scope: 'ALL_ADMINS' },
-        { type: 'SYSTEM' }
-      ];
+      whereClause = {};
     } else if (user.role === 'ADMIN') {
-      whereClause.OR = [
-        { schoolId: user.schoolId },
-        { schoolId: null }
-      ];
+      if (!user.schoolId) {
+        return NextResponse.json({ success: true, markedAsRead: 0 });
+      }
+      whereClause = {
+        schoolId: user.schoolId,
+      };
     } else if (user.role === 'TEACHER') {
-      whereClause.scope = 'SCHOOL_TEACHERS';
-      whereClause.schoolId = user.schoolId;
+      if (!user.schoolId) {
+        return NextResponse.json({ success: true, markedAsRead: 0 });
+      }
+      whereClause = {
+        schoolId: user.schoolId,
+        scope: 'SCHOOL_TEACHERS',
+      };
     }
 
     console.log('Where clause for notifications:', JSON.stringify(whereClause));

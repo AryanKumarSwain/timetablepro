@@ -18,27 +18,26 @@ export async function GET() {
 
     // 1. Assign visibility constraints context matching structural roles
     if (user.role === 'SUPER_ADMIN') {
-      // Super-Admins read notifications generated directly by fellow Super-Admins
-      // They also see trial request notifications and plan activation notifications
-      whereClause.OR = [
-        { scope: 'ALL_ADMINS' },
-        { type: 'SYSTEM' } // Trial requests and plan activations use SYSTEM type
-      ];
+      // Super-Admin sees ALL notifications across all schools and system events
+      whereClause = {};
     } else if (user.role === 'ADMIN') {
-      // Admins only see notifications for their own school or global notifications (schoolId: null)
-      // For SYSTEM type notifications with schoolId, only show if it's their school
-      whereClause.OR = [
-        { schoolId: user.schoolId },
-        { schoolId: null }
-      ];
+      // School Admins are strictly isolated to their own school's notifications
+      if (!user.schoolId) {
+        return NextResponse.json({ data: [] });
+      }
+      whereClause = {
+        schoolId: user.schoolId,
+      };
     } else if (user.role === 'TEACHER') {
-      // Teachers retrieve alerts targeted for their specific school ID assignment
-      // Workaround: Only show notifications where they DON'T have a read entry
-      // This means either it's a general broadcast (no one has read it yet)
-      // OR it's targeted specifically to them (others have read entries, they don't)
-      whereClause.scope = 'SCHOOL_TEACHERS';
-      whereClause.schoolId = user.schoolId;
-      whereClause.reads = { none: { userId: user.id } };
+      // Teachers retrieve alerts targeted strictly for their specific school
+      if (!user.schoolId) {
+        return NextResponse.json({ data: [] });
+      }
+      whereClause = {
+        schoolId: user.schoolId,
+        scope: 'SCHOOL_TEACHERS',
+        reads: { none: { userId: user.id } },
+      };
     }
 
     // 2. Query target parameters from storage array matrix
