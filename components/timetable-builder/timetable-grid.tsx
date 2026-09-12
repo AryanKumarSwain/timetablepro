@@ -1,11 +1,12 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { cn, isTeacherActive } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Trash2, Plus, Coffee, Search, ChevronDown, Check } from 'lucide-react';
+import { Trash2, Plus, Coffee, Search, ChevronDown, Check, SlidersHorizontal, ChevronLeft, ChevronRight } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
@@ -309,18 +310,18 @@ export function TimetableGrid({
       {/* MATRIX GRID TIMELINE */}
       <div className="w-full overflow-x-auto rounded-2xl border border-border/60 bg-background shadow-sm">
         <div
-          className="grid min-w-[550px] sm:min-w-[1000px]"
-          style={{ gridTemplateColumns: `minmax(130px, 220px) repeat(${safeWorkingDays.length}, minmax(120px, 1fr))` }}
+          className="grid min-w-[600px] sm:min-w-[1000px]"
+          style={{ gridTemplateColumns: `minmax(180px, 240px) repeat(${safeWorkingDays.length}, minmax(120px, 1fr))` }}
         >
           {/* STICKY PERIOD ENGINE HEADER */}
-          <div className="p-2.5 sm:p-4 border-b bg-background sticky left-0 z-20 font-semibold flex flex-col gap-1.5 justify-center border-r border-border/60 shadow-xs">
-            <span className="text-[9px] sm:text-[11px] tracking-wider font-bold text-muted-foreground uppercase">Timetable Engine</span>
-            <div className="flex gap-1">
-              <Button size="sm" variant="outline" className="h-6 sm:h-8 text-[10px] sm:text-xs gap-1 px-2 border-indigo-500/20 text-indigo-600 hover:bg-indigo-500/5 bg-background font-semibold rounded-lg sm:rounded-xl" onClick={() => onAddRow(false)}>
-                <Plus className="h-3 w-3" /> + Period
+          <div className="p-2 sm:p-4 border-b bg-background sticky left-0 z-20 font-semibold flex flex-col gap-1.5 justify-center border-r border-border/60 shadow-xs">
+            <span className="text-[9px] sm:text-[11px] tracking-wider font-bold text-muted-foreground uppercase truncate">Timetable Engine</span>
+            <div className="flex flex-col sm:flex-row gap-1 sm:gap-1.5 w-full min-w-0">
+              <Button size="sm" variant="outline" className="h-7 sm:h-8 text-[10px] sm:text-xs gap-1 px-1 sm:px-2 border-indigo-500/20 text-indigo-600 hover:bg-indigo-500/5 bg-background font-semibold rounded-lg sm:rounded-xl flex-1 justify-center whitespace-nowrap shrink-0" onClick={() => onAddRow(false)}>
+                <Plus className="h-3 w-3 shrink-0" /> + Period
               </Button>
-              <Button size="sm" variant="outline" className="h-6 sm:h-8 text-[10px] sm:text-xs gap-1 px-2 border-amber-500/20 text-amber-600 hover:bg-amber-500/5 bg-background font-semibold rounded-lg sm:rounded-xl" onClick={() => onAddRow(true)}>
-                <Coffee className="h-3 w-3" /> + Break
+              <Button size="sm" variant="outline" className="h-7 sm:h-8 text-[10px] sm:text-xs gap-1 px-1 sm:px-2 border-amber-500/20 text-amber-600 hover:bg-amber-500/5 bg-background font-semibold rounded-lg sm:rounded-xl flex-1 justify-center whitespace-nowrap shrink-0" onClick={() => onAddRow(true)}>
+                <Coffee className="h-3 w-3 shrink-0" /> + Break
               </Button>
             </div>
           </div>
@@ -461,7 +462,7 @@ export function SlotEditorSheet({
       <DialogContent className="rounded-2xl max-w-md p-6">
         <DialogHeader className="pb-4 border-b">
           <DialogTitle className="text-xl font-bold text-foreground">{slot ? 'Modify Slot' : 'Assign Grid Slot'}</DialogTitle>
-          <p className="text-xs text-muted-foreground font-medium">{dayLabel} Layout Framework — <span className="text-indigo-600 font-semibold">{periodLabel}</span></p>
+          <DialogDescription className="text-xs text-muted-foreground font-medium">{dayLabel} Layout Framework — <span className="text-indigo-600 font-semibold">{periodLabel}</span></DialogDescription>
         </DialogHeader>
         <div className='space-y-5 mt-2'>
           <SearchableSelect
@@ -523,19 +524,130 @@ export function SubjectChip({ name, color, sublabel }: { name: string; color: st
 
 export function WorkloadPanel({ teacherWorkload }: { teacherWorkload: any[] }) {
   const { theme } = usePlanTheme();
+  const [search, setSearch] = useState('');
+  const [sortFilter, setSortFilter] = useState<'all' | 'most' | 'least'>('all');
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 10;
+
+  const filteredWorkload = useMemo(() => {
+    let list = [...(teacherWorkload || [])];
+
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      list = list.filter((t) => t.name?.toLowerCase().includes(q));
+    }
+
+    if (sortFilter === 'most') {
+      list.sort((a, b) => (b.utilization || 0) - (a.utilization || 0));
+    } else if (sortFilter === 'least') {
+      list.sort((a, b) => (a.utilization || 0) - (b.utilization || 0));
+    } else {
+      list.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    }
+
+    return list;
+  }, [teacherWorkload, search, sortFilter]);
+
+  const totalPages = Math.ceil(filteredWorkload.length / pageSize) || 1;
+  const safePage = Math.min(currentPage, totalPages);
+
+  const paginatedWorkload = useMemo(() => {
+    const start = (safePage - 1) * pageSize;
+    return filteredWorkload.slice(start, start + pageSize);
+  }, [filteredWorkload, safePage]);
+
+  // Reset page to 1 when search or filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, sortFilter]);
+
   return (
-    <div className='space-y-4'>
-      {teacherWorkload.map((t, index) => (
-        <div key={`teacher-${index}`} className="p-3 rounded-xl border border-border/50 bg-muted/5">
-          <div className='flex justify-between text-xs font-semibold mb-1.5'>
-            <span className="text-foreground">{t.name}</span>
-            <span className='text-muted-foreground'>{t.remaining} / {t.total} Slots ({t.utilization}% Load)</span>
-          </div>
-          <div className='h-2 rounded-full bg-muted overflow-hidden'>
-            <div className={`h-full bg-${theme.primary} rounded-full transition-all duration-300`} style={{ width: `${Math.min(100, t.utilization)}%` }} />
+    <div className="space-y-4">
+      {/* Search and Filters Header */}
+      <div className="flex flex-col sm:flex-row gap-3 items-center justify-between">
+        <div className="relative w-full sm:w-64">
+          <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+          <Input
+            placeholder="Search faculty name..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9 text-xs h-9 rounded-xl bg-background border-border"
+          />
+        </div>
+
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          <select
+            className="text-xs bg-background border border-border rounded-xl h-9 px-3 focus:outline-none focus:ring-1 focus:ring-ring font-medium w-full sm:w-auto cursor-pointer shadow-xs"
+            value={sortFilter}
+            onChange={(e) => setSortFilter(e.target.value as 'all' | 'most' | 'least')}
+          >
+            <option value="all">Default Sort (A–Z)</option>
+            <option value="most">Most Workload (Highest)</option>
+            <option value="least">Least Workload (Lowest)</option>
+          </select>
+        </div>
+      </div>
+
+      {/* Workload Cards List */}
+      {paginatedWorkload.length > 0 ? (
+        <div className="space-y-3">
+          {paginatedWorkload.map((t, index) => (
+            <div key={`teacher-${index}`} className="p-3 rounded-xl border border-border/50 bg-muted/5">
+              <div className="flex justify-between text-xs font-semibold mb-1.5">
+                <span className="text-foreground font-bold">{t.name}</span>
+                <span className="text-muted-foreground font-medium">
+                  {t.remaining} / {t.total} Slots ({t.utilization}% Load)
+                </span>
+              </div>
+              <div className="h-2 rounded-full bg-muted overflow-hidden">
+                <div
+                  className={`h-full bg-${theme.primary} rounded-full transition-all duration-300`}
+                  style={{ width: `${Math.min(100, t.utilization)}%` }}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="text-center py-6 text-xs text-muted-foreground">
+          No faculty members found matching "{search}"
+        </div>
+      )}
+
+      {/* Pagination Controls (10 rows per page) */}
+      {filteredWorkload.length > pageSize && (
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2 border-t border-border/40">
+          <span className="text-xs text-muted-foreground font-medium">
+            Showing {(safePage - 1) * pageSize + 1}–{Math.min(safePage * pageSize, filteredWorkload.length)} of {filteredWorkload.length} faculty
+          </span>
+
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 text-xs font-semibold rounded-lg px-2.5"
+              disabled={safePage <= 1}
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+            >
+              <ChevronLeft className="h-3.5 w-3.5 mr-1" /> Prev
+            </Button>
+
+            <span className="text-xs font-bold text-foreground px-2">
+              Page {safePage} of {totalPages}
+            </span>
+
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 text-xs font-semibold rounded-lg px-2.5"
+              disabled={safePage >= totalPages}
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+            >
+              Next <ChevronRight className="h-3.5 w-3.5 ml-1" />
+            </Button>
           </div>
         </div>
-      ))}
+      )}
     </div>
   );
 }

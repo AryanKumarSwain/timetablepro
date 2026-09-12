@@ -59,6 +59,9 @@ function serializePlan(plan: any, schoolCount: number) {
   };
 }
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export async function GET() {
   try {
     const plans = await prisma.saaSPlan.findMany({
@@ -69,7 +72,12 @@ export async function GET() {
     });
 
     return NextResponse.json(
-      plans.map((plan) => serializePlan(plan, plan._count.schools))
+      plans.map((plan) => serializePlan(plan, plan._count.schools)),
+      {
+        headers: {
+          'Cache-Control': 'no-store, max-age=0, must-revalidate',
+        },
+      }
     );
   } catch (error) {
     return handleApiError(error);

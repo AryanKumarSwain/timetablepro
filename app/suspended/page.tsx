@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { AlertTriangle, LogOut, Mail } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -42,17 +43,21 @@ export default function SuspendedPage() {
       {/* Header Bar */}
       <header className="bg-white border-b border-slate-200 px-6 py-4">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-600 to-violet-600 flex items-center justify-center">
-              <span className="text-white font-bold text-sm">TT</span>
-            </div>
-            <span className="font-semibold text-slate-800">TimeTablePro</span>
+          <div className="flex items-center gap-2.5">
+            <Image
+              src="/logo-only.png"
+              alt="TimeTablePro Logo"
+              width={32}
+              height={32}
+              className="h-8 w-auto object-contain"
+            />
+            <span className="font-bold text-slate-800 text-lg tracking-tight">TimeTablePro</span>
           </div>
           <Button
             variant="outline"
             size="sm"
             onClick={handleLogout}
-            className="gap-2"
+            className="gap-2 cursor-pointer"
           >
             <LogOut className="w-4 h-4" />
             Logout

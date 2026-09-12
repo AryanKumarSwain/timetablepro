@@ -19,6 +19,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
@@ -499,6 +500,7 @@ export default function LessonPlanningPage() {
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{selectedLesson ? 'Edit Lesson Plan' : 'Create New Lesson Plan'}</DialogTitle>
+            <DialogDescription className="sr-only">Form to configure and save lesson planning details</DialogDescription>
           </DialogHeader>
           <LessonPlanForm
             onSubmit={selectedLesson ? handleUpdateLesson : handleCreateLesson}

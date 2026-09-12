@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getSession } from '@/lib/session';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 // --- GET: Dynamic User Scoped Notification Retrieval Feed ---
 export async function GET() {
   try {
@@ -60,7 +63,14 @@ export async function GET() {
       isRead: notif.reads.length > 0,
     }));
 
-    return NextResponse.json({ data: mappedNotifications });
+    return NextResponse.json(
+      { data: mappedNotifications },
+      {
+        headers: {
+          'Cache-Control': 'no-store, max-age=0, must-revalidate',
+        },
+      }
+    );
   } catch (error) {
     console.error('[GET /api/notifications Exception]:', error);
     return NextResponse.json({ error: 'Failed downloading live communications ledger' }, { status: 500 });

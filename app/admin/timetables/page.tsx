@@ -20,6 +20,7 @@ import { Badge } from '@/components/ui/badge';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
@@ -324,7 +325,7 @@ export default function TimetablesPage() {
         }
       />
 
-      <div className='grid sm:grid-cols-3 gap-4 mb-8 mt-6'>
+      <div className='grid grid-cols-3 gap-2 sm:gap-4 mb-6 sm:mb-8 mt-4 sm:mt-6'>
         <StatCard
           label='Total Timetables'
           value={timetables.length}
@@ -404,6 +405,7 @@ export default function TimetablesPage() {
         <DialogContent className='rounded-2xl border border-border/60 bg-background/95 backdrop-blur-md'>
           <DialogHeader>
             <DialogTitle className='text-xl font-bold'>New Timetable</DialogTitle>
+            <DialogDescription className='sr-only'>Enter a name to create a new timetable.</DialogDescription>
           </DialogHeader>
           <Input
             placeholder='Timetable name'
@@ -436,6 +438,7 @@ export default function TimetablesPage() {
               <Pencil className="h-5 w-5 text-indigo-500" />
               Rename Timetable
             </DialogTitle>
+            <DialogDescription className='sr-only'>Enter a new name for the timetable.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div>

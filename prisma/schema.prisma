@@ -58,7 +58,13 @@ model School {
 	originalPlan          SaaSPlan?               @relation("SchoolOriginalPlan", fields: [originalPlanId], references: [id])
 	address               String?
 	phone                 String?
+	email                 String?
 	logo                  String?
+	website               String?
+	instagram             String?
+	facebook              String?
+	linkedin              String?
+	twitter               String?
 	createdAt             DateTime                @default(now())
 	users                 User[]
 	teachers              Teacher[]

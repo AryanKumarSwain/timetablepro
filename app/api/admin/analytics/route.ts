@@ -38,24 +38,35 @@ export async function GET(request: Request) {
 
     // 2. FETCH ACTIVE SCHEDULE SLOTS
     let activeSlots: any[] = [];
-    try {
-      const rawSlots = await (prisma as any).timetableslot.findMany({
+    let activePeriodsCount = 0;
+    
+    // Find active published timetable first
+    let activeTimetable = await prisma.timetable.findFirst({
+      where: { schoolId: targetedSchoolId, status: 'PUBLISHED' },
+      include: { periods: true },
+      orderBy: { updatedAt: 'desc' }
+    });
+
+    // Fallback to latest timetable if no published timetable exists
+    if (!activeTimetable) {
+      activeTimetable = await prisma.timetable.findFirst({
         where: { schoolId: targetedSchoolId },
-        include: { timetable: true }
+        include: { periods: true },
+        orderBy: { updatedAt: 'desc' }
       });
-      activeSlots = rawSlots.filter((slot: any) => slot.timetable?.status === 'PUBLISHED');
-    } catch (e) {
-      try {
-        const rawSlots = await (prisma as any).timetableSlot.findMany({
-          where: { schoolId: targetedSchoolId },
-          include: { timetable: true }
-        });
-        activeSlots = rawSlots.filter((slot: any) => slot.timetable?.status === 'PUBLISHED');
-      } catch (err) {
-        activeSlots = await prisma.weeklyTimetableSlot.findMany({
-          where: { schoolId: targetedSchoolId }
-        }).catch(() => []);
-      }
+    }
+
+    if (activeTimetable) {
+      activeSlots = await prisma.timetableSlot.findMany({
+        where: { schoolId: targetedSchoolId, timetableId: activeTimetable.id }
+      });
+      activePeriodsCount = (activeTimetable as any).periods?.filter((p: any) => !p.isBreak).length || 0;
+    } else {
+      activeSlots = await prisma.weeklyTimetableSlot.findMany({
+        where: { schoolId: targetedSchoolId }
+      }).catch(() => []);
+      const allPeriods = await (prisma as any).period.findMany({ where: { schoolId: targetedSchoolId } }).catch(() => []);
+      activePeriodsCount = allPeriods.filter((p: any) => !p.isBreak).length;
     }
 
     // 3. FETCH METADATA RECORDS AND TODAY'S REPORT DATA
@@ -100,7 +111,11 @@ export async function GET(request: Request) {
     const workloadMap: Record<string, number> = {};
     teachersList.forEach((t: any) => { workloadMap[t.id] = 0; });
 
-    activeSlots.forEach((slot: any) => {
+    const targetSlots = classId === 'all'
+      ? activeSlots
+      : activeSlots.filter((slot: any) => slot.classId === classId);
+
+    targetSlots.forEach((slot: any) => {
       if (workloadMap[slot.teacherId] !== undefined) {
         workloadMap[slot.teacherId] += 1 * multiplier;
       }
@@ -182,6 +197,7 @@ export async function GET(request: Request) {
       teacherWorkload,
       subjectDistribution,
       totalSlots: totalSlotsCount,
+      totalActivePeriods: activePeriodsCount,
       classesList: classesList.map((c: any) => ({
         id: c.id,
         label: c.grade && c.section ? `${c.grade}-${c.section} (${c.name})` : c.name

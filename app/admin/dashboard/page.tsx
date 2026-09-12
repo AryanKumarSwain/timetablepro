@@ -81,16 +81,29 @@ export default function AdminDashboard() {
   const [periods, setPeriods] = useState<Period[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Helper for current date string (YYYY-MM-DD)
+  const getTodayString = () => {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   // Real-time Filter Tracking States
   const [timeFilter, setTimeFilter] = useState('1-week');
   const [classFilter, setClassFilter] = useState('all');
   const [sortFilter, setSortFilter] = useState('a-z');
-  const [dateRange, setDateRange] = useState({ start: '', end: '' });
+  const [dateRange, setDateRange] = useState(() => {
+    const today = getTodayString();
+    return { start: today, end: today };
+  });
 
   const [classList, setClassList] = useState<Array<{ id: string; label: string }>>([]);
   const [dbWorkload, setDbWorkload] = useState<any[]>([]);
   const [dbSubjects, setDbSubjects] = useState<any[]>([]);
   const [totalDatabaseSlots, setTotalDatabaseSlots] = useState(0);
+  const [totalActivePeriods, setTotalActivePeriods] = useState(0);
   const [activityDate, setActivityDate] = useState('');
   const [availableDates, setAvailableDates] = useState<string[]>([]);
   // Filter for which series show in the Activity vs Classroom chart: both, activities only, or classroom only.
@@ -160,6 +173,9 @@ export default function AdminDashboard() {
             setDbWorkload(liveAnalyticsRes.teacherWorkload || []);
             setDbSubjects(liveAnalyticsRes.subjectDistribution || []);
             setTotalDatabaseSlots(liveAnalyticsRes.totalSlots || 0);
+            if (liveAnalyticsRes.totalActivePeriods !== undefined) {
+              setTotalActivePeriods(liveAnalyticsRes.totalActivePeriods);
+            }
             if (liveAnalyticsRes.classesList) {
               setClassList(liveAnalyticsRes.classesList);
             }
@@ -321,6 +337,40 @@ export default function AdminDashboard() {
     return dataCopy.sort((a, b) => b.classes - a.classes);
   }, [dbWorkload, activityStats, sortFilter]);
 
+  const getYAxisTicks = (data: any[], key: string = 'classes', basePeriods: number = 0) => {
+    const maxDataVal = Math.max(...data.map(d => Number(d[key]) || 0), 0);
+    const cap = Math.max(maxDataVal, basePeriods > 0 ? basePeriods : maxDataVal, 1);
+    if (cap <= 10) {
+      return Array.from({ length: cap + 1 }, (_, i) => i);
+    }
+    const step = cap <= 20 ? 2 : 5;
+    const ticks = [];
+    for (let i = 0; i <= cap; i += step) {
+      ticks.push(i);
+    }
+    if (ticks[ticks.length - 1] < cap) {
+      ticks.push(cap);
+    }
+    return ticks;
+  };
+
+  const workloadTicks = useMemo(() => getYAxisTicks(sortedWorkload, 'classes', totalActivePeriods), [sortedWorkload, totalActivePeriods]);
+
+  const activityChartData = useMemo(() => {
+    return sortedWorkload.map(t => {
+      const lessons = (activityStats[t.id]?.lessonsToday) ?? (t.lessonsToday || 0);
+      const activities = (activityStats[t.id]?.activitiesToday) ?? (t.activitiesToday || 0);
+      return {
+        name: t.name,
+        lessons,
+        activities,
+        total: lessons + activities
+      };
+    });
+  }, [sortedWorkload, activityStats]);
+
+  const activityTicks = useMemo(() => getYAxisTicks(activityChartData, 'total', totalActivePeriods), [activityChartData, totalActivePeriods]);
+
   const formattedSubjects = useMemo(() => {
     return dbSubjects.map((subject) => ({
       ...subject,
@@ -404,41 +454,43 @@ export default function AdminDashboard() {
         {/* Teacher Workload Card */}
         <GlassCard className="lg:col-span-2 p-6 rounded-3xl shadow-sm">
           <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 mb-6">
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
               <BarChart3 className="h-4 w-4 text-indigo-500" />
               <h3 className="font-extrabold text-base tracking-tight text-foreground whitespace-nowrap">
                 Teacher Workload
               </h3>
+
             </div>
 
             <div className="flex flex-wrap items-center xl:justify-end gap-2 w-full xl:w-auto">
-              <div className="flex items-center gap-1.5 bg-background border border-border px-2 py-1 rounded-xl shadow-sm">
+              <div className="flex flex-wrap sm:flex-nowrap items-center gap-1 sm:gap-1.5 bg-background border border-border px-2 py-1.5 rounded-xl shadow-sm w-full sm:w-auto">
                 <Calendar className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                 <input
                   type="date"
-                  className="bg-transparent w-[105px] text-xs outline-none cursor-pointer text-foreground font-medium"
+                  className="bg-transparent text-xs outline-none cursor-pointer text-foreground font-medium shrink min-w-0 max-w-[105px] sm:max-w-[110px]"
                   value={dateRange.start}
                   onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))}
                 />
-                <span className="text-muted-foreground text-xs px-0.5 shrink-0">to</span>
+                <span className="text-muted-foreground text-xs px-0.5 shrink-0 font-medium">to</span>
                 <input
                   type="date"
-                  className="bg-transparent w-[105px] text-xs outline-none cursor-pointer text-foreground font-medium"
+                  className="bg-transparent text-xs outline-none cursor-pointer text-foreground font-medium shrink min-w-0 max-w-[105px] sm:max-w-[110px]"
                   value={dateRange.end}
                   onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))}
                 />
-                {(dateRange.start || dateRange.end) && (
-                  <button
-                    onClick={() => setDateRange({ start: '', end: '' })}
-                    className="text-[10px] bg-muted hover:bg-muted/80 px-1.5 py-0.5 rounded ml-1 font-bold text-muted-foreground shrink-0 transition-colors"
-                  >
-                    Clear
-                  </button>
-                )}
+                <button
+                  onClick={() => {
+                    const today = getTodayString();
+                    setDateRange({ start: today, end: today });
+                  }}
+                  className="text-[10px] bg-muted hover:bg-muted/80 px-1.5 py-0.5 rounded ml-auto sm:ml-1 font-bold text-muted-foreground shrink-0 transition-colors"
+                >
+                  Reset
+                </button>
               </div>
 
-              <div className="flex items-center gap-1 bg-muted/40 px-1.5 py-0.5 rounded-lg border border-border/50 shrink-0">
-                <SlidersHorizontal className="h-3 w-3 text-muted-foreground ml-1" />
+              <div className="flex items-center gap-1 bg-muted/40 px-2 py-1.5 rounded-xl border border-border/50 shrink-0">
+                <SlidersHorizontal className="h-3 w-3 text-muted-foreground ml-0.5" />
                 <Select value={sortFilter} onValueChange={setSortFilter}>
                   <SelectTrigger className="w-[80px] h-6 rounded-lg text-xs font-semibold bg-transparent border-none shadow-none p-0 focus:ring-0 focus-visible:ring-0">
                     <SelectValue placeholder="Sort" />
@@ -456,7 +508,8 @@ export default function AdminDashboard() {
                 value={timeFilter}
                 onValueChange={(val) => {
                   setTimeFilter(val);
-                  setDateRange({ start: '', end: '' });
+                  const today = getTodayString();
+                  setDateRange({ start: today, end: today });
                 }}
               >
                 <SelectTrigger className="w-[110px] h-9 rounded-xl text-xs font-medium bg-background border-border shrink-0">
@@ -477,7 +530,7 @@ export default function AdminDashboard() {
             <div className="h-full min-w-[550px] sm:min-w-full">
               {sortedWorkload.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={sortedWorkload} barSize={14} margin={{ top: 25, right: 10, left: 10, bottom: 65 }}>
+                  <BarChart data={sortedWorkload} barSize={16} margin={{ top: 25, right: 30, left: 15, bottom: 85 }}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-border/40" />
                     <XAxis
                       dataKey="name"
@@ -486,13 +539,29 @@ export default function AdminDashboard() {
                       angle={-45}
                       textAnchor="end"
                       interval={0}
-                      className="text-[9px] font-bold text-muted-foreground"
+                      dy={8}
+                      height={70}
+                      className="text-[10px] font-medium text-muted-foreground"
                     />
-                    <YAxis axisLine={false} tickLine={false} className="text-[11px] font-semibold text-muted-foreground" />
+                    <YAxis
+                      axisLine={false}
+                      tickLine={false}
+                      allowDecimals={false}
+                      ticks={workloadTicks}
+                      domain={[0, workloadTicks[workloadTicks.length - 1]]}
+                      className="text-[11px] font-semibold text-muted-foreground"
+                      label={{
+                        value: 'Total Periods',
+                        angle: -90,
+                        position: 'insideLeft',
+                        offset: -5,
+                        style: { textAnchor: 'middle', fontSize: '10px', fill: '#6b7280', fontWeight: 600 }
+                      }}
+                    />
                     <Tooltip
                       cursor={{ fill: 'rgba(0,0,0,0.02)' }}
-                      contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', padding: '4px 8px', borderRadius: '6px', fontSize: '12px', height: 'auto', width: 'auto' }}
-                      itemStyle={{ margin: 0, padding: 0 }}
+                      contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', padding: '6px 10px', borderRadius: '8px', fontSize: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}
+                      formatter={(val: any) => [`${val} Periods`, 'Assigned Workload']}
                     />
                     <Bar dataKey="classes" radius={[4, 4, 0, 0]}>
                       {sortedWorkload.map((entry, index) => (
@@ -582,15 +651,19 @@ export default function AdminDashboard() {
       </div>
 
       {/* Activity vs Lesson Chart — single stacked bar per teacher, two colors */}
-      <GlassCard className="p-6 rounded-2xl">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
+      <GlassCard className="p-6 rounded-3xl shadow-sm">
+        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 mb-6">
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
             <BarChart3 className="h-5 w-5 text-purple-500" />
-            <h3 className="font-semibold">Activity vs Classroom</h3>
+            <h3 className="font-extrabold text-base tracking-tight text-foreground whitespace-nowrap">
+              Activity vs Classroom
+            </h3>
+
           </div>
-          <div className="flex flex-wrap items-center justify-end gap-2">
+
+          <div className="flex flex-wrap items-center xl:justify-end gap-2.5 w-full xl:w-auto">
             {entryTypeFilter !== 'classroom' && entryTypeFilter !== 'activity' ? (
-              <div className="flex items-center gap-3 text-xs font-medium text-muted-foreground">
+              <div className="flex items-center gap-3 text-xs font-semibold text-muted-foreground shrink-0">
                 <span className="flex items-center gap-1.5">
                   <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: '#6366f1' }} />
                   Classroom
@@ -602,34 +675,41 @@ export default function AdminDashboard() {
               </div>
             ) : null}
 
-            <select
-              className="text-xs bg-background border border-input rounded-lg h-8 px-2 focus:outline-none focus:ring-1 focus:ring-ring"
-              value={entryTypeFilter}
-              onChange={(e) => setEntryTypeFilter(e.target.value as 'all' | 'activity' | 'classroom')}
-            >
-              <option value="all">Activities & Classes</option>
-              <option value="activity">Activities Only</option>
-              <option value="classroom">Classes Only</option>
-            </select>
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <select
+                className="text-xs bg-background border border-border rounded-xl h-9 px-2.5 focus:outline-none focus:ring-1 focus:ring-ring font-medium flex-1 sm:flex-none cursor-pointer shadow-sm"
+                value={entryTypeFilter}
+                onChange={(e) => setEntryTypeFilter(e.target.value as 'all' | 'activity' | 'classroom')}
+              >
+                <option value="all">Activities & Classes</option>
+                <option value="activity">Activities Only</option>
+                <option value="classroom">Classes Only</option>
+              </select>
 
-            <select
-              className="text-xs bg-background border border-input rounded-lg h-8 px-2 focus:outline-none focus:ring-1 focus:ring-ring"
-              value={activityDate || ''}
-              onChange={(e) => setActivityDate(e.target.value)}
-            >
-              <option value="">Select Date</option>
-              <option value={ALL_TIME}>All Time</option>
-              {availableDates.map(date => (
-                <option key={date} value={date}>{date}</option>
-              ))}
-            </select>
+              <select
+                className="text-xs bg-background border border-border rounded-xl h-9 px-2.5 focus:outline-none focus:ring-1 focus:ring-ring font-medium flex-1 sm:flex-none cursor-pointer shadow-sm"
+                value={activityDate || ''}
+                onChange={(e) => setActivityDate(e.target.value)}
+              >
+                <option value="">Select Date</option>
+                <option value={ALL_TIME}>All Time</option>
+                {availableDates.map(date => (
+                  <option key={date} value={date}>{date}</option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
-        <div className="h-72 w-full overflow-x-auto">
+
+        <div className="h-80 w-full overflow-x-auto">
           <div className="h-full min-w-[550px] sm:min-w-full">
             {sortedWorkload.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={sortedWorkload.map(t => ({ name: t.name, lessons: t.lessonsToday || 0, activities: t.activitiesToday || 0 }))} barSize={22} margin={{ top: 20, right: 10, left: 10, bottom: 60 }}>
+                <BarChart
+                  data={activityChartData}
+                  barSize={18}
+                  margin={{ top: 25, right: 30, left: 15, bottom: 85 }}
+                >
                   <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-border/40" />
                   <XAxis
                     dataKey="name"
@@ -638,12 +718,29 @@ export default function AdminDashboard() {
                     angle={-45}
                     textAnchor="end"
                     interval={0}
-                    className="text-[9px] font-bold text-muted-foreground"
+                    dy={8}
+                    height={70}
+                    className="text-[10px] font-medium text-muted-foreground"
                   />
-                  <YAxis axisLine={false} tickLine={false} allowDecimals={false} className="text-[11px] font-semibold text-muted-foreground" />
+                  <YAxis
+                    axisLine={false}
+                    tickLine={false}
+                    allowDecimals={false}
+                    ticks={activityTicks}
+                    domain={[0, activityTicks[activityTicks.length - 1]]}
+                    className="text-[11px] font-semibold text-muted-foreground"
+                    label={{
+                      value: 'Total Entries',
+                      angle: -90,
+                      position: 'insideLeft',
+                      offset: -5,
+                      style: { textAnchor: 'middle', fontSize: '10px', fill: '#6b7280', fontWeight: 600 }
+                    }}
+                  />
                   <Tooltip
                     cursor={{ fill: 'rgba(0,0,0,0.02)' }}
-                    contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', padding: '4px 8px', borderRadius: '6px', fontSize: '12px' }}
+                    contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', padding: '6px 10px', borderRadius: '8px', fontSize: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}
+                    formatter={(val: any, name: any) => [`${val} ${name}`, name === 'lessons' ? 'Classroom' : 'Activities']}
                   />
                   {entryTypeFilter !== 'activity' && (
                     <Bar

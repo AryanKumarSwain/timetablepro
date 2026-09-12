@@ -1,32 +1,43 @@
 'use client';
 
 import { useCallback, useEffect, useState, useMemo } from 'react';
-import { useRequireAuth } from '@/lib/auth-context';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useRequireAuth, useAuth } from '@/lib/auth-context';
 import {
   getAdminReports,
   getDailyDeskGrid,
   downloadReportsCsv,
   getAdminReport,
+  getSchoolDetails,
   type DailyReportData,
 } from '@/lib/api-services';
 import { PageHeader } from '@/components/enterprise/page-header';
 import { PageSkeleton } from '@/components/enterprise/page-skeleton';
+import { GlassCard } from '@/components/enterprise/glass-card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card } from '@/components/ui/card';
-import { Download, Eye, FileSpreadsheet, FileText, User, CalendarSearch, CheckCircle2, X } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Badge } from '@/components/ui/badge';
 import { ProtectedFeature } from '@/components/protected-feature';
-import { getSchoolDetails } from '@/lib/api-services';
-import { useAuth } from '@/lib/auth-context';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import {
-  DataGrid,
-  DataGridTable,
-  DataGridHead,
-  DataGridRow,
-  DataGridTh,
-  DataGridTd,
-} from '@/components/enterprise/data-grid';
+  FileText,
+  FileSpreadsheet,
+  Download,
+  Eye,
+  User,
+  CalendarSearch,
+  CheckCircle2,
+  X,
+  Search,
+  Users,
+  Clock,
+  CheckCircle,
+  Filter,
+  Layers,
+  Sparkles,
+  Calendar,
+} from 'lucide-react';
+import { toast } from 'sonner';
 
 export default function AdminReportsPage() {
   useRequireAuth('admin');
@@ -48,7 +59,6 @@ export default function AdminReportsPage() {
     try {
       setLoading(true);
       
-      // Check if reports feature is enabled
       const schoolData = await getSchoolDetails();
       const plan = schoolData.plan;
       const reportsEnabled = plan?.reportEnabled || false;
@@ -60,6 +70,7 @@ export default function AdminReportsPage() {
       setReports(r);
     } catch (e) {
       console.error(e);
+      toast.error('Failed to load reports');
     } finally {
       setLoading(false);
     }
@@ -78,13 +89,15 @@ export default function AdminReportsPage() {
     return () => clearTimeout(timer);
   }, [successMsg]);
 
-  const uniqueTeachers = Array.from(
-    new Map(
-      reports
-        .filter((r) => r.teacherId)
-        .map((r) => [r.teacherId, { id: r.teacherId, name: r.teacherName }])
-    ).values()
-  ).sort((a, b) => a.name.localeCompare(b.name));
+  const uniqueTeachers = useMemo(() => {
+    return Array.from(
+      new Map(
+        reports
+          .filter((r) => r.teacherId)
+          .map((r) => [r.teacherId, { id: r.teacherId, name: r.teacherName }])
+      ).values()
+    ).sort((a, b) => a.name.localeCompare(b.name));
+  }, [reports]);
 
   useEffect(() => {
     if (!selectedTeacherId && uniqueTeachers.length > 0) {
@@ -93,7 +106,9 @@ export default function AdminReportsPage() {
   }, [uniqueTeachers, selectedTeacherId]);
 
   const selectedTeacherDetails = uniqueTeachers.find((t) => t.id === selectedTeacherId);
-  const selectedTeacherReports = reports.filter((r) => r.teacherId === selectedTeacherId);
+  const selectedTeacherReports = useMemo(() => {
+    return reports.filter((r) => r.teacherId === selectedTeacherId);
+  }, [reports, selectedTeacherId]);
 
   const openDetails = async (d: string) => {
     setOpenDate(d);
@@ -116,15 +131,17 @@ export default function AdminReportsPage() {
       a.download = `all-reports-${cleanDate}.csv`;
       a.click();
       URL.revokeObjectURL(url);
+      setSuccessMsg(`Report exported for ${cleanDate}`);
     } catch (error) {
       console.error(error);
-      alert('Unable to download report CSV.');
+      toast.error('Unable to download report CSV.');
     }
   };
 
   const handleIndividualDownload = (reportId: string, format: 'pdf' | 'csv') => {
     const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
     window.open(`${baseUrl}/api/admin/reports/${reportId}/${format}`, '_blank');
+    setSuccessMsg(`Downloading report in ${format.toUpperCase()} format...`);
   };
 
   const handleIndividualView = async (reportId: string) => {
@@ -134,15 +151,18 @@ export default function AdminReportsPage() {
       setViewReportData(reportData);
     } catch (error) {
       console.error('Failed to load report:', error);
+      toast.error('Could not load report details');
     }
   };
 
-  const byDate = reports.reduce((acc: Record<string, DailyReportData[]>, r) => {
-    if (!r.reportDate) return acc;
-    const cleanKey = String(r.reportDate).includes('T') ? String(r.reportDate).split('T')[0] : String(r.reportDate);
-    (acc[cleanKey] ||= []).push(r);
-    return acc;
-  }, {} as Record<string, DailyReportData[]>);
+  const byDate = useMemo(() => {
+    return reports.reduce((acc: Record<string, DailyReportData[]>, r) => {
+      if (!r.reportDate) return acc;
+      const cleanKey = String(r.reportDate).includes('T') ? String(r.reportDate).split('T')[0] : String(r.reportDate);
+      (acc[cleanKey] ||= []).push(r);
+      return acc;
+    }, {} as Record<string, DailyReportData[]>);
+  }, [reports]);
 
   const sortedFilteredDates = useMemo(() => {
     return Object.keys(byDate)
@@ -153,19 +173,36 @@ export default function AdminReportsPage() {
       .sort((a, b) => b.localeCompare(a));
   }, [byDate, calendarSearchDate]);
 
+  // Derived stats for top metric cards
+  const totalSubmittedCount = useMemo(() => {
+    return reports.filter((r) => r.status === 'SUBMITTED').length;
+  }, [reports]);
+
+  const totalDraftCount = useMemo(() => {
+    return reports.filter((r) => r.status !== 'SUBMITTED').length;
+  }, [reports]);
+
+  const resetFilters = () => {
+    setTeacherName('');
+    setCalendarSearchDate('');
+  };
+
+  const hasActiveFilters = Boolean(teacherName || calendarSearchDate);
+
   if (loading && reports.length === 0) {
     return (
-      <div className='max-w-7xl mx-auto px-4 py-6'>
-        <PageSkeleton />
+      <div className='max-w-7xl mx-auto space-y-6'>
+        <PageSkeleton rows={4} />
       </div>
     );
   }
 
   return (
-    <div className='max-w-7xl mx-auto relative'>
+    <div className='max-w-7xl mx-auto relative space-y-6 pb-12'>
+      {/* Page Header */}
       <PageHeader
-        title='Reports'
-        description='Review submitted daily teaching reports'
+        title="Daily Teaching Reports"
+        description="Review, export, and monitor submitted daily teaching reports across all faculty members."
         breadcrumbs={[
           { label: 'Admin', href: '/admin/dashboard' },
           { label: 'Academic' },
@@ -174,15 +211,22 @@ export default function AdminReportsPage() {
       />
 
       {/* TOP-RIGHT POPUP TOAST BOX */}
-      {successMsg && (
-        <div className='fixed top-6 right-6 z-50 max-w-sm p-4 bg-white dark:bg-zinc-900 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-sm rounded-xl shadow-xl flex items-start gap-3 animate-in slide-in-from-top-4 fade-in duration-300'>
-          <CheckCircle2 className='h-5 w-5 shrink-0 text-emerald-500 mt-0.5' />
-          <div>
-            <p className='font-semibold mb-0.5'>Action Successful</p>
-            <p className='text-zinc-600 dark:text-zinc-400 text-xs leading-relaxed'>{successMsg}</p>
-          </div>
-        </div>
-      )}
+      <AnimatePresence>
+        {successMsg && (
+          <motion.div
+            initial={{ opacity: 0, y: -20, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -20, scale: 0.95 }}
+            className='fixed top-6 right-6 z-50 max-w-sm p-4 bg-white/95 dark:bg-slate-900/95 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-sm rounded-2xl shadow-xl backdrop-blur-xl flex items-start gap-3'
+          >
+            <CheckCircle2 className='h-5 w-5 shrink-0 text-emerald-500 mt-0.5' />
+            <div>
+              <p className='font-bold text-xs uppercase tracking-wider mb-0.5'>Action Successful</p>
+              <p className='text-slate-600 dark:text-slate-300 text-xs leading-relaxed'>{successMsg}</p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <ProtectedFeature
         featureKey='reports'
@@ -190,79 +234,180 @@ export default function AdminReportsPage() {
         isEnabled={featureEnabled}
         schoolId={user?.schoolId || undefined}
       >
-        <div className='grid grid-cols-1 lg:grid-cols-12 gap-6 items-center'>
-        <div className='lg:col-span-9'>
-          <div className='max-w-sm'>
-            <Input
-              placeholder='Search teacher name...'
-              value={teacherName}
-              onChange={(e) => setTeacherName(e.target.value)}
-            />
-          </div>
-        </div>
-        
-        <div className='lg:col-span-3'>
-          <div className="relative flex items-center">
-            <CalendarSearch className="absolute left-2.5 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
-            <input
-              type="date"
-              value={calendarSearchDate}
-              onChange={(e) => setCalendarSearchDate(e.target.value)}
-              className="w-full text-xs bg-background border border-input hover:bg-accent/50 focus:bg-background rounded-lg h-9 pl-8 pr-2 focus:outline-none focus:ring-1 focus:ring-ring text-foreground shadow-xs transition-all dark:[color-scheme:dark]"
-            />
-            {calendarSearchDate && (
-              <button 
-                onClick={() => setCalendarSearchDate('')}
-                className="absolute right-2 text-[10px] bg-muted hover:bg-muted/80 text-muted-foreground px-1.5 py-0.5 rounded"
-              >
-                Clear
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
+        {/* STATS OVERVIEW CARDS */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          <GlassCard className="p-5 flex items-center gap-4">
+            <div className="p-3 rounded-xl bg-purple-500/10 text-purple-600 dark:text-purple-400">
+              <FileText className="h-6 w-6" />
+            </div>
+            <div>
+              <p className="text-2xl font-extrabold text-slate-900 dark:text-white">{reports.length}</p>
+              <p className="text-xs text-muted-foreground font-medium">Total Submissions</p>
+            </div>
+          </GlassCard>
 
-      <div className='grid grid-cols-1 lg:grid-cols-12 gap-6 items-start'>
-        <div className='lg:col-span-9 grid grid-cols-1 md:grid-cols-3 lg:grid-cols-9 gap-6 items-start'>
-          
-          {/* PANEL A: FACULTY ROSTER */}
-          <div className='md:col-span-1 lg:col-span-3 space-y-2 bg-card p-3 rounded-2xl border border-border shadow-sm'>
-            <h4 className='font-bold text-xs uppercase tracking-wider text-muted-foreground px-2 mb-2'>Faculty Roster</h4>
-            <div className='space-y-1 h-[240px] overflow-y-auto pr-1 scrollbar-thin'>
-              {uniqueTeachers.length === 0 ? (
-                <div className='text-xs text-center py-4 text-muted-foreground'>No faculty found</div>
-              ) : (
-                uniqueTeachers.map((teacher) => (
-                  <button
-                    key={teacher.id}
-                    onClick={() => setSelectedTeacherId(teacher.id)}
-                    className={`w-full text-left px-3 py-2.5 rounded-xl text-sm font-medium transition-all flex items-center gap-2.5 ${
-                      selectedTeacherId === teacher.id
-                        ? 'bg-primary/10 text-primary border-l-4 border-primary pl-2 shadow-xs'
-                        : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
-                    }`}
-                  >
-                    <User className={`h-4 w-4 ${selectedTeacherId === teacher.id ? 'text-primary' : 'text-muted-foreground'}`} />
-                    <span className='truncate'>{teacher.name}</span>
-                  </button>
-                ))
+          <GlassCard className="p-5 flex items-center gap-4">
+            <div className="p-3 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400">
+              <Users className="h-6 w-6" />
+            </div>
+            <div>
+              <p className="text-2xl font-extrabold text-slate-900 dark:text-white">{uniqueTeachers.length}</p>
+              <p className="text-xs text-muted-foreground font-medium">Active Faculty</p>
+            </div>
+          </GlassCard>
+
+          <GlassCard className="p-5 flex items-center gap-4">
+            <div className="p-3 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+              <CheckCircle className="h-6 w-6" />
+            </div>
+            <div>
+              <p className="text-2xl font-extrabold text-slate-900 dark:text-white">{totalSubmittedCount}</p>
+              <p className="text-xs text-muted-foreground font-medium">Verified Core</p>
+            </div>
+          </GlassCard>
+
+          <GlassCard className="p-5 flex items-center gap-4">
+            <div className="p-3 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400">
+              <Clock className="h-6 w-6" />
+            </div>
+            <div>
+              <p className="text-2xl font-extrabold text-slate-900 dark:text-white">{totalDraftCount}</p>
+              <p className="text-xs text-muted-foreground font-medium">Draft / Pending</p>
+            </div>
+          </GlassCard>
+        </div>
+
+        {/* SEARCH & FILTER TOOLBAR */}
+        <GlassCard className="p-4 md:p-5 space-y-4">
+          <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
+            {/* Search Teacher */}
+            <div className="relative flex-1 min-w-[240px]">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                type="text"
+                placeholder="Search teacher name..."
+                value={teacherName}
+                onChange={(e) => setTeacherName(e.target.value)}
+                className="pl-10 h-10 rounded-xl bg-background border-border/80 text-xs sm:text-sm"
+              />
+              {teacherName && (
+                <button
+                  onClick={() => setTeacherName('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  <X className="h-4 w-4" />
+                </button>
               )}
             </div>
+
+            {/* Date Search */}
+            <div className="relative flex items-center w-full sm:w-64">
+              <CalendarSearch className="absolute left-3.5 h-4 w-4 text-muted-foreground pointer-events-none" />
+              <input
+                type="date"
+                value={calendarSearchDate}
+                onChange={(e) => setCalendarSearchDate(e.target.value)}
+                className="w-full text-xs sm:text-sm bg-background border border-border/80 hover:bg-accent/50 focus:bg-background rounded-xl h-10 pl-10 pr-8 focus:outline-none focus:ring-1 focus:ring-purple-500 text-foreground shadow-2xs transition-all dark:[color-scheme:dark]"
+              />
+              {calendarSearchDate && (
+                <button
+                  onClick={() => setCalendarSearchDate('')}
+                  className="absolute right-2.5 text-[10px] bg-muted hover:bg-muted/80 text-muted-foreground px-2 py-0.5 rounded-md font-bold"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+
+            {/* Reset Filters */}
+            {hasActiveFilters && (
+              <Button
+                variant="outline"
+                onClick={resetFilters}
+                className="h-10 text-xs font-semibold rounded-xl border-dashed border-purple-500/30 text-purple-600 dark:text-purple-400 hover:bg-purple-500/10"
+              >
+                <X className="h-3.5 w-3.5 mr-1" /> Clear Filters
+              </Button>
+            )}
+          </div>
+        </GlassCard>
+
+        {/* THREE PANELS MAIN GRID */}
+        <div className='grid grid-cols-1 lg:grid-cols-12 gap-6 items-start'>
+          
+          {/* PANEL A: FACULTY ROSTER */}
+          <div className='lg:col-span-3'>
+            <GlassCard className="p-4 space-y-3">
+              <div className="flex items-center justify-between px-1">
+                <h4 className='font-bold text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-1.5'>
+                  <Users className="h-3.5 w-3.5 text-purple-500" />
+                  Faculty Roster
+                </h4>
+                <Badge variant="outline" className="text-[10px] rounded-full font-bold px-2 py-0.5">
+                  {uniqueTeachers.length}
+                </Badge>
+              </div>
+
+              <div className='space-y-1.5 max-h-[380px] overflow-y-auto pr-1 scrollbar-thin'>
+                {uniqueTeachers.length === 0 ? (
+                  <div className='text-xs text-center py-8 text-muted-foreground italic bg-muted/20 rounded-xl border border-dashed border-border'>
+                    No faculty found
+                  </div>
+                ) : (
+                  uniqueTeachers.map((teacher) => {
+                    const isSelected = selectedTeacherId === teacher.id;
+                    const teacherReportCount = reports.filter((r) => r.teacherId === teacher.id).length;
+                    return (
+                      <button
+                        key={teacher.id}
+                        onClick={() => setSelectedTeacherId(teacher.id)}
+                        className={`w-full text-left px-3 py-2.5 rounded-xl text-xs sm:text-sm font-medium transition-all flex items-center justify-between gap-2.5 cursor-pointer ${
+                          isSelected
+                            ? 'bg-purple-500/10 text-purple-700 dark:text-purple-300 border-l-4 border-purple-500 font-bold shadow-2xs'
+                            : 'text-slate-700 dark:text-slate-300 hover:bg-accent hover:text-accent-foreground'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className={`p-1.5 rounded-lg shrink-0 ${isSelected ? 'bg-purple-500/20 text-purple-600' : 'bg-muted text-muted-foreground'}`}>
+                            <User className='h-3.5 w-3.5' />
+                          </div>
+                          <span className='truncate'>{teacher.name}</span>
+                        </div>
+                        <Badge
+                          variant="secondary"
+                          className={`text-[10px] font-extrabold rounded-full px-2 shrink-0 ${
+                            isSelected ? 'bg-purple-500/20 text-purple-600 dark:text-purple-300' : 'bg-muted text-muted-foreground'
+                          }`}
+                        >
+                          {teacherReportCount}
+                        </Badge>
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+            </GlassCard>
           </div>
 
           {/* PANEL B: LOGGED ENTRIES HISTORY */}
-          <div className='md:col-span-2 lg:col-span-6 space-y-4'>
-            <div className='p-4 bg-card rounded-2xl border border-border shadow-sm'>
-              <div className='mb-4'>
-                <h3 className='font-extrabold text-lg text-card-foreground'>
-                  {selectedTeacherDetails ? `${selectedTeacherDetails.name}'s History` : 'Select a Teacher'}
-                </h3>
-                <p className='text-xs text-muted-foreground'>Timeline tracking records index</p>
+          <div className='lg:col-span-6'>
+            <GlassCard className="p-4 sm:p-5 space-y-4">
+              <div className='flex items-center justify-between border-b border-border/50 pb-3'>
+                <div>
+                  <h3 className='font-extrabold text-base sm:text-lg text-foreground flex items-center gap-2'>
+                    <FileText className="h-5 w-5 text-purple-500" />
+                    {selectedTeacherDetails ? `${selectedTeacherDetails.name}'s History` : 'Select a Teacher'}
+                  </h3>
+                  <p className='text-xs text-muted-foreground mt-0.5'>Timeline tracking records index</p>
+                </div>
+                <Badge className="text-xs font-bold rounded-xl bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20 px-3 py-1">
+                  {selectedTeacherReports.length} {selectedTeacherReports.length === 1 ? 'Report' : 'Reports'}
+                </Badge>
               </div>
-              
+
               <div className='overflow-x-auto rounded-xl border border-border/60'>
-                <table className='min-w-full divide-y divide-border text-left text-sm'>
-                  <thead className='bg-muted/50 text-xs font-semibold text-muted-foreground uppercase tracking-wider'>
+                <table className='min-w-full divide-y divide-border text-left text-xs sm:text-sm'>
+                  <thead className='bg-muted/50 text-[11px] font-bold text-muted-foreground uppercase tracking-wider'>
                     <tr>
                       <th className='px-4 py-3'>Target Date</th>
                       <th className='px-4 py-3 text-center'>Classroom</th>
@@ -271,10 +416,10 @@ export default function AdminReportsPage() {
                       <th className='px-4 py-3 text-right'>Actions</th>
                     </tr>
                   </thead>
-                  <tbody className='divide-y divide-border bg-card text-card-foreground'>
+                  <tbody className='divide-y divide-border/60 bg-card/50 text-foreground'>
                     {selectedTeacherReports.length === 0 ? (
                       <tr>
-                        <td colSpan={5} className='px-4 py-8 text-center text-muted-foreground text-xs'>
+                        <td colSpan={5} className='px-4 py-8 text-center text-muted-foreground text-xs italic'>
                           No logging entries recorded for this individual track.
                         </td>
                       </tr>
@@ -284,29 +429,37 @@ export default function AdminReportsPage() {
                         const lessonsCount = r.entries?.filter(e => e.entryType === 'LESSON' || !e.entryType).length || 0;
                         const activitiesCount = r.entries?.filter(e => e.entryType === 'ACTIVITY').length || 0;
                         return (
-                          <tr key={r.id} className='hover:bg-muted/40 transition-colors'>
-                            <td className='px-4 py-3 font-semibold text-foreground whitespace-nowrap'>{cleanRepDate}</td>
-                            <td className='px-4 py-3 text-center font-bold text-blue-600'>{lessonsCount}</td>
-                            <td className='px-4 py-3 text-center font-bold text-purple-600'>{activitiesCount}</td>
-                            <td className='px-4 py-3 whitespace-nowrap'>
-                              <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-bold border ${
-                                r.status === 'SUBMITTED'
-                                  ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
-                                  : 'bg-amber-500/10 text-amber-500 border-amber-500/20'
-                              }`}>
-                                {r.status || 'DRAFT'}
+                          <tr key={r.id} className='hover:bg-purple-500/5 transition-colors'>
+                            <td className='px-4 py-3 font-semibold whitespace-nowrap'>{cleanRepDate}</td>
+                            <td className='px-4 py-3 text-center'>
+                              <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-bold bg-blue-500/10 text-blue-600 dark:text-blue-400">
+                                {lessonsCount}
                               </span>
                             </td>
+                            <td className='px-4 py-3 text-center'>
+                              <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-bold bg-purple-500/10 text-purple-600 dark:text-purple-400">
+                                {activitiesCount}
+                              </span>
+                            </td>
+                            <td className='px-4 py-3 whitespace-nowrap'>
+                              <Badge className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold border ${
+                                r.status === 'SUBMITTED'
+                                  ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30'
+                                  : 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30'
+                              }`}>
+                                {r.status || 'DRAFT'}
+                              </Badge>
+                            </td>
                             <td className='px-4 py-3 text-right whitespace-nowrap'>
-                              <div className='inline-flex gap-1'>
-                                <Button size='sm' variant='ghost' className='h-8 w-8 p-0' onClick={() => handleIndividualView(r.id)}>
-                                  <Eye className='h-4 w-4 text-muted-foreground' />
+                              <div className='inline-flex items-center gap-1'>
+                                <Button size='sm' variant='ghost' className='h-8 w-8 p-0 rounded-lg hover:bg-purple-500/10' onClick={() => handleIndividualView(r.id)} title="View Details">
+                                  <Eye className='h-4 w-4 text-purple-600 dark:text-purple-400' />
                                 </Button>
-                                <Button size='sm' variant='ghost' className='h-8 w-8 p-0' onClick={() => handleIndividualDownload(r.id, 'csv')}>
-                                  <FileSpreadsheet className='h-4 w-4 text-emerald-500' />
+                                <Button size='sm' variant='ghost' className='h-8 w-8 p-0 rounded-lg hover:bg-emerald-500/10' onClick={() => handleIndividualDownload(r.id, 'csv')} title="Download CSV">
+                                  <FileSpreadsheet className='h-4 w-4 text-emerald-600 dark:text-emerald-400' />
                                 </Button>
-                                <Button size='sm' variant='ghost' className='h-8 w-8 p-0' onClick={() => handleIndividualDownload(r.id, 'pdf')}>
-                                  <FileText className='h-4 w-4 text-destructive' />
+                                <Button size='sm' variant='ghost' className='h-8 w-8 p-0 rounded-lg hover:bg-rose-500/10' onClick={() => handleIndividualDownload(r.id, 'pdf')} title="Download PDF">
+                                  <FileText className='h-4 w-4 text-rose-500' />
                                 </Button>
                               </div>
                             </td>
@@ -317,307 +470,318 @@ export default function AdminReportsPage() {
                   </tbody>
                 </table>
               </div>
-            </div>
+            </GlassCard>
+          </div>
+
+          {/* PANEL C: CALENDAR CHECKPOINTS */}
+          <div className='lg:col-span-3'>
+            <GlassCard className="p-4 space-y-3">
+              <div className="flex items-center justify-between px-1">
+                <h4 className='font-bold text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-1.5'>
+                  <Calendar className="h-3.5 w-3.5 text-purple-500" />
+                  Calendar Checkpoints
+                </h4>
+                <Badge variant="outline" className="text-[10px] rounded-full font-bold px-2 py-0.5">
+                  {sortedFilteredDates.length}
+                </Badge>
+              </div>
+
+              <div className='space-y-2 max-h-[380px] overflow-y-auto pr-1 scrollbar-thin'>
+                {sortedFilteredDates.length === 0 ? (
+                  <div className='text-xs text-center py-8 text-muted-foreground italic bg-muted/20 rounded-xl border border-dashed border-border'>
+                    No matching checkpoint records
+                  </div>
+                ) : (
+                  sortedFilteredDates.map((d) => {
+                    const list = byDate[d];
+                    return (
+                      <div key={d} className='p-3 bg-card/60 rounded-xl border border-border/60 shadow-2xs flex items-center justify-between gap-2 hover:border-purple-500/40 hover:bg-purple-500/5 transition-all'>
+                        <div className="min-w-0 flex-1">
+                          <div className='text-xs font-black text-foreground'>{d}</div>
+                          <div className='text-[10px] font-semibold text-muted-foreground mt-0.5'>{list.length} submissions</div>
+                        </div>
+                        <div className='flex gap-1.5 items-center shrink-0'>
+                          <Button size='sm' variant='outline' className='h-7 text-[11px] font-bold px-2.5 bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800 hover:bg-purple-100 rounded-lg cursor-pointer' onClick={() => openDetails(d)}>
+                            Layout
+                          </Button>
+                          <Button size='sm' variant='ghost' className='h-7 w-7 p-0 rounded-lg hover:bg-emerald-500/10 cursor-pointer' onClick={() => exportDateCsv(d)} title="Export CSV">
+                            <Download className='h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400' />
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </GlassCard>
           </div>
         </div>
 
-        {/* PANEL C: CALENDAR CHECKPOINTS */}
-        <div className='lg:col-span-3 bg-card p-3 rounded-2xl border border-border shadow-sm space-y-3'>
-          <h4 className='font-bold text-xs uppercase tracking-wider text-muted-foreground px-1'>Calendar Checkpoints</h4>
-          <div className='space-y-2 h-[345px] overflow-y-auto pr-1 scrollbar-thin'>
-            {sortedFilteredDates.length === 0 ? (
-              <div className='text-xs text-center py-8 text-muted-foreground italic bg-muted/20 rounded-xl border border-dashed border-border'>
-                No matching checkpoint records
+        {/* MASTER LAYOUT MATRIX DIALOG */}
+        <Dialog open={!!openDate} onOpenChange={(v) => { if (!v) setOpenDate(null); }}>
+          <DialogContent className='sm:max-w-xl max-h-[85vh] overflow-y-auto p-6 bg-card border border-border text-card-foreground rounded-2xl'>
+            <DialogHeader>
+              <DialogTitle className='text-lg font-bold text-foreground flex items-center gap-2'>
+                <Layers className="h-5 w-5 text-purple-500" />
+                Layout Checklist for {openDate}
+              </DialogTitle>
+              <DialogDescription className='text-xs text-muted-foreground'>Comprehensive operational overview matrix balance sheet.</DialogDescription>
+            </DialogHeader>
+            
+            <div className='mt-4 space-y-6'>
+              {(() => {
+                const dayReports = byDate[openDate ?? ''] || [];
+                const submittedItems = dayReports.filter((r) => r.status === 'SUBMITTED');
+                const draftItems = dayReports.filter((r) => r.status !== 'SUBMITTED');
+                
+                const scheduledTeachers = new Map<string, string>();
+                if (currentGrid?.grid && Array.isArray(currentGrid.grid)) {
+                  currentGrid.grid.forEach((row: any) => {
+                    if (row?.cells && Array.isArray(row.cells)) {
+                      row.cells.forEach((c: any) => {
+                        if (c && !c.empty && c.teacherId) {
+                          scheduledTeachers.set(String(c.teacherId), String(c.teacherName));
+                        }
+                      });
+                    }
+                  });
+                }
+                
+                const documentedUserIds = new Set(dayReports.map((r) => String(r.teacherId)));
+                const pendingTeachers = Array.from(scheduledTeachers.entries()).filter(([id]) => !documentedUserIds.has(id));
+
+                return (
+                  <>
+                    <div>
+                      <h4 className='font-bold text-xs uppercase text-emerald-600 dark:text-emerald-400 tracking-wider mb-2 bg-emerald-500/10 px-2.5 py-1 rounded-lg inline-block border border-emerald-500/20'>
+                        Submitted Core ({submittedItems.length})
+                      </h4>
+                      {submittedItems.length === 0 ? (
+                        <p className='text-xs text-muted-foreground italic pl-1'>No final submittals finalized.</p>
+                      ) : (
+                        <div className='space-y-1.5 max-h-[180px] overflow-y-auto pr-1'>
+                          {submittedItems.map((r) => (
+                            <div key={r.id} className='p-2.5 rounded-xl border border-emerald-500/20 bg-emerald-500/5 flex items-center justify-between text-xs text-foreground'>
+                              <span className='font-bold'>{r.teacherName}</span>
+                              <Badge className='bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-extrabold uppercase text-[10px] border-emerald-500/30'>Verified</Badge>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <div>
+                      <h4 className='font-bold text-xs uppercase text-blue-600 dark:text-blue-400 tracking-wider mb-2 bg-blue-500/10 px-2.5 py-1 rounded-lg inline-block border border-blue-500/20'>
+                        Draft Saves ({draftItems.length})
+                      </h4>
+                      {draftItems.length === 0 ? (
+                        <p className='text-xs text-muted-foreground italic pl-1'>No running drafts saved for this track.</p>
+                      ) : (
+                        <div className='space-y-1.5 max-h-[180px] overflow-y-auto pr-1'>
+                          {draftItems.map((r) => (
+                            <div key={r.id} className='p-2.5 rounded-xl border border-blue-500/20 bg-blue-500/5 flex items-center justify-between text-xs text-foreground'>
+                              <span className='font-bold'>{r.teacherName}</span>
+                              <Badge className='bg-blue-500/20 text-blue-600 dark:text-blue-400 font-extrabold uppercase text-[10px] border-blue-500/30'>Drafting</Badge>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <div>
+                      <h4 className='font-bold text-xs uppercase text-amber-600 dark:text-amber-400 tracking-wider mb-2 bg-amber-500/10 px-2.5 py-1 rounded-lg inline-block border border-amber-500/20'>
+                        Absent / Pending Submissions ({pendingTeachers.length})
+                      </h4>
+                      {!currentGrid ? (
+                        <p className='text-xs text-muted-foreground italic pl-1'>No timetable matrix layouts running on this cycle.</p>
+                      ) : pendingTeachers.length === 0 ? (
+                        <div className='text-xs text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 p-3 rounded-xl border border-emerald-500/20 font-bold'>
+                          Clean deployment balance: All scheduled teachers submitted paperwork!
+                        </div>
+                      ) : (
+                        <div className='space-y-1.5 max-h-[180px] overflow-y-auto pr-1'>
+                          {pendingTeachers.map(([id, name]) => (
+                            <div key={id} className='p-2.5 rounded-xl border border-amber-500/20 bg-amber-500/5 flex items-center justify-between text-xs text-foreground'>
+                              <span className='font-semibold'>{name}</span>
+                              <Badge className='bg-amber-500/20 text-amber-600 dark:text-amber-400 border-amber-500/30 font-extrabold uppercase text-[10px]'>Missing</Badge>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Report View Dialog */}
+        <Dialog open={!!viewReportId} onOpenChange={(open) => { if (!open) { setViewReportId(null); setViewReportData(null); } }}>
+          <DialogContent className='sm:max-w-4xl max-h-[85vh] overflow-y-auto p-6 bg-card border border-border text-card-foreground rounded-2xl'>
+            <DialogHeader>
+              <div className='flex items-center justify-between'>
+                <div>
+                  <DialogTitle className='text-lg font-bold text-foreground flex items-center gap-2'>
+                    <Sparkles className="h-5 w-5 text-purple-500" />
+                    Report Details
+                  </DialogTitle>
+                  <DialogDescription className='text-xs text-muted-foreground'>
+                    {viewReportData ? `${viewReportData.teacherName} — ${viewReportData.reportDate}` : 'Loading...'}
+                  </DialogDescription>
+                </div>
+                <Button variant='ghost' size='sm' className="rounded-xl" onClick={() => { setViewReportId(null); setViewReportData(null); }}>
+                  <X className='h-4 w-4' />
+                </Button>
+              </div>
+            </DialogHeader>
+
+            {viewReportData ? (
+              <div className='mt-4 space-y-4'>
+                {/* Report Info */}
+                <div className='grid grid-cols-2 md:grid-cols-4 gap-4 text-xs sm:text-sm bg-purple-500/5 p-4 rounded-xl border border-purple-500/10'>
+                  <div>
+                    <p className='text-muted-foreground text-xs font-semibold'>Teacher</p>
+                    <p className='font-bold text-foreground'>{viewReportData.teacherName}</p>
+                  </div>
+                  <div>
+                    <p className='text-muted-foreground text-xs font-semibold'>Email</p>
+                    <p className="font-medium text-foreground truncate">{viewReportData.teacherEmail}</p>
+                  </div>
+                  <div>
+                    <p className='text-muted-foreground text-xs font-semibold'>Report Date</p>
+                    <p className="font-bold text-foreground">{viewReportData.reportDate}</p>
+                  </div>
+                  <div>
+                    <p className='text-muted-foreground text-xs font-semibold'>Status</p>
+                    <Badge className={`text-[10px] font-bold border ${
+                      viewReportData.status === 'SUBMITTED'
+                        ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30'
+                        : 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30'
+                    }`}>
+                      {viewReportData.status}
+                    </Badge>
+                  </div>
+                </div>
+
+                {/* Entries Table */}
+                <div className='overflow-x-auto rounded-xl border border-border/60'>
+                  <table className='min-w-full divide-y divide-border text-left text-xs sm:text-sm'>
+                    <thead className='bg-muted/50 text-[11px] font-bold text-muted-foreground uppercase tracking-wider'>
+                      <tr>
+                        <th className='px-4 py-3'>Type</th>
+                        <th className='px-4 py-3'>Class</th>
+                        <th className='px-4 py-3'>Subject</th>
+                        <th className='px-4 py-3'>Details</th>
+                        <th className='px-4 py-3'>Completed</th>
+                      </tr>
+                    </thead>
+                    <tbody className='divide-y divide-border/60 bg-card text-foreground'>
+                      {viewReportData.entries.map((e) => {
+                        const isActivity = e.entryType === 'ACTIVITY';
+                        const entryLabel = isActivity ? 'Activity' : 'Classroom';
+                        const entryBadgeColor = isActivity ? 'bg-purple-500/15 text-purple-600 dark:text-purple-400 border-purple-500/30' : 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30';
+
+                        return (
+                          <tr key={e.id} className='hover:bg-muted/40 transition-colors'>
+                            <td className='px-4 py-3'>
+                              <Badge className={`text-[10px] px-2 py-0.5 font-bold border ${entryBadgeColor}`}>
+                                {entryLabel}
+                              </Badge>
+                            </td>
+                            <td className='px-4 py-3 font-semibold'>{e.className}</td>
+                            <td className='px-4 py-3 font-medium'>{e.subjectName}</td>
+                            <td className='px-4 py-3 max-w-md'>
+                              {isActivity ? (
+                                <div className='space-y-1'>
+                                  {e.activityCategory && (
+                                    <div className='text-xs font-bold text-purple-600 dark:text-purple-400'>
+                                      {e.activityCategory}
+                                    </div>
+                                  )}
+                                  {e.activityDescription && (
+                                    <div className='text-xs text-muted-foreground'>
+                                      {e.activityDescription}
+                                    </div>
+                                  )}
+                                  {e.learningOutcome && (
+                                    <div className='text-xs text-muted-foreground italic'>
+                                      Outcome: {e.learningOutcome}
+                                    </div>
+                                  )}
+                                  {e.evidenceFiles && e.evidenceFiles.length > 0 && (
+                                    <div className='space-y-1 mt-1'>
+                                      <div className='text-xs font-semibold text-purple-600 dark:text-purple-400'>
+                                        Evidence Files ({e.evidenceFiles.length})
+                                      </div>
+                                      <div className='flex flex-wrap gap-2'>
+                                        {e.evidenceFiles.map((file, idx) => {
+                                          const fileUrl = typeof file === 'string' ? file : file.url;
+                                          const fileName = typeof file === 'string' ? `File ${idx + 1}` : file.name;
+                                          const isBlobUrl = fileUrl.startsWith('blob:');
+
+                                          return (
+                                            <div key={idx} className="flex items-center gap-1">
+                                              {isBlobUrl ? (
+                                                <span className="text-xs text-amber-600 italic">
+                                                  {fileName} (not accessible)
+                                                </span>
+                                              ) : (
+                                                <a
+                                                  href={fileUrl}
+                                                  target='_blank'
+                                                  rel='noopener noreferrer'
+                                                  className='text-xs text-purple-600 dark:text-purple-400 hover:underline font-bold'
+                                                >
+                                                  {fileName}
+                                                </a>
+                                              )}
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              ) : (
+                                <div className='text-xs text-foreground font-medium'>{e.description || '—'}</div>
+                              )}
+                            </td>
+                            <td className='px-4 py-3'>
+                              {e.isCompleted ? (
+                                <Badge className='text-[10px] font-bold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'>
+                                  Yes
+                                </Badge>
+                              ) : (
+                                <span className='text-xs text-muted-foreground font-medium'>No</span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Download Buttons */}
+                <div className='flex gap-2 justify-end pt-4 border-t border-border'>
+                  <Button size='sm' variant='outline' className="rounded-xl font-semibold" onClick={() => viewReportId && handleIndividualDownload(viewReportId, 'csv')}>
+                    <FileSpreadsheet className='h-4 w-4 mr-2 text-emerald-500' />
+                    Download CSV
+                  </Button>
+                  <Button size='sm' variant='outline' className="rounded-xl font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-500/10" onClick={() => viewReportId && handleIndividualDownload(viewReportId, 'pdf')}>
+                    <FileText className='h-4 w-4 mr-2 text-rose-500' />
+                    Download PDF
+                  </Button>
+                </div>
               </div>
             ) : (
-              sortedFilteredDates.map((d) => {
-                const list = byDate[d];
-                return (
-                  <div key={d} className='p-2.5 bg-card rounded-xl border border-border shadow-xs flex items-center justify-between gap-2 hover:border-muted-foreground/50 transition-all'>
-                    <div className="min-w-0 flex-1">
-                      <div className='text-xs font-black text-card-foreground'>{d}</div>
-                      <div className='text-[10px] font-medium text-muted-foreground mt-0.5'>{list.length} submissions</div>
-                    </div>
-                    <div className='flex gap-1 items-center shrink-0'>
-                      <Button size='sm' variant='outline' className='h-6 text-[10px] font-bold px-2 bg-muted/50 border-border text-foreground hover:bg-muted rounded-lg' onClick={() => openDetails(d)}>
-                        Layout
-                      </Button>
-                      <Button size='sm' variant='ghost' className='h-6 w-6 p-0 rounded-lg' onClick={() => exportDateCsv(d)}>
-                        <Download className='h-3 w-3 text-muted-foreground' />
-                      </Button>
-                    </div>
-                  </div>
-                );
-              })
+              <div className='flex items-center justify-center py-12'>
+                <div className='text-sm text-muted-foreground font-medium'>Loading report details...</div>
+              </div>
             )}
-          </div>
-        </div>
-      </div>
-
-      {/* MASTER LAYOUT MATRIX DIALOG */}
-      <Dialog open={!!openDate} onOpenChange={(v) => { if (!v) setOpenDate(null); }}>
-        <DialogContent className='sm:max-w-xl max-h-[85vh] overflow-y-auto p-6 bg-card border border-border text-card-foreground'>
-          <DialogHeader>
-            <DialogTitle className='text-lg font-bold text-foreground'>Layout Checklist for {openDate}</DialogTitle>
-            <DialogDescription className='text-xs text-muted-foreground'>Comprehensive operational overview matrix balance sheet.</DialogDescription>
-          </DialogHeader>
-          
-          <div className='mt-4 space-y-6'>
-            {(() => {
-              const dayReports = byDate[openDate ?? ''] || [];
-              const submittedItems = dayReports.filter((r) => r.status === 'SUBMITTED');
-              const draftItems = dayReports.filter((r) => r.status !== 'SUBMITTED');
-              
-              const scheduledTeachers = new Map<string, string>();
-              if (currentGrid?.grid && Array.isArray(currentGrid.grid)) {
-                currentGrid.grid.forEach((row: any) => {
-                  if (row?.cells && Array.isArray(row.cells)) {
-                    row.cells.forEach((c: any) => {
-                      if (c && !c.empty && c.teacherId) {
-                        scheduledTeachers.set(String(c.teacherId), String(c.teacherName));
-                      }
-                    });
-                  }
-                });
-              }
-              
-              const documentedUserIds = new Set(dayReports.map((r) => String(r.teacherId)));
-              const pendingTeachers = Array.from(scheduledTeachers.entries()).filter(([id]) => !documentedUserIds.has(id));
-
-              return (
-                <>
-                  <div>
-                    <h4 className='font-bold text-xs uppercase text-emerald-500 tracking-wider mb-2 bg-emerald-500/10 px-2 py-1 rounded-md inline-block border border-emerald-500/20'>
-                      Submitted Core ({submittedItems.length})
-                    </h4>
-                    {submittedItems.length === 0 ? (
-                      <p className='text-xs text-muted-foreground italic pl-1'>No final submittals finalized.</p>
-                    ) : (
-                      <div className='space-y-1.5 max-h-[200px] overflow-y-auto pr-1'>
-                        {submittedItems.map((r) => (
-                          <div key={r.id} className='p-2.5 rounded-xl border border-emerald-500/10 bg-emerald-500/5 flex items-center justify-between text-xs text-foreground'>
-                            <span className='font-semibold'>{r.teacherName}</span>
-                            <span className='px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-500 font-bold uppercase text-[10px]'>Verified</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  <div>
-                    <h4 className='font-bold text-xs uppercase text-blue-500 tracking-wider mb-2 bg-blue-500/10 px-2 py-1 rounded-md inline-block border border-blue-500/20'>
-                      Draft Saves ({draftItems.length})
-                    </h4>
-                    {draftItems.length === 0 ? (
-                      <p className='text-xs text-muted-foreground italic pl-1'>No running drafts saved for this track.</p>
-                    ) : (
-                      <div className='space-y-1.5 max-h-[200px] overflow-y-auto pr-1'>
-                        {draftItems.map((r) => (
-                          <div key={r.id} className='p-2.5 rounded-xl border border-blue-500/10 bg-blue-500/5 flex items-center justify-between text-xs text-foreground'>
-                            <span className='font-semibold'>{r.teacherName}</span>
-                            <span className='px-2 py-0.5 rounded-md bg-blue-500/20 text-blue-500 font-bold uppercase text-[10px]'>Drafting</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  <div>
-                    <h4 className='font-bold text-xs uppercase text-amber-500 tracking-wider mb-2 bg-amber-500/10 px-2 py-1 rounded-md inline-block border border-amber-500/20'>
-                      Absent / Pending Submissions ({pendingTeachers.length})
-                    </h4>
-                    {!currentGrid ? (
-                      <p className='text-xs text-muted-foreground italic pl-1'>No timetable matrix layouts running on this cycle.</p>
-                    ) : pendingTeachers.length === 0 ? (
-                      <div className='text-xs text-emerald-500 bg-emerald-500/10 p-2.5 rounded-xl border border-emerald-500/20 font-medium'>
-                        Clean deployment balance: All scheduled teachers submitted paperwork!
-                      </div>
-                    ) : (
-                      <div className='space-y-1.5 max-h-[200px] overflow-y-auto pr-1'>
-                        {pendingTeachers.map(([id, name]) => (
-                          <div key={id} className='p-2.5 rounded-xl border border-amber-500/20 bg-amber-500/5 flex items-center justify-between text-xs text-foreground'>
-                            <span className='font-medium'>{name}</span>
-                            <span className='text-[10px] px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-500 border border-amber-500/30 font-bold uppercase'>Missing</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </>
-              );
-            })()}
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Report View Dialog */}
-      <Dialog open={!!viewReportId} onOpenChange={(open) => { if (!open) { setViewReportId(null); setViewReportData(null); } }}>
-        <DialogContent className='sm:max-w-4xl max-h-[85vh] overflow-y-auto p-6 bg-card border border-border text-card-foreground'>
-          <DialogHeader>
-            <div className='flex items-center justify-between'>
-              <div>
-                <DialogTitle className='text-lg font-bold text-foreground'>Report Details</DialogTitle>
-                <DialogDescription className='text-xs text-muted-foreground'>
-                  {viewReportData ? `${viewReportData.teacherName} — ${viewReportData.reportDate}` : 'Loading...'}
-                </DialogDescription>
-              </div>
-              <Button variant='ghost' size='sm' onClick={() => { setViewReportId(null); setViewReportData(null); }}>
-                <X className='h-4 w-4' />
-              </Button>
-            </div>
-          </DialogHeader>
-
-          {viewReportData ? (
-            <div className='mt-4 space-y-4'>
-              {/* Report Info */}
-              <div className='grid grid-cols-2 gap-4 text-sm bg-muted/30 p-4 rounded-xl'>
-                <div>
-                  <p className='text-muted-foreground text-xs'>Teacher</p>
-                  <p className='font-semibold'>{viewReportData.teacherName}</p>
-                </div>
-                <div>
-                  <p className='text-muted-foreground text-xs'>Email</p>
-                  <p>{viewReportData.teacherEmail}</p>
-                </div>
-                <div>
-                  <p className='text-muted-foreground text-xs'>Report Date</p>
-                  <p>{viewReportData.reportDate}</p>
-                </div>
-                <div>
-                  <p className='text-muted-foreground text-xs'>Status</p>
-                  <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-bold border ${
-                    viewReportData.status === 'SUBMITTED'
-                      ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
-                      : 'bg-amber-500/10 text-amber-500 border-amber-500/20'
-                  }`}>
-                    {viewReportData.status}
-                  </span>
-                </div>
-              </div>
-
-              {/* Entries Table */}
-              <div className='overflow-x-auto rounded-xl border border-border/60'>
-                <table className='min-w-full divide-y divide-border text-left text-sm'>
-                  <thead className='bg-muted/50 text-xs font-semibold text-muted-foreground uppercase tracking-wider'>
-                    <tr>
-                      <th className='px-4 py-3'>Type</th>
-                      <th className='px-4 py-3'>Class</th>
-                      <th className='px-4 py-3'>Subject</th>
-                      <th className='px-4 py-3'>Details</th>
-                      <th className='px-4 py-3'>Completed</th>
-                    </tr>
-                  </thead>
-                  <tbody className='divide-y divide-border bg-card text-card-foreground'>
-                    {viewReportData.entries.map((e, i) => {
-                      const isActivity = e.entryType === 'ACTIVITY';
-                      const entryLabel = isActivity ? 'Activity' : 'Classroom';
-                      const entryBadgeColor = isActivity ? 'bg-purple-500/15 text-purple-600' : 'bg-blue-500/15 text-blue-600';
-
-                      return (
-                        <tr key={e.id} className='hover:bg-muted/40 transition-colors'>
-                          <td className='px-4 py-3'>
-                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${entryBadgeColor}`}>
-                              {entryLabel}
-                            </span>
-                          </td>
-                          <td className='px-4 py-3'>{e.className}</td>
-                          <td className='px-4 py-3'>{e.subjectName}</td>
-                          <td className='px-4 py-3 max-w-md'>
-                            {isActivity ? (
-                              <div className='space-y-1'>
-                                {e.activityCategory && (
-                                  <div className='text-xs font-semibold text-purple-600'>
-                                    {e.activityCategory}
-                                  </div>
-                                )}
-                                {e.activityDescription && (
-                                  <div className='text-xs text-muted-foreground'>
-                                    {e.activityDescription}
-                                  </div>
-                                )}
-                                {e.learningOutcome && (
-                                  <div className='text-xs text-muted-foreground italic'>
-                                    Outcome: {e.learningOutcome}
-                                  </div>
-                                )}
-                                {e.evidenceFiles && e.evidenceFiles.length > 0 && (
-                                  <div className='space-y-1'>
-                                    <div className='text-xs font-semibold text-purple-600'>
-                                      Evidence Files ({e.evidenceFiles.length})
-                                    </div>
-                                    {e.evidenceFiles.some(f => (typeof f === 'string' ? f : f.url).startsWith('blob:')) && (
-                                      <div className='text-xs text-amber-600 bg-amber-50 p-2 rounded border border-amber-200'>
-                                        ⚠️ Some files need to be re-uploaded by the teacher
-                                      </div>
-                                    )}
-                                    <div className='flex flex-wrap gap-2'>
-                                      {e.evidenceFiles.map((file, idx) => {
-                                        const fileUrl = typeof file === 'string' ? file : file.url;
-                                        const fileName = typeof file === 'string' ? `File ${idx + 1}` : file.name;
-                                        const isBlobUrl = fileUrl.startsWith('blob:');
-
-                                        return (
-                                          <div key={idx} className="flex items-center gap-1">
-                                            {isBlobUrl ? (
-                                              <span className="text-xs text-amber-600 italic">
-                                                {fileName} (not accessible)
-                                              </span>
-                                            ) : (
-                                              <a
-                                                href={fileUrl}
-                                                target='_blank'
-                                                rel='noopener noreferrer'
-                                                className='text-xs text-blue-600 hover:text-blue-800 underline'
-                                              >
-                                                {fileName}
-                                              </a>
-                                            )}
-                                          </div>
-                                        );
-                                      })}
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                            ) : (
-                              <div className='text-xs'>{e.description || '—'}</div>
-                            )}
-                          </td>
-                          <td className='px-4 py-3'>
-                            {e.isCompleted ? (
-                              <span className='text-xs px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600'>
-                                Yes
-                              </span>
-                            ) : (
-                              <span className='text-xs text-muted-foreground'>No</span>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Download Buttons */}
-              <div className='flex gap-2 justify-end pt-4 border-t border-border'>
-                <Button size='sm' variant='outline' onClick={() => handleIndividualDownload(viewReportId, 'csv')}>
-                  <FileSpreadsheet className='h-4 w-4 mr-2 text-emerald-500' />
-                  Download CSV
-                </Button>
-                <Button size='sm' variant='outline' onClick={() => handleIndividualDownload(viewReportId, 'pdf')}>
-                  <FileText className='h-4 w-4 mr-2 text-destructive' />
-                  Download PDF
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <div className='flex items-center justify-center py-12'>
-              <div className='text-sm text-muted-foreground'>Loading report details...</div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+          </DialogContent>
+        </Dialog>
       </ProtectedFeature>
     </div>
   );

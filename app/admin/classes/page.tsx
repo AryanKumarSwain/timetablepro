@@ -276,8 +276,8 @@ export default function ClassesPage() {
         <DataGridTable>
           <DataGridHead>
             <tr>
-              <DataGridTh className='w-1/2 min-w-[200px]'>Name</DataGridTh>
-              <DataGridTh className='w-1/4 min-w-[120px]'>Section</DataGridTh>
+              <DataGridTh className='w-1/2 min-w-[160px]'>Name</DataGridTh>
+              <DataGridTh className='hidden sm:table-cell w-1/4 min-w-[120px]'>Section</DataGridTh>
               <DataGridTh className='w-1/4 text-right pr-6'>Actions</DataGridTh>
             </tr>
           </DataGridHead>
@@ -285,9 +285,16 @@ export default function ClassesPage() {
             {classes.map((cls) => (
               <DataGridRow key={cls.id}>
                 <DataGridTd className='font-medium text-foreground'>
-                  {cls.name}
+                  <div className='flex flex-col gap-1'>
+                    <span>{cls.name}</span>
+                    {/* Section badge shown only on mobile, below name */}
+                    <span className='sm:hidden inline-flex items-center px-2 py-0.5 rounded-md bg-muted text-xs font-medium w-fit'>
+                      Section {cls.section}
+                    </span>
+                  </div>
                 </DataGridTd>
-                <DataGridTd className='text-muted-foreground'>
+                {/* Section column hidden on mobile */}
+                <DataGridTd className='hidden sm:table-cell text-muted-foreground'>
                   <span className='inline-flex items-center px-2.5 py-0.5 rounded-md bg-muted text-xs font-medium'>
                     Section {cls.section}
                   </span>

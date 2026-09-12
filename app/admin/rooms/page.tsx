@@ -24,7 +24,8 @@ import {
 } from '@/components/enterprise/data-grid';
 import { PageSkeleton } from '@/components/enterprise/page-skeleton';
 import { BulkCsvImportModal } from '@/components/enterprise/bulk-csv-import-modal';
-import { Upload, CheckCircle2, DoorOpen, AlertCircle, Pencil, Trash2 } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Upload, CheckCircle2, DoorOpen, AlertCircle, Pencil, Trash2, Eye, MapPin, Layers } from 'lucide-react';
 
 export default function RoomsPage() {
   useRequireAuth('admin');
@@ -36,6 +37,7 @@ export default function RoomsPage() {
   const [importOpen, setImportOpen] = useState(false);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [viewRoom, setViewRoom] = useState<Room | null>(null);
 
   const [formData, setFormData] = useState<Omit<Room, 'id'>>({
     roomNumber: '',
@@ -281,13 +283,78 @@ export default function RoomsPage() {
         onSuccess={handleBulkUploadSuccess}
       />
 
+      {/* Room View Dialog — matches teacher view style */}
+      <Dialog open={!!viewRoom} onOpenChange={(open) => !open && setViewRoom(null)}>
+        {viewRoom && (
+          <DialogContent className='sm:max-w-sm rounded-2xl'>
+            <DialogHeader>
+              <div className='flex items-center gap-2'>
+                <div className='p-2 rounded-xl bg-indigo-500/15'>
+                  <DoorOpen className='h-5 w-5 text-indigo-600 dark:text-indigo-400' />
+                </div>
+                <div>
+                  <DialogTitle className='text-xl font-bold'>
+                    Room {viewRoom.roomNumber}
+                  </DialogTitle>
+                  <DialogDescription className='text-xs text-muted-foreground'>
+                    Room Details
+                  </DialogDescription>
+                </div>
+              </div>
+            </DialogHeader>
+
+            <div className='space-y-3 py-2 text-sm'>
+              <div className='flex items-center gap-3 p-3 rounded-xl bg-muted/40 border border-border/50'>
+                <Layers className='h-4 w-4 text-indigo-500 shrink-0' />
+                <div className='min-w-0 flex-1'>
+                  <p className='text-xs text-muted-foreground font-medium'>Floor</p>
+                  <p className='font-semibold text-foreground'>{viewRoom.floor || '—'}</p>
+                </div>
+              </div>
+
+              <div className='flex items-center gap-3 p-3 rounded-xl bg-muted/40 border border-border/50'>
+                <MapPin className='h-4 w-4 text-purple-500 shrink-0' />
+                <div className='min-w-0 flex-1'>
+                  <p className='text-xs text-muted-foreground font-medium'>Block</p>
+                  <p className='font-semibold text-foreground'>{viewRoom.block || '—'}</p>
+                </div>
+              </div>
+            </div>
+
+            <DialogFooter className='flex flex-row gap-2 pt-2 sm:justify-between'>
+              <Button
+                variant='outline'
+                size='sm'
+                onClick={() => setViewRoom(null)}
+                className='rounded-xl flex-1'
+              >
+                Close
+              </Button>
+              <Button
+                variant='default'
+                size='sm'
+                onClick={() => {
+                  const room = viewRoom;
+                  setViewRoom(null);
+                  handleEdit(room);
+                }}
+                className='rounded-xl flex-1'
+              >
+                <Pencil className='h-4 w-4 mr-1.5' />
+                Edit Room
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        )}
+      </Dialog>
+
       <DataGrid title='Rooms list' empty={rooms.length === 0}>
         <DataGridTable>
           <DataGridHead>
             <tr>
-              <DataGridTh className='w-1/3 min-w-[150px]'>Room No</DataGridTh>
-              <DataGridTh className='w-1/4 min-w-[100px]'>Floor</DataGridTh>
-              <DataGridTh className='w-1/4 min-w-[100px]'>Block</DataGridTh>
+              <DataGridTh className='w-1/3 min-w-[130px]'>Room No</DataGridTh>
+              <DataGridTh className='hidden sm:table-cell w-1/4 min-w-[100px]'>Floor</DataGridTh>
+              <DataGridTh className='hidden sm:table-cell w-1/4 min-w-[100px]'>Block</DataGridTh>
               <DataGridTh className='text-right pr-6'>Actions</DataGridTh>
             </tr>
           </DataGridHead>
@@ -300,14 +367,24 @@ export default function RoomsPage() {
                     <span>{room.roomNumber}</span>
                   </div>
                 </DataGridTd>
-                <DataGridTd className='text-muted-foreground'>
+                <DataGridTd className='hidden sm:table-cell text-muted-foreground'>
                   {room.floor || '—'}
                 </DataGridTd>
-                <DataGridTd className='text-muted-foreground'>
+                <DataGridTd className='hidden sm:table-cell text-muted-foreground'>
                   {room.block || '—'}
                 </DataGridTd>
                 <DataGridTd className='text-right pr-6'>
                   <div className='flex items-center justify-end gap-2'>
+                    {/* View button — mobile only */}
+                    <Button
+                      onClick={() => setViewRoom(room)}
+                      size='sm'
+                      variant='outline'
+                      className='sm:hidden rounded-lg h-8 border-indigo-500/30 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/30'
+                    >
+                      <Eye className='h-3.5 w-3.5 mr-1' />
+                      View
+                    </Button>
                     <Button
                       onClick={() => handleEdit(room)}
                       size='sm'

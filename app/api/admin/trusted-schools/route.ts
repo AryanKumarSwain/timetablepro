@@ -56,9 +56,9 @@ export async function PUT(request: Request) {
     const trustedSchool = await prisma.trustedSchool.update({
       where: { id },
       data: {
-        name,
-        isActive,
-        order,
+        ...(name !== undefined && { name }),
+        ...(isActive !== undefined && { isActive }),
+        ...(order !== undefined && { order }),
       },
     });
 

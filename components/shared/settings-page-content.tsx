@@ -111,7 +111,11 @@ export function SettingsPageContent({ initialUser, activeTab }: SettingsPageCont
     address: '',
     phone: '',
     email: '',
-    logo: '',
+    website: '',
+    instagram: '',
+    facebook: '',
+    linkedin: '',
+    twitter: '',
   });
   const [instituteDetailsPending, setInstituteDetailsPending] = useState(false);
 
@@ -172,7 +176,11 @@ export function SettingsPageContent({ initialUser, activeTab }: SettingsPageCont
           address: data.address || '',
           phone: data.phone || '',
           email: data.email || '',
-          logo: data.logo || '',
+          website: data.website || '',
+          instagram: data.instagram || '',
+          facebook: data.facebook || '',
+          linkedin: data.linkedin || '',
+          twitter: data.twitter || '',
         });
       }
     } catch (error) {
@@ -299,7 +307,11 @@ export function SettingsPageContent({ initialUser, activeTab }: SettingsPageCont
           address: instituteDetails.address.trim() || undefined,
           phone: instituteDetails.phone.trim() || undefined,
           email: instituteDetails.email.trim() || undefined,
-          logo: instituteDetails.logo.trim() || undefined,
+          website: instituteDetails.website.trim() || undefined,
+          instagram: instituteDetails.instagram.trim() || undefined,
+          facebook: instituteDetails.facebook.trim() || undefined,
+          linkedin: instituteDetails.linkedin.trim() || undefined,
+          twitter: instituteDetails.twitter.trim() || undefined,
         }
       });
       toast.success('Institute details updated successfully');
@@ -743,15 +755,60 @@ export function SettingsPageContent({ initialUser, activeTab }: SettingsPageCont
                   className="rounded-xl border-border/80 text-xs focus-visible:ring-indigo-500"
                 />
               </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="instituteLogo" className="text-xs font-bold">Logo URL</Label>
-                <Input
-                  id="instituteLogo"
-                  value={instituteDetails.logo}
-                  onChange={(e) => setInstituteDetails(prev => ({ ...prev, logo: e.target.value }))}
-                  placeholder="https://example.com/logo.png"
-                  className="rounded-xl border-border/80 text-xs focus-visible:ring-indigo-500"
-                />
+              <div className="pt-2 border-t border-border/40">
+                <p className="text-xs font-bold text-slate-700 dark:text-slate-300 mb-3">Social Media & Web Links</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="space-y-1.5 md:col-span-2">
+                    <Label htmlFor="instituteWebsite" className="text-xs font-semibold text-muted-foreground">Website / Web Portal</Label>
+                    <Input
+                      id="instituteWebsite"
+                      value={instituteDetails.website}
+                      onChange={(e) => setInstituteDetails(prev => ({ ...prev, website: e.target.value }))}
+                      placeholder="https://yourschool.edu"
+                      className="rounded-xl border-border/80 text-xs focus-visible:ring-indigo-500"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="instituteInstagram" className="text-xs font-semibold text-muted-foreground">Instagram</Label>
+                    <Input
+                      id="instituteInstagram"
+                      value={instituteDetails.instagram}
+                      onChange={(e) => setInstituteDetails(prev => ({ ...prev, instagram: e.target.value }))}
+                      placeholder="https://instagram.com/schoolname"
+                      className="rounded-xl border-border/80 text-xs focus-visible:ring-indigo-500"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="instituteFacebook" className="text-xs font-semibold text-muted-foreground">Facebook</Label>
+                    <Input
+                      id="instituteFacebook"
+                      value={instituteDetails.facebook}
+                      onChange={(e) => setInstituteDetails(prev => ({ ...prev, facebook: e.target.value }))}
+                      placeholder="https://facebook.com/schoolpage"
+                      className="rounded-xl border-border/80 text-xs focus-visible:ring-indigo-500"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="instituteLinkedin" className="text-xs font-semibold text-muted-foreground">LinkedIn</Label>
+                    <Input
+                      id="instituteLinkedin"
+                      value={instituteDetails.linkedin}
+                      onChange={(e) => setInstituteDetails(prev => ({ ...prev, linkedin: e.target.value }))}
+                      placeholder="https://linkedin.com/company/school"
+                      className="rounded-xl border-border/80 text-xs focus-visible:ring-indigo-500"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="instituteTwitter" className="text-xs font-semibold text-muted-foreground">Twitter / X</Label>
+                    <Input
+                      id="instituteTwitter"
+                      value={instituteDetails.twitter}
+                      onChange={(e) => setInstituteDetails(prev => ({ ...prev, twitter: e.target.value }))}
+                      placeholder="https://x.com/schoolhandle"
+                      className="rounded-xl border-border/80 text-xs focus-visible:ring-indigo-500"
+                    />
+                  </div>
+                </div>
               </div>
               <PlanButton
                 onClick={handleInstituteDetailsSave}

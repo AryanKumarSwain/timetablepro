@@ -32,10 +32,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetTrigger } from '@/components/ui/sheet';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import type { NavItem } from '@/lib/navigation';
@@ -356,6 +356,10 @@ export function TopNavbar({
               </Button>
             </SheetTrigger>
             <SheetContent side='left' className='w-72 p-0 flex flex-col'>
+              <SheetHeader className="sr-only">
+                <SheetTitle>Navigation Menu</SheetTitle>
+                <SheetDescription>Mobile navigation sidebar for quick links</SheetDescription>
+              </SheetHeader>
               <div className='p-4 border-b border-border'>
                 <p className='font-semibold text-sm'>TimetablePro</p>
                 <p className='text-xs text-muted-foreground truncate'>{schoolName}</p>
@@ -439,6 +443,7 @@ export function TopNavbar({
                       <Megaphone className="h-4 w-4 text-indigo-500" /> {/* 👈 Patched Component */}
                       {parsedRole === 'super_admin' ? 'Broadcast to All Admins' : 'Broadcast to School Teachers'}
                     </DialogTitle>
+                    <DialogDescription className="sr-only">Broadcast notification to staff or administrators</DialogDescription>
                   </DialogHeader>
                   <form onSubmit={handleBroadcastMessage} className="space-y-4 pt-2">
                     <div className="space-y-1.5">

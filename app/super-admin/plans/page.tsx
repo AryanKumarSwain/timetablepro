@@ -10,7 +10,7 @@ import { GlassCard } from '@/components/enterprise/glass-card';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle,
+  Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
   DialogFooter, DialogClose,
 } from '@/components/ui/dialog';
 import {
@@ -630,6 +630,7 @@ export default function PlansPage() {
             <DialogTitle>
               {formMode === 'create' ? 'Create new plan' : 'Edit plan'}
             </DialogTitle>
+            <DialogDescription className='sr-only'>Plan creation and editing configuration</DialogDescription>
           </DialogHeader>
 
           <div className='space-y-5'>

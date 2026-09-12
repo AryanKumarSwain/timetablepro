@@ -266,8 +266,8 @@ export default function SubjectsPage() {
         <DataGridTable>
           <DataGridHead>
             <tr>
-              <DataGridTh className='w-1/2 min-w-[200px]'>Name</DataGridTh>
-              <DataGridTh className='w-1/4 min-w-[120px]'>Code</DataGridTh>
+              <DataGridTh className='w-1/2 min-w-[160px]'>Name</DataGridTh>
+              <DataGridTh className='hidden sm:table-cell w-1/4 min-w-[120px]'>Code</DataGridTh>
               <DataGridTh className='w-1/4 text-right pr-6'>Actions</DataGridTh>
             </tr>
           </DataGridHead>
@@ -275,9 +275,16 @@ export default function SubjectsPage() {
             {subjects.map((subject) => (
               <DataGridRow key={subject.id}>
                 <DataGridTd className='font-medium text-foreground'>
-                  {subject.name}
+                  <div className='flex flex-col gap-1'>
+                    <span>{subject.name}</span>
+                    {/* Code badge shown only on mobile, below name */}
+                    <span className='sm:hidden inline-flex items-center px-2 py-0.5 rounded-md font-mono text-xs font-medium bg-muted text-muted-foreground border border-border/50 w-fit'>
+                      {subject.code}
+                    </span>
+                  </div>
                 </DataGridTd>
-                <DataGridTd className='text-muted-foreground'>
+                {/* Code column hidden on mobile */}
+                <DataGridTd className='hidden sm:table-cell text-muted-foreground'>
                   <span className='inline-flex items-center px-2.5 py-0.5 rounded-md font-mono text-xs font-medium bg-muted text-muted-foreground border border-border/50'>
                     {subject.code}
                   </span>

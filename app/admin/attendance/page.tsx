@@ -317,6 +317,27 @@ export default function AdminAttendancePage() {
         schoolId={user?.schoolId || undefined}
       >
         <div className="space-y-6">
+          {/* CHRONOLOGICAL RANGE FILTER PANEL (MOVED UP NEAR CURRENT DATE PICKER) */}
+          <div className="glass-panel p-4 rounded-2xl border border-border/80 space-y-3 pointer-events-auto bg-card/60 shadow-sm">
+            <div className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-muted-foreground">
+              <SlidersHorizontal className="h-3.5 w-3.5 text-primary" />
+              Date Range Report
+            </div>
+            <div className="flex flex-wrap items-center gap-4">
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground font-medium">From:</span>
+                <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="bg-card border p-1.5 rounded-lg text-xs font-semibold" />
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground font-medium">To:</span>
+                <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="bg-card border p-1.5 rounded-lg text-xs font-semibold" />
+              </div>
+              <button onClick={fetchRangeTelemetry} disabled={isRangeLoading} className={`px-4 py-2 bg-${theme.primary} text-white text-xs font-bold rounded-lg disabled:opacity-50`}>
+                {isRangeLoading ? 'Spreading Columns...' : 'Generate '}
+              </button>
+            </div>
+          </div>
+
           {/* TODAY'S TARGET PRESENT/ABSENT OVERVIEW SEGMENT */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-muted/30 p-4 rounded-2xl border border-border/80">
             {/* Present Grid Column */}
@@ -350,27 +371,6 @@ export default function AdminAttendancePage() {
                 ))}
                 {stats.absent === 0 && <p className="text-xs text-muted-foreground italic">No faculty absences recorded today.</p>}
               </div>
-            </div>
-          </div>
-
-          {/* CHRONOLOGICAL RANGE FILTER PANEL */}
-          <div className="glass-panel p-4 rounded-xl border border-border/80 space-y-3 pointer-events-auto">
-            <div className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-muted-foreground">
-              <SlidersHorizontal className="h-3.5 w-3.5 text-primary" />
-              Date Range Report
-            </div>
-            <div className="flex flex-wrap items-center gap-4">
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground font-medium">From:</span>
-                <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="bg-card border p-1.5 rounded-lg text-xs font-semibold" />
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground font-medium">To:</span>
-                <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="bg-card border p-1.5 rounded-lg text-xs font-semibold" />
-              </div>
-              <button onClick={fetchRangeTelemetry} disabled={isRangeLoading} className={`px-4 py-2 bg-${theme.primary} text-white text-xs font-bold rounded-lg disabled:opacity-50`}>
-                {isRangeLoading ? 'Spreading Columns...' : 'Generate '}
-              </button>
             </div>
           </div>
 

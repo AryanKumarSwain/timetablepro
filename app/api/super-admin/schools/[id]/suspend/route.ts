@@ -6,7 +6,7 @@ interface RouteContext {
   params: Promise<{ id: string }>;
 }
 
-// PATCH /api/super-admin/schools/[id]/suspend - Suspend a school account
+// PATCH /api/super-admin/schools/[id]/suspend - Suspend or Unsuspend a school account
 export async function PATCH(
   request: NextRequest,
   context: RouteContext
@@ -14,6 +14,15 @@ export async function PATCH(
   try {
     const superAdmin = await requireSuperAdmin();
     const { id } = await context.params;
+    
+    let body: any = {};
+    try {
+      body = await request.json();
+    } catch {
+      // body empty is ok
+    }
+
+    const isUnsuspend = body.action === 'unsuspend' || body.unsuspend === true;
     
     const school = await prisma.school.findUnique({
       where: { id },
@@ -24,19 +33,23 @@ export async function PATCH(
       return NextResponse.json({ error: 'School not found' }, { status: 404 });
     }
     
+    const newStatus = isUnsuspend ? 'ACTIVE' : 'SUSPENDED';
+
     await prisma.$transaction([
       // Update school license status
       prisma.school.update({
         where: { id },
-        data: { licenseStatus: 'SUSPENDED' }
+        data: { licenseStatus: newStatus }
       }),
       
       // Create notification for school admin
       prisma.notification.create({
         data: {
-          title: 'Account Suspended',
-          message: 'Your school account has been suspended by the platform administrator. Please contact support for more information.',
-          type: 'ALERT',
+          title: isUnsuspend ? 'Account Reactivated' : 'Account Suspended',
+          message: isUnsuspend
+            ? 'Your school account has been reactivated. You now have full access to your account.'
+            : 'Your school account has been suspended by the platform administrator. Please contact support for more information.',
+          type: isUnsuspend ? 'INFO' : 'ALERT',
           scope: 'ALL_ADMINS',
           senderId: superAdmin.id,
           schoolId: school.id
@@ -44,7 +57,10 @@ export async function PATCH(
       })
     ]);
     
-    return NextResponse.json({ success: true, message: 'Account suspended successfully' });
+    return NextResponse.json({
+      success: true,
+      message: isUnsuspend ? 'Account unsuspended successfully' : 'Account suspended successfully'
+    });
   } catch (error) {
     return handleApiError(error);
   }

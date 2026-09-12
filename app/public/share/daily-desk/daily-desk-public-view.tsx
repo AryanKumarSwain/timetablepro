@@ -8,16 +8,10 @@ import {
   CheckCircle2, 
   AlertTriangle, 
   Download, 
-  ZoomIn, 
-  ZoomOut, 
   CalendarX,
   Coffee
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-
-const ZOOM_MIN = 0.6;
-const ZOOM_MAX = 1.4;
-const ZOOM_STEP = 0.1;
 
 interface DailyDeskPublicViewProps {
   data: {
@@ -32,12 +26,6 @@ interface DailyDeskPublicViewProps {
 }
 
 export default function DailyDeskPublicView({ data }: DailyDeskPublicViewProps) {
-  const [zoomLevel, setZoomLevel] = React.useState(1);
-
-  const handleZoomIn = () => setZoomLevel((prev) => Math.min(ZOOM_MAX, Math.round((prev + ZOOM_STEP) * 100) / 100));
-  const handleZoomOut = () => setZoomLevel((prev) => Math.max(ZOOM_MIN, Math.round((prev - ZOOM_STEP) * 100) / 100));
-  const handleZoomReset = () => setZoomLevel(1);
-
   const handlePrintPDF = () => {
     if (typeof window !== 'undefined') window.print();
   };
@@ -80,42 +68,12 @@ export default function DailyDeskPublicView({ data }: DailyDeskPublicViewProps) 
 
         {/* CONTROLS BAR */}
         <div className="flex items-center gap-2 self-start sm:self-center print:hidden">
-          <div className="flex items-center gap-1 rounded-xl border border-border/80 bg-muted/40 p-1">
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={handleZoomOut}
-              disabled={zoomLevel <= ZOOM_MIN || isTimetableEmpty}
-              className="h-7 w-7 p-0 rounded-lg hover:bg-background"
-              title="Zoom out"
-            >
-              <ZoomOut className="h-3.5 w-3.5" />
-            </Button>
-            <button
-              onClick={handleZoomReset}
-              className="text-[11px] font-bold text-muted-foreground px-1.5 min-w-[42px] text-center hover:text-foreground transition-colors"
-              title="Reset zoom"
-            >
-              {Math.round(zoomLevel * 100)}%
-            </button>
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={handleZoomIn}
-              disabled={zoomLevel >= ZOOM_MAX || isTimetableEmpty}
-              className="h-7 w-7 p-0 rounded-lg hover:bg-background"
-              title="Zoom in"
-            >
-              <ZoomIn className="h-3.5 w-3.5" />
-            </Button>
-          </div>
-
           <Button
             size="sm"
             variant="outline"
             onClick={handlePrintPDF}
             disabled={isTimetableEmpty}
-            className="rounded-xl text-xs font-semibold h-9 border-border/80 hover:bg-muted"
+            className="rounded-xl text-xs font-semibold h-9 border-border/80 hover:bg-muted shadow-xs"
           >
             <Download className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
             Download PDF
@@ -137,13 +95,10 @@ export default function DailyDeskPublicView({ data }: DailyDeskPublicViewProps) 
       ) : (
         <div
           id="timetable-capture"
-          className='timetable-matrix-scroll w-full overflow-x-auto rounded-xl border border-border/60 bg-background p-4 scrollbar-thin scrollbar-thumb-accent print:overflow-visible print:border-none print:bg-transparent'
+          className='timetable-matrix-scroll w-full overflow-x-auto rounded-2xl border border-border/60 bg-background p-3 sm:p-4 scrollbar-thin scrollbar-thumb-indigo-500/20 print:overflow-visible print:border-none print:bg-transparent'
         >
-          <div
-            className='timetable-inner-container print:min-w-full origin-top-left transition-transform duration-150 ease-out'
-            style={{ transform: `scale(${zoomLevel})`, width: zoomLevel !== 1 ? `${100 / zoomLevel}%` : undefined }}
-          >
-            <table className='w-full border-collapse text-left min-w-[800px] print:min-w-full print:table-layout-fixed'>
+          <div className='timetable-inner-container w-full min-w-full print:min-w-full'>
+            <table className='w-full border-collapse text-left min-w-[700px] sm:min-w-[800px] print:min-w-full print:table-layout-fixed'>
               <thead>
                 <tr className='bg-muted/80 backdrop-blur border-b border-border/40 print:bg-gray-100 print:border-b-2 print:border-gray-300'>
                   <th className='p-4 text-xs font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400 w-[140px] sticky left-0 bg-muted z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] border-r border-border/40 print:static print:bg-gray-100 print:text-black print:shadow-none'>

@@ -47,8 +47,8 @@ import { cn, isTeacherActive } from '@/lib/utils';
 import { getSchoolDetails } from '@/lib/api-services';
 import { usePlanTheme } from '@/lib/plan-theme';
 
-const ZOOM_MIN = 0.4;
-const ZOOM_MAX = 1.4;
+const ZOOM_MIN = 0.5;
+const ZOOM_MAX = 1.5;
 const ZOOM_STEP = 0.1;
 const MOBILE_BREAKPOINT = 640;
 
@@ -78,14 +78,46 @@ export default function DailyDeskPage() {
     reason: 'Leave',
   });
 
-  // Default to a smaller zoom on narrow/mobile viewports so the matrix
-  // doesn't force an oversized horizontal scroll on first load.
-  const [zoomLevel, setZoomLevel] = useState(() => {
-    if (typeof window !== 'undefined' && window.innerWidth < MOBILE_BREAKPOINT) {
-      return ZOOM_MIN;
-    }
-    return 1;
-  });
+  const [zoomLevel, setZoomLevel] = useState<number>(1);
+  const matrixContainerRef = useRef<HTMLDivElement | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const dragStartRef = useRef({ x: 0, y: 0, scrollLeft: 0, scrollTop: 0 });
+
+  const handleZoomIn = () => setZoomLevel((prev) => Math.min(ZOOM_MAX, Math.round((prev + ZOOM_STEP) * 10) / 10));
+  const handleZoomOut = () => setZoomLevel((prev) => Math.max(ZOOM_MIN, Math.round((prev - ZOOM_STEP) * 10) / 10));
+  const handleZoomReset = () => setZoomLevel(1);
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (!matrixContainerRef.current) return;
+    const target = e.target as HTMLElement;
+    if (target.closest('button, input, select, a, [role="button"]')) return;
+
+    setIsDragging(true);
+    dragStartRef.current = {
+      x: e.clientX,
+      y: e.clientY,
+      scrollLeft: matrixContainerRef.current.scrollLeft,
+      scrollTop: matrixContainerRef.current.scrollTop,
+    };
+  };
+
+  const handleMouseLeave = () => {
+    setIsDragging(false);
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDragging || !matrixContainerRef.current) return;
+    e.preventDefault();
+    const dx = e.clientX - dragStartRef.current.x;
+    const dy = e.clientY - dragStartRef.current.y;
+    matrixContainerRef.current.scrollLeft = dragStartRef.current.scrollLeft - dx;
+    matrixContainerRef.current.scrollTop = dragStartRef.current.scrollTop - dy;
+  };
+
   const [freeTeachersPeriodId, setFreeTeachersPeriodId] = useState('');
   const [history, setHistory] = useState<{ date: string; replacementCount: number }[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
@@ -674,10 +706,6 @@ export default function DailyDeskPage() {
     XLSX.writeFile(workbook, `daily-desk-${selectedHistoryDate}.xlsx`);
   };
 
-  const handleZoomIn = () => setZoomLevel((prev) => Math.min(ZOOM_MAX, Math.round((prev + ZOOM_STEP) * 100) / 100));
-  const handleZoomOut = () => setZoomLevel((prev) => Math.max(ZOOM_MIN, Math.round((prev - ZOOM_STEP) * 100) / 100));
-  const handleZoomReset = () => setZoomLevel(1);
-
   const openCoverForm = (classId: string, periodId: string, originalTeacherId: string) => {
     setReplacementForm({
       periodId,
@@ -771,14 +799,14 @@ export default function DailyDeskPage() {
 
       {/* OPERATIONAL RESPONSIVE CANVAS */}
       <div className={cn(
-        'grid grid-cols-1 gap-6 items-start print:block print:w-full',
-        !isPublicView ? 'xl:grid-cols-[1fr_360px]' : 'xl:grid-cols-1'
+        'grid grid-cols-1 gap-4 lg:gap-6 items-start print:block print:w-full',
+        !isPublicView ? 'xl:grid-cols-[1fr_310px] 2xl:grid-cols-[1fr_350px]' : 'xl:grid-cols-1'
       )}>
 
         {/* TIMETABLE MAIN CARD CONTAINER */}
         <div className='min-w-0 w-full overflow-visible print:border-none print:p-0'>
           <GlassCard className='p-3 sm:p-5 print:bg-transparent print:border-none print:p-0 print:shadow-none'>
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 mb-5 print:mb-8">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 mb-4 sm:mb-5 print:mb-8">
               <div className="min-w-0">
                 <h2 className='text-sm sm:text-base font-bold uppercase tracking-wide text-foreground print:text-xl print:text-black'>
                   Daily Operations Layout Matrix
@@ -791,7 +819,7 @@ export default function DailyDeskPage() {
                     type="date"
                     value={selectedDate}
                     onChange={(e) => setSelectedDate(e.target.value)}
-                    className="text-xs font-bold text-foreground bg-background border border-border/60 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-primary/20 print:hidden"
+                    className="text-xs font-bold text-foreground bg-background border border-border/80 rounded-xl px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 print:hidden shadow-xs"
                   />
                   <strong className='hidden sm:inline text-xs text-foreground print:text-sm print:text-black'>{selectedDate}</strong>
                 </div>
@@ -799,21 +827,21 @@ export default function DailyDeskPage() {
 
               {/* CONTROLS BAR */}
               <div className="flex flex-wrap items-center gap-2 self-start sm:self-center print:hidden">
-                <div className="hidden sm:flex items-center gap-1 rounded-xl border border-border/80 bg-muted/40 p-1">
+                <div className="flex items-center gap-1 rounded-xl border border-border/80 bg-background/80 p-1 shadow-xs">
                   <Button
                     size="sm"
                     variant="ghost"
                     onClick={handleZoomOut}
                     disabled={zoomLevel <= ZOOM_MIN || isTimetableEmpty}
-                    className="h-7 w-7 p-0 rounded-lg hover:bg-background"
-                    title="Zoom out"
+                    className="h-7 w-7 p-0 rounded-lg hover:bg-muted"
+                    title="Zoom Out"
                   >
-                    <ZoomOut className="h-3.5 w-3.5" />
+                    <ZoomOut className="h-3.5 w-3.5 text-muted-foreground" />
                   </Button>
                   <button
                     onClick={handleZoomReset}
                     className="text-[11px] font-bold text-muted-foreground px-1.5 min-w-[42px] text-center hover:text-foreground transition-colors"
-                    title="Reset zoom"
+                    title="Reset Zoom"
                   >
                     {Math.round(zoomLevel * 100)}%
                   </button>
@@ -822,22 +850,21 @@ export default function DailyDeskPage() {
                     variant="ghost"
                     onClick={handleZoomIn}
                     disabled={zoomLevel >= ZOOM_MAX || isTimetableEmpty}
-                    className="h-7 w-7 p-0 rounded-lg hover:bg-background"
-                    title="Zoom in"
+                    className="h-7 w-7 p-0 rounded-lg hover:bg-muted"
+                    title="Zoom In"
                   >
-                    <ZoomIn className="h-3.5 w-3.5" />
+                    <ZoomIn className="h-3.5 w-3.5 text-muted-foreground" />
                   </Button>
                 </div>
 
                 {!isPublicView && (
                   <Button
                     size="sm"
-                    variant="outline"
                     onClick={() => void handleCopyShareableLink()}
                     disabled={isTimetableEmpty}
-                    className="rounded-xl text-xs font-bold h-9 border-indigo-500/20 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-500/20 shadow-sm"
+                    className="rounded-xl text-xs font-bold h-9 bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-500/20 border-none transition-all"
                   >
-                    <Share2 className="h-3.5 w-3.5 mr-1.5 text-indigo-500" />
+                    <Share2 className="h-3.5 w-3.5 mr-1.5" />
                     Share
                   </Button>
                 )}
@@ -846,10 +873,10 @@ export default function DailyDeskPage() {
                   variant="outline"
                   onClick={handlePrintPDF}
                   disabled={isTimetableEmpty}
-                  className="rounded-xl text-xs font-semibold h-9 border-border/80 hover:bg-muted"
+                  className="rounded-xl text-xs font-semibold h-9 border-border/80 hover:bg-muted shadow-xs"
                 >
                   <Download className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
-                  <span className="hidden xs:inline">Download </span>PDF
+                  <span>Download PDF</span>
                 </Button>
               </div>
             </div>
@@ -866,37 +893,44 @@ export default function DailyDeskPage() {
                 </p>
               </div>
             ) : (
-              <>
-                {/* Mobile scroll hint */}
-                <div className="sm:hidden text-[10px] font-semibold text-muted-foreground text-center mb-2 tracking-wide">
-                  ← Scroll to see more periods · pinch to zoom →
-                </div>
+              <div
+                ref={matrixContainerRef}
+                id="timetable-capture"
+                onMouseDown={handleMouseDown}
+                onMouseLeave={handleMouseLeave}
+                onMouseUp={handleMouseUp}
+                onMouseMove={handleMouseMove}
+                className={cn(
+                  'timetable-matrix-scroll w-full overflow-x-auto rounded-2xl border border-border/60 bg-background p-2 sm:p-4 scrollbar-thin scrollbar-thumb-indigo-500/20 select-none print:overflow-visible print:border-none print:bg-transparent',
+                  isDragging ? 'cursor-grabbing' : 'cursor-grab'
+                )}
+              >
                 <div
-                  id="timetable-capture"
-                  className='timetable-matrix-scroll w-full overflow-x-auto rounded-xl border border-border/60 bg-background p-2 sm:p-4 scrollbar-thin scrollbar-thumb-accent print:overflow-visible print:border-none print:bg-transparent'
+                  className='timetable-inner-container w-full min-w-full print:min-w-full origin-top-left transition-transform duration-150 ease-out'
+                  style={{
+                    transform: `scale(${zoomLevel})`,
+                    transformOrigin: 'top left',
+                    width: zoomLevel !== 1 ? `${100 / zoomLevel}%` : undefined
+                  }}
                 >
-                  <div
-                    className='timetable-inner-container print:min-w-full origin-top-left transition-transform duration-150 ease-out'
-                    style={{ transform: `scale(${zoomLevel})`, width: zoomLevel !== 1 ? `${100 / zoomLevel}%` : undefined }}
-                  >
-                    <table className='w-full border-collapse text-left min-w-[800px] print:min-w-full print:table-layout-fixed'>
+                  <table className='w-full border-collapse text-left min-w-full print:min-w-full print:table-layout-fixed'>
                       <thead>
                         <tr className='bg-muted/80 backdrop-blur border-b border-border/40 print:bg-gray-100 print:border-b-2 print:border-gray-300'>
-                          <th className='p-4 text-xs font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400 w-[140px] sticky left-0 bg-muted z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] border-r border-border/40 print:static print:bg-gray-100 print:text-black print:shadow-none'>
+                          <th className='p-2.5 sm:p-4 text-xs font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400 w-[110px] sm:w-[135px] md:w-[150px] sticky left-0 bg-muted z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] border-r border-border/40 print:static print:bg-gray-100 print:text-black print:shadow-none shrink-0'>
                             Timetable
                           </th>
                           {(gridData.periods ?? []).map((p) => (
                             <th 
                               key={p.id} 
                               className={cn(
-                                'p-3 border-l border-border/40 text-center min-w-[180px] w-[200px] print:border-gray-300 print:p-2',
-                                p.isBreak ? 'bg-amber-500/15 dark:bg-amber-500/25 border-b-2 border-b-amber-500/50 print:bg-amber-100' : ''
+                                'p-2 sm:p-3 border-l border-border/40 text-center min-w-[115px] sm:min-w-[135px] md:min-w-[145px] print:border-gray-300 print:p-2',
+                                p.isBreak ? 'bg-amber-500/15 dark:bg-amber-500/25 border-b-2 border-b-amber-500/50 print:bg-amber-100 min-w-[95px] sm:min-w-[115px]' : ''
                               )}
                             >
-                              <div className={cn('text-xs font-bold uppercase tracking-wider print:text-black print:text-[11px]', p.isBreak ? 'text-amber-700 dark:text-amber-400' : 'text-foreground')}>
+                              <div className={cn('text-[11px] sm:text-xs font-bold uppercase tracking-wider print:text-black print:text-[11px]', p.isBreak ? 'text-amber-700 dark:text-amber-400' : 'text-foreground')}>
                                 {p.isBreak ? (p.label || 'BREAK') : `P${p.periodNumber}`}
                               </div>
-                              <div className={cn('text-[10px] font-medium mt-0.5 print:text-gray-600 print:text-[9px]', p.isBreak ? 'text-amber-600 dark:text-amber-400/80' : 'text-muted-foreground')}>
+                              <div className={cn('text-[9px] sm:text-[10px] font-medium mt-0.5 print:text-gray-600 print:text-[9px]', p.isBreak ? 'text-amber-600 dark:text-amber-400/80' : 'text-muted-foreground')}>
                                 {p.startTime}–{p.endTime}
                               </div>
                             </th>
@@ -906,7 +940,7 @@ export default function DailyDeskPage() {
                       <tbody className='divide-y divide-border/40 bg-background/40 print:bg-transparent print:divide-gray-300'>
                         {(gridData.classes ?? []).map((cls) => (
                           <tr key={cls.id} className='hover:bg-muted/10 transition-colors print:hover:bg-transparent print:break-inside-avoid'>
-                            <td className='p-4 font-bold text-sm text-foreground bg-background/90 sticky left-0 z-10 border-r border-border/40 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] print:static print:bg-transparent print:text-black print:shadow-none print:p-2 print:border-r print:border-gray-300'>
+                            <td className='p-2.5 sm:p-4 font-bold text-xs sm:text-sm text-foreground bg-background/90 sticky left-0 z-10 border-r border-border/40 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] print:static print:bg-transparent print:text-black print:shadow-none print:p-2 print:border-r print:border-gray-300 shrink-0'>
                               {cls.name}
                             </td>
 
@@ -915,14 +949,14 @@ export default function DailyDeskPage() {
                                 return (
                                   <td
                                     key={`${cls.id}-${period.id}`}
-                                    className="p-2 border-l border-border/40 text-center bg-amber-500/10 dark:bg-amber-500/20 border-amber-500/20 text-amber-700 dark:text-amber-400 min-h-[115px] align-middle print:bg-amber-100 print:border-gray-300"
+                                    className="p-1.5 sm:p-2 border-l border-border/40 text-center bg-amber-500/10 dark:bg-amber-500/20 border-amber-500/20 text-amber-700 dark:text-amber-400 min-h-[100px] align-middle print:bg-amber-100 print:border-gray-300"
                                   >
-                                    <div className="flex flex-col items-center justify-center gap-1.5 h-full py-4 min-h-[100px] rounded-lg border border-amber-500/20 bg-amber-500/5 dark:bg-amber-500/10">
-                                      <Coffee className="h-4 w-4 text-amber-600 dark:text-amber-400 opacity-80 print:hidden" />
-                                      <span className="text-xs font-extrabold uppercase tracking-wider text-amber-800 dark:text-amber-300 print:text-black">
+                                    <div className="flex flex-col items-center justify-center gap-1 h-full py-3 min-h-[90px] rounded-lg border border-amber-500/20 bg-amber-500/5 dark:bg-amber-500/10">
+                                      <Coffee className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 opacity-80 print:hidden" />
+                                      <span className="text-[10px] sm:text-xs font-extrabold uppercase tracking-wider text-amber-800 dark:text-amber-300 print:text-black">
                                         {period.label || 'LUNCH BREAK'}
                                       </span>
-                                      <span className="text-[10px] font-medium text-amber-600 dark:text-amber-400/80 print:text-gray-600">
+                                      <span className="text-[9px] font-medium text-amber-600 dark:text-amber-400/80 print:text-gray-600">
                                         {period.startTime} – {period.endTime}
                                       </span>
                                     </div>
@@ -935,7 +969,7 @@ export default function DailyDeskPage() {
 
                               if (!cell || cell.empty) {
                                 return (
-                                  <td key={`${cls.id}-${period.id}`} className='p-3 border-l border-border/40 text-center text-muted-foreground/20 bg-background/5 min-h-[115px] print:border-gray-300 print:p-1'>
+                                  <td key={`${cls.id}-${period.id}`} className='p-2 sm:p-3 border-l border-border/40 text-center text-muted-foreground/20 bg-background/5 min-h-[100px] print:border-gray-300 print:p-1'>
                                     <span className="text-xs font-semibold tracking-widest print:text-gray-300">—</span>
                                   </td>
                                 );
@@ -951,7 +985,7 @@ export default function DailyDeskPage() {
                                 <td
                                   key={`${cls.id}-${period.id}`}
                                   className={cn(
-                                    'p-2 border-l border-border/40 h-full min-h-[115px] align-top transition-colors print:border-gray-300 print:p-1',
+                                    'p-1.5 sm:p-2 border-l border-border/40 h-full min-h-[100px] align-top transition-colors print:border-gray-300 print:p-1',
                                     cell.isAbsent
                                       ? (isCovered && !isCoverMissing ? 'bg-emerald-50 dark:bg-emerald-950/30 print:bg-green-50' : 'bg-rose-50 dark:bg-rose-950/30 print:bg-red-50')
                                       : 'bg-background/10'
@@ -1075,9 +1109,8 @@ export default function DailyDeskPage() {
                     </table>
                   </div>
                 </div>
-              </>
-            )}
-          </GlassCard>
+              )}
+            </GlassCard>
 
           {/* HISTORICAL TIMELINE SNAPSHOT LOG */}
           {!isPublicView && (
@@ -1469,58 +1502,27 @@ export default function DailyDeskPage() {
             </DialogDescription>
           </DialogHeader>
           
-          <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
-            <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1 rounded-xl border border-border/80 bg-muted/40 p-1">
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={handleZoomOut}
-                  disabled={zoomLevel <= ZOOM_MIN || !historyGridData}
-                  className="h-7 w-7 p-0 rounded-lg hover:bg-background"
-                  title="Zoom out"
-                >
-                  <ZoomOut className="h-3.5 w-3.5" />
-                </Button>
-                <button
-                  onClick={handleZoomReset}
-                  className="text-[11px] font-bold text-muted-foreground px-1.5 min-w-[42px] text-center hover:text-foreground transition-colors"
-                  title="Reset zoom"
-                >
-                  {Math.round(zoomLevel * 100)}%
-                </button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={handleZoomIn}
-                  disabled={zoomLevel >= ZOOM_MAX || !historyGridData}
-                  className="h-7 w-7 p-0 rounded-lg hover:bg-background"
-                  title="Zoom in"
-                >
-                  <ZoomIn className="h-3.5 w-3.5" />
-                </Button>
-              </div>
-            </div>
+          <div className="flex flex-wrap items-center justify-end gap-2 mb-4">
             <div className="flex flex-wrap items-center gap-2">
               <Button
                 size="sm"
                 variant="outline"
                 onClick={handleDownloadModalPDF}
                 disabled={!historyGridData}
-                className="rounded-xl text-xs font-semibold h-9 border-border/80 hover:bg-muted"
+                className="rounded-xl text-xs font-semibold h-9 border-border/80 hover:bg-muted shadow-xs"
               >
                 <Download className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
-                <span className="hidden xs:inline">Download </span>PDF
+                <span>Download PDF</span>
               </Button>
               <Button
                 size="sm"
                 variant="outline"
                 onClick={handleDownloadExcel}
                 disabled={!historyGridData}
-                className="rounded-xl text-xs font-semibold h-9 border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20"
+                className="rounded-xl text-xs font-bold h-9 border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 shadow-xs"
               >
                 <FileSpreadsheet className="h-3.5 w-3.5 mr-1.5" />
-                <span className="hidden xs:inline">Download </span>Excel
+                <span>Download Excel</span>
               </Button>
             </div>
           </div>
@@ -1543,13 +1545,10 @@ export default function DailyDeskPage() {
             <div
               ref={historyModalRef}
               id="history-timetable-capture"
-              className='w-full overflow-x-auto rounded-xl border border-border/60 bg-background p-2 sm:p-4 scrollbar-thin scrollbar-thumb-accent'
+              className='w-full overflow-x-auto rounded-2xl border border-border/60 bg-background p-2 sm:p-4 scrollbar-thin scrollbar-thumb-indigo-500/20'
             >
-              <div
-                className='origin-top-left transition-transform duration-150 ease-out'
-                style={{ transform: `scale(${zoomLevel})`, width: zoomLevel !== 1 ? `${100 / zoomLevel}%` : undefined }}
-              >
-                <table className='w-full border-collapse text-left min-w-[800px]'>
+              <div className='w-full min-w-full'>
+                <table className='w-full border-collapse text-left min-w-[700px] sm:min-w-[800px]'>
                   <thead>
                     <tr className='bg-muted/80 backdrop-blur border-b border-border/40'>
                       <th className='p-4 text-xs font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400 w-[140px] sticky left-0 bg-muted z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] border-r border-border/40'>

@@ -9,10 +9,14 @@ export async function PATCH(request: NextRequest) {
     const body = await request.json();
 
     const name = String(body.name ?? '').trim();
-    const address = body.address ? String(body.address).trim() : undefined;
-    const phone = body.phone ? String(body.phone).trim() : undefined;
-    const email = body.email ? String(body.email).trim() : undefined;
-    const logo = body.logo ? String(body.logo).trim() : undefined;
+    const address = body.address !== undefined ? String(body.address).trim() : undefined;
+    const phone = body.phone !== undefined ? String(body.phone).trim() : undefined;
+    const email = body.email !== undefined ? String(body.email).trim() : undefined;
+    const website = body.website !== undefined ? String(body.website).trim() : undefined;
+    const instagram = body.instagram !== undefined ? String(body.instagram).trim() : undefined;
+    const facebook = body.facebook !== undefined ? String(body.facebook).trim() : undefined;
+    const linkedin = body.linkedin !== undefined ? String(body.linkedin).trim() : undefined;
+    const twitter = body.twitter !== undefined ? String(body.twitter).trim() : undefined;
 
     if (!name) {
       return NextResponse.json({ error: 'Institute name is required' }, { status: 400 });
@@ -25,7 +29,11 @@ export async function PATCH(request: NextRequest) {
         ...(address !== undefined && { address }),
         ...(phone !== undefined && { phone }),
         ...(email !== undefined && { email }),
-        ...(logo !== undefined && { logo }),
+        ...(website !== undefined && { website }),
+        ...(instagram !== undefined && { instagram }),
+        ...(facebook !== undefined && { facebook }),
+        ...(linkedin !== undefined && { linkedin }),
+        ...(twitter !== undefined && { twitter }),
       },
     });
 
@@ -60,10 +68,14 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       name: school.name,
-      address: (school as any).address,
-      phone: (school as any).phone,
-      email: (school as any).email,
-      logo: (school as any).logo,
+      address: school.address,
+      phone: school.phone,
+      email: school.email,
+      website: school.website,
+      instagram: school.instagram,
+      facebook: school.facebook,
+      linkedin: school.linkedin,
+      twitter: school.twitter,
       planId: school.planId,
       planStartsAt: school.planStartsAt,
       planEndsAt: school.planEndsAt,

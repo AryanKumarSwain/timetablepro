@@ -354,42 +354,24 @@ export function LandingPage() {
           </div>
         </section>
 
-        <section className='border-y border-sky-100 bg-white/50 py-8'>
-          <div className='mx-auto max-w-7xl px-4 sm:px-6 lg:px-8'>
-            <p className='text-center text-sm font-semibold uppercase tracking-[0.2em] text-slate-500 mb-6'>Trusted by schools</p>
-            <div className='overflow-hidden'>
-              <div className='flex gap-12 animate-marquee'>
-                {trustedSchools.length > 0 ? (
-                  <>
-                    {trustedSchools.map((school, index) => (
-                      <span key={index} className='whitespace-nowrap text-base font-medium text-slate-400'>
+        {trustedSchools.length > 0 && (
+          <section className='border-y border-sky-100 bg-white/50 py-8'>
+            <div className='mx-auto max-w-7xl px-4 sm:px-6 lg:px-8'>
+              <p className='text-center text-sm font-semibold uppercase tracking-[0.2em] text-slate-500 mb-6'>Trusted by schools</p>
+              <div className='overflow-hidden'>
+                <div className='flex gap-12 animate-marquee'>
+                  {Array.from({ length: Math.max(2, Math.ceil(12 / trustedSchools.length)) }).flatMap((_, setIdx) =>
+                    trustedSchools.map((school, index) => (
+                      <span key={`${setIdx}-${index}`} className='whitespace-nowrap text-base font-medium text-slate-400'>
                         {school}
                       </span>
-                    ))}
-                    {trustedSchools.map((school, index) => (
-                      <span key={`dup-${index}`} className='whitespace-nowrap text-base font-medium text-slate-400'>
-                        {school}
-                      </span>
-                    ))}
-                  </>
-                ) : (
-                  <>
-                    {['Northview Academy', "St. Martin's", 'Horizon International', 'Greenwood School', 'Springfield High', 'Oakridge Academy', 'Westside College', 'Riverside School', 'Mountain View High', 'Lakeside Academy', 'Sunrise International', 'Valley Creek School'].map((school, index) => (
-                      <span key={index} className='whitespace-nowrap text-base font-medium text-slate-400'>
-                        {school}
-                      </span>
-                    ))}
-                    {['Northview Academy', "St. Martin's", 'Horizon International', 'Greenwood School', 'Springfield High', 'Oakridge Academy', 'Westside College', 'Riverside School', 'Mountain View High', 'Lakeside Academy', 'Sunrise International', 'Valley Creek School'].map((school, index) => (
-                      <span key={`dup-${index}`} className='whitespace-nowrap text-base font-medium text-slate-400'>
-                        {school}
-                      </span>
-                    ))}
-                  </>
-                )}
+                    ))
+                  )}
+                </div>
               </div>
             </div>
-          </div>
-        </section>
+          </section>
+        )}
 
         <section id='features' className='border-t border-sky-100 bg-white/70 px-4 py-24 sm:px-6 lg:px-8'>
           <div className='mx-auto max-w-7xl'>
@@ -474,104 +456,96 @@ export function LandingPage() {
               </span>
             </div>
 
-            <div className='mt-12 flex gap-5 overflow-x-auto pb-4 md:grid md:grid-cols-2 lg:grid-cols-3 md:overflow-visible'>
+            <div className='mt-8 pt-5 pb-6 flex gap-5 overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0 md:grid md:grid-cols-2 lg:grid-cols-3 md:overflow-visible md:pt-4 md:mt-12'>
               {(() => {
                 const rawPlans = (plans && plans.length > 0 ? plans : [
-                  { id: 'standard', name: 'Standard', teacherMin: 0, teacherMax: 15, priceMonthly: 199, reportEnabled: true, attendanceEnabled: false, homeworkEnabled: false, lessonPlanningEnabled: true, exportFormats: ['pdf'] },
-                  { id: 'premium', name: 'Premium', teacherMin: 16, teacherMax: 30, priceMonthly: 299, reportEnabled: true, attendanceEnabled: true, homeworkEnabled: false, lessonPlanningEnabled: true, exportFormats: ['pdf', 'docx'] },
-                  { id: 'elite', name: 'Elite', teacherMin: 31, teacherMax: 100, priceMonthly: 399, reportEnabled: true, attendanceEnabled: true, homeworkEnabled: true, lessonPlanningEnabled: true, exportFormats: ['pdf', 'docx', 'csv'] },
+                  { id: 'standard', name: 'Standard', teacherMin: 0, teacherMax: 15, priceMonthly: 199, reportEnabled: true, attendanceEnabled: false, homeworkEnabled: false, lessonPlanningEnabled: true, watermarkRequired: false, exportFormats: ['pdf'] },
+                  { id: 'premium', name: 'Premium', teacherMin: 16, teacherMax: 30, priceMonthly: 299, reportEnabled: true, attendanceEnabled: true, homeworkEnabled: false, lessonPlanningEnabled: true, watermarkRequired: false, exportFormats: ['pdf', 'docx'] },
+                  { id: 'elite', name: 'Elite', teacherMin: 31, teacherMax: 100, priceMonthly: 399, reportEnabled: true, attendanceEnabled: true, homeworkEnabled: true, lessonPlanningEnabled: true, watermarkRequired: false, exportFormats: ['pdf', 'docx', 'csv'] },
                 ])
-                  .filter((plan) => Number(plan.priceMonthly) > 0)
+                  .filter((plan) => plan.name.toLowerCase() !== 'free' && Number(plan.priceMonthly) > 0)
                   .sort((a, b) => Number(a.priceMonthly) - Number(b.priceMonthly));
 
                 return rawPlans.map((plan, index) => {
-                  const isPremium = plan.name.toLowerCase().includes('premium');
-                  const isElite = plan.name.toLowerCase().includes('elite');
+                  const isPremium = plan.name.toLowerCase().includes('premium') || (rawPlans.length >= 3 && index === 1);
+                  const isElite = plan.name.toLowerCase().includes('elite') || (rawPlans.length >= 3 && index === 2);
+                  const isPopular = isPremium || (rawPlans.length === 1 ? false : index === 1);
+                  const isTopTier = isElite || (rawPlans.length >= 3 && index === rawPlans.length - 1);
+
                   const baseAnnual = Math.round(Number(plan.priceMonthly) * 12 * 0.83);
-                  const gstAnnual = Math.round(baseAnnual * 0.18);
                   const displayPrice = yearly ? baseAnnual : Number(plan.priceMonthly);
-                  const periodicLabel = yearly ? ' / year' : ' /month';
+                  const periodicLabel = yearly ? ' / year' : ' / month';
 
-                  const features = [
-                    `0-${plan.teacherMax} Teachers`,
-                    'Reports',
-                    'Attendance',
-                    'Homework',
-                    'Lesson Planning',
-                    `Exports: ${plan.exportFormats?.join(', ').toUpperCase() || 'PDF'}`,
-                    'No watermark',
+                  const featureList: { label: string; enabled: boolean }[] = [
+                    { label: `${plan.teacherMin ?? 0}–${plan.teacherMax} Teachers`, enabled: true },
+                    { label: 'Reports', enabled: !!plan.reportEnabled },
+                    { label: 'Attendance', enabled: !!plan.attendanceEnabled },
+                    { label: 'Homework', enabled: !!plan.homeworkEnabled },
+                    { label: 'Lesson Planning', enabled: !!plan.lessonPlanningEnabled },
+                    {
+                      label: `Exports: ${plan.exportFormats && plan.exportFormats.length > 0 ? plan.exportFormats.join(', ').toUpperCase() : 'None'}`,
+                      enabled: !!(plan.exportFormats && plan.exportFormats.length > 0),
+                    },
+                    { label: 'No watermark', enabled: !plan.watermarkRequired },
                   ];
-
-                  const includedSet = new Set<string>([
-                    'Reports',
-                    'Lesson Planning',
-                    'No watermark',
-                  ]);
-
-                  if (plan.attendanceEnabled) includedSet.add('Attendance');
-                  if (plan.homeworkEnabled) includedSet.add('Homework');
 
                   return (
                     <div
                       key={plan.id || plan.name}
                       className={cn(
                         'relative flex min-h-[520px] flex-col rounded-[22px] border bg-white p-0 shadow-[0_20px_45px_rgba(15,23,42,0.08)] min-w-[300px] md:min-w-0',
-                        isPremium && 'border-violet-500 ring-2 ring-violet-100',
-                        isElite && 'border-amber-400 bg-amber-50/40',
-                        !isPremium && !isElite && 'border-slate-200'
+                        isPopular && 'border-violet-500 ring-2 ring-violet-100',
+                        isTopTier && !isPopular && 'border-amber-400 bg-amber-50/40',
+                        !isPopular && !isTopTier && 'border-slate-200'
                       )}
                     >
-                      {isPremium && (
-                        <div className='absolute inset-x-6 -top-3 inline-flex justify-center'>
-                          <span className='rounded-full bg-gradient-to-r from-violet-700 to-purple-700 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-white shadow-md'>Most Popular</span>
+                      {isPopular && (
+                        <div className='absolute inset-x-0 -top-3.5 z-20 flex justify-center pointer-events-none'>
+                          <span className='rounded-full bg-gradient-to-r from-violet-700 to-purple-700 px-3.5 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-white shadow-md whitespace-nowrap'>Most Popular</span>
                         </div>
                       )}
 
-                      {isElite && (
-                        <div className='absolute inset-x-6 -top-3 inline-flex justify-center'>
-                          <span className='rounded-full bg-gradient-to-r from-amber-500 to-lime-500 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-900 shadow-md'>Luxury Tier</span>
+                      {isTopTier && !isPopular && (
+                        <div className='absolute inset-x-0 -top-3.5 z-20 flex justify-center pointer-events-none'>
+                          <span className='rounded-full bg-gradient-to-r from-amber-500 to-lime-500 px-3.5 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-900 shadow-md whitespace-nowrap'>Luxury Tier</span>
                         </div>
                       )}
 
-                      <div className={cn('rounded-t-[22px] px-5 pb-4 pt-7', isPremium ? 'bg-gradient-to-r from-violet-700 to-purple-700 text-white' : isElite ? 'bg-gradient-to-r from-amber-500 to-lime-500 text-slate-900' : 'bg-gradient-to-r from-slate-800 to-slate-900 text-white')}>
+                      <div className={cn('rounded-t-[22px] px-5 pb-4 pt-7', isPopular ? 'bg-gradient-to-r from-violet-700 to-purple-700 text-white' : isTopTier ? 'bg-gradient-to-r from-amber-500 to-lime-500 text-slate-900' : 'bg-gradient-to-r from-slate-800 to-slate-900 text-white')}>
                         <div className='flex items-center justify-between'>
                           <h3 className='text-[1.75rem] font-bold tracking-[-0.04em]'>{plan.name}</h3>
                         </div>
                         <div className='mt-2 flex items-end gap-2'>
                           <span className='text-4xl font-black'>₹{displayPrice.toLocaleString('en-IN')}</span>
-                          <span className={cn('pb-1 text-sm font-medium', isPremium ? 'text-violet-100' : isElite ? 'text-slate-800' : 'text-slate-200')}>{periodicLabel}</span>
+                          <span className={cn('pb-1 text-sm font-medium', isPopular ? 'text-violet-100' : isTopTier ? 'text-slate-800' : 'text-slate-200')}>{periodicLabel}</span>
                         </div>
-                        <p className={cn('mt-2 text-sm', isPremium ? 'text-violet-100' : isElite ? 'text-slate-800' : 'text-slate-300')}>
-                          {plan.name === 'Standard' ? 'Ideal for growing institutions' : plan.name === 'Premium' ? 'Ideal for growing institutions' : 'For large schools and districts'}
+                        <p className={cn('mt-2 text-sm', isPopular ? 'text-violet-100' : isTopTier ? 'text-slate-800' : 'text-slate-300')}>
+                          {index === 0 ? 'Ideal for growing institutions' : index === 1 ? 'Best balance for active schools' : 'For large schools and districts'}
                         </p>
                       </div>
 
                       <div className='flex flex-1 flex-col px-5 pb-5 pt-5'>
                         <ul className='space-y-3'>
-                          {features.map((feature) => {
-                            const isPositive = feature === 'Reports' || feature === 'Lesson Planning' || feature === 'No watermark' || feature.startsWith('Exports:') || feature.startsWith('0-') || (isElite && (feature === 'Attendance' || feature === 'Homework')) || (isPremium && feature === 'Attendance') || (!isPremium && !isElite && feature === 'Reports');
-
-                            return (
-                              <li key={feature} className='flex items-center gap-3 text-sm text-slate-700'>
-                                <span className={cn('flex h-5 w-5 items-center justify-center rounded-full text-xs font-bold', isPositive ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-500')}>
-                                  {isPositive ? '✓' : '✕'}
-                                </span>
-                                <span className={cn(isPositive ? 'text-slate-800' : 'text-slate-500')}>{feature}</span>
-                              </li>
-                            );
-                          })}
+                          {featureList.map((feature) => (
+                            <li key={feature.label} className='flex items-center gap-3 text-sm text-slate-700'>
+                              <span className={cn('flex h-5 w-5 items-center justify-center rounded-full text-xs font-bold shrink-0', feature.enabled ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-500')}>
+                                {feature.enabled ? '✓' : '✕'}
+                              </span>
+                              <span className={cn(feature.enabled ? 'text-slate-800 font-medium' : 'text-slate-400 line-through')}>{feature.label}</span>
+                            </li>
+                          ))}
                         </ul>
 
                         <div className='mt-auto pt-6'>
                           <Button
                             asChild
                             className={cn(
-                              'h-12 w-full rounded-xl border-0 text-base font-semibold shadow-md',
-                              isPremium ? 'bg-gradient-to-r from-violet-700 to-purple-700 text-white hover:brightness-110' : isElite ? 'bg-gradient-to-r from-amber-500 to-lime-500 text-slate-900 hover:brightness-105' : 'bg-slate-900 text-white hover:bg-slate-800'
+                              'h-12 w-full rounded-xl border-0 text-base font-semibold shadow-md cursor-pointer',
+                              isPopular ? 'bg-gradient-to-r from-violet-700 to-purple-700 text-white hover:brightness-110' : isTopTier ? 'bg-gradient-to-r from-amber-500 to-lime-500 text-slate-900 hover:brightness-105' : 'bg-slate-900 text-white hover:bg-slate-800'
                             )}
                           >
                             <Link href='/signup'>
-                              {index === 0 ? 'Switch to Standard' : index === 1 ? 'Switch to Premium' : 'Switch to Elite'}
+                              Switch to {plan.name}
                             </Link>
                           </Button>
                         </div>
@@ -585,50 +559,50 @@ export function LandingPage() {
         </section>
       </main>
 
-      <footer className='border-t border-slate-800 bg-slate-900 px-5 py-12 sm:px-8 lg:px-12 text-slate-400'>
-        <div className='mx-auto max-w-7xl space-y-10'>
-          <div className='grid grid-cols-2 gap-8 md:grid-cols-2 lg:grid-cols-4'>
+      <footer className='border-t border-slate-800 bg-slate-900 px-4 py-8 sm:px-8 sm:py-10 lg:px-12 lg:py-12 text-slate-400'>
+        <div className='mx-auto max-w-7xl space-y-6 sm:space-y-8 md:space-y-10'>
+          <div className='grid grid-cols-2 gap-x-4 gap-y-6 sm:gap-6 md:grid-cols-2 lg:grid-cols-4 lg:gap-8'>
             {/* Brand Section */}
-            <div className='col-span-2 md:col-span-1 space-y-4'>
+            <div className='col-span-2 md:col-span-1 space-y-2.5 sm:space-y-4'>
               <div className='flex items-center gap-2 sm:gap-3'>
                 <Image
                   src='/logo-only.png'
                   alt='TimetablePro Icon'
                   width={40}
                   height={40}
-                  className='h-7 sm:h-9 w-auto object-contain shrink-0 brightness-0 invert'
+                  className='h-6 sm:h-9 w-auto object-contain shrink-0 brightness-0 invert'
                 />
                 <Image
                   src='/logo-text.png'
                   alt='TimetablePro Text'
                   width={180}
                   height={48}
-                  className='h-6 sm:h-9 w-auto object-contain shrink-0 brightness-0 invert'
+                  className='h-5 sm:h-8 w-auto object-contain shrink-0 brightness-0 invert'
                 />
               </div>
-              <p className='text-sm leading-relaxed text-slate-400 max-w-sm'>
+              <p className='text-xs sm:text-sm leading-relaxed text-slate-400 max-w-sm'>
                 Smart school operations platform for modern educational institutions.
               </p>
-              <div className='flex items-center gap-3 pt-1'>
-                <a href='https://www.facebook.com/webncodetechnologies' target='_blank' rel='noopener noreferrer' className='flex h-9 w-9 items-center justify-center rounded-full bg-slate-800 text-slate-400 hover:bg-blue-600 hover:text-white transition-all duration-200'>
-                  <Facebook className='h-4 w-4' />
+              <div className='flex items-center gap-2 sm:gap-3 pt-0.5'>
+                <a href='https://www.facebook.com/webncodetechnologies' target='_blank' rel='noopener noreferrer' className='flex h-7 w-7 sm:h-9 sm:w-9 items-center justify-center rounded-full bg-slate-800 text-slate-400 hover:bg-blue-600 hover:text-white transition-all duration-200'>
+                  <Facebook className='h-3.5 w-3.5 sm:h-4 sm:w-4' />
                 </a>
-                <a href='https://www.instagram.com/webncodetechnologies' target='_blank' rel='noopener noreferrer' className='flex h-9 w-9 items-center justify-center rounded-full bg-slate-800 text-slate-400 hover:bg-pink-600 hover:text-white transition-all duration-200'>
-                  <Instagram className='h-4 w-4' />
+                <a href='https://www.instagram.com/webncodetechnologies' target='_blank' rel='noopener noreferrer' className='flex h-7 w-7 sm:h-9 sm:w-9 items-center justify-center rounded-full bg-slate-800 text-slate-400 hover:bg-pink-600 hover:text-white transition-all duration-200'>
+                  <Instagram className='h-3.5 w-3.5 sm:h-4 sm:w-4' />
                 </a>
-                <a href='https://x.com/webncodetech' target='_blank' rel='noopener noreferrer' className='flex h-9 w-9 items-center justify-center rounded-full bg-slate-800 text-slate-400 hover:bg-sky-500 hover:text-white transition-all duration-200'>
-                  <Twitter className='h-4 w-4' />
+                <a href='https://x.com/webncodetech' target='_blank' rel='noopener noreferrer' className='flex h-7 w-7 sm:h-9 sm:w-9 items-center justify-center rounded-full bg-slate-800 text-slate-400 hover:bg-sky-500 hover:text-white transition-all duration-200'>
+                  <Twitter className='h-3.5 w-3.5 sm:h-4 sm:w-4' />
                 </a>
-                <a href='https://www.linkedin.com/company/webncodetechnologies' target='_blank' rel='noopener noreferrer' className='flex h-9 w-9 items-center justify-center rounded-full bg-slate-800 text-slate-400 hover:bg-blue-700 hover:text-white transition-all duration-200'>
-                  <Linkedin className='h-4 w-4' />
+                <a href='https://www.linkedin.com/company/webncodetechnologies' target='_blank' rel='noopener noreferrer' className='flex h-7 w-7 sm:h-9 sm:w-9 items-center justify-center rounded-full bg-slate-800 text-slate-400 hover:bg-blue-700 hover:text-white transition-all duration-200'>
+                  <Linkedin className='h-3.5 w-3.5 sm:h-4 sm:w-4' />
                 </a>
               </div>
             </div>
 
             {/* Product Links */}
-            <div className='col-span-1 space-y-4'>
-              <h3 className='font-semibold text-white text-base tracking-wide'>Product</h3>
-              <ul className='space-y-2.5 text-sm text-slate-400'>
+            <div className='col-span-1 space-y-2 sm:space-y-3 md:space-y-4'>
+              <h3 className='font-semibold text-white text-sm sm:text-base tracking-wide'>Product</h3>
+              <ul className='space-y-1.5 sm:space-y-2.5 text-xs sm:text-sm text-slate-400'>
                 <li><a href='#features' className='hover:text-white transition-colors'>Features</a></li>
                 <li><a href='#pricing' className='hover:text-white transition-colors'>Pricing</a></li>
                 <li><a href='#how-it-works' className='hover:text-white transition-colors'>How it works</a></li>
@@ -636,9 +610,9 @@ export function LandingPage() {
             </div>
 
             {/* Company Links */}
-            <div className='col-span-1 space-y-4'>
-              <h3 className='font-semibold text-white text-base tracking-wide'>Company</h3>
-              <ul className='space-y-2.5 text-sm text-slate-400'>
+            <div className='col-span-1 space-y-2 sm:space-y-3 md:space-y-4'>
+              <h3 className='font-semibold text-white text-sm sm:text-base tracking-wide'>Company</h3>
+              <ul className='space-y-1.5 sm:space-y-2.5 text-xs sm:text-sm text-slate-400'>
                 <li><a href='#' className='hover:text-white transition-colors'>About Us</a></li>
                 <li><a href='#' className='hover:text-white transition-colors'>Contact</a></li>
                 <li><a href='#' className='hover:text-white transition-colors'>Privacy Policy</a></li>
@@ -647,23 +621,23 @@ export function LandingPage() {
             </div>
 
             {/* Contact Information */}
-            <div className='col-span-2 md:col-span-1 space-y-4'>
-              <h3 className='font-semibold text-white text-base tracking-wide'>Contact</h3>
-              <ul className='space-y-3 text-sm text-slate-400'>
-                <li className='flex items-center gap-2.5'>
-                  <svg className='h-4 w-4 text-blue-400 shrink-0' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
+            <div className='col-span-2 md:col-span-1 space-y-2 sm:space-y-3 md:space-y-4'>
+              <h3 className='font-semibold text-white text-sm sm:text-base tracking-wide'>Contact</h3>
+              <ul className='space-y-2 sm:space-y-3 text-xs sm:text-sm text-slate-400'>
+                <li className='flex items-center gap-2 sm:gap-2.5'>
+                  <svg className='h-3.5 w-3.5 sm:h-4 sm:w-4 text-blue-400 shrink-0' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
                     <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z' />
                   </svg>
                   <a href='mailto:timetablepro@webncode.in' className='hover:text-white transition-colors truncate'>timetablepro@webncode.in</a>
                 </li>
-                <li className='flex items-center gap-2.5'>
-                  <svg className='h-4 w-4 text-emerald-400 shrink-0' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
+                <li className='flex items-center gap-2 sm:gap-2.5'>
+                  <svg className='h-3.5 w-3.5 sm:h-4 sm:w-4 text-emerald-400 shrink-0' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
                     <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z' />
                   </svg>
                   <a href='tel:+918947919195' className='hover:text-white transition-colors'>+91 8947919195</a>
                 </li>
-                <li className='flex items-center gap-2.5'>
-                  <svg className='h-4 w-4 text-violet-400 shrink-0' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
+                <li className='flex items-center gap-2 sm:gap-2.5'>
+                  <svg className='h-3.5 w-3.5 sm:h-4 sm:w-4 text-violet-400 shrink-0' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
                     <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z' />
                     <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M15 11a3 3 0 11-6 0 3 3 0 016 0z' />
                   </svg>
@@ -674,7 +648,7 @@ export function LandingPage() {
           </div>
 
           {/* Bottom Copyright Divider */}
-          <div className='border-t border-slate-800/80 pt-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500'>
+          <div className='border-t border-slate-800/80 pt-4 sm:pt-6 flex flex-col sm:flex-row items-center justify-between gap-2 sm:gap-4 text-[11px] sm:text-xs text-slate-500'>
             <p>© {new Date().getFullYear()} TimetablePro. All rights reserved.</p>
             <p className='text-slate-600'>Empowering schools across India</p>
           </div>

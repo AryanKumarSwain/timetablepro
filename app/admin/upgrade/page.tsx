@@ -814,6 +814,7 @@ export default function UpgradePage() {
           <DialogContent className="max-w-2xl">
             <DialogHeader>
               <DialogTitle>Plan History</DialogTitle>
+              <DialogDescription>Review your past plan subscriptions and transaction details.</DialogDescription>
             </DialogHeader>
             <div className="space-y-3 py-2">
               {historyLoading ? (
@@ -846,10 +847,12 @@ export default function UpgradePage() {
         </Dialog>
 
         {/* Plan Cards */}
-        <div className="flex sm:grid sm:grid-cols-2 md:grid-cols-3 gap-5 sm:gap-6 items-stretch mb-4 sm:mb-8 overflow-x-auto sm:overflow-x-visible pb-4 sm:pb-0 -mx-4 sm:mx-0 px-4 sm:px-0 snap-x snap-mandatory scroll-smooth [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+        <div className="flex sm:grid sm:grid-cols-2 md:grid-cols-3 gap-5 sm:gap-6 items-stretch mb-4 sm:mb-8 overflow-x-auto sm:overflow-x-visible pt-4 sm:pt-2 pb-5 sm:pb-0 -mx-4 sm:mx-0 px-4 sm:px-0 snap-x snap-mandatory scroll-smooth [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
           {plans.map((plan, idx) => {
-            const style = PLAN_TIER_CONFIG[idx] || PLAN_TIER_CONFIG[2];
+            const style = PLAN_TIER_CONFIG[idx % PLAN_TIER_CONFIG.length] || PLAN_TIER_CONFIG[0];
             const isCurrentPlan = currentPlanId === plan.id && (!schoolData || !schoolData.planEndsAt || new Date(schoolData.planEndsAt) > new Date());
+            const isPopular = plan.name.toLowerCase().includes('premium') || (plans.length >= 3 && idx === 1);
+            const isLuxury = plan.name.toLowerCase().includes('elite') || (plans.length >= 3 && idx === plans.length - 1);
 
             // Feature rows: [label, enabled]
             const features: [string, boolean][] = [
@@ -871,11 +874,11 @@ export default function UpgradePage() {
                 whileHover={{ y: -4, scale: 1.005 }}
                 className={`relative bg-white dark:bg-slate-900 rounded-2xl p-6 flex flex-col justify-between shadow-sm border ${style.border} min-w-[84vw] sm:min-w-0 max-w-[340px] sm:max-w-none shrink-0 sm:shrink snap-center`}
               >
-                {idx === 1 && (
-                  <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 bg-purple-600 text-white text-[10px] font-bold px-3 py-0.5 rounded-full uppercase tracking-wider">Most Popular</span>
+                {isPopular && (
+                  <span className="absolute -top-3 left-1/2 -translate-x-1/2 z-20 bg-purple-600 text-white text-[10px] font-bold px-3.5 py-1 rounded-full uppercase tracking-wider whitespace-nowrap shadow-sm">Most Popular</span>
                 )}
-                {idx === 2 && (
-                  <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 bg-amber-500 text-white text-[10px] font-bold px-3 py-0.5 rounded-full uppercase tracking-wider flex items-center gap-1">
+                {isLuxury && !isPopular && (
+                  <span className="absolute -top-3 left-1/2 -translate-x-1/2 z-20 bg-amber-500 text-white text-[10px] font-bold px-3.5 py-1 rounded-full uppercase tracking-wider flex items-center gap-1 whitespace-nowrap shadow-sm">
                     <Crown className="h-3 w-3" /> Luxury Tier
                   </span>
                 )}
@@ -1131,6 +1134,7 @@ export default function UpgradePage() {
                           ['Reports module', !!selectedPlan.reportEnabled],
                           ['Attendance module', !!selectedPlan.attendanceEnabled],
                           ['Homework module', !!selectedPlan.homeworkEnabled],
+                          ['Lesson Planning module', !!selectedPlan.lessonPlanningEnabled],
                           [
                             `Exports: ${selectedPlan.exportFormats?.length ? selectedPlan.exportFormats.join(', ').toUpperCase() : 'None'}`,
                             !!(selectedPlan.exportFormats?.length),

@@ -427,6 +427,14 @@ export type PlatformSummary = {
 export type PlatformSchoolRow = {
   id: string;
   name: string;
+  address?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  website?: string | null;
+  instagram?: string | null;
+  facebook?: string | null;
+  linkedin?: string | null;
+  twitter?: string | null;
   licenseStatus: string;
   licenseDate: string;
   planName: string;
@@ -518,7 +526,7 @@ export async function submitTrialRequest(data: {
 }
 
 export async function createSuperAdminPlan(
-  data: Pick<SaasPlan, 'name' | 'teacherMin' | 'teacherMax' | 'priceMonthly'>
+  data: Partial<SaasPlan>
 ): Promise<SaasPlan> {
   return apiFetch('/api/super-admin/plans', {
     method: 'POST',
@@ -528,7 +536,7 @@ export async function createSuperAdminPlan(
 
 export async function updateSuperAdminPlan(
   id: string,
-  data: Pick<SaasPlan, 'name' | 'teacherMin' | 'teacherMax' | 'priceMonthly'>
+  data: Partial<SaasPlan>
 ): Promise<SaasPlan> {
   return apiFetch(`/api/super-admin/plans/${encodeURIComponent(id)}`, {
     method: 'PATCH',

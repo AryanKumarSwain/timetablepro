@@ -17,7 +17,7 @@ import { GlassCard } from '@/components/enterprise/glass-card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, Filter, AlertTriangle, Plus, Minus, Layers, CheckCircle } from 'lucide-react';
+import { ArrowLeft, Filter, AlertTriangle, Layers, CheckCircle } from 'lucide-react';
 import { cn, isTeacherActive } from '@/lib/utils';
 import {
   TimetableGrid,
@@ -55,7 +55,6 @@ export default function TimetableEditPage() {
   const [workingDays, setWorkingDays] = useState<number[]>([1, 2, 3, 4, 5]);
   const [baseStartTime, setBaseStartTime] = useState<string>("08:00");
   const [periodDuration, setPeriodDuration] = useState<number>(45);
-  const [zoom, setZoom] = useState<number>(100);
 
   const [editCell, setEditCell] = useState<{
     dayOfWeek: number;
@@ -117,9 +116,9 @@ export default function TimetableEditPage() {
     });
   }, []);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (showSkeleton = false) => {
     try {
-      setLoading(true);
+      if (showSkeleton) setLoading(true);
       const [d, w] = await Promise.all([
         getTimetableDetail(timetableId),
         getTimetableWorkload(timetableId),
@@ -141,12 +140,12 @@ export default function TimetableEditPage() {
     } catch (e) {
       console.error(e);
     } finally {
-      setLoading(false);
+      if (showSkeleton) setLoading(false);
     }
   }, [timetableId, recalculateTimetableTimes]);
 
   useEffect(() => {
-    void load();
+    void load(true);
   }, [load]);
 
   useEffect(() => {
@@ -329,8 +328,7 @@ export default function TimetableEditPage() {
         roomId: draft.roomId || undefined,
       });
       setSheetOpen(false);
-      await load();
-      router.refresh();
+      await load(false);
     } catch (e) {
       console.error(e);
     } finally {
@@ -344,8 +342,7 @@ export default function TimetableEditPage() {
     try {
       await deleteTimetableSlot(timetableId, editCell.slot.id);
       setSheetOpen(false);
-      await load();
-      router.refresh();
+      await load(false);
     } catch (e) {
       console.error(e);
     } finally {
@@ -403,7 +400,7 @@ export default function TimetableEditPage() {
 
     setDetail({ ...detail, periods: updatedPeriods });
     await persistGridSettings(updatedPeriods);
-    await load();
+    await load(false);
   };
 
   const handleRemoveRow = async (id: string) => {
@@ -412,7 +409,7 @@ export default function TimetableEditPage() {
     const updatedPeriods = recalculateTimetableTimes(remaining, baseStartTime, periodDuration);
     setDetail({ ...detail, periods: updatedPeriods });
     await persistGridSettings(updatedPeriods);
-    await load();
+    await load(false);
   };
 
   const handleUpdateRowLabel = async (id: string, label: string) => {
@@ -491,16 +488,6 @@ export default function TimetableEditPage() {
                 </div>
               </div>
             </div>
-            
-            <div className="flex items-center gap-0.5 sm:gap-1 bg-muted/80 p-0.5 sm:p-1 rounded-xl shrink-0">
-              <Button variant="outline" size="icon" className="h-6 w-6 sm:h-7 sm:w-7 rounded-lg" onClick={() => setZoom(Math.max(60, zoom - 10))} disabled={zoom <= 60}>
-                <Minus className="h-3 w-3" />
-              </Button>
-              <span className="text-[10px] sm:text-[11px] font-bold w-8 sm:w-10 text-center select-none">{zoom}%</span>
-              <Button variant="outline" size="icon" className="h-6 w-6 sm:h-7 sm:w-7 rounded-lg" onClick={() => setZoom(Math.min(140, zoom + 10))} disabled={zoom >= 140}>
-                <Plus className="h-3 w-3" />
-              </Button>
-            </div>
           </div>
 
           <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-3 border-border/60">
@@ -525,39 +512,41 @@ export default function TimetableEditPage() {
 
       {/* Dynamic Class Selection List */}
       <div className="flex flex-col gap-4">
-        <GlassCard className="p-3 w-full">
+        <GlassCard className="p-3 w-full overflow-hidden">
           <div className="flex items-center gap-2 mb-2 text-xs font-bold text-muted-foreground uppercase tracking-wider px-1">
             <Layers className="h-3.5 w-3.5 text-indigo-500" />
             <span>Select Active {view === 'section' ? 'Class' : 'Faculty'}</span>
           </div>
-          <div className="flex flex-wrap sm:flex-nowrap items-center gap-1.5 sm:gap-2 overflow-x-auto pb-1 max-w-full scrollbar-none snap-x touch-pan-x">
-            {sidebarItems.map((item) => {
-              const isActive = selectedId === item.id;
-              const isFilled = fullyFilledEntities.has(item.id);
-              return (
-                <button
-                  key={item.id}
-                  type='button'
-                  onClick={() => setSelectedId(item.id)}
-                  className={cn(
-                    "px-3 py-1.5 sm:px-4 sm:py-2 text-[11px] sm:text-xs font-bold rounded-xl border transition-all shrink-0 uppercase tracking-wider text-center snap-center min-w-[80px] sm:min-w-[95px] min-h-[34px] sm:min-h-[40px] flex items-center justify-center gap-1",
-                    isActive
-                      ? isFilled
-                        ? "bg-emerald-600 text-white border-emerald-600 shadow-md shadow-emerald-500/20 font-extrabold scale-102"
-                        : "bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-500/20 font-extrabold scale-102"
-                      : isFilled
-                      ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/20"
-                      : "bg-muted/40 border-muted text-muted-foreground hover:bg-muted hover:text-foreground"
-                  )}
-                >
-                  {item.name}
-                  {isFilled && <CheckCircle className="h-3 w-3 shrink-0" />}
-                </button>
-              );
-            })}
-            {sidebarItems.length === 0 && (
-              <span className="text-xs text-muted-foreground p-1">No items found</span>
-            )}
+          <div className="w-full overflow-x-auto pb-2 scrollbar-thin snap-x touch-pan-x">
+            <div className="flex flex-nowrap items-center gap-1.5 sm:gap-2 min-w-max">
+              {sidebarItems.map((item) => {
+                const isActive = selectedId === item.id;
+                const isFilled = fullyFilledEntities.has(item.id);
+                return (
+                  <button
+                    key={item.id}
+                    type='button'
+                    onClick={() => setSelectedId(item.id)}
+                    className={cn(
+                      "px-3 py-1.5 sm:px-4 sm:py-2 text-[11px] sm:text-xs font-bold rounded-xl border transition-all shrink-0 uppercase tracking-wider text-center snap-center min-w-[85px] sm:min-w-[95px] min-h-[34px] sm:min-h-[40px] flex items-center justify-center gap-1 whitespace-nowrap",
+                      isActive
+                        ? isFilled
+                          ? "bg-emerald-600 text-white border-emerald-600 shadow-md shadow-emerald-500/20 font-extrabold scale-102"
+                          : "bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-500/20 font-extrabold scale-102"
+                        : isFilled
+                        ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/20"
+                        : "bg-muted/40 border-muted text-muted-foreground hover:bg-muted hover:text-foreground"
+                    )}
+                  >
+                    {item.name}
+                    {isFilled && <CheckCircle className="h-3 w-3 shrink-0" />}
+                  </button>
+                );
+              })}
+              {sidebarItems.length === 0 && (
+                <span className="text-xs text-muted-foreground p-1">No items found</span>
+              )}
+            </div>
           </div>
         </GlassCard>
 
@@ -565,14 +554,7 @@ export default function TimetableEditPage() {
         <div className="w-full min-w-0">
           <GlassCard className="p-2 sm:p-4 overflow-hidden relative border-muted/70 shadow-sm">
             <div className="w-full overflow-x-auto overflow-y-hidden touch-pan-x scrollbar-thin scrollbar-thumb-indigo-500/20">
-              <div 
-                className="transition-all duration-75 origin-top-left"
-                style={{ 
-                  width: `${zoom}%`,
-                  minWidth: '100%', 
-                }}
-              >
-                <div className="w-full [&_table]:w-full [&_td]:p-4 [&_th]:p-3 [&_tr]:min-h-[85px] [&_.subject-chip]:min-h-[55px] [&_.subject-chip]:py-2.5 [&_.subject-chip]:text-xs">
+              <div className="w-full min-w-full [&_table]:w-full [&_td]:p-4 [&_th]:p-3 [&_tr]:min-h-[85px] [&_.subject-chip]:min-h-[55px] [&_.subject-chip]:py-2.5 [&_.subject-chip]:text-xs">
                   <TimetableGrid
                     periods={detail.periods}
                     slots={filteredSlots}
@@ -628,10 +610,9 @@ export default function TimetableEditPage() {
                   />
                 </div>
               </div>
-            </div>
-          </GlassCard>
+            </GlassCard>
+          </div>
         </div>
-      </div>
 
       {workload && (
         <GlassCard className="p-4 sm:p-6">

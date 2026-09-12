@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Search, Filter, Download, RefreshCw, MoreHorizontal, Ban, ArrowUp, Shield } from 'lucide-react';
+import { Search, Filter, Download, RefreshCw, MoreHorizontal, Ban, CheckCircle, Building2 } from 'lucide-react';
 
 import { useRequireAuth } from '@/lib/auth-context';
 import { PageHeader } from '@/components/enterprise/page-header';
@@ -26,9 +26,40 @@ export default function SchoolsPage() {
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'trial' | 'suspended'>('all');
-  const [actionDialog, setActionDialog] = useState<{ open: boolean; school: PlatformSchoolRow | null; action: 'suspend' | 'upgrade' | 'restrict' }>({ open: false, school: null, action: 'suspend' });
+  const [actionDialog, setActionDialog] = useState<{ open: boolean; school: PlatformSchoolRow | null; action: 'suspend' | 'unsuspend' }>({ open: false, school: null, action: 'suspend' });
   const [processingAction, setProcessingAction] = useState<string | null>(null);
-  const [selectedPlanId, setSelectedPlanId] = useState<string>('');
+
+  // Institute details edit dialog
+  const [editDialog, setEditDialog] = useState<{
+    open: boolean;
+    school: PlatformSchoolRow | null;
+    form: {
+      name: string;
+      address: string;
+      phone: string;
+      email: string;
+      website: string;
+      instagram: string;
+      facebook: string;
+      linkedin: string;
+      twitter: string;
+    };
+  }>({
+    open: false,
+    school: null,
+    form: {
+      name: '',
+      address: '',
+      phone: '',
+      email: '',
+      website: '',
+      instagram: '',
+      facebook: '',
+      linkedin: '',
+      twitter: '',
+    },
+  });
+  const [savingDetails, setSavingDetails] = useState(false);
 
   const fetchSchools = async () => {
     setLoading(true);
@@ -43,36 +74,66 @@ export default function SchoolsPage() {
     }
   };
 
-  const handleSuspendAccount = async (schoolId: string) => {
-    setProcessingAction(schoolId);
+  const openInstituteDetails = (school: PlatformSchoolRow) => {
+    setEditDialog({
+      open: true,
+      school,
+      form: {
+        name: school.name || '',
+        address: school.address || '',
+        phone: school.phone || '',
+        email: school.email || (school.adminEmails?.[0] || ''),
+        website: school.website || '',
+        instagram: school.instagram || '',
+        facebook: school.facebook || '',
+        linkedin: school.linkedin || '',
+        twitter: school.twitter || '',
+      },
+    });
+  };
+
+  const handleSaveInstituteDetails = async () => {
+    if (!editDialog.school) return;
+    if (!editDialog.form.name.trim()) {
+      toast.error('Institute name is required');
+      return;
+    }
+
+    setSavingDetails(true);
     try {
-      const res = await fetch(`/api/super-admin/schools/${schoolId}/suspend`, { method: 'PATCH' });
+      const res = await fetch(`/api/super-admin/schools/${editDialog.school.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editDialog.form),
+      });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to suspend account');
-      toast.success('Account suspended successfully');
+      if (!res.ok) throw new Error(data.error || 'Failed to update institute details');
+
+      toast.success('Institute details saved successfully');
+      setEditDialog((prev) => ({ ...prev, open: false }));
       fetchSchools();
     } catch (err: any) {
-      toast.error(err.message || 'Failed to suspend account');
+      toast.error(err.message || 'Failed to save institute details');
     } finally {
-      setProcessingAction(null);
+      setSavingDetails(false);
     }
   };
 
-  const handleUpgradePlan = async (schoolId: string, planId: string) => {
+  const handleToggleSuspend = async (schoolId: string, action: 'suspend' | 'unsuspend') => {
     setProcessingAction(schoolId);
     try {
-      const res = await fetch(`/api/super-admin/schools/${schoolId}/upgrade`, {
+      const res = await fetch(`/api/super-admin/schools/${schoolId}/suspend`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ planId })
+        body: JSON.stringify({ action }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to upgrade plan');
-      toast.success('Plan upgraded successfully');
-      setActionDialog({ open: false, school: null, action: 'upgrade' });
+      if (!res.ok) throw new Error(data.error || `Failed to ${action} account`);
+      toast.success(action === 'unsuspend' ? 'Account reactivated successfully' : 'Account suspended successfully');
+      setActionDialog({ open: false, school: null, action: 'suspend' });
       fetchSchools();
     } catch (err: any) {
-      toast.error(err.message || 'Failed to upgrade plan');
+      toast.error(err.message || 'Operation failed');
     } finally {
       setProcessingAction(null);
     }
@@ -98,149 +159,154 @@ export default function SchoolsPage() {
       <PageHeader
         title='School Management'
         description='View and manage all institutional tenant accounts and licensing status.'
-        breadcrumbs={[{ label: 'Super Admin', href: '/super-admin/dashboard' }, { label: 'Schools' }]}
       />
 
-      <GlassCard className='p-6'>
-        <div className='flex flex-col sm:flex-row gap-4 items-center justify-between mb-6'>
-          <div className='flex flex-1 gap-3 w-full sm:w-auto'>
-            <div className='relative flex-1'>
-              <Search className='absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground' />
+      {/* Actions & Filters */}
+      <GlassCard className='p-4'>
+        <div className='flex flex-col sm:flex-row gap-4 justify-between items-center'>
+          <div className='flex flex-1 w-full sm:w-auto gap-2 items-center'>
+            <div className='relative flex-1 max-w-sm'>
+              <Search className='absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground' />
               <Input
                 placeholder='Search schools...'
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className='pl-10'
+                className='pl-9'
               />
             </div>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as any)}
-              className='px-3 py-2 rounded-md border border-input bg-background text-sm'
-            >
-              <option value='all'>All Status</option>
-              <option value='active'>Active</option>
-              <option value='trial'>Trial</option>
-              <option value='suspended'>Suspended</option>
-            </select>
+            <div className='flex gap-1 border border-border/50 rounded-lg p-1 bg-muted/20'>
+              {(['all', 'active', 'trial', 'suspended'] as const).map((status) => (
+                <Button
+                  key={status}
+                  variant={statusFilter === status ? 'secondary' : 'ghost'}
+                  size='sm'
+                  onClick={() => setStatusFilter(status)}
+                  className='capitalize text-xs h-7 px-2.5'
+                >
+                  {status}
+                </Button>
+              ))}
+            </div>
           </div>
-          <div className='flex gap-2'>
-            <Button variant='outline' size='icon' onClick={fetchSchools} disabled={loading}>
-              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-            </Button>
-            <Button variant='outline' size='icon' onClick={() => {
-              if (typeof window !== 'undefined') {
-                const csvContent = [
-                  ['School', 'Plan', 'Status', 'Created', 'Admin Emails'],
-                  ...filteredSchools.map(s => [
-                    typeof s.name === 'string' ? s.name : '-',
-                    typeof s.planName === 'string' ? s.planName : '-',
-                    typeof s.licenseStatus === 'string' ? s.licenseStatus : '-',
-                    formatDate(s.licenseDate),
-                    Array.isArray(s.adminEmails) ? s.adminEmails.join('; ') : '-'
-                  ])
-                ].map(row => row.join(',')).join('\n');
-                
-                const blob = new Blob([csvContent], { type: 'text/csv' });
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `schools-${new Date().toISOString().split('T')[0]}.csv`;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                window.URL.revokeObjectURL(url);
-              }
-            }}>
-              <Download className='w-4 h-4' />
+          <div className='flex gap-2 w-full sm:w-auto justify-end'>
+            <Button variant='outline' size='sm' onClick={fetchSchools} disabled={loading} className='gap-1.5'>
+              <RefreshCw className={cn('h-3.5 w-3.5', loading && 'animate-spin')} />
+              Refresh
             </Button>
           </div>
         </div>
+      </GlassCard>
 
-        {error && (
-          <div className='mb-4 p-4 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-500 text-sm'>
-            {error}
-          </div>
-        )}
-
+      {/* Schools Table */}
+      <GlassCard className='p-6'>
         {loading ? (
-          <div className='space-y-3'>
-            {[...Array(5)].map((_, i) => (
-              <div key={i} className='h-16 bg-muted/30 rounded-lg animate-pulse' />
-            ))}
+          <div className='py-12 flex justify-center items-center'>
+            <RefreshCw className='h-6 w-6 animate-spin text-muted-foreground' />
+          </div>
+        ) : error ? (
+          <div className='py-8 text-center text-rose-500 space-y-2'>
+            <p>{error}</p>
+            <Button variant='outline' size='sm' onClick={fetchSchools}>
+              Try Again
+            </Button>
           </div>
         ) : (
-          <div className='overflow-hidden rounded-xl border border-border/50'>
-            <table className='w-full text-sm'>
-              <thead className='bg-muted/40'>
+          <div className='overflow-x-auto'>
+            <table className='w-full text-left text-sm'>
+              <thead className='text-xs uppercase bg-muted/30 text-muted-foreground border-b border-border/50'>
                 <tr>
-                  <th className='p-3 text-left font-medium'>School</th>
-                  <th className='p-3 text-left font-medium'>Plan</th>
-                  <th className='p-3 text-left font-medium'>Status</th>
-                  <th className='p-3 text-left font-medium'>Created</th>
-                  <th className='p-3 text-left font-medium'>Admin Emails</th>
-                  <th className='p-3 text-right font-medium'>Actions</th>
+                  <th className='p-3'>School Name</th>
+                  <th className='p-3'>Plan Tier</th>
+                  <th className='p-3'>Status</th>
+                  <th className='p-3'>License Expiry</th>
+                  <th className='p-3'>Admins</th>
+                  <th className='p-3 text-right'>Actions</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className='divide-y divide-border/20'>
                 {filteredSchools.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className='p-6 text-center text-sm text-muted-foreground'>
+                    <td colSpan={6} className='p-8 text-center text-muted-foreground'>
                       {searchQuery || statusFilter !== 'all'
                         ? 'No schools match your filters.'
                         : 'No school data available.'}
                     </td>
                   </tr>
                 ) : (
-                  filteredSchools.map((school) => (
-                    <tr key={school.id} className='border-t border-border/30 hover:bg-muted/20 transition-colors'>
-                      <td className='p-3 font-medium'>{typeof school.name === 'string' ? school.name : '-'}</td>
-                      <td className='p-3'>{typeof school.planName === 'string' ? school.planName : '-'}</td>
-                      <td className='p-3'>
-                        <span className={cn('px-2 py-1 rounded-full text-xs font-medium border', getStatusBadgeClass(school.licenseStatus))}>
-                          {typeof school.licenseStatus === 'string' ? school.licenseStatus : '-'}
-                        </span>
-                      </td>
-                      <td className='p-3'>{formatDate(school.licenseDate)}</td>
-                      <td className='p-3'>
-                        <div className='flex flex-wrap gap-1'>
-                          {Array.isArray(school.adminEmails) && school.adminEmails.length > 0 ? (
-                            school.adminEmails.slice(0, 2).map((email, idx) => (
-                              <span key={idx} className='text-xs text-muted-foreground'>
-                                {email}
-                                {idx === 0 && school.adminEmails.length > 1 && ', ...'}
-                              </span>
-                            ))
-                          ) : (
-                            <span className='text-xs text-muted-foreground'>-</span>
-                          )}
-                        </div>
-                      </td>
-                      <td className='p-3 text-right'>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant='ghost' size='sm' className='h-8 w-8 p-0'>
-                              <MoreHorizontal className='h-4 w-4' />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align='end'>
-                            <DropdownMenuItem onClick={() => setActionDialog({ open: true, school, action: 'suspend' })}>
-                              <Ban className='mr-2 h-4 w-4' />
-                              Suspend Account
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => setActionDialog({ open: true, school, action: 'upgrade' })}>
-                              <ArrowUp className='mr-2 h-4 w-4' />
-                              Upgrade Plan
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => setActionDialog({ open: true, school, action: 'restrict' })}>
-                              <Shield className='mr-2 h-4 w-4' />
-                              Modify Restrictions
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </td>
-                    </tr>
-                  ))
+                  filteredSchools.map((school) => {
+                    const isSuspended = school.licenseStatus?.toUpperCase() === 'SUSPENDED';
+
+                    return (
+                      <tr
+                        key={school.id}
+                        onClick={() => openInstituteDetails(school)}
+                        className='border-t border-border/30 hover:bg-muted/30 transition-colors cursor-pointer group'
+                      >
+                        <td className='p-3 font-medium text-slate-900 dark:text-white group-hover:text-primary transition-colors'>
+                          <div className='flex items-center gap-2'>
+                            <Building2 className='w-4 h-4 text-purple-600 shrink-0 opacity-70 group-hover:opacity-100' />
+                            <span>{typeof school.name === 'string' ? school.name : '-'}</span>
+                          </div>
+                        </td>
+                        <td className='p-3'>{typeof school.planName === 'string' ? school.planName : '-'}</td>
+                        <td className='p-3'>
+                          <span className={cn('px-2 py-1 rounded-full text-xs font-medium border', getStatusBadgeClass(school.licenseStatus))}>
+                            {typeof school.licenseStatus === 'string' ? school.licenseStatus : '-'}
+                          </span>
+                        </td>
+                        <td className='p-3'>{formatDate(school.licenseDate)}</td>
+                        <td className='p-3'>
+                          <div className='flex flex-wrap gap-1'>
+                            {Array.isArray(school.adminEmails) && school.adminEmails.length > 0 ? (
+                              school.adminEmails.slice(0, 2).map((email, idx) => (
+                                <span key={idx} className='text-xs text-muted-foreground'>
+                                  {email}
+                                  {idx === 0 && school.adminEmails.length > 1 && ', ...'}
+                                </span>
+                              ))
+                            ) : (
+                              <span className='text-xs text-muted-foreground'>-</span>
+                            )}
+                          </div>
+                        </td>
+                        <td className='p-3 text-right' onClick={(e) => e.stopPropagation()}>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant='ghost' size='sm' className='h-8 w-8 p-0'>
+                                <MoreHorizontal className='h-4 w-4' />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align='end'>
+                              <DropdownMenuItem
+                                onClick={() => openInstituteDetails(school)}
+                                className='cursor-pointer font-medium'
+                              >
+                                <Building2 className='mr-2 h-4 w-4 text-purple-600' />
+                                Institute Details
+                              </DropdownMenuItem>
+                              {isSuspended ? (
+                                <DropdownMenuItem
+                                  onClick={() => setActionDialog({ open: true, school, action: 'unsuspend' })}
+                                  className='text-emerald-600 focus:text-emerald-700 cursor-pointer font-medium'
+                                >
+                                  <CheckCircle className='mr-2 h-4 w-4 text-emerald-600' />
+                                  Unsuspend Account
+                                </DropdownMenuItem>
+                              ) : (
+                                <DropdownMenuItem
+                                  onClick={() => setActionDialog({ open: true, school, action: 'suspend' })}
+                                  className='text-rose-600 focus:text-rose-700 cursor-pointer'
+                                >
+                                  <Ban className='mr-2 h-4 w-4 text-rose-600' />
+                                  Suspend Account
+                                </DropdownMenuItem>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
@@ -254,69 +320,239 @@ export default function SchoolsPage() {
         )}
       </GlassCard>
 
-      {/* Action Dialog */}
+      {/* Institute Details Dialog */}
+      <Dialog
+        open={editDialog.open}
+        onOpenChange={(open) => setEditDialog((prev) => ({ ...prev, open }))}
+      >
+        <DialogContent className='sm:max-w-md p-6 rounded-2xl'>
+          <DialogHeader className='space-y-1.5'>
+            <div className='flex items-center gap-2'>
+              <div className='w-8 h-8 rounded-lg bg-purple-100 dark:bg-purple-950/50 flex items-center justify-center text-purple-600'>
+                <Building2 className='w-4 h-4' />
+              </div>
+              <DialogTitle className='text-lg font-bold text-slate-900 dark:text-white'>
+                Institute Details
+              </DialogTitle>
+            </div>
+            <DialogDescription className='text-xs text-muted-foreground'>
+              Manage your school's information and contact details
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className='space-y-4 py-2'>
+            <div className='space-y-1.5'>
+              <Label className='text-xs font-semibold text-slate-700 dark:text-slate-300'>
+                Institute Name
+              </Label>
+              <Input
+                placeholder='Institute Name'
+                value={editDialog.form.name}
+                onChange={(e) =>
+                  setEditDialog((prev) => ({
+                    ...prev,
+                    form: { ...prev.form, name: e.target.value },
+                  }))
+                }
+                className='h-10 rounded-xl'
+              />
+            </div>
+
+            <div className='space-y-1.5'>
+              <Label className='text-xs font-semibold text-slate-700 dark:text-slate-300'>
+                Address
+              </Label>
+              <Input
+                placeholder='Address'
+                value={editDialog.form.address}
+                onChange={(e) =>
+                  setEditDialog((prev) => ({
+                    ...prev,
+                    form: { ...prev.form, address: e.target.value },
+                  }))
+                }
+                className='h-10 rounded-xl'
+              />
+            </div>
+
+            <div className='space-y-1.5'>
+              <Label className='text-xs font-semibold text-slate-700 dark:text-slate-300'>
+                Phone Number
+              </Label>
+              <Input
+                placeholder='+9134635465645'
+                value={editDialog.form.phone}
+                onChange={(e) =>
+                  setEditDialog((prev) => ({
+                    ...prev,
+                    form: { ...prev.form, phone: e.target.value },
+                  }))
+                }
+                className='h-10 rounded-xl'
+              />
+            </div>
+
+            <div className='space-y-1.5'>
+              <Label className='text-xs font-semibold text-slate-700 dark:text-slate-300'>
+                Email Address
+              </Label>
+              <Input
+                type='email'
+                placeholder='contact@school.edu'
+                value={editDialog.form.email}
+                onChange={(e) =>
+                  setEditDialog((prev) => ({
+                    ...prev,
+                    form: { ...prev.form, email: e.target.value },
+                  }))
+                }
+                className='h-10 rounded-xl'
+              />
+            </div>
+
+            <div className='pt-2 border-t border-slate-200 dark:border-slate-800 space-y-3'>
+              <p className='text-xs font-bold text-slate-700 dark:text-slate-300'>Social Media & Web Links</p>
+              
+              <div className='space-y-1.5'>
+                <Label className='text-xs font-semibold text-slate-700 dark:text-slate-300'>
+                  Website / Web Portal
+                </Label>
+                <Input
+                  placeholder='https://yourschool.edu'
+                  value={editDialog.form.website}
+                  onChange={(e) =>
+                    setEditDialog((prev) => ({
+                      ...prev,
+                      form: { ...prev.form, website: e.target.value },
+                    }))
+                  }
+                  className='h-10 rounded-xl'
+                />
+              </div>
+
+              <div className='grid grid-cols-2 gap-3'>
+                <div className='space-y-1.5'>
+                  <Label className='text-xs font-semibold text-slate-700 dark:text-slate-300'>
+                    Instagram
+                  </Label>
+                  <Input
+                    placeholder='https://instagram.com/school'
+                    value={editDialog.form.instagram}
+                    onChange={(e) =>
+                      setEditDialog((prev) => ({
+                        ...prev,
+                        form: { ...prev.form, instagram: e.target.value },
+                      }))
+                    }
+                    className='h-10 rounded-xl'
+                  />
+                </div>
+
+                <div className='space-y-1.5'>
+                  <Label className='text-xs font-semibold text-slate-700 dark:text-slate-300'>
+                    Facebook
+                  </Label>
+                  <Input
+                    placeholder='https://facebook.com/school'
+                    value={editDialog.form.facebook}
+                    onChange={(e) =>
+                      setEditDialog((prev) => ({
+                        ...prev,
+                        form: { ...prev.form, facebook: e.target.value },
+                      }))
+                    }
+                    className='h-10 rounded-xl'
+                  />
+                </div>
+
+                <div className='space-y-1.5'>
+                  <Label className='text-xs font-semibold text-slate-700 dark:text-slate-300'>
+                    LinkedIn
+                  </Label>
+                  <Input
+                    placeholder='https://linkedin.com/company/school'
+                    value={editDialog.form.linkedin}
+                    onChange={(e) =>
+                      setEditDialog((prev) => ({
+                        ...prev,
+                        form: { ...prev.form, linkedin: e.target.value },
+                      }))
+                    }
+                    className='h-10 rounded-xl'
+                  />
+                </div>
+
+                <div className='space-y-1.5'>
+                  <Label className='text-xs font-semibold text-slate-700 dark:text-slate-300'>
+                    Twitter / X
+                  </Label>
+                  <Input
+                    placeholder='https://x.com/school'
+                    value={editDialog.form.twitter}
+                    onChange={(e) =>
+                      setEditDialog((prev) => ({
+                        ...prev,
+                        form: { ...prev.form, twitter: e.target.value },
+                      }))
+                    }
+                    className='h-10 rounded-xl'
+                  />
+                </div>
+              </div>
+            </div>
+
+            <Button
+              onClick={handleSaveInstituteDetails}
+              disabled={savingDetails}
+              className='w-full h-11 font-semibold rounded-xl bg-amber-600 hover:bg-amber-700 text-white shadow-md transition-all mt-4 cursor-pointer'
+            >
+              {savingDetails ? (
+                <span className='flex items-center gap-2'>
+                  <RefreshCw className='w-4 h-4 animate-spin' />
+                  Saving...
+                </span>
+              ) : (
+                'Save Institute Details'
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Suspend / Unsuspend Action Dialog */}
       <Dialog open={actionDialog.open} onOpenChange={(open) => setActionDialog({ ...actionDialog, open })}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {actionDialog.action === 'suspend' ? 'Suspend Account' : 
-               actionDialog.action === 'upgrade' ? 'Upgrade Plan' : 'Modify Restrictions'}
+              {actionDialog.action === 'unsuspend' ? 'Unsuspend Account' : 'Suspend Account'}
             </DialogTitle>
             <DialogDescription>
-              {actionDialog.action === 'suspend' ? 
-                `Are you sure you want to suspend ${actionDialog.school?.name}? This will disable their access.` :
-               actionDialog.action === 'upgrade' ?
-                'Select a plan to upgrade this school to.' :
-                'Modify restrictions for this school.'}
+              {actionDialog.action === 'unsuspend'
+                ? `Are you sure you want to unsuspend and reactivate ${actionDialog.school?.name}? Their access will be restored.`
+                : `Are you sure you want to suspend ${actionDialog.school?.name}? This will disable their access.`}
             </DialogDescription>
           </DialogHeader>
           <div className='space-y-4 py-4'>
-            {actionDialog.action === 'suspend' && (
-              <p className='text-sm text-muted-foreground'>
-                This action will set the school's license status to SUSPENDED and notify the school administrators.
-              </p>
-            )}
-            {actionDialog.action === 'upgrade' && (
-              <div className='space-y-2'>
-                <Label htmlFor='planSelect'>Select Plan</Label>
-                <select
-                  id='planSelect'
-                  value={selectedPlanId}
-                  onChange={(e) => setSelectedPlanId(e.target.value)}
-                  className='w-full px-3 py-2 rounded-md border border-input bg-background text-sm'
-                >
-                  <option value=''>Select a plan...</option>
-                  <option value='standard'>Standard</option>
-                  <option value='premium'>Premium</option>
-                  <option value='elite'>Elite</option>
-                </select>
-              </div>
-            )}
-            {actionDialog.action === 'restrict' && (
-              <p className='text-sm text-muted-foreground'>
-                Restriction modification feature coming soon.
-              </p>
-            )}
+            <p className='text-sm text-muted-foreground'>
+              {actionDialog.action === 'unsuspend'
+                ? "This action will restore the school's license status to ACTIVE and grant full access to their dashboard and timetables."
+                : "This action will set the school's license status to SUSPENDED and notify the school administrators."}
+            </p>
           </div>
           <DialogFooter>
             <Button variant='outline' onClick={() => setActionDialog({ open: false, school: null, action: 'suspend' })}>
               Cancel
             </Button>
-            {actionDialog.action === 'suspend' && actionDialog.school && (
+            {actionDialog.school && (
               <Button
-                variant='destructive'
-                onClick={() => handleSuspendAccount(actionDialog.school!.id)}
+                variant={actionDialog.action === 'unsuspend' ? 'default' : 'destructive'}
+                className={actionDialog.action === 'unsuspend' ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : ''}
+                onClick={() => handleToggleSuspend(actionDialog.school!.id, actionDialog.action)}
                 disabled={processingAction === actionDialog.school.id}
               >
-                {processingAction === actionDialog.school.id ? 'Suspending...' : 'Suspend Account'}
-              </Button>
-            )}
-            {actionDialog.action === 'upgrade' && actionDialog.school && (
-              <Button
-                onClick={() => handleUpgradePlan(actionDialog.school!.id, selectedPlanId)}
-                disabled={processingAction === actionDialog.school.id || !selectedPlanId}
-              >
-                {processingAction === actionDialog.school.id ? 'Upgrading...' : 'Upgrade Plan'}
+                {processingAction === actionDialog.school.id
+                  ? actionDialog.action === 'unsuspend' ? 'Reactivating...' : 'Suspending...'
+                  : actionDialog.action === 'unsuspend' ? 'Unsuspend Account' : 'Suspend Account'}
               </Button>
             )}
           </DialogFooter>

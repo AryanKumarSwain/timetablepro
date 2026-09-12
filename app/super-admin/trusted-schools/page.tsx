@@ -26,7 +26,7 @@ interface TrustedSchool {
 }
 
 export default function TrustedSchoolsPage() {
-  useRequireAuth('super_admin');
+  useRequireAuth('super-admin');
 
   const [trustedSchools, setTrustedSchools] = useState<TrustedSchool[]>([]);
   const [loading, setLoading] = useState(true);
@@ -34,10 +34,9 @@ export default function TrustedSchoolsPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
-  const [formData, setFormData] = useState<Omit<TrustedSchool, 'id' | 'createdAt' | 'updatedAt'>>({
+  const [formData, setFormData] = useState<Omit<TrustedSchool, 'id' | 'createdAt' | 'updatedAt' | 'order'>>({
     name: '',
     isActive: true,
-    order: 0,
   });
 
   useEffect(() => {
@@ -61,9 +60,7 @@ export default function TrustedSchoolsPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const url = editingId 
-        ? '/api/admin/trusted-schools' 
-        : '/api/admin/trusted-schools';
+      const url = '/api/admin/trusted-schools';
       const method = editingId ? 'PUT' : 'POST';
       
       const body = editingId 
@@ -81,7 +78,7 @@ export default function TrustedSchoolsPage() {
         setTimeout(() => setSuccessMsg(null), 3000);
         setShowForm(false);
         setEditingId(null);
-        setFormData({ name: '', isActive: true, order: 0 });
+        setFormData({ name: '', isActive: true });
         loadTrustedSchools();
       }
     } catch (error) {
@@ -94,7 +91,6 @@ export default function TrustedSchoolsPage() {
     setFormData({
       name: school.name,
       isActive: school.isActive,
-      order: school.order,
     });
     setShowForm(true);
   };
@@ -120,7 +116,7 @@ export default function TrustedSchoolsPage() {
   const handleCancel = () => {
     setShowForm(false);
     setEditingId(null);
-    setFormData({ name: '', isActive: true, order: 0 });
+    setFormData({ name: '', isActive: true });
   };
 
   if (loading) {
@@ -149,12 +145,12 @@ export default function TrustedSchoolsPage() {
             </Button>
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className='mb-6 rounded-lg border border-slate-200 p-6'>
+          <form onSubmit={handleSubmit} className='mb-6 rounded-lg border border-slate-200 dark:border-slate-800 p-6'>
             <h3 className='mb-4 text-lg font-semibold'>
               {editingId ? 'Edit School' : 'Add New School'}
             </h3>
-            <div className='grid gap-4 md:grid-cols-3'>
-              <div>
+            <div className='flex flex-col sm:flex-row items-stretch sm:items-end gap-4 max-w-2xl'>
+              <div className='flex-1'>
                 <label className='mb-2 block text-sm font-medium'>School Name</label>
                 <Input
                   value={formData.name}
@@ -163,16 +159,7 @@ export default function TrustedSchoolsPage() {
                   required
                 />
               </div>
-              <div>
-                <label className='mb-2 block text-sm font-medium'>Order</label>
-                <Input
-                  type='number'
-                  value={formData.order}
-                  onChange={(e) => setFormData({ ...formData, order: parseInt(e.target.value) || 0 })}
-                  placeholder='Display order'
-                />
-              </div>
-              <div className='flex items-end gap-2'>
+              <div className='flex items-center gap-2'>
                 <Button type='submit' className='gap-2'>
                   <Save className='h-4 w-4' />
                   {editingId ? 'Update' : 'Add'}
@@ -191,7 +178,6 @@ export default function TrustedSchoolsPage() {
             <DataGridHead>
               <DataGridRow>
                 <DataGridTh>Name</DataGridTh>
-                <DataGridTh>Order</DataGridTh>
                 <DataGridTh>Status</DataGridTh>
                 <DataGridTh className='text-right'>Actions</DataGridTh>
               </DataGridRow>
@@ -200,13 +186,12 @@ export default function TrustedSchoolsPage() {
               {trustedSchools.map((school) => (
                 <DataGridRow key={school.id}>
                   <DataGridTd>{school.name}</DataGridTd>
-                  <DataGridTd>{school.order}</DataGridTd>
                   <DataGridTd>
                     <span
                       className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${
                         school.isActive
-                          ? 'bg-emerald-100 text-emerald-800'
-                          : 'bg-slate-100 text-slate-800'
+                          ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300'
+                          : 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-300'
                       }`}
                     >
                       {school.isActive ? 'Active' : 'Inactive'}
@@ -238,7 +223,7 @@ export default function TrustedSchoolsPage() {
               ))}
               {trustedSchools.length === 0 && (
                 <DataGridRow>
-                  <DataGridTd colSpan={4} className='text-center text-slate-500'>
+                  <DataGridTd colSpan={3} className='text-center text-slate-500 py-8'>
                     No trusted schools found. Add your first school above.
                   </DataGridTd>
                 </DataGridRow>

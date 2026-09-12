@@ -22,12 +22,19 @@ export function LoginAlertProvider({ children }: { children: React.ReactNode }) 
   useEffect(() => {
     async function checkForNewNotifications() {
       try {
-        const res = await fetch('/api/notifications');
+        const res = await fetch('/api/notifications', {
+          credentials: 'include',
+          cache: 'no-store',
+        });
         if (!res.ok) return;
         
         const payload = await res.json();
+        const dismissedIds: string[] = typeof window !== 'undefined'
+          ? JSON.parse(sessionStorage.getItem('dismissed_alert_ids') || '[]')
+          : [];
+
         const unreadList: LiveNotification[] = (payload.data || []).filter(
-          (n: LiveNotification) => !n.isRead
+          (n: LiveNotification) => !n.isRead && !dismissedIds.includes(n.id)
         );
 
         // If there are unread notifications, grab the most critical one first
@@ -41,7 +48,7 @@ export function LoginAlertProvider({ children }: { children: React.ReactNode }) 
           setActiveAlert(criticalAlert);
           
           // Delayed open for smooth layout mount transition
-          const timer = setTimeout(() => setIsOpen(true), 1200);
+          const timer = setTimeout(() => setIsOpen(true), 800);
           return () => clearTimeout(timer);
         }
       } catch (err) {
@@ -52,25 +59,36 @@ export function LoginAlertProvider({ children }: { children: React.ReactNode }) 
     checkForNewNotifications();
   }, []);
 
-  const clearAlertPopup = () => {
-    setIsOpen(false);
-    setActiveAlert(null);
-  };
-
   const handleDismissAndMarkRead = async () => {
     if (!activeAlert) return;
 
     const notificationId = activeAlert.id;
-    clearAlertPopup();
+    
+    // Save to sessionStorage immediately so it never reappears in this session
+    if (typeof window !== 'undefined') {
+      try {
+        const dismissed: string[] = JSON.parse(sessionStorage.getItem('dismissed_alert_ids') || '[]');
+        if (!dismissed.includes(notificationId)) {
+          sessionStorage.setItem('dismissed_alert_ids', JSON.stringify([...dismissed, notificationId]));
+        }
+      } catch (e) {
+        // ignore
+      }
+    }
+
+    setIsOpen(false);
+    setActiveAlert(null);
 
     try {
       await fetch('/api/notifications/read', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        cache: 'no-store',
         body: JSON.stringify({ notificationId })
       });
     } catch (e) {
-      console.error(e);
+      console.error('Failed to sync notification read status:', e);
     }
   };
 
@@ -108,7 +126,7 @@ export function LoginAlertProvider({ children }: { children: React.ReactNode }) 
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               className="absolute inset-0 bg-slate-950/20"
-              onClick={clearAlertPopup}
+              onClick={handleDismissAndMarkRead}
             />
 
             {/* Main Interactive Glass Card Alert Popup */}
@@ -121,8 +139,8 @@ export function LoginAlertProvider({ children }: { children: React.ReactNode }) 
             >
               {/* Corner Close Hook Button */}
               <button 
-                onClick={clearAlertPopup} 
-                className="absolute top-4 right-4 p-1 rounded-lg text-muted-foreground hover:bg-muted transition-colors"
+                onClick={handleDismissAndMarkRead} 
+                className="absolute top-4 right-4 p-1 rounded-lg text-muted-foreground hover:bg-muted transition-colors cursor-pointer"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -149,7 +167,7 @@ export function LoginAlertProvider({ children }: { children: React.ReactNode }) 
                 <div className="pt-2">
                   <Button 
                     onClick={handleDismissAndMarkRead}
-                    className="w-full h-10 text-xs font-bold rounded-xl bg-foreground text-background hover:opacity-90 transition-opacity"
+                    className="w-full h-10 text-xs font-bold rounded-xl bg-foreground text-background hover:opacity-90 transition-opacity cursor-pointer"
                   >
                     Acknowledge & Clear Notification
                   </Button>

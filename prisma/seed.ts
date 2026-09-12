@@ -14,10 +14,7 @@ async function main() {
   const teacherPasswordHash = await bcrypt.hash('password', 10);
 
   // ── Plans ───────────────────────────────────────────────────────────────────
-  // Clean up old plans to avoid conflicts
-  await prisma.saaSPlan.deleteMany({});
-
-  // Create new SaaS plans with feature flags
+  // Upsert default SaaS plans so existing subscriptions and foreign keys are safely preserved
   const plans = [
     {
       id: 'plan-free',
@@ -75,8 +72,21 @@ async function main() {
 
   await Promise.all(
     plans.map((plan) =>
-      prisma.saaSPlan.create({
-        data: plan,
+      prisma.saaSPlan.upsert({
+        where: { id: plan.id },
+        update: {
+          name: plan.name,
+          teacherMin: plan.teacherMin,
+          teacherMax: plan.teacherMax,
+          priceMonthly: plan.priceMonthly,
+          reportEnabled: plan.reportEnabled,
+          attendanceEnabled: plan.attendanceEnabled,
+          homeworkEnabled: plan.homeworkEnabled,
+          lessonPlanningEnabled: plan.lessonPlanningEnabled,
+          exportFormats: plan.exportFormats,
+          watermarkRequired: plan.watermarkRequired,
+        },
+        create: plan,
       })
     )
   );
@@ -208,8 +218,15 @@ async function main() {
 
   await Promise.all(
     demoRooms.map((rm) =>
-      prisma.room.create({
-        data: {
+      prisma.room.upsert({
+        where: { id: `room-seed-${rm.roomNumber.replace(/\s+/g, '-').toLowerCase()}-${schoolId}` },
+        update: {
+          roomNumber: rm.roomNumber,
+          floor: rm.floor,
+          block: rm.block,
+          capacity: 40,
+        },
+        create: {
           id: `room-seed-${rm.roomNumber.replace(/\s+/g, '-').toLowerCase()}-${schoolId}`,
           roomNumber: rm.roomNumber,
           floor: rm.floor,
@@ -217,7 +234,7 @@ async function main() {
           capacity: 40,
           schoolId,
         },
-      }).catch(() => {})
+      })
     )
   );
 
