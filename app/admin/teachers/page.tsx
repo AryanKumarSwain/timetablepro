@@ -45,7 +45,6 @@ import {
   Phone,
   Calendar,
   GraduationCap,
-  BookOpen,
   KeyRound,
   Copy,
   Check,
@@ -634,21 +633,6 @@ export default function TeachersPage() {
                 </div>
               )}
 
-              {selectedTeacherForView.subjects && selectedTeacherForView.subjects.length > 0 && (
-                <div className='p-3 rounded-xl bg-muted/40 border border-border/50 space-y-1.5'>
-                  <div className='flex items-center gap-2 text-xs text-muted-foreground font-medium'>
-                    <BookOpen className='h-4 w-4 text-primary' />
-                    <span>Assigned Subjects</span>
-                  </div>
-                  <div className='flex flex-wrap gap-1.5 pt-1'>
-                    {selectedTeacherForView.subjects.map((sub, idx) => (
-                      <span key={idx} className='px-2 py-0.5 text-xs bg-primary/10 text-primary rounded-md font-medium'>
-                        {sub}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
 
               <div className='pt-2'>
                 <Button
