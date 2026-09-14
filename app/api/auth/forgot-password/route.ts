@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { sendVerificationCode } from '@/lib/mailer';
+import { authLimiter, getClientIp } from '@/lib/rate-limit';
 
 export async function POST(request: Request) {
   try {
+    const clientIp = getClientIp(request);
     const body = await request.json();
     const { email } = body;
 
@@ -12,6 +14,24 @@ export async function POST(request: Request) {
     }
 
     const targetEmail = email.trim().toLowerCase();
+
+    const rateKey = `forgot-pw:${clientIp}:${targetEmail}`;
+    const rateLimit = authLimiter.check(rateKey);
+
+    if (!rateLimit.success) {
+      return NextResponse.json(
+        { error: `Too many password reset requests. Please try again in ${rateLimit.retryAfter} seconds.` },
+        {
+          status: 429,
+          headers: {
+            'Retry-After': String(rateLimit.retryAfter),
+            'X-RateLimit-Limit': String(rateLimit.limit),
+            'X-RateLimit-Remaining': String(rateLimit.remaining),
+            'X-RateLimit-Reset': String(rateLimit.reset),
+          },
+        }
+      );
+    }
 
     // Look up user account in global user directory matrix
     const user = await prisma.user.findUnique({

@@ -1,11 +1,32 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
+import { authLimiter, getClientIp } from '@/lib/rate-limit';
 
 export async function POST(request: Request) {
   try {
+    const clientIp = getClientIp(request);
     const body = await request.json();
     const { email, otp, newPassword } = body;
+
+    const targetEmail = String(email || '').trim().toLowerCase();
+    const rateKey = `reset-pw:${clientIp}:${targetEmail}`;
+    const rateLimit = authLimiter.check(rateKey);
+
+    if (!rateLimit.success) {
+      return NextResponse.json(
+        { error: `Too many password reset attempts. Please try again in ${rateLimit.retryAfter} seconds.` },
+        {
+          status: 429,
+          headers: {
+            'Retry-After': String(rateLimit.retryAfter),
+            'X-RateLimit-Limit': String(rateLimit.limit),
+            'X-RateLimit-Remaining': String(rateLimit.remaining),
+            'X-RateLimit-Reset': String(rateLimit.reset),
+          },
+        }
+      );
+    }
 
     if (!email || !otp || !newPassword) {
       return NextResponse.json({ error: 'All parameters are completely mandatory' }, { status: 400 });

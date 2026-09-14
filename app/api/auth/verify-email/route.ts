@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getSession } from '@/lib/session';
+import { authLimiter, getClientIp } from '@/lib/rate-limit';
 
 export async function POST(request: NextRequest) {
   try {
@@ -11,6 +12,28 @@ export async function POST(request: NextRequest) {
       .toLowerCase();
 
     const otp = String(body.otp ?? '').trim();
+
+    const clientIp = getClientIp(request);
+    const rateKey = `otp:${clientIp}:${email || 'unknown'}`;
+    const rateLimit = authLimiter.check(rateKey);
+
+    if (!rateLimit.success) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Too many verification attempts. Please try again in ${rateLimit.retryAfter} seconds.`,
+        },
+        {
+          status: 429,
+          headers: {
+            'Retry-After': String(rateLimit.retryAfter),
+            'X-RateLimit-Limit': String(rateLimit.limit),
+            'X-RateLimit-Remaining': String(rateLimit.remaining),
+            'X-RateLimit-Reset': String(rateLimit.reset),
+          },
+        }
+      );
+    }
 
     if (!email || !otp) {
       return NextResponse.json(
@@ -144,6 +167,8 @@ export async function POST(request: NextRequest) {
 
     session.isLoggedIn = true;
     await session.save();
+
+    authLimiter.reset(rateKey);
 
     return NextResponse.json({
       success: true,

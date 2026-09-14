@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { prisma } from '@/lib/prisma';
 import { getSession, getRoleRedirectPath } from '@/lib/session';
+import { authLimiter, getClientIp } from '@/lib/rate-limit';
 
 export async function POST(request: NextRequest) {
   try {
@@ -9,6 +10,25 @@ export async function POST(request: NextRequest) {
     const email = String(body.email ?? '').trim().toLowerCase();
     const password = String(body.password ?? '');
     const requestedRole = String(body.role ?? '').trim();
+
+    const clientIp = getClientIp(request);
+    const rateKey = `login:${clientIp}:${email || 'unknown'}`;
+    const rateLimit = authLimiter.check(rateKey);
+
+    if (!rateLimit.success) {
+      return NextResponse.json(
+        { error: `Too many login attempts. Please try again in ${rateLimit.retryAfter} seconds.` },
+        {
+          status: 429,
+          headers: {
+            'Retry-After': String(rateLimit.retryAfter),
+            'X-RateLimit-Limit': String(rateLimit.limit),
+            'X-RateLimit-Remaining': String(rateLimit.remaining),
+            'X-RateLimit-Reset': String(rateLimit.reset),
+          },
+        }
+      );
+    }
 
     if (!email || !password) {
       return NextResponse.json({ error: 'Email and password required' }, { status: 400 });
@@ -23,6 +43,9 @@ export async function POST(request: NextRequest) {
     if (!valid) {
       return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
     }
+
+    // Reset rate limiter on successful authentication
+    authLimiter.reset(rateKey);
 
     // Validate role if specified
     if (requestedRole) {

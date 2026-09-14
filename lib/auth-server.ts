@@ -65,13 +65,6 @@ export async function requireSchoolAdmin(): Promise<SessionUser & { schoolId: st
   }
 
   if (!schoolId) {
-    const school = await prisma.school.findFirst();
-    if (school) {
-      schoolId = school.id;
-    }
-  }
-
-  if (!schoolId) {
     throw new AuthError('School context required', 403);
   }
   return { ...user, schoolId };
@@ -91,13 +84,6 @@ export async function requireSchoolContext(): Promise<{
     });
     if (dbUser?.schoolId) {
       schoolId = dbUser.schoolId;
-    }
-  }
-
-  if (!schoolId) {
-    const school = await prisma.school.findFirst();
-    if (school) {
-      schoolId = school.id;
     }
   }
 
@@ -128,7 +114,12 @@ export function handleApiError(error: unknown) {
   if (error instanceof AuthError) {
     return NextResponse.json({ error: error.message }, { status: error.status });
   }
-  console.error(error);
+  if (process.env.NODE_ENV !== 'production') {
+    console.error('[API Error]:', error);
+  } else {
+    const msg = error instanceof Error ? error.message : 'Unknown server error';
+    console.error('[API Error in Production]:', msg);
+  }
   return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
 }
 
