@@ -139,8 +139,7 @@ export default function AdminReportsPage() {
   };
 
   const handleIndividualDownload = (reportId: string, format: 'pdf' | 'csv') => {
-    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
-    window.open(`${baseUrl}/api/admin/reports/${reportId}/${format}`, '_blank');
+    window.open(`/api/admin/reports/${reportId}/${format}`, '_blank');
     setSuccessMsg(`Downloading report in ${format.toUpperCase()} format...`);
   };
 
