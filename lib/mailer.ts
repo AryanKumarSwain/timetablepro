@@ -104,6 +104,9 @@ function getTransporter() {
       user,
       pass,
     },
+    tls: {
+      rejectUnauthorized: false,
+    },
   });
 }
 
