@@ -3,25 +3,42 @@ import { prisma } from '@/lib/prisma';
 import { exchangeGoogleCode } from '@/lib/google-oauth';
 import { getSession } from '@/lib/session';
 
+function getBaseUrl(request: NextRequest): string {
+  const envUrl = process.env.NEXT_PUBLIC_APP_URL?.trim() || process.env.APP_URL?.trim();
+  if (envUrl) {
+    return envUrl.replace(/\/+$/, '');
+  }
+
+  const forwardedHost = request.headers.get('x-forwarded-host') || request.headers.get('host');
+  const forwardedProto = request.headers.get('x-forwarded-proto') || 'https';
+  if (forwardedHost && !forwardedHost.includes('localhost') && !forwardedHost.includes('127.0.0.1')) {
+    return `${forwardedProto}://${forwardedHost}`;
+  }
+
+  return 'https://timetablepro.webncode.in';
+}
+
 export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl;
   const code = searchParams.get('code');
   const state = searchParams.get('state');
   const error = searchParams.get('error');
 
-  const callbackUrl =
+  const baseUrl = getBaseUrl(request);
+  const rawCallbackUrl =
     request.cookies.get('google_oauth_callback')?.value || '/signup';
-  const signupUrl = new URL(callbackUrl, request.url);
+  const callbackUrl = rawCallbackUrl.startsWith('/') ? rawCallbackUrl : `/${rawCallbackUrl}`;
+  const redirectUrl = new URL(callbackUrl, baseUrl);
 
   if (error) {
-    signupUrl.searchParams.set('error', 'google_auth_failed');
-    return NextResponse.redirect(signupUrl);
+    redirectUrl.searchParams.set('error', 'google_auth_failed');
+    return NextResponse.redirect(redirectUrl);
   }
 
   const storedState = request.cookies.get('google_oauth_state')?.value;
   if (!code || !state || !storedState || state !== storedState) {
-    signupUrl.searchParams.set('error', 'invalid_oauth_state');
-    return NextResponse.redirect(signupUrl);
+    redirectUrl.searchParams.set('error', 'invalid_oauth_state');
+    return NextResponse.redirect(redirectUrl);
   }
 
   try {
@@ -35,7 +52,7 @@ export async function GET(request: NextRequest) {
     if (!user) {
       // Only block if this is a login flow
       if (!isSignupFlow) {
-        const loginUrl = new URL('/login', request.url);
+        const loginUrl = new URL('/login', baseUrl);
         loginUrl.searchParams.set('error', 'AccountNotFound');
         return NextResponse.redirect(loginUrl);
       }
@@ -65,7 +82,7 @@ export async function GET(request: NextRequest) {
       session.isLoggedIn = true;
       await session.save();
 
-      const response = NextResponse.redirect(signupUrl);
+      const response = NextResponse.redirect(redirectUrl);
       response.cookies.delete('google_oauth_state');
       response.cookies.delete('google_oauth_callback');
       return response;
@@ -73,7 +90,7 @@ export async function GET(request: NextRequest) {
 
     if (user.role !== 'ADMIN') {
       // Clear session cookies completely
-      const response = NextResponse.redirect(new URL('/login?error=account_exists', request.url));
+      const response = NextResponse.redirect(new URL('/login?error=account_exists', baseUrl));
       response.cookies.delete('google_oauth_state');
       response.cookies.delete('google_oauth_callback');
       response.cookies.delete('session');
@@ -102,13 +119,13 @@ export async function GET(request: NextRequest) {
     session.isLoggedIn = true;
     await session.save();
 
-    const response = NextResponse.redirect(signupUrl);
+    const response = NextResponse.redirect(redirectUrl);
     response.cookies.delete('google_oauth_state');
     response.cookies.delete('google_oauth_callback');
     return response;
   } catch (err) {
     console.error('[auth/google/callback]', err);
-    signupUrl.searchParams.set('error', 'google_auth_failed');
-    return NextResponse.redirect(signupUrl);
+    redirectUrl.searchParams.set('error', 'google_auth_failed');
+    return NextResponse.redirect(redirectUrl);
   }
 }
