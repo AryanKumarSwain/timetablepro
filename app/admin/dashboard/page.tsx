@@ -528,7 +528,7 @@ export default function AdminDashboard() {
 
           <div className="h-80 w-full overflow-x-auto">
             <div className="h-full min-w-[550px] sm:min-w-full">
-              {sortedWorkload.length > 0 ? (
+              {totalDatabaseSlots > 0 && sortedWorkload.some((t) => t.classes > 0) ? (
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={sortedWorkload} barSize={16} margin={{ top: 25, right: 30, left: 15, bottom: 85 }}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-border/40" />
@@ -571,7 +571,7 @@ export default function AdminDashboard() {
                   </BarChart>
                 </ResponsiveContainer>
               ) : (
-                <div className="h-full flex items-center justify-center text-xs text-muted-foreground">No active schedule custom slots found</div>
+                <div className="h-full flex items-center justify-center text-xs text-muted-foreground">No active schedule data found</div>
               )}
             </div>
           </div>
@@ -601,7 +601,7 @@ export default function AdminDashboard() {
           </div>
 
           <div className="h-44 w-full relative flex items-center justify-center">
-            {formattedSubjects.length > 0 ? (
+            {totalDatabaseSlots > 0 && formattedSubjects.length > 0 ? (
               <>
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
@@ -637,7 +637,7 @@ export default function AdminDashboard() {
           </div>
 
           <div className="space-y-2 mt-2 max-h-32 overflow-y-auto">
-            {formattedSubjects.map((item, idx) => (
+            {totalDatabaseSlots > 0 && formattedSubjects.map((item, idx) => (
               <div key={idx} className="flex items-center justify-between text-xs font-semibold">
                 <div className="flex items-center gap-2">
                   <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: item.color }} />

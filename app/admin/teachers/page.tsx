@@ -83,6 +83,7 @@ export default function TeachersPage() {
     password?: string;
     sent: boolean;
     whatsappSent?: boolean;
+    whatsappSkipped?: boolean;
   } | null>(null);
   const [copied, setCopied] = useState(false);
   
@@ -221,6 +222,7 @@ export default function TeachersPage() {
         password: res.tempPassword,
         sent: res.sent,
         whatsappSent: res.whatsappSent,
+        whatsappSkipped: res.whatsappSkipped,
       });
 
       const channels: string[] = [];
@@ -735,6 +737,11 @@ export default function TeachersPage() {
                   <div className='p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-xs flex items-center gap-2'>
                     <CheckCircle2 className='h-4 w-4 shrink-0 text-emerald-600' />
                     <span>WhatsApp sent successfully</span>
+                  </div>
+                ) : credentialsModal.whatsappSkipped ? (
+                  <div className='p-3 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-700 dark:text-blue-300 text-xs flex items-center gap-2'>
+                    <CheckCircle2 className='h-4 w-4 shrink-0 text-blue-600' />
+                    <span>WhatsApp skipped (1st resend only)</span>
                   </div>
                 ) : (
                   <div className='p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-300 text-xs flex items-start gap-2'>

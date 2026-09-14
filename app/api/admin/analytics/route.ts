@@ -40,21 +40,12 @@ export async function GET(request: Request) {
     let activeSlots: any[] = [];
     let activePeriodsCount = 0;
     
-    // Find active published timetable first
-    let activeTimetable = await prisma.timetable.findFirst({
+    // Find active published timetable only
+    const activeTimetable = await prisma.timetable.findFirst({
       where: { schoolId: targetedSchoolId, status: 'PUBLISHED' },
       include: { periods: true },
       orderBy: { updatedAt: 'desc' }
     });
-
-    // Fallback to latest timetable if no published timetable exists
-    if (!activeTimetable) {
-      activeTimetable = await prisma.timetable.findFirst({
-        where: { schoolId: targetedSchoolId },
-        include: { periods: true },
-        orderBy: { updatedAt: 'desc' }
-      });
-    }
 
     if (activeTimetable) {
       activeSlots = await prisma.timetableSlot.findMany({
@@ -62,11 +53,20 @@ export async function GET(request: Request) {
       });
       activePeriodsCount = (activeTimetable as any).periods?.filter((p: any) => !p.isBreak).length || 0;
     } else {
-      activeSlots = await prisma.weeklyTimetableSlot.findMany({
-        where: { schoolId: targetedSchoolId }
-      }).catch(() => []);
-      const allPeriods = await (prisma as any).period.findMany({ where: { schoolId: targetedSchoolId } }).catch(() => []);
-      activePeriodsCount = allPeriods.filter((p: any) => !p.isBreak).length;
+      // Check if school has timetables in the Timetable table
+      const hasAnyTimetable = await prisma.timetable.findFirst({
+        where: { schoolId: targetedSchoolId },
+        select: { id: true },
+      });
+      // If the school has timetables but none is PUBLISHED, activeSlots remains empty [].
+      // Only check legacy weeklyTimetableSlot if no Timetable record has ever existed.
+      if (!hasAnyTimetable) {
+        activeSlots = await prisma.weeklyTimetableSlot.findMany({
+          where: { schoolId: targetedSchoolId }
+        }).catch(() => []);
+        const allPeriods = await (prisma as any).period.findMany({ where: { schoolId: targetedSchoolId } }).catch(() => []);
+        activePeriodsCount = allPeriods.filter((p: any) => !p.isBreak).length;
+      }
     }
 
     // 3. FETCH METADATA RECORDS AND TODAY'S REPORT DATA
@@ -122,34 +122,36 @@ export async function GET(request: Request) {
     });
 
     // 4. APPLY LIVE SUBSTITUTION ADJUSTMENTS
-    try {
-      // Build conditions for daily modifications adjustments
-      const substitutionWhereClause: any = {
-        schoolId: targetedSchoolId,
-        status: 'CONFIRMED'
-      };
-
-      if (startDateStr && endDateStr) {
-        substitutionWhereClause.date = {
-          gte: startDateStr,
-          lte: endDateStr
+    if (activeSlots.length > 0) {
+      try {
+        // Build conditions for daily modifications adjustments
+        const substitutionWhereClause: any = {
+          schoolId: targetedSchoolId,
+          status: 'CONFIRMED'
         };
+
+        if (startDateStr && endDateStr) {
+          substitutionWhereClause.date = {
+            gte: startDateStr,
+            lte: endDateStr
+          };
+        }
+
+        const modifications = await prisma.replacementAssignment.findMany({
+          where: substitutionWhereClause
+        });
+
+        modifications.forEach((mod: any) => {
+          if (workloadMap[mod.originalTeacherId] !== undefined) {
+            workloadMap[mod.originalTeacherId] = Math.max(0, workloadMap[mod.originalTeacherId] - 1);
+          }
+          if (workloadMap[mod.replacementTeacherId] !== undefined) {
+            workloadMap[mod.replacementTeacherId] += 1;
+          }
+        });
+      } catch (e) {
+        console.warn("Could not calculate active substitution adjustments", e);
       }
-
-      const modifications = await prisma.replacementAssignment.findMany({
-        where: substitutionWhereClause
-      });
-
-      modifications.forEach((mod: any) => {
-        if (workloadMap[mod.originalTeacherId] !== undefined) {
-          workloadMap[mod.originalTeacherId] = Math.max(0, workloadMap[mod.originalTeacherId] - 1);
-        }
-        if (workloadMap[mod.replacementTeacherId] !== undefined) {
-          workloadMap[mod.replacementTeacherId] += 1;
-        }
-      });
-    } catch (e) {
-      console.warn("Could not calculate active substitution adjustments", e);
     }
 
     const colors = ['#6366f1', '#a855f7', '#ec4899', '#10b981', '#f97316', '#06b6d4'];
@@ -194,6 +196,7 @@ export async function GET(request: Request) {
     .sort((a: any, b: any) => b.value - a.value);
 
     return NextResponse.json({
+      hasActiveTimetable: !!activeTimetable,
       teacherWorkload,
       subjectDistribution,
       totalSlots: totalSlotsCount,

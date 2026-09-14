@@ -112,6 +112,7 @@ export async function resendTeacherCredentials(id: string): Promise<{
   sent: boolean;
   whatsappSent?: boolean;
   whatsappError?: string;
+  whatsappSkipped?: boolean;
   tempPassword?: string;
   error?: string;
 }> {

@@ -77,6 +77,15 @@ export async function GET(request: NextRequest) {
       return NextResponse.json([...regularSlots, ...proxySlots]);
     }
 
+    // Check if the school uses the Timetable model
+    const hasTimetables = await prisma.timetable.findFirst({
+      where: schoolWhere(schoolId),
+      select: { id: true },
+    });
+    if (hasTimetables) {
+      return NextResponse.json([]);
+    }
+
     const rows = await prisma.weeklyTimetableSlot.findMany({
       where: {
         ...schoolWhere(schoolId),

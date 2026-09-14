@@ -139,6 +139,77 @@ export async function provisionTeacherUserAccount(
   }
 }
 
+let deliveryTableReady = false;
+
+async function ensureDeliveryTable(): Promise<void> {
+  if (deliveryTableReady) return;
+  try {
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS \`TeacherCredentialDelivery\` (
+        \`teacherId\` VARCHAR(191) NOT NULL PRIMARY KEY,
+        \`resendCount\` INT NOT NULL DEFAULT 0,
+        \`whatsappSentCount\` INT NOT NULL DEFAULT 0,
+        \`emailSentCount\` INT NOT NULL DEFAULT 0,
+        \`lastResentAt\` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `);
+    deliveryTableReady = true;
+  } catch (err) {
+    console.error('[ensureDeliveryTable] Failed to verify/create delivery table:', err);
+  }
+}
+
+async function getDeliveryRecord(teacherId: string): Promise<{
+  resendCount: number;
+  whatsappSentCount: number;
+  emailSentCount: number;
+} | null> {
+  try {
+    await ensureDeliveryTable();
+    const rows = await prisma.$queryRawUnsafe<any[]>(
+      'SELECT `resendCount`, `whatsappSentCount`, `emailSentCount` FROM `TeacherCredentialDelivery` WHERE `teacherId` = ? LIMIT 1',
+      teacherId
+    );
+    if (rows && rows.length > 0) {
+      return {
+        resendCount: Number(rows[0].resendCount || 0),
+        whatsappSentCount: Number(rows[0].whatsappSentCount || 0),
+        emailSentCount: Number(rows[0].emailSentCount || 0),
+      };
+    }
+    return null;
+  } catch (err) {
+    console.error('[getDeliveryRecord] Error querying delivery status:', err);
+    return null;
+  }
+}
+
+async function recordDelivery(
+  teacherId: string,
+  whatsappSent: boolean,
+  emailSent: boolean
+): Promise<void> {
+  try {
+    await ensureDeliveryTable();
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO \`TeacherCredentialDelivery\` (\`teacherId\`, \`resendCount\`, \`whatsappSentCount\`, \`emailSentCount\`, \`lastResentAt\`)
+       VALUES (?, 1, ?, ?, NOW(3))
+       ON DUPLICATE KEY UPDATE
+         \`resendCount\` = \`resendCount\` + 1,
+         \`whatsappSentCount\` = \`whatsappSentCount\` + ?,
+         \`emailSentCount\` = \`emailSentCount\` + ?,
+         \`lastResentAt\` = NOW(3)`,
+      teacherId,
+      whatsappSent ? 1 : 0,
+      emailSent ? 1 : 0,
+      whatsappSent ? 1 : 0,
+      emailSent ? 1 : 0
+    );
+  } catch (err) {
+    console.error('[recordDelivery] Error updating delivery record:', err);
+  }
+}
+
 export async function resendTeacherCredentials(
   teacherId: string,
   schoolId: string
@@ -149,6 +220,7 @@ export async function resendTeacherCredentials(
   sent: boolean;
   whatsappSent?: boolean;
   whatsappError?: string;
+  whatsappSkipped?: boolean;
   tempPassword: string;
   error?: string;
 }> {
@@ -163,6 +235,10 @@ export async function resendTeacherCredentials(
   if (!teacher.email) {
     throw new Error('Teacher does not have an email address configured');
   }
+
+  // Check resend history for this teacher
+  const deliveryRecord = await getDeliveryRecord(teacher.id);
+  const isFirstResend = !deliveryRecord || deliveryRecord.resendCount === 0;
 
   const school = await prisma.school.findUnique({ where: { id: schoolId } });
   const schoolName = school?.name || 'Your School';
@@ -218,7 +294,7 @@ export async function resendTeacherCredentials(
   let sent = false;
   let sendError: string | undefined;
 
-  // 1. Send via Email
+  // 1. Send via Email (always sent on every resend)
   try {
     const sendResult = await sendTeacherCredentials(
       teacher.email,
@@ -233,26 +309,41 @@ export async function resendTeacherCredentials(
     sendError = err?.message || 'Failed to dispatch email';
   }
 
-  // 2. Send via WhatsApp
+  // 2. Send via WhatsApp:
+  // 1st time resend -> Send to BOTH Email AND WhatsApp
+  // Subsequent resends -> Send ONLY via Email (WhatsApp is skipped)
   let whatsappSent = false;
   let whatsappError: string | undefined;
+  let whatsappSkipped = false;
 
-  if (teacher.phone) {
-    try {
-      const waResult = await sendWhatsAppTeacherCredentials({
-        toPhone: teacher.phone,
-        teacherName: teacher.name,
-        schoolName,
-        email: teacher.email,
-        password: plainPassword,
-        loginUrl: formattedLoginUrl,
-      });
-      whatsappSent = waResult.sent;
-      whatsappError = waResult.error;
-    } catch (waErr: any) {
-      whatsappError = waErr?.message || 'Failed to dispatch WhatsApp message';
+  if (isFirstResend) {
+    if (teacher.phone) {
+      try {
+        const waResult = await sendWhatsAppTeacherCredentials({
+          toPhone: teacher.phone,
+          teacherName: teacher.name,
+          schoolName,
+          email: teacher.email,
+          password: plainPassword,
+          loginUrl: formattedLoginUrl,
+        });
+        whatsappSent = waResult.sent;
+        whatsappError = waResult.error;
+      } catch (waErr: any) {
+        whatsappError = waErr?.message || 'Failed to dispatch WhatsApp message';
+      }
+    } else {
+      whatsappError = 'No phone number configured';
     }
+  } else {
+    whatsappSkipped = true;
+    console.log(
+      `[resendTeacherCredentials] WhatsApp skipped for teacher "${teacher.name}" (${teacher.id}): credentials already resent previously. Sending email only.`
+    );
   }
+
+  // Update delivery record in database
+  await recordDelivery(teacher.id, whatsappSent, sent);
 
   return {
     success: true,
@@ -261,6 +352,7 @@ export async function resendTeacherCredentials(
     sent,
     whatsappSent,
     whatsappError,
+    whatsappSkipped,
     tempPassword: plainPassword,
     error: sendError,
   };

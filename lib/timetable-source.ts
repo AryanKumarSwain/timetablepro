@@ -60,6 +60,19 @@ export async function getScheduleSlots(
     };
   }
 
+  // If no timetable is published, check if the school has timetables in the Timetable model
+  const hasTimetables = await prisma.timetable.findFirst({
+    where: { schoolId },
+    select: { id: true },
+  });
+
+  if (hasTimetables) {
+    return {
+      source: 'timetable',
+      slots: [],
+    };
+  }
+
   const weekly = await prisma.weeklyTimetableSlot.findMany({
     where: {
       schoolId,

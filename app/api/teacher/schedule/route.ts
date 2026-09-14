@@ -105,7 +105,7 @@ export async function GET(request: NextRequest) {
       // Count weekly teacher slots (base timetable slots + proxy assignments)
       const weeklyBaseSlots = allTimetableSlots.filter((slot) => {
         const period = slot.period;
-        return period && !period.isBreak;
+        return slot.timetableId === publishedTimetable.id && period && !period.isBreak;
       }).length;
       
       const weeklyProxyAssignments = allReplacements.length;
