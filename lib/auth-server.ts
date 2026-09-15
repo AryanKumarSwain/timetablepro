@@ -162,8 +162,85 @@ export async function getSchoolPlan() {
 
   const school = await prisma.school.findUnique({
     where: { id: session.user.schoolId },
-    include: { plan: true },
+    include: { plan: true, trialPlan: true },
   });
 
-  return school?.plan || null;
+  if (!school) return null;
+
+  if (
+    school.trialStatus === 'APPROVED' &&
+    school.trialEndsAt &&
+    new Date(school.trialEndsAt) > new Date() &&
+    school.trialPlan
+  ) {
+    return school.trialPlan;
+  }
+
+  return school.plan || null;
 }
+
+export async function getSchoolExportConfig() {
+  const plan = await getSchoolPlan();
+
+  let formats: string[] = [];
+  if (plan) {
+    const raw = (plan as any).exportFormats;
+    if (Array.isArray(raw)) {
+      formats = raw.map((f: any) => String(f).toLowerCase().trim());
+    } else if (typeof raw === 'string') {
+      try {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          formats = parsed.map((f: any) => String(f).toLowerCase().trim());
+        }
+      } catch {
+        formats = [];
+      }
+    }
+  }
+
+  // Fallback to pdf if nothing configured
+  if (formats.length === 0) {
+    formats = ['pdf'];
+  }
+
+  const watermarkRequired = (plan as any)?.watermarkRequired !== false;
+
+  const isFormatAllowed = (targetFormat: string) => {
+    const fmt = targetFormat.toLowerCase().trim();
+    if (fmt === 'word' || fmt === 'docx') {
+      return formats.includes('docx') || formats.includes('word');
+    }
+    return formats.includes(fmt);
+  };
+
+  return {
+    plan,
+    planName: plan?.name || 'Free',
+    exportFormats: formats,
+    watermarkRequired,
+    isFormatAllowed,
+  };
+}
+
+export async function requireExportAccess(format: 'pdf' | 'docx' | 'csv' | 'word'): Promise<{
+  watermarkRequired: boolean;
+  planName: string;
+  exportFormats: string[];
+}> {
+  const config = await getSchoolExportConfig();
+  if (!config.isFormatAllowed(format)) {
+    const label = format.toUpperCase() === 'DOCX' ? 'Word (DOCX)' : format.toUpperCase();
+    throw new AuthError(
+      `Export format "${label}" is not permitted under your current "${config.planName}" plan. Please upgrade your plan in settings to unlock this export format.`,
+      403
+    );
+  }
+
+  return {
+    watermarkRequired: config.watermarkRequired,
+    planName: config.planName,
+    exportFormats: config.exportFormats,
+  };
+}
+

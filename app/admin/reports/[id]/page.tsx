@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useRequireAuth } from '@/lib/auth-context';
-import { getAdminReport, type DailyReportData } from '@/lib/api-services';
+import { getAdminReport, getSchoolDetails, type DailyReportData } from '@/lib/api-services';
 import { PageHeader } from '@/components/enterprise/page-header';
 import { PageSkeleton } from '@/components/enterprise/page-skeleton';
 import { GlassCard } from '@/components/enterprise/glass-card';
@@ -19,6 +19,8 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { FileText, FileSpreadsheet, FileCheck, Lock } from 'lucide-react';
+import { toast } from 'sonner';
 
 export default function AdminReportDetailPage() {
   useRequireAuth('admin');
@@ -26,13 +28,39 @@ export default function AdminReportDetailPage() {
   const id = String(params.id);
   const [report, setReport] = useState<DailyReportData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [allowedFormats, setAllowedFormats] = useState<string[]>(['pdf']);
+  const [planName, setPlanName] = useState<string>('Free');
 
   useEffect(() => {
-    void getAdminReport(id)
-      .then(setReport)
+    Promise.all([
+      getAdminReport(id),
+      getSchoolDetails().catch(() => null),
+    ])
+      .then(([reportData, schoolData]) => {
+        setReport(reportData);
+        if (schoolData) {
+          setAllowedFormats(schoolData.exportFormats || schoolData.plan?.exportFormats || ['pdf']);
+          setPlanName(schoolData.plan?.name || 'Free');
+        }
+      })
       .catch(console.error)
       .finally(() => setLoading(false));
   }, [id]);
+
+  const isFormatAllowed = (fmt: string) => {
+    const f = fmt.toLowerCase().trim();
+    if (f === 'word' || f === 'docx') return allowedFormats.includes('docx') || allowedFormats.includes('word');
+    return allowedFormats.includes(f);
+  };
+
+  const handleDownload = (format: 'pdf' | 'docx' | 'csv') => {
+    if (!isFormatAllowed(format)) {
+      const label = format === 'docx' ? 'Word (DOCX)' : format.toUpperCase();
+      toast.error(`"${label}" export is not included in your ${planName} plan. Please upgrade.`);
+      return;
+    }
+    window.open(`/api/admin/reports/${id}/${format}`, '_blank');
+  };
 
   if (loading || !report) {
     return (
@@ -52,16 +80,36 @@ export default function AdminReportDetailPage() {
           { label: report.teacherName },
         ]}
         actions={
-          <div className='flex gap-2'>
-            <Button variant='outline' asChild>
-              <a href={`/api/admin/reports/${id}/csv`} download>
-                CSV
-              </a>
+          <div className='flex flex-wrap gap-2'>
+            <Button
+              variant='outline'
+              size='sm'
+              className='gap-1.5 rounded-xl font-semibold'
+              onClick={() => handleDownload('pdf')}
+            >
+              <FileText className='h-4 w-4 text-rose-500' />
+              PDF
+              {!isFormatAllowed('pdf') && <Lock className='h-3 w-3 opacity-60' />}
             </Button>
-            <Button variant='outline' asChild>
-              <a href={`/api/admin/reports/${id}/pdf`} download>
-                PDF
-              </a>
+            <Button
+              variant='outline'
+              size='sm'
+              className='gap-1.5 rounded-xl font-semibold'
+              onClick={() => handleDownload('docx')}
+            >
+              <FileCheck className='h-4 w-4 text-blue-500' />
+              Word
+              {!isFormatAllowed('docx') && <Lock className='h-3 w-3 opacity-60' />}
+            </Button>
+            <Button
+              variant='outline'
+              size='sm'
+              className='gap-1.5 rounded-xl font-semibold'
+              onClick={() => handleDownload('csv')}
+            >
+              <FileSpreadsheet className='h-4 w-4 text-emerald-500' />
+              CSV
+              {!isFormatAllowed('csv') && <Lock className='h-3 w-3 opacity-60' />}
             </Button>
           </div>
         }

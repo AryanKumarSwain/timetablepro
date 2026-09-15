@@ -46,6 +46,8 @@ import {
   Clock,
   User,
   FileCheck,
+  FileSpreadsheet,
+  Lock,
   Layers,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -90,6 +92,15 @@ export default function AdminHomeworkPage() {
   const [dateHomework, setDateHomework] = useState<any[]>([]);
   const [isDateLoading, setIsDateLoading] = useState<boolean>(false);
   const [showHistoryView, setShowHistoryView] = useState(false);
+  const [allowedFormats, setAllowedFormats] = useState<string[]>(['pdf']);
+  const [watermarkRequired, setWatermarkRequired] = useState<boolean>(true);
+  const [planName, setPlanName] = useState<string>('Free');
+
+  const isFormatAllowed = (fmt: string) => {
+    const f = fmt.toLowerCase().trim();
+    if (f === 'word' || f === 'docx') return allowedFormats.includes('docx') || allowedFormats.includes('word');
+    return allowedFormats.includes(f);
+  };
 
   useEffect(() => {
     if (!auth.loading && auth.user) {
@@ -121,6 +132,9 @@ export default function AdminHomeworkPage() {
       const plan = schoolData.plan;
       const homeworkEnabled = plan?.homeworkEnabled || false;
       setFeatureEnabled(homeworkEnabled);
+      setAllowedFormats(schoolData.exportFormats || plan?.exportFormats || ['pdf']);
+      setWatermarkRequired(schoolData.watermarkRequired !== false && plan?.watermarkRequired !== false);
+      setPlanName(plan?.name || 'Free');
       
       setHomework(homeworkData);
       setClasses(classesData);
@@ -270,20 +284,14 @@ export default function AdminHomeworkPage() {
   };
 
   const handleDownloadPDF = async (className: string) => {
+    if (!isFormatAllowed('pdf')) {
+      toast.error(`"PDF" export is not included in your ${planName} plan. Please upgrade.`);
+      return;
+    }
     try {
       toast.info('Preparing PDF for print...');
       const classHomework = [...(homework[className] || []), ...(reportHomework[className] || [])];
-      
-      let showWatermark = true;
-      try {
-        const planResponse = await fetch('/api/admin/school');
-        if (planResponse.ok) {
-          const planData = await planResponse.json();
-          showWatermark = planData.watermarkRequired !== false;
-        }
-      } catch (e) {
-        console.error('Failed to fetch plan for watermark check:', e);
-      }
+      const showWatermark = watermarkRequired;
       
       const printWindow = window.open('', '_blank');
       if (!printWindow) {
@@ -372,6 +380,20 @@ export default function AdminHomeworkPage() {
               color: #9ca3af;
               font-size: 12px;
             }
+            .watermark {
+              position: fixed;
+              top: 40%;
+              left: 5%;
+              width: 90%;
+              text-align: center;
+              font-size: 52px;
+              font-weight: 900;
+              color: rgba(148, 163, 184, 0.12);
+              transform: rotate(-30deg);
+              pointer-events: none;
+              z-index: 9999;
+              letter-spacing: 5px;
+            }
             @media print {
               body {
                 padding: 20px;
@@ -385,6 +407,7 @@ export default function AdminHomeworkPage() {
           </style>
         </head>
         <body>
+          ${showWatermark ? '<div class="watermark">TIMETABLEPRO • WATERMARK</div>' : ''}
           <div class="header">
             <div class="school-name">${schoolName}</div>
             <div class="divider"></div>
@@ -417,7 +440,7 @@ export default function AdminHomeworkPage() {
               }).join('')}
             </tbody>
           </table>
-          ${showWatermark ? '<div class="footer">Generated via Timetable Pro</div>' : ''}
+          ${showWatermark ? '<div class="footer">Generated via TimetablePro • Watermarked Edition</div>' : ''}
         </body>
         </html>
       `;
@@ -435,26 +458,81 @@ export default function AdminHomeworkPage() {
     }
   };
 
+  const handleDownloadCSV = (className: string) => {
+    if (!isFormatAllowed('csv')) {
+      toast.error(`"CSV" export is not included in your ${planName} plan. Please upgrade.`);
+      return;
+    }
+    const classHomework = [...(homework[className] || []), ...(reportHomework[className] || [])];
+    if (classHomework.length === 0) {
+      toast.info('No homework items recorded for this class.');
+      return;
+    }
+
+    const headers = ['S.No.', 'Class', 'Subject', 'Homework Task', 'Assigned By'];
+    const rows = classHomework.map((hw: any, index: number) => {
+      const subjectName = hw.subject?.name || 'General';
+      const teacherName = hw.teacher?.name || 'Teacher';
+      const desc = (hw.description || '').replace(/"/g, '""');
+      return [
+        index + 1,
+        `"${className}"`,
+        `"${subjectName}"`,
+        `"${desc}"`,
+        `"${teacherName}"`,
+      ].join(',');
+    });
+
+    let csvContent = '\uFEFF' + [headers.join(','), ...rows].join('\n');
+    if (watermarkRequired) {
+      csvContent += '\n\n"# Generated via TimetablePro [Watermarked Plan - Upgrade to remove watermark]"\n';
+    }
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `homework-${className.replace(/\s+/g, '-')}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast.success('Homework CSV downloaded successfully');
+  };
+
   const handleDownloadWord = async (className: string) => {
+    if (!isFormatAllowed('docx')) {
+      toast.error(`"Word" export is not included in your ${planName} plan. Please upgrade.`);
+      return;
+    }
     try {
       toast.info('Generating Word document...');
       const classHomework = [...(homework[className] || []), ...(reportHomework[className] || [])];
-      
-      let showWatermark = true;
-      try {
-        const planResponse = await fetch('/api/admin/school');
-        if (planResponse.ok) {
-          const planData = await planResponse.json();
-          showWatermark = planData.watermarkRequired !== false;
-        }
-      } catch (e) {
-        console.error('Failed to fetch plan for watermark check:', e);
-      }
+      const showWatermark = watermarkRequired;
       
       const currentSchoolName = schoolName || 'School';
       const currentDate = new Date().toLocaleDateString();
 
-      const documentChildren = [
+      const documentChildren: any[] = [];
+
+      if (showWatermark) {
+        documentChildren.push(
+          new Paragraph({
+            alignment: AlignmentType.CENTER,
+            children: [
+              new TextRun({
+                text: '⚠️ GENERATED VIA TIMETABLEPRO • WATERMARKED EDITION (UPGRADE PLAN TO REMOVE)',
+                size: 16,
+                bold: true,
+                color: '718096',
+              }),
+            ],
+            spacing: { after: 150 },
+          })
+        );
+      }
+
+      documentChildren.push(
         new Paragraph({
           text: currentSchoolName.toUpperCase(),
           heading: HeadingLevel.HEADING_1,
@@ -560,8 +638,8 @@ export default function AdminHomeworkPage() {
             left: { style: BorderStyle.SINGLE, size: 1, color: 'E5E7EB' },
             right: { style: BorderStyle.SINGLE, size: 1, color: 'E5E7EB' },
           },
-        }),
-      ];
+        })
+      );
 
       if (showWatermark) {
         documentChildren.push(
@@ -1027,14 +1105,27 @@ export default function AdminHomeworkPage() {
                               <ChevronDown className="h-3.5 w-3.5 opacity-60" />
                             </Button>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="rounded-xl">
-                            <DropdownMenuItem onClick={() => handleDownloadPDF(className)} className="gap-2 text-xs cursor-pointer">
-                              <FileText className="h-4 w-4 text-purple-600" />
-                              Export as PDF Agenda
+                          <DropdownMenuContent align="end" className="w-52 rounded-xl">
+                            <DropdownMenuItem onClick={() => handleDownloadPDF(className)} className="cursor-pointer text-xs flex items-center justify-between">
+                              <span className="flex items-center gap-2">
+                                <FileText className="h-4 w-4 text-purple-600" />
+                                <span>Export as PDF Agenda</span>
+                              </span>
+                              {!isFormatAllowed('pdf') && <Lock className="h-3 w-3 text-muted-foreground" />}
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleDownloadWord(className)} className="gap-2 text-xs cursor-pointer">
-                              <FileCheck className="h-4 w-4 text-blue-600" />
-                              Export as Word Document
+                            <DropdownMenuItem onClick={() => handleDownloadWord(className)} className="cursor-pointer text-xs flex items-center justify-between">
+                              <span className="flex items-center gap-2">
+                                <FileCheck className="h-4 w-4 text-blue-600" />
+                                <span>Export as Word Document</span>
+                              </span>
+                              {!isFormatAllowed('docx') && <Lock className="h-3 w-3 text-muted-foreground" />}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleDownloadCSV(className)} className="cursor-pointer text-xs flex items-center justify-between">
+                              <span className="flex items-center gap-2">
+                                <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
+                                <span>Export as CSV Spreadsheet</span>
+                              </span>
+                              {!isFormatAllowed('csv') && <Lock className="h-3 w-3 text-muted-foreground" />}
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>

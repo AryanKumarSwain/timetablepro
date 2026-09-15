@@ -95,7 +95,7 @@ const FEATURE_FLAGS = [
   { field: 'attendanceEnabled',     label: 'Attendance' },
   { field: 'homeworkEnabled',       label: 'Homework' },
   { field: 'lessonPlanningEnabled', label: 'Lesson Planning' },
-  { field: 'watermarkRequired',     label: 'Watermark required' },
+  { field: 'watermarkRequired',     label: 'Watermark required on exported documents' },
 ] as const;
 
 type FeatureFlagField = typeof FEATURE_FLAGS[number]['field'];
@@ -590,18 +590,30 @@ export default function PlansPage() {
                         {plan.attendanceEnabled     && <Badge variant='secondary' className='text-xs'>Attendance</Badge>}
                         {plan.homeworkEnabled       && <Badge variant='secondary' className='text-xs'>Homework</Badge>}
                         {plan.lessonPlanningEnabled && <Badge variant='secondary' className='text-xs'>Lesson Planning</Badge>}
-                        {plan.watermarkRequired     && <Badge variant='outline'   className='text-xs'>Watermark</Badge>}
+                        {plan.watermarkRequired ? (
+                          <Badge variant='outline' className='text-xs border-amber-500/40 text-amber-600 dark:text-amber-400'>
+                            Watermark
+                          </Badge>
+                        ) : (
+                          <Badge variant='outline' className='text-xs border-emerald-500/40 text-emerald-600 dark:text-emerald-400'>
+                            No Watermark
+                          </Badge>
+                        )}
                       </div>
                     </TableCell>
 
                     {/* Export formats summary */}
                     <TableCell>
                       <div className='flex flex-wrap gap-1'>
-                        {(plan.exportFormats ?? []).map((fmt) => (
-                          <Badge key={fmt} variant='outline' className='text-xs uppercase'>
-                            {fmt}
-                          </Badge>
-                        ))}
+                        {(plan.exportFormats ?? []).length === 0 ? (
+                          <span className='text-xs text-muted-foreground italic'>None</span>
+                        ) : (
+                          (plan.exportFormats ?? []).map((fmt) => (
+                            <Badge key={fmt} variant='outline' className='text-xs font-semibold uppercase'>
+                              {fmt === 'docx' ? 'DOCX' : fmt}
+                            </Badge>
+                          ))
+                        )}
                       </div>
                     </TableCell>
 

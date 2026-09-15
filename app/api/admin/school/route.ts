@@ -54,6 +54,7 @@ export async function GET(request: NextRequest) {
       where: { id: schoolId },
       include: {
         plan: true,
+        trialPlan: true,
         queuedPlan: true,
         pausedPlan: true,
         _count: {
@@ -66,6 +67,22 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'School not found' }, { status: 404 });
     }
 
+    const isTrialActive =
+      school.trialStatus === 'APPROVED' &&
+      school.trialEndsAt &&
+      new Date(school.trialEndsAt) > new Date() &&
+      school.trialPlan;
+
+    const effectivePlan = isTrialActive ? school.trialPlan : school.plan;
+
+    const normalizedExportFormats = effectivePlan
+      ? Array.isArray(effectivePlan.exportFormats)
+        ? (effectivePlan.exportFormats as string[]).map((f) => String(f).toLowerCase())
+        : ['pdf']
+      : ['pdf'];
+
+    const watermarkRequired = effectivePlan ? effectivePlan.watermarkRequired !== false : true;
+
     return NextResponse.json({
       name: school.name,
       address: school.address,
@@ -76,7 +93,7 @@ export async function GET(request: NextRequest) {
       facebook: school.facebook,
       linkedin: school.linkedin,
       twitter: school.twitter,
-      planId: school.planId,
+      planId: effectivePlan?.id || school.planId,
       planStartsAt: school.planStartsAt,
       planEndsAt: school.planEndsAt,
       queuedPlanId: school.queuedPlanId,
@@ -104,18 +121,20 @@ export async function GET(request: NextRequest) {
       autoDowngradedAt: (school as any).autoDowngradedAt || null,
       licenseStatus: school.licenseStatus,
       teacherCount: school._count.teachers,
-      plan: school.plan ? {
-        id: school.plan.id,
-        name: school.plan.name,
-        teacherMin: school.plan.teacherMin,
-        teacherMax: school.plan.teacherMax,
-        priceMonthly: Number(school.plan.priceMonthly),
-        reportEnabled: school.plan.reportEnabled,
-        attendanceEnabled: school.plan.attendanceEnabled,
-        homeworkEnabled: school.plan.homeworkEnabled,
-        lessonPlanningEnabled: school.plan.lessonPlanningEnabled ?? false,
-        exportFormats: school.plan.exportFormats,
-        watermarkRequired: school.plan.watermarkRequired,
+      watermarkRequired,
+      exportFormats: normalizedExportFormats,
+      plan: effectivePlan ? {
+        id: effectivePlan.id,
+        name: effectivePlan.name,
+        teacherMin: effectivePlan.teacherMin,
+        teacherMax: effectivePlan.teacherMax,
+        priceMonthly: Number(effectivePlan.priceMonthly),
+        reportEnabled: effectivePlan.reportEnabled,
+        attendanceEnabled: effectivePlan.attendanceEnabled,
+        homeworkEnabled: effectivePlan.homeworkEnabled,
+        lessonPlanningEnabled: effectivePlan.lessonPlanningEnabled ?? false,
+        exportFormats: normalizedExportFormats,
+        watermarkRequired,
       } : null,
     });
   } catch (error) {

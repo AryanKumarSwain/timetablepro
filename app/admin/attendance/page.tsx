@@ -6,7 +6,31 @@ import { getTeachers, getDailyDeskGrid } from '@/lib/api-services';
 import type { Teacher } from '@/lib/types';
 import { PageHeader } from '@/components/enterprise/page-header';
 import { PageSkeleton } from '@/components/enterprise/page-skeleton';
-import { Calendar, RefreshCw, CheckCircle, XCircle, Search, FileText, Download, Users, SlidersHorizontal, Check, X, CheckCircle2 } from 'lucide-react';
+import {
+  Calendar,
+  RefreshCw,
+  CheckCircle,
+  XCircle,
+  Search,
+  FileText,
+  Download,
+  Users,
+  SlidersHorizontal,
+  Check,
+  X,
+  CheckCircle2,
+  FileCheck,
+  FileSpreadsheet,
+  Lock,
+  ChevronDown,
+} from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, WidthType, HeadingLevel, AlignmentType } from 'docx';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { ProtectedFeature } from '@/components/protected-feature';
@@ -54,6 +78,16 @@ export default function AdminAttendancePage() {
   const [rangeSummary, setRangeSummary] = useState<Record<string, DayLog[]>>({});
   const [isRangeLoading, setIsRangeLoading] = useState<boolean>(false);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [allowedFormats, setAllowedFormats] = useState<string[]>(['pdf']);
+  const [watermarkRequired, setWatermarkRequired] = useState<boolean>(true);
+  const [planName, setPlanName] = useState<string>('Free');
+  const [schoolName, setSchoolName] = useState<string>('School');
+
+  const isFormatAllowed = (fmt: string) => {
+    const f = fmt.toLowerCase().trim();
+    if (f === 'word' || f === 'docx') return allowedFormats.includes('docx') || allowedFormats.includes('word');
+    return allowedFormats.includes(f);
+  };
 
   // Date Lock Guards - only prevent past dates, allow future dates
   const isPastDate = selectedDate < todayStr;
@@ -76,6 +110,10 @@ export default function AdminAttendancePage() {
       const plan = schoolData.plan;
       const attendanceEnabled = plan?.attendanceEnabled || false;
       setFeatureEnabled(attendanceEnabled);
+      setAllowedFormats(schoolData.exportFormats || plan?.exportFormats || ['pdf']);
+      setWatermarkRequired(schoolData.watermarkRequired !== false && plan?.watermarkRequired !== false);
+      setPlanName(plan?.name || 'Free');
+      setSchoolName(schoolData.name || 'School');
       
       const [teachersList, deskGrid] = await Promise.all([
         getTeachers(),
@@ -204,19 +242,13 @@ export default function AdminAttendancePage() {
     return { total, absent, present: total - absent };
   }, [teachers, getTeacherCurrentStatus]);
 
-  // Clean Matrix CSV Compiler matching the image fix
-  const exportToExcel = async () => {
+  const handleExportCSV = async () => {
+    if (!isFormatAllowed('csv')) {
+      toast.error(`"CSV" export is not included in your ${planName} plan. Please upgrade.`);
+      return;
+    }
     try {
       const hasRangeData = uniqueDates.length > 0;
-      
-      let showWatermark = true;
-      try {
-        const schoolData = await getSchoolDetails();
-        showWatermark = schoolData.watermarkRequired !== false;
-      } catch (e) {
-        console.error('Failed to fetch plan for watermark check:', e);
-      }
-      
       let headers = ['Faculty Name', 'Email Address', `Status (${selectedDate})`];
       if (hasRangeData) {
         headers = ['Faculty Name', 'Email Address', ...uniqueDates, 'Total Present (P)', 'Total Absent (A)'];
@@ -239,11 +271,12 @@ export default function AdminAttendancePage() {
         return [t.name, t.email || 'N/A', getTeacherCurrentStatus(t.id)];
       });
 
-      const csvContent = [headers, ...rows].map(e => e.map(val => `"${val}"`).join(",")).join("\n");
+      const csvRows = [headers, ...rows].map(e => e.map(val => `"${val}"`).join(",")).join("\n");
       
-      const finalContent = showWatermark 
-        ? csvContent + '\n\n"Generated via Timetable Pro"' 
-        : csvContent;
+      let finalContent = '\uFEFF' + csvRows;
+      if (watermarkRequired) {
+        finalContent += '\n\n"# Generated via TimetablePro [Watermarked Plan - Upgrade to remove watermark]"\n';
+      }
       
       const blob = new Blob([finalContent], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
@@ -253,11 +286,266 @@ export default function AdminAttendancePage() {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+      URL.revokeObjectURL(url);
       toast.success('Matrix CSV downloaded.');
     } catch (err) {
       toast.error('Failed to compile data stream to CSV format.');
     }
   };
+
+  const handleExportWord = async () => {
+    if (!isFormatAllowed('docx')) {
+      toast.error(`"Word" export is not included in your ${planName} plan. Please upgrade.`);
+      return;
+    }
+    try {
+      toast.info('Generating Attendance Word document...');
+      const hasRangeData = uniqueDates.length > 0;
+      const headers = hasRangeData
+        ? ['Faculty Name', 'Email', ...uniqueDates, 'P', 'A']
+        : ['Faculty Name', 'Email Address', `Status (${selectedDate})`];
+
+      const documentChildren: any[] = [];
+
+      if (watermarkRequired) {
+        documentChildren.push(
+          new Paragraph({
+            alignment: AlignmentType.CENTER,
+            children: [
+              new TextRun({
+                text: '⚠️ GENERATED VIA TIMETABLEPRO • WATERMARKED EDITION (UPGRADE PLAN TO REMOVE)',
+                size: 16,
+                bold: true,
+                color: '718096',
+              }),
+            ],
+            spacing: { after: 150 },
+          })
+        );
+      }
+
+      documentChildren.push(
+        new Paragraph({
+          text: (schoolName || 'School').toUpperCase(),
+          heading: HeadingLevel.HEADING_2,
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 100 },
+        }),
+        new Paragraph({
+          text: 'FACULTY ATTENDANCE MATRIX',
+          heading: HeadingLevel.HEADING_1,
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 150 },
+        }),
+        new Paragraph({
+          children: [
+            new TextRun({ text: 'Date: ', bold: true }),
+            new TextRun({ text: `${selectedDate}    |    ` }),
+            new TextRun({ text: 'Total Faculty: ', bold: true }),
+            new TextRun({ text: `${filteredTeachers.length}    |    ` }),
+            new TextRun({ text: 'Present: ', bold: true }),
+            new TextRun({ text: `${stats.present}    |    ` }),
+            new TextRun({ text: 'Absent: ', bold: true }),
+            new TextRun({ text: `${stats.absent}` }),
+          ],
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 300 },
+        })
+      );
+
+      const tableRows = [
+        new TableRow({
+          tableHeader: true,
+          children: headers.map(h => (
+            new TableCell({
+              shading: { fill: '2563EB' },
+              children: [new Paragraph({ children: [new TextRun({ text: h, bold: true, color: 'FFFFFF' })] })],
+            })
+          )),
+        }),
+      ];
+
+      filteredTeachers.forEach((t, idx) => {
+        const bg = idx % 2 === 0 ? 'FFFFFF' : 'F8FAFC';
+        let cells: string[] = [];
+        if (hasRangeData) {
+          const logs = rangeSummary[t.id] || [];
+          const statusCells = uniqueDates.map(d => {
+            const match = logs.find(l => l.date === d);
+            return match ? match.status : '-';
+          });
+          const totalP = logs.filter(l => l.status === 'P').length;
+          const totalA = logs.filter(l => l.status === 'A').length;
+          cells = [t.name, t.email || '-', ...statusCells, String(totalP), String(totalA)];
+        } else {
+          cells = [t.name, t.email || '-', getTeacherCurrentStatus(t.id)];
+        }
+
+        tableRows.push(
+          new TableRow({
+            children: cells.map(val => (
+              new TableCell({
+                shading: { fill: bg },
+                children: [new Paragraph({ text: val })],
+              })
+            )),
+          })
+        );
+      });
+
+      documentChildren.push(
+        new Table({
+          rows: tableRows,
+          width: { size: 9600, type: WidthType.DXA },
+        })
+      );
+
+      if (watermarkRequired) {
+        documentChildren.push(
+          new Paragraph({
+            children: [
+              new TextRun({
+                text: 'Generated via TimetablePro • Watermarked Plan Edition',
+                italics: true,
+                color: '94A3B8',
+                size: 16,
+              }),
+            ],
+            alignment: AlignmentType.RIGHT,
+            spacing: { before: 300 },
+          })
+        );
+      }
+
+      const doc = new Document({
+        sections: [{
+          properties: {},
+          children: documentChildren,
+        }],
+      });
+
+      const blob = await Packer.toBlob(doc);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Attendance_Matrix_${selectedDate}.docx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success('Attendance Word document downloaded successfully');
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to generate Attendance Word document');
+    }
+  };
+
+  const handleExportPDF = () => {
+    if (!isFormatAllowed('pdf')) {
+      toast.error(`"PDF" export is not included in your ${planName} plan. Please upgrade.`);
+      return;
+    }
+    try {
+      toast.info('Preparing Attendance PDF for print...');
+      const hasRangeData = uniqueDates.length > 0;
+      const headers = hasRangeData
+        ? ['Faculty Name', 'Email', ...uniqueDates, 'Present', 'Absent']
+        : ['Faculty Name', 'Email Address', `Status (${selectedDate})`];
+
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) {
+        toast.error('Failed to open print window');
+        return;
+      }
+
+      const rowsHtml = filteredTeachers.map((t, idx) => {
+        let cells: string[] = [];
+        if (hasRangeData) {
+          const logs = rangeSummary[t.id] || [];
+          const statusCells = uniqueDates.map(d => {
+            const match = logs.find(l => l.date === d);
+            return match ? match.status : '-';
+          });
+          const totalP = logs.filter(l => l.status === 'P').length;
+          const totalA = logs.filter(l => l.status === 'A').length;
+          cells = [t.name, t.email || '-', ...statusCells, String(totalP), String(totalA)];
+        } else {
+          cells = [t.name, t.email || '-', getTeacherCurrentStatus(t.id)];
+        }
+
+        return `
+          <tr style="background: ${idx % 2 === 0 ? '#ffffff' : '#f8fafc'};">
+            ${cells.map(c => `<td style="border: 1px solid #e2e8f0; padding: 8px; font-size: 12px;">${c}</td>`).join('')}
+          </tr>
+        `;
+      }).join('');
+
+      const htmlContent = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Attendance Matrix - ${selectedDate}</title>
+          <style>
+            body { font-family: Arial, sans-serif; max-width: 1000px; margin: 0 auto; padding: 30px; line-height: 1.5; color: #1e293b; }
+            .header { text-align: center; margin-bottom: 24px; }
+            .school-name { font-size: 24px; font-weight: bold; text-transform: uppercase; color: #0f172a; }
+            .title { font-size: 18px; font-weight: bold; color: #2563eb; margin: 6px 0; }
+            .meta { font-size: 12px; color: #64748b; margin-bottom: 16px; }
+            table { width: 100%; border-collapse: collapse; margin-top: 16px; }
+            th { background-color: #2563eb; color: white; border: 1px solid #1d4ed8; padding: 10px 8px; font-size: 12px; text-align: left; }
+            .watermark {
+              position: fixed;
+              top: 40%;
+              left: 5%;
+              width: 90%;
+              text-align: center;
+              font-size: 52px;
+              font-weight: 900;
+              color: rgba(148, 163, 184, 0.12);
+              transform: rotate(-30deg);
+              pointer-events: none;
+              z-index: 9999;
+              letter-spacing: 5px;
+            }
+            .footer { position: fixed; bottom: 10px; right: 10px; font-size: 11px; color: #94a3b8; }
+            @media print {
+              body { padding: 10px; }
+            }
+          </style>
+        </head>
+        <body>
+          ${watermarkRequired ? '<div class="watermark">TIMETABLEPRO • WATERMARK</div>' : ''}
+          <div class="header">
+            <div class="school-name">${schoolName}</div>
+            <div class="title">FACULTY ATTENDANCE MATRIX</div>
+            <div class="meta">Date: ${selectedDate}  |  Total Faculty: ${filteredTeachers.length}  |  Present: ${stats.present}  |  Absent: ${stats.absent}</div>
+          </div>
+          <table>
+            <thead>
+              <tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr>
+            </thead>
+            <tbody>
+              ${rowsHtml}
+            </tbody>
+          </table>
+          ${watermarkRequired ? '<div class="footer">Generated via TimetablePro • Watermarked Edition</div>' : ''}
+        </body>
+        </html>
+      `;
+
+      printWindow.document.write(htmlContent);
+      printWindow.document.close();
+      setTimeout(() => {
+        printWindow.print();
+        toast.success('Print dialog opened');
+      }, 250);
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to prepare Attendance PDF');
+    }
+  };
+
+  const exportToExcel = handleExportCSV;
 
   if (loading) {
     return <div className="max-w-7xl mx-auto p-4"><PageSkeleton /></div>;
@@ -603,13 +891,42 @@ export default function AdminAttendancePage() {
             <p className="text-[11px] text-muted-foreground font-semibold">
               Active roster grid contains <span className="text-foreground font-black">{filteredTeachers.length}</span> faculty tracks.
             </p>
-            <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+            <div className="flex flex-wrap gap-2 w-full sm:w-auto items-center">
               <button onClick={() => window.print()} className="flex-1 sm:flex-initial inline-flex items-center justify-center h-10 px-4 rounded-xl border bg-card text-xs font-black uppercase tracking-wider gap-2">
-                <FileText className="h-4 w-4 text-destructive" /> Print Report
+                <FileText className="h-4 w-4 text-destructive" /> Print Roster
               </button>
-              <button onClick={exportToExcel} className="flex-1 sm:flex-initial inline-flex items-center justify-center h-10 px-4 rounded-xl bg-primary text-primary-foreground text-xs font-black uppercase tracking-wider gap-2">
-                <Download className="h-4 w-4" /> Export Matrix CSV
-              </button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button className="flex-1 sm:flex-initial inline-flex items-center justify-center h-10 px-4 rounded-xl bg-primary text-primary-foreground text-xs font-black uppercase tracking-wider gap-2 cursor-pointer">
+                    <Download className="h-4 w-4" />
+                    <span>Export Matrix</span>
+                    <ChevronDown className="h-3.5 w-3.5 opacity-60" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56 rounded-xl">
+                  <DropdownMenuItem onClick={handleExportPDF} className="cursor-pointer text-xs flex items-center justify-between">
+                    <span className="flex items-center gap-2">
+                      <FileText className="h-4 w-4 text-rose-500" />
+                      <span>Export as PDF</span>
+                    </span>
+                    {!isFormatAllowed('pdf') && <Lock className="h-3 w-3 text-muted-foreground" />}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleExportWord} className="cursor-pointer text-xs flex items-center justify-between">
+                    <span className="flex items-center gap-2">
+                      <FileCheck className="h-4 w-4 text-blue-500" />
+                      <span>Export as Word Document</span>
+                    </span>
+                    {!isFormatAllowed('docx') && <Lock className="h-3 w-3 text-muted-foreground" />}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleExportCSV} className="cursor-pointer text-xs flex items-center justify-between">
+                    <span className="flex items-center gap-2">
+                      <FileSpreadsheet className="h-4 w-4 text-emerald-500" />
+                      <span>Export as CSV Spreadsheet</span>
+                    </span>
+                    {!isFormatAllowed('csv') && <Lock className="h-3 w-3 text-muted-foreground" />}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
         </div>

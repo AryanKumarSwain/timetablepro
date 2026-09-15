@@ -19,7 +19,17 @@ import {
   X,
   Sparkles,
   RotateCcw,
+  FileText,
+  FileCheck,
+  FileSpreadsheet,
+  Lock,
 } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
 import { PlanButton } from '@/components/ui/plan-button';
 import { Input } from '@/components/ui/input';
@@ -94,6 +104,14 @@ export default function AdminLessonPlanningPage() {
   const [expandedDates, setExpandedDates] = useState<string[]>([todayStr]);
   const [featureEnabled, setFeatureEnabled] = useState(true);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [allowedFormats, setAllowedFormats] = useState<string[]>(['pdf']);
+  const [planName, setPlanName] = useState<string>('Free');
+
+  const isFormatAllowed = (fmt: string) => {
+    const f = fmt.toLowerCase().trim();
+    if (f === 'word' || f === 'docx') return allowedFormats.includes('docx') || allowedFormats.includes('word');
+    return allowedFormats.includes(f);
+  };
 
   useEffect(() => {
     if (auth.loading || !auth.user) return;
@@ -121,6 +139,8 @@ export default function AdminLessonPlanningPage() {
       const schoolData = await getSchoolDetails();
       const plan = schoolData?.plan;
       setFeatureEnabled(plan?.lessonPlanningEnabled || false);
+      setAllowedFormats(schoolData?.exportFormats || plan?.exportFormats || ['pdf']);
+      setPlanName(plan?.name || 'Free');
     } catch (error) {
       console.error('Failed to fetch lesson planning feature access', error);
       setFeatureEnabled(false);
@@ -173,30 +193,41 @@ export default function AdminLessonPlanningPage() {
     }
   };
 
-  const handleExport = async () => {
+  const handleExport = async (format: 'pdf' | 'docx' | 'csv') => {
+    if (!isFormatAllowed(format)) {
+      const label = format === 'docx' ? 'Word (DOCX)' : format.toUpperCase();
+      toast.error(`"${label}" export is not included in your ${planName} plan. Please upgrade.`);
+      return;
+    }
     try {
       const params = new URLSearchParams();
       if (dateFrom) params.append('dateFrom', dateFrom);
       if (dateTo) params.append('dateTo', dateTo);
-      params.append('format', 'csv');
+      params.append('format', format);
       if (filterClassId) params.append('classId', filterClassId);
+      if (filterTeacherId) params.append('teacherId', filterTeacherId);
 
       const res = await fetch(`/api/admin/lesson-plans/export?${params.toString()}`);
-      if (!res.ok) throw new Error('Failed to export');
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Failed to export');
+      }
 
       const blob = await res.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `lesson-plans-${dateFrom}-to-${dateTo}.csv`;
+      const ext = format === 'docx' ? 'docx' : format === 'pdf' ? 'pdf' : 'csv';
+      a.download = `lesson-plans-${dateFrom || 'start'}-to-${dateTo || 'end'}.${ext}`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
 
-      setSuccessMsg('Lessons exported to CSV successfully');
-    } catch (error) {
-      toast.error('Failed to export lessons');
+      const label = format === 'docx' ? 'Word' : format.toUpperCase();
+      setSuccessMsg(`Lessons exported to ${label} successfully`);
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to export lessons');
       console.error(error);
     }
   };
@@ -332,14 +363,41 @@ export default function AdminLessonPlanningPage() {
             { label: 'Lesson Planning' },
           ]}
           actions={
-            <Button
-              onClick={handleExport}
-              disabled={isLoading}
-              className="gap-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold shadow-md shadow-purple-500/20 hover:-translate-y-0.5 transition-all cursor-pointer"
-            >
-              <Download className="h-4 w-4" />
-              Export CSV
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  disabled={isLoading}
+                  className="gap-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold shadow-md shadow-purple-500/20 hover:-translate-y-0.5 transition-all cursor-pointer"
+                >
+                  <Download className="h-4 w-4" />
+                  <span>Export Curriculum</span>
+                  <ChevronDown className="h-3.5 w-3.5 opacity-60" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-52 rounded-xl">
+                <DropdownMenuItem onClick={() => handleExport('pdf')} className="cursor-pointer text-xs flex items-center justify-between">
+                  <span className="flex items-center gap-2">
+                    <FileText className="h-4 w-4 text-rose-500" />
+                    <span>Export as PDF</span>
+                  </span>
+                  {!isFormatAllowed('pdf') && <Lock className="h-3 w-3 text-muted-foreground" />}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExport('docx')} className="cursor-pointer text-xs flex items-center justify-between">
+                  <span className="flex items-center gap-2">
+                    <FileCheck className="h-4 w-4 text-blue-500" />
+                    <span>Export as Word Document</span>
+                  </span>
+                  {!isFormatAllowed('docx') && <Lock className="h-3 w-3 text-muted-foreground" />}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExport('csv')} className="cursor-pointer text-xs flex items-center justify-between">
+                  <span className="flex items-center gap-2">
+                    <FileSpreadsheet className="h-4 w-4 text-emerald-500" />
+                    <span>Export as CSV</span>
+                  </span>
+                  {!isFormatAllowed('csv') && <Lock className="h-3 w-3 text-muted-foreground" />}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           }
         />
 

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { requireSchoolAdmin, handleApiError, schoolWhere } from '@/lib/auth-server';
+import { requireSchoolAdmin, handleApiError, schoolWhere, requireExportAccess } from '@/lib/auth-server';
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -20,6 +20,7 @@ function parseDescription(desc = '') {
 export async function GET(_request: Request, context: RouteContext) {
   try {
     const { schoolId } = await requireSchoolAdmin();
+    const { watermarkRequired } = await requireExportAccess('csv');
     const { id } = await context.params; 
 
     // Fetch the target report and its inner details
@@ -70,7 +71,10 @@ export async function GET(_request: Request, context: RouteContext) {
     }
 
     // CRITICAL FIX FOR EXCEL: Add UTF-8 BOM (\uFEFF) so Excel breaks columns cleanly
-    const csvContent = '\uFEFF' + csvRows.join('\n');
+    const rawCsv = '\uFEFF' + csvRows.join('\n');
+    const csvContent = watermarkRequired
+      ? rawCsv + '\n\n"# Generated via TimetablePro [Watermarked Plan - Upgrade to remove watermark]"\n'
+      : rawCsv;
     
     // Bulletproof date parsing to match the PDF fix
     let cleanDateString = 'export';

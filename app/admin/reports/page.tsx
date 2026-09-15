@@ -20,8 +20,15 @@ import { Badge } from '@/components/ui/badge';
 import { ProtectedFeature } from '@/components/protected-feature';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
   FileText,
   FileSpreadsheet,
+  FileCheck,
   Download,
   Eye,
   User,
@@ -36,6 +43,8 @@ import {
   Layers,
   Sparkles,
   Calendar,
+  Lock,
+  ChevronDown,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -54,6 +63,14 @@ export default function AdminReportsPage() {
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [viewReportId, setViewReportId] = useState<string | null>(null);
   const [viewReportData, setViewReportData] = useState<DailyReportData | null>(null);
+  const [allowedFormats, setAllowedFormats] = useState<string[]>(['pdf']);
+  const [planName, setPlanName] = useState<string>('Free');
+
+  const isFormatAllowed = useCallback((fmt: string) => {
+    const f = fmt.toLowerCase().trim();
+    if (f === 'word' || f === 'docx') return allowedFormats.includes('docx') || allowedFormats.includes('word');
+    return allowedFormats.includes(f);
+  }, [allowedFormats]);
 
   const load = useCallback(async () => {
     try {
@@ -63,6 +80,8 @@ export default function AdminReportsPage() {
       const plan = schoolData.plan;
       const reportsEnabled = plan?.reportEnabled || false;
       setFeatureEnabled(reportsEnabled);
+      setAllowedFormats(schoolData.exportFormats || plan?.exportFormats || ['pdf']);
+      setPlanName(plan?.name || 'Free');
       
       const r = await getAdminReports({
         teacherName: teacherName || undefined,
@@ -121,26 +140,34 @@ export default function AdminReportsPage() {
     }
   };
 
-  const exportDateCsv = async (d: string) => {
+  const exportDateReports = async (d: string, format: 'csv' | 'docx' | 'pdf') => {
+    if (!isFormatAllowed(format)) {
+      const label = format === 'docx' ? 'Word (DOCX)' : format.toUpperCase();
+      toast.error(`"${label}" export is not included in your ${planName} plan. Please upgrade.`);
+      return;
+    }
     try {
       const cleanDate = d.includes('T') ? d.split('T')[0] : d;
-      const blob = await downloadReportsCsv(cleanDate);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `all-reports-${cleanDate}.csv`;
-      a.click();
-      URL.revokeObjectURL(url);
-      setSuccessMsg(`Report exported for ${cleanDate}`);
+      const label = format === 'docx' ? 'Word' : format.toUpperCase();
+      setSuccessMsg(`Downloading ${label} report for ${cleanDate}...`);
+      window.open(`/api/reports/download/${format}/${encodeURIComponent(cleanDate)}`, '_blank');
     } catch (error) {
       console.error(error);
-      toast.error('Unable to download report CSV.');
+      toast.error(`Unable to download report.`);
     }
   };
 
-  const handleIndividualDownload = (reportId: string, format: 'pdf' | 'csv') => {
+  const exportDateCsv = (d: string) => exportDateReports(d, 'csv');
+
+  const handleIndividualDownload = (reportId: string, format: 'pdf' | 'csv' | 'docx') => {
+    if (!isFormatAllowed(format)) {
+      const label = format === 'docx' ? 'Word (DOCX)' : format.toUpperCase();
+      toast.error(`"${label}" export is not included in your ${planName} plan. Please upgrade.`);
+      return;
+    }
     window.open(`/api/admin/reports/${reportId}/${format}`, '_blank');
-    setSuccessMsg(`Downloading report in ${format.toUpperCase()} format...`);
+    const label = format === 'docx' ? 'Word' : format.toUpperCase();
+    setSuccessMsg(`Downloading report in ${label} format...`);
   };
 
   const handleIndividualView = async (reportId: string) => {
@@ -454,12 +481,36 @@ export default function AdminReportsPage() {
                                 <Button size='sm' variant='ghost' className='h-8 w-8 p-0 rounded-lg hover:bg-purple-500/10' onClick={() => handleIndividualView(r.id)} title="View Details">
                                   <Eye className='h-4 w-4 text-purple-600 dark:text-purple-400' />
                                 </Button>
-                                <Button size='sm' variant='ghost' className='h-8 w-8 p-0 rounded-lg hover:bg-emerald-500/10' onClick={() => handleIndividualDownload(r.id, 'csv')} title="Download CSV">
-                                  <FileSpreadsheet className='h-4 w-4 text-emerald-600 dark:text-emerald-400' />
-                                </Button>
-                                <Button size='sm' variant='ghost' className='h-8 w-8 p-0 rounded-lg hover:bg-rose-500/10' onClick={() => handleIndividualDownload(r.id, 'pdf')} title="Download PDF">
-                                  <FileText className='h-4 w-4 text-rose-500' />
-                                </Button>
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button size='sm' variant='ghost' className='h-8 w-8 p-0 rounded-lg hover:bg-muted' title="Export Report (PDF / Word / CSV)">
+                                      <Download className='h-4 w-4 text-slate-700 dark:text-slate-300' />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align='end' className='w-48 rounded-xl'>
+                                    <DropdownMenuItem onClick={() => handleIndividualDownload(r.id, 'pdf')} className='cursor-pointer text-xs flex items-center justify-between'>
+                                      <span className='flex items-center gap-2'>
+                                        <FileText className='h-3.5 w-3.5 text-rose-500' />
+                                        <span>PDF Document</span>
+                                      </span>
+                                      {!isFormatAllowed('pdf') && <Lock className='h-3 w-3 text-muted-foreground' />}
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => handleIndividualDownload(r.id, 'docx')} className='cursor-pointer text-xs flex items-center justify-between'>
+                                      <span className='flex items-center gap-2'>
+                                        <FileCheck className='h-3.5 w-3.5 text-blue-500' />
+                                        <span>Word Document</span>
+                                      </span>
+                                      {!isFormatAllowed('docx') && <Lock className='h-3 w-3 text-muted-foreground' />}
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => handleIndividualDownload(r.id, 'csv')} className='cursor-pointer text-xs flex items-center justify-between'>
+                                      <span className='flex items-center gap-2'>
+                                        <FileSpreadsheet className='h-3.5 w-3.5 text-emerald-500' />
+                                        <span>CSV Spreadsheet</span>
+                                      </span>
+                                      {!isFormatAllowed('csv') && <Lock className='h-3 w-3 text-muted-foreground' />}
+                                    </DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
                               </div>
                             </td>
                           </tr>
@@ -503,9 +554,36 @@ export default function AdminReportsPage() {
                           <Button size='sm' variant='outline' className='h-7 text-[11px] font-bold px-2.5 bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800 hover:bg-purple-100 rounded-lg cursor-pointer' onClick={() => openDetails(d)}>
                             Layout
                           </Button>
-                          <Button size='sm' variant='ghost' className='h-7 w-7 p-0 rounded-lg hover:bg-emerald-500/10 cursor-pointer' onClick={() => exportDateCsv(d)} title="Export CSV">
-                            <Download className='h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400' />
-                          </Button>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button size='sm' variant='ghost' className='h-7 w-7 p-0 rounded-lg hover:bg-emerald-500/10 cursor-pointer' title="Export All (PDF / Word / CSV)">
+                                <Download className='h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400' />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align='end' className='w-48 rounded-xl'>
+                              <DropdownMenuItem onClick={() => exportDateReports(d, 'pdf')} className='cursor-pointer text-xs flex items-center justify-between'>
+                                <span className='flex items-center gap-2'>
+                                  <FileText className='h-3.5 w-3.5 text-rose-500' />
+                                  <span>PDF Summary</span>
+                                </span>
+                                {!isFormatAllowed('pdf') && <Lock className='h-3 w-3 text-muted-foreground' />}
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => exportDateReports(d, 'docx')} className='cursor-pointer text-xs flex items-center justify-between'>
+                                <span className='flex items-center gap-2'>
+                                  <FileCheck className='h-3.5 w-3.5 text-blue-500' />
+                                  <span>Word Document</span>
+                                </span>
+                                {!isFormatAllowed('docx') && <Lock className='h-3 w-3 text-muted-foreground' />}
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => exportDateReports(d, 'csv')} className='cursor-pointer text-xs flex items-center justify-between'>
+                                <span className='flex items-center gap-2'>
+                                  <FileSpreadsheet className='h-3.5 w-3.5 text-emerald-500' />
+                                  <span>CSV Spreadsheet</span>
+                                </span>
+                                {!isFormatAllowed('csv') && <Lock className='h-3 w-3 text-muted-foreground' />}
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </div>
                       </div>
                     );
@@ -762,15 +840,37 @@ export default function AdminReportsPage() {
                   </table>
                 </div>
 
-                {/* Download Buttons */}
-                <div className='flex gap-2 justify-end pt-4 border-t border-border'>
-                  <Button size='sm' variant='outline' className="rounded-xl font-semibold" onClick={() => viewReportId && handleIndividualDownload(viewReportId, 'csv')}>
-                    <FileSpreadsheet className='h-4 w-4 mr-2 text-emerald-500' />
-                    Download CSV
-                  </Button>
-                  <Button size='sm' variant='outline' className="rounded-xl font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-500/10" onClick={() => viewReportId && handleIndividualDownload(viewReportId, 'pdf')}>
+                {/* Download Buttons (PDF, Word, CSV) */}
+                <div className='flex flex-wrap gap-2 justify-end pt-4 border-t border-border'>
+                  <Button
+                    size='sm'
+                    variant='outline'
+                    className="rounded-xl font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-500/10"
+                    onClick={() => viewReportId && handleIndividualDownload(viewReportId, 'pdf')}
+                  >
                     <FileText className='h-4 w-4 mr-2 text-rose-500' />
                     Download PDF
+                    {!isFormatAllowed('pdf') && <Lock className='h-3 w-3 ml-1.5 opacity-60' />}
+                  </Button>
+                  <Button
+                    size='sm'
+                    variant='outline'
+                    className="rounded-xl font-semibold text-blue-600 dark:text-blue-400 hover:bg-blue-500/10"
+                    onClick={() => viewReportId && handleIndividualDownload(viewReportId, 'docx')}
+                  >
+                    <FileCheck className='h-4 w-4 mr-2 text-blue-500' />
+                    Download Word
+                    {!isFormatAllowed('docx') && <Lock className='h-3 w-3 ml-1.5 opacity-60' />}
+                  </Button>
+                  <Button
+                    size='sm'
+                    variant='outline'
+                    className="rounded-xl font-semibold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10"
+                    onClick={() => viewReportId && handleIndividualDownload(viewReportId, 'csv')}
+                  >
+                    <FileSpreadsheet className='h-4 w-4 mr-2 text-emerald-500' />
+                    Download CSV
+                    {!isFormatAllowed('csv') && <Lock className='h-3 w-3 ml-1.5 opacity-60' />}
                   </Button>
                 </div>
               </div>

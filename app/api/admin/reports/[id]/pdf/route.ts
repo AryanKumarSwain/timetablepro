@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 // @ts-ignore
 import PDFDocument from 'pdfkit/js/pdfkit.standalone';
 import { prisma } from '@/lib/prisma';
-import { requireSchoolAdmin, handleApiError, schoolWhere } from '@/lib/auth-server';
+import { requireSchoolAdmin, handleApiError, schoolWhere, requireExportAccess } from '@/lib/auth-server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -31,6 +31,7 @@ const COLORS = {
 export async function GET(_request: Request, context: RouteContext) {
   try {
     const { schoolId } = await requireSchoolAdmin();
+    const { watermarkRequired } = await requireExportAccess('pdf');
     const { id } = await context.params;
 
     const report = await prisma.dailyReport.findFirst({
@@ -53,6 +54,7 @@ export async function GET(_request: Request, context: RouteContext) {
         const chunks: Buffer[] = [];
         // @ts-ignore
         const doc = new PDFDocument({ margin: 40, size: 'A4', bufferPages: true });
+
         const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
         const left = doc.page.margins.left;
 
@@ -440,20 +442,41 @@ export async function GET(_request: Request, context: RouteContext) {
           doc.y += 60;
         }
 
-        // ---- Footer --------------------------------------------------------
+        // ---- Footer & Watermark -------------------------------------------
         const range = doc.bufferedPageRange();
         for (let i = range.start; i < range.start + range.count; i++) {
           doc.switchToPage(i);
+
+          if (watermarkRequired) {
+            // Elegant translucent diagonal watermark across page center
+            doc.save();
+            doc.rotate(-30, { origin: [doc.page.width / 2, doc.page.height / 2] });
+            doc
+              .font('Helvetica-Bold')
+              .fontSize(38)
+              .fillColor('#64748B', 0.12)
+              .text('TIMETABLEPRO • WATERMARK', 0, doc.page.height / 2 - 20, {
+                width: doc.page.width,
+                align: 'center',
+                lineBreak: false,
+              });
+            doc.restore();
+          }
+
           const footerY = doc.page.height - doc.page.margins.bottom + 12;
           
           doc.moveTo(left, footerY - 8).lineTo(left + pageWidth, footerY - 8).lineWidth(0.5).stroke(COLORS.border);
           
+          const footerLeftText = watermarkRequired
+            ? 'Generated via TimetablePro • Watermarked Edition'
+            : `Generated on ${new Date().toLocaleDateString('en-US', { dateStyle: 'medium' })}`;
+
           doc
             .font('Helvetica')
             .fontSize(8)
             .fillColor(COLORS.muted)
             .text(
-              `Generated on ${new Date().toLocaleDateString('en-US', { dateStyle: 'medium' })}`,
+              footerLeftText,
               left,
               footerY,
               { width: pageWidth / 2, lineBreak: false }

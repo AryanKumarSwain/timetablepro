@@ -107,14 +107,12 @@ export async function GET(_request: Request, context: RouteContext) {
       }))
     );
 
-    // Check if watermark is required based on plan
-    const plan = await getSchoolPlan();
-    const watermarkRequired = plan?.watermarkRequired !== false;
-    
+    const { watermarkRequired } = await requireExportAccess('csv');
+
     // Add watermark if required
-    const finalCsv = watermarkRequired 
-      ? csv + '\n\n"Generated via Timetable Pro"' 
-      : csv;
+    const finalCsv = '\uFEFF' + (watermarkRequired 
+      ? csv + '\n\n"# Generated via TimetablePro [Watermarked Plan - Upgrade to remove watermark]"\n' 
+      : csv);
 
     const filename = `reports-${cleanId}.csv`;
     return new NextResponse(finalCsv, {
