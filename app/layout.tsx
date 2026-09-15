@@ -13,10 +13,16 @@ export const metadata: Metadata = {
   title: 'TimetablePro — Time Table & Attendance Management',
   description:
     'Enterprise school time table, attendance, and substitute management platform',
+  manifest: '/manifest.json',
   icons: {
     icon: '/logo-only.png',
     shortcut: '/logo-only.png',
-    apple: '/logo-only.png',
+    apple: '/icon-192x192.png',
+  },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'TimetablePro',
   },
 };
 
@@ -33,7 +39,12 @@ export default function RootLayout({
     >
       <head>
         <link rel="icon" href="/logo-only.png" type="image/png" />
-        <link rel="apple-touch-icon" href="/logo-only.png" />
+        <link rel="manifest" href="/manifest.json" />
+        <meta name="theme-color" content="#2563eb" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+        <meta name="apple-mobile-web-app-title" content="TimetablePro" />
+        <link rel="apple-touch-icon" href="/icon-192x192.png" />
       </head>
       <body
         className={`${geist.variable} ${geistMono.variable} font-sans antialiased`}

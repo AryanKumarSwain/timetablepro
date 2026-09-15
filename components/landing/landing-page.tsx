@@ -28,6 +28,7 @@ import { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { usePlanTheme } from '@/lib/plan-theme';
 import { getSuperAdminPlans, type SaasPlan } from '@/lib/api-services';
+import { PwaDownloadButton } from '@/components/landing/pwa-download-button';
 
 const heroSlides = [
   {
@@ -182,6 +183,7 @@ export function LandingPage() {
           </nav>
 
           <div className='flex items-center gap-1 sm:gap-2 shrink-0'>
+            <PwaDownloadButton variant='header' />
             <Button variant='ghost' size='sm' asChild className='rounded-xl font-medium text-slate-700 hover:text-slate-900 hover:bg-slate-100/80 transition-all duration-200 text-[11px] sm:text-sm px-2 sm:px-4 h-8 sm:h-10'>
               <Link href='/login'>Sign in</Link>
             </Button>
@@ -215,7 +217,7 @@ export function LandingPage() {
                 TimetablePro helps schools schedule classes, manage staff, track attendance, and reduce daily chaos with automation built for serious academic operations.
               </p>
 
-              <div className='mt-8 flex flex-wrap items-center gap-4'>
+              <div className='mt-8 flex flex-wrap items-center gap-3 sm:gap-4'>
                 <Button asChild className='h-12 rounded-xl bg-gradient-to-r from-blue-600 to-violet-600 px-6 text-base font-semibold text-white shadow-lg shadow-blue-500/20 hover:brightness-110'>
                   <Link href='/signup'>Get started free <ArrowRight className='ml-2 h-4 w-4' /></Link>
                 </Button>
@@ -372,6 +374,13 @@ export function LandingPage() {
             </div>
           </section>
         )}
+
+        {/* Dedicated PWA Download Banner */}
+        <section className='px-4 pt-4 pb-10 sm:px-6 lg:px-8'>
+          <div className='mx-auto max-w-7xl'>
+            <PwaDownloadButton variant='card' />
+          </div>
+        </section>
 
         <section id='features' className='border-t border-sky-100 bg-white/70 px-4 py-24 sm:px-6 lg:px-8'>
           <div className='mx-auto max-w-7xl'>
@@ -654,6 +663,9 @@ export function LandingPage() {
           </div>
         </div>
       </footer>
+
+      {/* Sticky Bottom-Right Download Button */}
+      <PwaDownloadButton variant='floating' />
     </div>
   );
 }
