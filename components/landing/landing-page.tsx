@@ -183,7 +183,6 @@ export function LandingPage() {
           </nav>
 
           <div className='flex items-center gap-1 sm:gap-2 shrink-0'>
-            <PwaDownloadButton variant='header' />
             <Button variant='ghost' size='sm' asChild className='rounded-xl font-medium text-slate-700 hover:text-slate-900 hover:bg-slate-100/80 transition-all duration-200 text-[11px] sm:text-sm px-2 sm:px-4 h-8 sm:h-10'>
               <Link href='/login'>Sign in</Link>
             </Button>
@@ -221,9 +220,7 @@ export function LandingPage() {
                 <Button asChild className='h-12 rounded-xl bg-gradient-to-r from-blue-600 to-violet-600 px-6 text-base font-semibold text-white shadow-lg shadow-blue-500/20 hover:brightness-110'>
                   <Link href='/signup'>Get started free <ArrowRight className='ml-2 h-4 w-4' /></Link>
                 </Button>
-                <Button asChild variant='outline' className='h-12 rounded-xl border-sky-200 bg-white px-6 text-base font-semibold text-slate-800 hover:bg-sky-50'>
-                  <Link href='/login'>View demo</Link>
-                </Button>
+                <PwaDownloadButton variant='hero' />
               </div>
 
               <div className='mt-10 flex flex-wrap gap-6 text-sm text-slate-600'>
