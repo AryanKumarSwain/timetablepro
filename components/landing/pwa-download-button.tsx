@@ -99,9 +99,6 @@ export function PwaDownloadButton({ variant = 'hero', className }: PwaDownloadBu
                 <Download className="h-3.5 w-3.5 text-blue-600 transition-transform group-hover:-translate-y-0.5 shrink-0" />
                 <span className="hidden min-[480px]:inline">Download App</span>
                 <span className="inline min-[480px]:hidden">App</span>
-                <span className="hidden lg:inline-block px-1.5 py-0.2 rounded-full bg-blue-100 text-[10px] font-bold text-blue-800">
-                  PWA
-                </span>
               </>
             )}
           </span>
@@ -131,7 +128,7 @@ export function PwaDownloadButton({ variant = 'hero', className }: PwaDownloadBu
                 {isInstalled ? 'App Ready' : 'Download App'}
               </span>
               <span className="text-[11px] font-medium text-slate-500 group-hover:text-blue-600/80">
-                {isInstalled ? 'Installed on device' : 'Mobile & Desktop PWA'}
+                {isInstalled ? 'Installed on device' : 'Mobile & Desktop App'}
               </span>
             </div>
           </div>
@@ -201,16 +198,11 @@ export function PwaDownloadButton({ variant = 'hero', className }: PwaDownloadBu
             </div>
 
             <div className="flex flex-col text-left">
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs sm:text-sm font-bold text-slate-900 leading-tight group-hover:text-blue-600 transition-colors">
-                  {isInstalled ? 'App Ready' : 'Download App'}
-                </span>
-                <span className="rounded-full bg-blue-100 px-1.5 py-0.2 text-[9px] font-extrabold text-blue-700 uppercase tracking-wide">
-                  PWA
-                </span>
-              </div>
+              <span className="text-xs sm:text-sm font-bold text-slate-900 leading-tight group-hover:text-blue-600 transition-colors">
+                {isInstalled ? 'App Ready' : 'Download App'}
+              </span>
               <span className="text-[10px] sm:text-[11px] font-medium text-slate-500 group-hover:text-slate-700">
-                {isInstalled ? 'Installed on device' : 'Mobile & Desktop PWA'}
+                {isInstalled ? 'Installed on device' : 'Mobile & Desktop App'}
               </span>
             </div>
           </button>
