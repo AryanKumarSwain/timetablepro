@@ -181,27 +181,27 @@ export function PwaDownloadButton({ variant = 'hero', className }: PwaDownloadBu
         >
           <button
             onClick={handleClick}
-            className="group relative flex items-center gap-3 rounded-2xl border border-sky-200/90 bg-white/95 p-2.5 sm:p-3 pr-4 sm:pr-5 shadow-[0_12px_32px_rgba(37,99,235,0.22)] backdrop-blur-md transition-all duration-300 hover:shadow-[0_18px_44px_rgba(37,99,235,0.32)] hover:scale-105 hover:border-blue-400 active:scale-95 text-left cursor-pointer"
+            className="group relative flex items-center gap-3 rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 p-2.5 sm:p-3 pr-4 sm:pr-5 shadow-[0_12px_32px_rgba(37,99,235,0.38)] backdrop-blur-md transition-all duration-300 hover:shadow-[0_18px_44px_rgba(37,99,235,0.5)] hover:scale-105 hover:brightness-105 active:scale-95 text-left cursor-pointer border border-white/20"
           >
             {/* Glowing active indicator dot */}
             <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-              <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-emerald-500 ring-2 ring-white" />
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-300 opacity-75" />
+              <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-emerald-400 ring-2 ring-white" />
             </span>
 
-            <div className="flex h-10 w-10 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-50 to-indigo-100 text-blue-600 transition-all duration-300 group-hover:from-blue-600 group-hover:to-indigo-600 group-hover:text-white group-hover:shadow-md group-hover:shadow-blue-500/25 border border-blue-100 group-hover:border-transparent">
+            <div className="flex h-10 w-10 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-xl bg-white/15 text-white backdrop-blur-md border border-white/25 transition-all duration-300 group-hover:bg-white group-hover:text-blue-600 group-hover:shadow-md">
               {isInstalled ? (
-                <CheckCircle2 className="h-5 w-5 text-emerald-600 group-hover:text-white" />
+                <CheckCircle2 className="h-5 w-5 text-emerald-300 group-hover:text-emerald-600" />
               ) : (
                 <Download className="h-5 w-5 transition-transform duration-300 group-hover:-translate-y-0.5" />
               )}
             </div>
 
             <div className="flex flex-col text-left">
-              <span className="text-xs sm:text-sm font-bold text-slate-900 leading-tight group-hover:text-blue-600 transition-colors">
+              <span className="text-xs sm:text-sm font-bold text-white leading-tight">
                 {isInstalled ? 'App Ready' : 'Download App'}
               </span>
-              <span className="text-[10px] sm:text-[11px] font-medium text-slate-500 group-hover:text-slate-700">
+              <span className="text-[10px] sm:text-[11px] font-medium text-blue-100/90 group-hover:text-white transition-colors">
                 {isInstalled ? 'Installed on device' : 'Mobile & Desktop App'}
               </span>
             </div>
