@@ -317,7 +317,7 @@ export async function GET(_request: Request, context: RouteContext) {
     const buffer = await Packer.toBuffer(doc);
     const filename = `report-${teacherName.replace(/\s+/g, '-')}-${cleanDateStr}.docx`;
 
-    return new Response(buffer, {
+    return new Response(buffer as unknown as BodyInit, {
       headers: {
         'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
         'Content-Disposition': `attachment; filename="${filename}"`,

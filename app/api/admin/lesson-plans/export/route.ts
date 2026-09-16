@@ -266,7 +266,7 @@ export async function GET(request: NextRequest) {
       });
 
       const buffer = await Packer.toBuffer(doc);
-      return new Response(buffer, {
+      return new Response(buffer as unknown as BodyInit, {
         headers: {
           'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
           'Content-Disposition': 'attachment; filename="lesson-plans.docx"',

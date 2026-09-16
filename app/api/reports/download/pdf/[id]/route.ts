@@ -9,6 +9,21 @@ export const dynamic = 'force-dynamic';
 
 type RouteContext = { params: Promise<{ id: string }> };
 
+type ReportEntryItem = {
+  entryType?: string | null;
+  class?: { name?: string | null } | null;
+  subject?: { name?: string | null } | null;
+  activityCategory?: string | null;
+  activityDescription?: string | null;
+  description?: string | null;
+};
+
+type DailyReportItem = {
+  status?: string | null;
+  teacher?: { name?: string | null; email?: string | null } | null;
+  entries?: ReportEntryItem[];
+};
+
 const COLORS = {
   brand: '#2563EB',
   brandDark: '#1E40AF',
@@ -108,7 +123,7 @@ export async function GET(_request: Request, context: RouteContext) {
           }
         };
 
-        reports.forEach((report, rIdx) => {
+        reports.forEach((report: DailyReportItem, rIdx: number) => {
           ensureSpace(70);
 
           // Teacher subheader
@@ -134,7 +149,7 @@ export async function GET(_request: Request, context: RouteContext) {
           doc.y = startY + 30;
 
           if (report.entries && report.entries.length > 0) {
-            report.entries.forEach((entry, eIdx) => {
+            report.entries.forEach((entry: ReportEntryItem) => {
               ensureSpace(35);
               const ey = doc.y;
               const isActivity = entry.entryType === 'ACTIVITY';

@@ -21,6 +21,22 @@ export const dynamic = 'force-dynamic';
 
 type RouteContext = { params: Promise<{ id: string }> };
 
+type ReportEntryItem = {
+  entryType?: string | null;
+  class?: { name?: string | null } | null;
+  subject?: { name?: string | null } | null;
+  activityCategory?: string | null;
+  activityDescription?: string | null;
+  description?: string | null;
+  learningOutcome?: string | null;
+};
+
+type DailyReportItem = {
+  status?: string | null;
+  teacher?: { name?: string | null; email?: string | null } | null;
+  entries?: ReportEntryItem[];
+};
+
 export async function GET(_request: Request, context: RouteContext) {
   try {
     const { schoolId } = await requireSchoolAdmin();
@@ -138,10 +154,10 @@ export async function GET(_request: Request, context: RouteContext) {
       }),
     ];
 
-    reports.forEach((report, rIdx) => {
+    reports.forEach((report: DailyReportItem, rIdx: number) => {
       const bg = rIdx % 2 === 0 ? 'FFFFFF' : 'F8FAFC';
       if (report.entries && report.entries.length > 0) {
-        report.entries.forEach((entry, eIdx) => {
+        report.entries.forEach((entry: ReportEntryItem, eIdx: number) => {
           const isActivity = entry.entryType === 'ACTIVITY';
           const descText = isActivity
             ? `Activity: ${entry.activityDescription || entry.description || '-'}\nOutcome: ${entry.learningOutcome || '-'}`
@@ -190,7 +206,11 @@ export async function GET(_request: Request, context: RouteContext) {
               new TableCell({
                 columnSpan: 3,
                 shading: { fill: bg },
-                children: [new Paragraph({ text: 'No entries recorded for this date.', italics: true })],
+                children: [
+                  new Paragraph({
+                    children: [new TextRun({ text: 'No entries recorded for this date.', italics: true })],
+                  }),
+                ],
               }),
             ],
           })
@@ -282,7 +302,7 @@ export async function GET(_request: Request, context: RouteContext) {
     const buffer = await Packer.toBuffer(doc);
     const filename = `all-reports-${cleanId}.docx`;
 
-    return new Response(buffer, {
+    return new Response(buffer as unknown as BodyInit, {
       headers: {
         'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
         'Content-Disposition': `attachment; filename="${filename}"`,
