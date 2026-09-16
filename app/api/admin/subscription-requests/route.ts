@@ -105,6 +105,7 @@ export async function POST(request: NextRequest) {
         data: hasActivePlan
           ? {
               planId,
+              customTeacherLimit: null,
               planStartsAt: newPlanStartsAt,
               planEndsAt: newPlanEndsAt,
               queuedPlanId: null,
@@ -115,6 +116,7 @@ export async function POST(request: NextRequest) {
             }
           : {
               planId,
+              customTeacherLimit: null,
               planStartsAt: newPlanStartsAt,
               planEndsAt: newPlanEndsAt,
               queuedPlanId: null,

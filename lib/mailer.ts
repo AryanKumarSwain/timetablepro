@@ -238,3 +238,93 @@ export async function sendTeacherCredentials(
     };
   }
 }
+
+export async function sendCustomPlanApprovedEmail({
+  to,
+  schoolName,
+  adminName,
+  facultyLimit,
+  price,
+  priceYearly,
+  paymentUrl,
+}: {
+  to: string;
+  schoolName: string;
+  adminName?: string;
+  facultyLimit: number;
+  price: number | string;
+  priceYearly?: number | string;
+  paymentUrl: string;
+}): Promise<{ sent: boolean; error?: string }> {
+  const transporter = getTransporter();
+  const from = process.env.SMTP_FROM ?? process.env.MAIL_FROM ?? 'noreply@school.com';
+
+  const safePaymentUrl = paymentUrl.includes('localhost')
+    ? paymentUrl.replace(/http:\/\/localhost(:\d+)?/g, 'https://timetablepro.webncode.in')
+    : paymentUrl;
+
+  const formattedPrice = Number(price).toLocaleString('en-IN');
+  const yearlyVal = priceYearly ? Number(priceYearly) : Math.round(Number(price) * 12 * 0.83);
+  const formattedYearlyPrice = yearlyVal.toLocaleString('en-IN');
+
+  const html = buildEmailLayout({
+    title: 'Custom Plan Approved! 🎉',
+    subtitle: `${schoolName} • Custom Subscription Plan`,
+    lead: `Hello ${adminName || 'Admin'},`,
+    content: `
+      <div style="margin:0 0 16px; padding:12px 16px; background:#ecfdf5; border-left:4px solid #10b981; border-radius:8px; font-size:15px; font-weight:700; color:#065f46;">
+        Your custom plan request has been approved!
+      </div>
+      <p style="margin:0 0 18px; font-size:15px; line-height:1.7; color:${MUTED_TEXT};">
+        We have reviewed and approved your request for a custom plan for <strong>${schoolName}</strong>. You can choose between monthly or annual billing:
+      </p>
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border:1px solid ${BORDER}; border-radius:16px; overflow:hidden; background:#f8fafc; margin:20px 0;">
+        <tr>
+          <td style="padding:14px 16px; border-bottom:1px solid ${BORDER}; font-size:12px; letter-spacing:1.2px; text-transform:uppercase; color:${MUTED_TEXT}; font-weight:700; background:#f1f5f9;">
+            Plan Details & Approved Pricing
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:20px 16px; font-size:14px; color:${DARK_TEXT};">
+            <div style="margin-bottom:12px;"><strong style="display:inline-block; width:150px; color:${MUTED_TEXT};">Institute:</strong>${schoolName}</div>
+            <div style="margin-bottom:12px;"><strong style="display:inline-block; width:150px; color:${MUTED_TEXT};">Teacher Capacity:</strong><span style="background:#e0e7ff; color:#3730a3; padding:3px 10px; border-radius:12px; font-weight:700;">${facultyLimit} Teachers</span></div>
+            <div style="margin-bottom:12px;"><strong style="display:inline-block; width:150px; color:${MUTED_TEXT};">Features Included:</strong>All Elite Features (Reports, Attendance, Timetables, PDF/DOCX/CSV Exports)</div>
+            <div style="margin-bottom:8px;"><strong style="display:inline-block; width:150px; color:${MUTED_TEXT};">Monthly Plan:</strong><span style="font-size:18px; font-weight:800; color:#059669;">₹${formattedPrice} / month</span></div>
+            <div><strong style="display:inline-block; width:150px; color:${MUTED_TEXT};">Annual Plan:</strong><span style="font-size:18px; font-weight:800; color:#7c3aed;">₹${formattedYearlyPrice} / year</span> <span style="font-size:12px; background:#dcfce7; color:#166534; padding:2px 8px; border-radius:10px; font-weight:700;">17% OFF</span></div>
+          </td>
+        </tr>
+      </table>
+      <div style="text-align:center; margin:32px 0;">
+        <a href="${safePaymentUrl}" style="background:linear-gradient(135deg, ${BRAND_PRIMARY}, ${BRAND_SECONDARY}); color:#ffffff; padding:14px 32px; border-radius:10px; text-decoration:none; font-weight:700; font-size:16px; display:inline-block; box-shadow:0 4px 12px rgba(37,99,235,0.3);">
+          Choose Plan & Complete Payment →
+        </a>
+      </div>
+      <p style="margin:0; font-size:13px; line-height:1.7; color:${MUTED_TEXT}; text-align:center;">
+        You can also pay directly by visiting your portal's <strong>Billing & Plans</strong> page.
+      </p>
+    `,
+    footerNote: 'Need assistance or have questions regarding this quote? Contact our support team.'
+  });
+
+  if (!transporter) {
+    console.warn('[mailer] SMTP not configured — custom plan approval email skipped for', to);
+    return { sent: false, error: 'SMTP not configured' };
+  }
+
+  try {
+    await transporter.sendMail({
+      from,
+      to,
+      subject: `Your Custom Plan Request for ${schoolName} Has Been Approved!`,
+      html,
+    });
+    return { sent: true };
+  } catch (err) {
+    console.error('[mailer] Failed to send custom plan approval email:', err);
+    return {
+      sent: false,
+      error: err instanceof Error ? err.message : 'Send failed',
+    };
+  }
+}
+

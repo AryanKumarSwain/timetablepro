@@ -9,6 +9,12 @@ export async function PATCH(request: NextRequest) {
     const body = await request.json();
 
     const name = String(body.name ?? '').trim();
+    const type = body.type !== undefined ? String(body.type).trim() : undefined;
+    const state = body.state !== undefined ? String(body.state).trim() : undefined;
+    const city = body.city !== undefined ? String(body.city).trim() : undefined;
+    const country = body.country !== undefined ? String(body.country).trim() : undefined;
+    const studentsRange = body.studentsRange !== undefined ? String(body.studentsRange).trim() : undefined;
+    const facultyRange = body.facultyRange !== undefined ? String(body.facultyRange).trim() : undefined;
     const address = body.address !== undefined ? String(body.address).trim() : undefined;
     const phone = body.phone !== undefined ? String(body.phone).trim() : undefined;
     const email = body.email !== undefined ? String(body.email).trim() : undefined;
@@ -26,6 +32,12 @@ export async function PATCH(request: NextRequest) {
       where: { id: schoolId },
       data: {
         name,
+        ...(type !== undefined && { type }),
+        ...(state !== undefined && { state }),
+        ...(city !== undefined && { city }),
+        ...(country !== undefined && { country }),
+        ...(studentsRange !== undefined && { studentsRange }),
+        ...(facultyRange !== undefined && { facultyRange }),
         ...(address !== undefined && { address }),
         ...(phone !== undefined && { phone }),
         ...(email !== undefined && { email }),
@@ -85,6 +97,12 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       name: school.name,
+      type: school.type || '',
+      state: school.state || '',
+      city: school.city || '',
+      country: school.country || '',
+      studentsRange: school.studentsRange || '',
+      facultyRange: school.facultyRange || '',
       address: school.address,
       phone: school.phone,
       email: school.email,
@@ -121,13 +139,14 @@ export async function GET(request: NextRequest) {
       autoDowngradedAt: (school as any).autoDowngradedAt || null,
       licenseStatus: school.licenseStatus,
       teacherCount: school._count.teachers,
+      customTeacherLimit: school.customTeacherLimit,
       watermarkRequired,
       exportFormats: normalizedExportFormats,
       plan: effectivePlan ? {
         id: effectivePlan.id,
         name: effectivePlan.name,
         teacherMin: effectivePlan.teacherMin,
-        teacherMax: effectivePlan.teacherMax,
+        teacherMax: school.customTeacherLimit ?? effectivePlan.teacherMax,
         priceMonthly: Number(effectivePlan.priceMonthly),
         reportEnabled: effectivePlan.reportEnabled,
         attendanceEnabled: effectivePlan.attendanceEnabled,
@@ -135,6 +154,7 @@ export async function GET(request: NextRequest) {
         lessonPlanningEnabled: effectivePlan.lessonPlanningEnabled ?? false,
         exportFormats: normalizedExportFormats,
         watermarkRequired,
+        customTeacherLimit: school.customTeacherLimit,
       } : null,
     });
   } catch (error) {

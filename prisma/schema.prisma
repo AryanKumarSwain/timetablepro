@@ -29,6 +29,7 @@ model School {
 	id                    String                  @id @default(uuid())
 	name                  String
 	type                  String?
+	state                 String?
 	city                  String?
 	country               String?
 	studentsRange         String?
@@ -48,6 +49,7 @@ model School {
 	pausedPlanId          String?
 	pausedPlan            SaaSPlan?               @relation("SchoolPausedPlan", fields: [pausedPlanId], references: [id])
 	pausedPlanRemainingSeconds Int?
+	customTeacherLimit    Int?
 	trialEndsAt           DateTime?
 	trialPlanId           String?
 	trialPlan             SaaSPlan?               @relation("SchoolTrialPlan", fields: [trialPlanId], references: [id])
@@ -619,6 +621,7 @@ enum CustomPlanRequestStatus {
 	PENDING
 	APPROVED
 	REJECTED
+	COMPLETED
 }
 
 model CustomPlanRequest {
@@ -626,7 +629,14 @@ model CustomPlanRequest {
 	schoolId            String
 	school              School          @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 	requestedFacultyLimit Int
+	price               Decimal?        @db.Decimal(10, 2)
+	priceYearly         Decimal?        @db.Decimal(10, 2)
 	status              CustomPlanRequestStatus @default(PENDING)
+	isPaid              Boolean         @default(false)
+	billingCycle        String?
+	paidAt              DateTime?
+	razorpayOrderId     String?
+	razorpayPaymentId   String?
 	rejectionReason     String?
 	createdAt           DateTime        @default(now())
 	updatedAt           DateTime        @updatedAt

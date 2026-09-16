@@ -33,31 +33,60 @@ export async function GET(request: NextRequest) {
       const schools = await client.school.findMany({
         include: {
           plan: true,
+          _count: {
+            select: { teachers: true },
+          },
           users: {
             where: { role: 'ADMIN' },
             select: { email: true },
+          },
+          customPlanRequests: {
+            orderBy: { createdAt: 'desc' },
           },
         },
         orderBy: { createdAt: 'desc' },
       });
 
       return NextResponse.json(
-        schools.map((school) => ({
-          id: school.id,
-          name: school.name,
-          address: school.address || '',
-          phone: school.phone || '',
-          email: school.email || '',
-          website: school.website || '',
-          instagram: school.instagram || '',
-          facebook: school.facebook || '',
-          linkedin: school.linkedin || '',
-          twitter: school.twitter || '',
-          licenseStatus: formatLicenseStatus(school.licenseStatus),
-          licenseDate: school.createdAt.toISOString().split('T')[0],
-          planName: school.plan?.name || 'No Plan',
-          adminEmails: school.users.map((u) => u.email),
-        }))
+        schools.map((school) => {
+          const activeOrLatestCustom = school.customPlanRequests.find((c) => c.isPaid) || school.customPlanRequests[0];
+          const isCustom = Boolean(school.customTeacherLimit && school.customTeacherLimit > 0);
+
+          return {
+            id: school.id,
+            name: school.name,
+            type: school.type || '',
+            state: school.state || '',
+            city: school.city || '',
+            country: school.country || '',
+            studentsRange: school.studentsRange || '',
+            facultyRange: school.facultyRange || '',
+            teacherCount: school._count.teachers,
+            address: school.address || '',
+            phone: school.phone || '',
+            email: school.email || '',
+            website: school.website || '',
+            instagram: school.instagram || '',
+            facebook: school.facebook || '',
+            linkedin: school.linkedin || '',
+            twitter: school.twitter || '',
+            licenseStatus: formatLicenseStatus(school.licenseStatus),
+            licenseDate: school.planEndsAt
+              ? school.planEndsAt.toISOString().split('T')[0]
+              : school.createdAt.toISOString().split('T')[0],
+            planName: isCustom
+              ? `${school.plan?.name || 'Elite'} (Custom Plan)`
+              : (school.plan?.name || 'No Plan'),
+            adminEmails: school.users.map((u) => u.email),
+            isCustomPlan: isCustom,
+            customTeacherLimit: school.customTeacherLimit || null,
+            customPriceMonthly: activeOrLatestCustom?.price ? Number(activeOrLatestCustom.price) : null,
+            customPriceYearly: activeOrLatestCustom?.priceYearly
+              ? Number(activeOrLatestCustom.priceYearly)
+              : (activeOrLatestCustom?.price ? Math.round(Number(activeOrLatestCustom.price) * 12 * 0.83) : null),
+            customBillingCycle: activeOrLatestCustom?.billingCycle || null,
+          };
+        })
       );
     }
 
@@ -97,7 +126,7 @@ export async function GET(request: NextRequest) {
         .filter((s) => s.licenseStatus === 'ACTIVE' && s.plan)
         .reduce((sum, s) => sum + Number(s.plan!.priceMonthly), 0);
 
-      const tierContributions = schools.reduce<
+      const tierContributions = (schools as any[]).reduce<
         Record<string, { planName: string; count: number; subtotal: number }>
       >((acc, school) => {
         if (!school.plan) return acc;
@@ -180,14 +209,14 @@ export async function GET(request: NextRequest) {
     }, 0);
 
     // 1. Calculate Plan Mix (for Pie Chart)
-    const planMix = allSchools.reduce<Record<string, number>>((acc, s) => {
+    const planMix = (allSchools as any[]).reduce<Record<string, number>>((acc, s) => {
       if (!s.plan) return acc;
       acc[s.plan.name] = (acc[s.plan.name] || 0) + 1;
       return acc;
     }, {});
 
     // 2. Calculate Growth Data (for Line Chart - Grouped by Month)
-    const growthData = allSchools.reduce<Record<string, number>>((acc, s) => {
+    const growthData = (allSchools as any[]).reduce<Record<string, number>>((acc, s) => {
       const month = s.createdAt.toLocaleString('default', { month: 'short' });
       acc[month] = (acc[month] || 0) + 1;
       return acc;

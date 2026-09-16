@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Search, Filter, Download, RefreshCw, MoreHorizontal, Ban, CheckCircle, Building2 } from 'lucide-react';
+import { Search, Filter, Download, RefreshCw, MoreHorizontal, Ban, CheckCircle, Building2, Crown, Users } from 'lucide-react';
 
 import { useRequireAuth } from '@/lib/auth-context';
 import { PageHeader } from '@/components/enterprise/page-header';
@@ -25,7 +25,7 @@ export default function SchoolsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'trial' | 'suspended'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'trial' | 'custom' | 'suspended'>('all');
   const [actionDialog, setActionDialog] = useState<{ open: boolean; school: PlatformSchoolRow | null; action: 'suspend' | 'unsuspend' }>({ open: false, school: null, action: 'suspend' });
   const [processingAction, setProcessingAction] = useState<string | null>(null);
 
@@ -35,6 +35,12 @@ export default function SchoolsPage() {
     school: PlatformSchoolRow | null;
     form: {
       name: string;
+      type: string;
+      state: string;
+      city: string;
+      country: string;
+      studentsRange: string;
+      facultyRange: string;
       address: string;
       phone: string;
       email: string;
@@ -49,6 +55,12 @@ export default function SchoolsPage() {
     school: null,
     form: {
       name: '',
+      type: '',
+      state: '',
+      city: '',
+      country: 'India',
+      studentsRange: '',
+      facultyRange: '',
       address: '',
       phone: '',
       email: '',
@@ -59,7 +71,6 @@ export default function SchoolsPage() {
       twitter: '',
     },
   });
-  const [savingDetails, setSavingDetails] = useState(false);
 
   const fetchSchools = async () => {
     setLoading(true);
@@ -80,6 +91,12 @@ export default function SchoolsPage() {
       school,
       form: {
         name: school.name || '',
+        type: school.type || '',
+        state: school.state || '',
+        city: school.city || '',
+        country: school.country || 'India',
+        studentsRange: school.studentsRange || '',
+        facultyRange: school.facultyRange || '',
         address: school.address || '',
         phone: school.phone || '',
         email: school.email || (school.adminEmails?.[0] || ''),
@@ -90,33 +107,6 @@ export default function SchoolsPage() {
         twitter: school.twitter || '',
       },
     });
-  };
-
-  const handleSaveInstituteDetails = async () => {
-    if (!editDialog.school) return;
-    if (!editDialog.form.name.trim()) {
-      toast.error('Institute name is required');
-      return;
-    }
-
-    setSavingDetails(true);
-    try {
-      const res = await fetch(`/api/super-admin/schools/${editDialog.school.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(editDialog.form),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to update institute details');
-
-      toast.success('Institute details saved successfully');
-      setEditDialog((prev) => ({ ...prev, open: false }));
-      fetchSchools();
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to save institute details');
-    } finally {
-      setSavingDetails(false);
-    }
   };
 
   const handleToggleSuspend = async (schoolId: string, action: 'suspend' | 'unsuspend') => {
@@ -144,12 +134,17 @@ export default function SchoolsPage() {
   }, []);
 
   const filteredSchools = schools.filter((school) => {
+    const q = searchQuery.toLowerCase().trim();
     const matchesSearch =
-      typeof school.name === 'string' && school.name.toLowerCase().includes(searchQuery.toLowerCase());
+      !q ||
+      (typeof school.name === 'string' && school.name.toLowerCase().includes(q)) ||
+      (school.adminEmails && school.adminEmails.some((email) => email.toLowerCase().includes(q))) ||
+      (school.isCustomPlan && 'custom plan enterprise'.includes(q));
     const matchesStatus =
       statusFilter === 'all' ||
       (statusFilter === 'active' && school.licenseStatus?.toLowerCase() === 'active') ||
       (statusFilter === 'trial' && school.licenseStatus?.toLowerCase() === 'trial') ||
+      (statusFilter === 'custom' && Boolean(school.isCustomPlan)) ||
       (statusFilter === 'suspended' && school.licenseStatus?.toLowerCase() === 'suspended');
     return matchesSearch && matchesStatus;
   });
@@ -168,14 +163,14 @@ export default function SchoolsPage() {
             <div className='relative flex-1 max-w-sm'>
               <Search className='absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground' />
               <Input
-                placeholder='Search schools...'
+                placeholder='Search schools or plan...'
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className='pl-9'
               />
             </div>
             <div className='flex gap-1 border border-border/50 rounded-lg p-1 bg-muted/20'>
-              {(['all', 'active', 'trial', 'suspended'] as const).map((status) => (
+              {(['all', 'active', 'trial', 'custom', 'suspended'] as const).map((status) => (
                 <Button
                   key={status}
                   variant={statusFilter === status ? 'secondary' : 'ghost'}
@@ -183,7 +178,7 @@ export default function SchoolsPage() {
                   onClick={() => setStatusFilter(status)}
                   className='capitalize text-xs h-7 px-2.5'
                 >
-                  {status}
+                  {status === 'custom' ? 'Custom Plan' : status}
                 </Button>
               ))}
             </div>
@@ -248,7 +243,44 @@ export default function SchoolsPage() {
                             <span>{typeof school.name === 'string' ? school.name : '-'}</span>
                           </div>
                         </td>
-                        <td className='p-3'>{typeof school.planName === 'string' ? school.planName : '-'}</td>
+                        <td className='p-3'>
+                          {school.isCustomPlan ? (
+                            <div className='space-y-1'>
+                              <div className='flex items-center gap-1.5 flex-wrap'>
+                                <Badge className='bg-amber-500/15 hover:bg-amber-500/25 text-amber-800 dark:text-amber-300 border border-amber-500/30 text-[10px] font-bold px-2 py-0.5 rounded-md flex items-center gap-1 shadow-2xs'>
+                                  <Crown className='w-3 h-3 text-amber-600 dark:text-amber-400' />
+                                  Custom Plan
+                                </Badge>
+                                {school.customTeacherLimit && (
+                                  <span className='text-xs font-semibold text-slate-800 dark:text-slate-200'>
+                                    {school.customTeacherLimit} Teachers
+                                  </span>
+                                )}
+                              </div>
+                              {school.customPriceMonthly !== null && school.customPriceMonthly !== undefined ? (
+                                <div className='text-xs leading-tight space-y-0.5'>
+                                  <p className='font-bold text-emerald-600 dark:text-emerald-400'>
+                                    ₹{school.customPriceMonthly.toLocaleString('en-IN')}/mo
+                                    {school.customPriceYearly && (
+                                      <span className='text-slate-500 dark:text-slate-400 font-normal'>
+                                        {' '}· ₹{school.customPriceYearly.toLocaleString('en-IN')}/yr
+                                      </span>
+                                    )}
+                                  </p>
+                                  <p className='text-[10px] text-muted-foreground'>
+                                    +18% GST ({school.customBillingCycle === 'annual' ? 'Annual cycle' : 'Monthly cycle'})
+                                  </p>
+                                </div>
+                              ) : (
+                                <span className='text-xs text-muted-foreground'>{school.planName}</span>
+                              )}
+                            </div>
+                          ) : (
+                            <span className='font-medium text-slate-800 dark:text-slate-200'>
+                              {typeof school.planName === 'string' ? school.planName : '-'}
+                            </span>
+                          )}
+                        </td>
                         <td className='p-3'>
                           <span className={cn('px-2 py-1 rounded-full text-xs font-medium border', getStatusBadgeClass(school.licenseStatus))}>
                             {typeof school.licenseStatus === 'string' ? school.licenseStatus : '-'}
@@ -325,37 +357,86 @@ export default function SchoolsPage() {
         open={editDialog.open}
         onOpenChange={(open) => setEditDialog((prev) => ({ ...prev, open }))}
       >
-        <DialogContent className='sm:max-w-md p-6 rounded-2xl'>
+        <DialogContent className='sm:max-w-lg p-6 rounded-2xl max-h-[90vh] overflow-y-auto'>
           <DialogHeader className='space-y-1.5'>
             <div className='flex items-center gap-2'>
               <div className='w-8 h-8 rounded-lg bg-purple-100 dark:bg-purple-950/50 flex items-center justify-center text-purple-600'>
                 <Building2 className='w-4 h-4' />
               </div>
-              <DialogTitle className='text-lg font-bold text-slate-900 dark:text-white'>
+              <DialogTitle className='text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2'>
                 Institute Details
+                <Badge variant='outline' className='text-[10px] font-normal text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-800'>
+                  Read-only
+                </Badge>
               </DialogTitle>
             </div>
             <DialogDescription className='text-xs text-muted-foreground'>
-              Manage your school's information and contact details
+              View school's signup information and contact details
             </DialogDescription>
           </DialogHeader>
 
           <div className='space-y-4 py-2'>
+            {editDialog.school?.isCustomPlan && (
+              <div className='p-3.5 bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-amber-500/10 border border-amber-500/30 rounded-xl space-y-1.5'>
+                <div className='flex items-center justify-between'>
+                  <div className='flex items-center gap-2'>
+                    <Crown className='w-4 h-4 text-amber-600 dark:text-amber-400' />
+                    <span className='text-xs font-bold text-amber-900 dark:text-amber-200'>
+                      Custom Enterprise Plan
+                    </span>
+                  </div>
+                  <Badge className='bg-amber-600 text-white text-[10px] font-bold'>
+                    {editDialog.school.customTeacherLimit || 101} Teachers
+                  </Badge>
+                </div>
+                {editDialog.school.customPriceMonthly !== null && editDialog.school.customPriceMonthly !== undefined && (
+                  <p className='text-xs text-amber-800 dark:text-amber-300 font-medium'>
+                    Pricing: ₹{editDialog.school.customPriceMonthly.toLocaleString('en-IN')}/mo
+                    {editDialog.school.customPriceYearly && (
+                      <span> · ₹{editDialog.school.customPriceYearly.toLocaleString('en-IN')}/yr</span>
+                    )}
+                    {' '}<span className='text-[10px] text-amber-700/80 dark:text-amber-400/80'>(+18% GST)</span>
+                  </p>
+                )}
+              </div>
+            )}
+
             <div className='space-y-1.5'>
               <Label className='text-xs font-semibold text-slate-700 dark:text-slate-300'>
                 Institute Name
               </Label>
               <Input
+                readOnly
                 placeholder='Institute Name'
-                value={editDialog.form.name}
-                onChange={(e) =>
-                  setEditDialog((prev) => ({
-                    ...prev,
-                    form: { ...prev.form, name: e.target.value },
-                  }))
-                }
-                className='h-10 rounded-xl'
+                value={editDialog.form.name || '—'}
+                className='h-10 rounded-xl bg-slate-50/80 dark:bg-slate-900/60 border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 cursor-default focus-visible:ring-0'
               />
+            </div>
+
+            <div className='grid grid-cols-1 sm:grid-cols-2 gap-3'>
+              <div className='space-y-1.5'>
+                <Label className='text-xs font-semibold text-slate-700 dark:text-slate-300'>
+                  Institute Type
+                </Label>
+                <Input
+                  readOnly
+                  placeholder='Institute Type'
+                  value={editDialog.form.type || '—'}
+                  className='h-10 rounded-xl bg-slate-50/80 dark:bg-slate-900/60 border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 cursor-default focus-visible:ring-0'
+                />
+              </div>
+
+              <div className='space-y-1.5'>
+                <Label className='text-xs font-semibold text-slate-700 dark:text-slate-300'>
+                  Country
+                </Label>
+                <Input
+                  readOnly
+                  placeholder='Country'
+                  value={editDialog.form.country || '—'}
+                  className='h-10 rounded-xl bg-slate-50/80 dark:bg-slate-900/60 border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 cursor-default focus-visible:ring-0'
+                />
+              </div>
             </div>
 
             <div className='space-y-1.5'>
@@ -363,51 +444,94 @@ export default function SchoolsPage() {
                 Address
               </Label>
               <Input
+                readOnly
                 placeholder='Address'
-                value={editDialog.form.address}
-                onChange={(e) =>
-                  setEditDialog((prev) => ({
-                    ...prev,
-                    form: { ...prev.form, address: e.target.value },
-                  }))
-                }
-                className='h-10 rounded-xl'
+                value={editDialog.form.address || '—'}
+                className='h-10 rounded-xl bg-slate-50/80 dark:bg-slate-900/60 border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 cursor-default focus-visible:ring-0'
               />
             </div>
 
             <div className='space-y-1.5'>
               <Label className='text-xs font-semibold text-slate-700 dark:text-slate-300'>
-                Phone Number
+                State
               </Label>
               <Input
-                placeholder='+9134635465645'
-                value={editDialog.form.phone}
-                onChange={(e) =>
-                  setEditDialog((prev) => ({
-                    ...prev,
-                    form: { ...prev.form, phone: e.target.value },
-                  }))
-                }
-                className='h-10 rounded-xl'
+                readOnly
+                placeholder='State'
+                value={editDialog.form.state || '—'}
+                className='h-10 rounded-xl bg-slate-50/80 dark:bg-slate-900/60 border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 cursor-default focus-visible:ring-0'
               />
             </div>
 
             <div className='space-y-1.5'>
               <Label className='text-xs font-semibold text-slate-700 dark:text-slate-300'>
-                Email Address
+                City
               </Label>
               <Input
-                type='email'
-                placeholder='contact@school.edu'
-                value={editDialog.form.email}
-                onChange={(e) =>
-                  setEditDialog((prev) => ({
-                    ...prev,
-                    form: { ...prev.form, email: e.target.value },
-                  }))
-                }
-                className='h-10 rounded-xl'
+                readOnly
+                placeholder='City'
+                value={editDialog.form.city || '—'}
+                className='h-10 rounded-xl bg-slate-50/80 dark:bg-slate-900/60 border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 cursor-default focus-visible:ring-0'
               />
+            </div>
+
+            <div className='grid grid-cols-1 sm:grid-cols-2 gap-3'>
+              <div className='space-y-1.5'>
+                <div className='flex items-center justify-between'>
+                  <Label className='text-xs font-semibold text-slate-700 dark:text-slate-300'>
+                    No. of Faculty
+                  </Label>
+                  {editDialog.school?.teacherCount !== undefined && (
+                    <span className='text-[10px] text-muted-foreground font-medium flex items-center gap-1'>
+                      <Users className='w-3 h-3' /> {editDialog.school.teacherCount} Registered
+                    </span>
+                  )}
+                </div>
+                <Input
+                  readOnly
+                  placeholder='Faculty'
+                  value={editDialog.form.facultyRange ? `${editDialog.form.facultyRange} Faculty` : '—'}
+                  className='h-10 rounded-xl bg-slate-50/80 dark:bg-slate-900/60 border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 cursor-default focus-visible:ring-0'
+                />
+              </div>
+
+              <div className='space-y-1.5'>
+                <Label className='text-xs font-semibold text-slate-700 dark:text-slate-300'>
+                  No. of Students
+                </Label>
+                <Input
+                  readOnly
+                  placeholder='Students'
+                  value={editDialog.form.studentsRange ? `${editDialog.form.studentsRange} Students` : '—'}
+                  className='h-10 rounded-xl bg-slate-50/80 dark:bg-slate-900/60 border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 cursor-default focus-visible:ring-0'
+                />
+              </div>
+            </div>
+
+            <div className='grid grid-cols-1 sm:grid-cols-2 gap-3'>
+              <div className='space-y-1.5'>
+                <Label className='text-xs font-semibold text-slate-700 dark:text-slate-300'>
+                  Phone Number
+                </Label>
+                <Input
+                  readOnly
+                  placeholder='Phone Number'
+                  value={editDialog.form.phone || '—'}
+                  className='h-10 rounded-xl bg-slate-50/80 dark:bg-slate-900/60 border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 cursor-default focus-visible:ring-0'
+                />
+              </div>
+
+              <div className='space-y-1.5'>
+                <Label className='text-xs font-semibold text-slate-700 dark:text-slate-300'>
+                  Email Address
+                </Label>
+                <Input
+                  readOnly
+                  placeholder='Email Address'
+                  value={editDialog.form.email || '—'}
+                  className='h-10 rounded-xl bg-slate-50/80 dark:bg-slate-900/60 border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 cursor-default focus-visible:ring-0'
+                />
+              </div>
             </div>
 
             <div className='pt-2 border-t border-slate-200 dark:border-slate-800 space-y-3'>
@@ -418,15 +542,10 @@ export default function SchoolsPage() {
                   Website / Web Portal
                 </Label>
                 <Input
-                  placeholder='https://yourschool.edu'
-                  value={editDialog.form.website}
-                  onChange={(e) =>
-                    setEditDialog((prev) => ({
-                      ...prev,
-                      form: { ...prev.form, website: e.target.value },
-                    }))
-                  }
-                  className='h-10 rounded-xl'
+                  readOnly
+                  placeholder='Website'
+                  value={editDialog.form.website || '—'}
+                  className='h-10 rounded-xl bg-slate-50/80 dark:bg-slate-900/60 border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 cursor-default focus-visible:ring-0'
                 />
               </div>
 
@@ -436,15 +555,10 @@ export default function SchoolsPage() {
                     Instagram
                   </Label>
                   <Input
-                    placeholder='https://instagram.com/school'
-                    value={editDialog.form.instagram}
-                    onChange={(e) =>
-                      setEditDialog((prev) => ({
-                        ...prev,
-                        form: { ...prev.form, instagram: e.target.value },
-                      }))
-                    }
-                    className='h-10 rounded-xl'
+                    readOnly
+                    placeholder='Instagram'
+                    value={editDialog.form.instagram || '—'}
+                    className='h-10 rounded-xl bg-slate-50/80 dark:bg-slate-900/60 border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 cursor-default focus-visible:ring-0'
                   />
                 </div>
 
@@ -453,15 +567,10 @@ export default function SchoolsPage() {
                     Facebook
                   </Label>
                   <Input
-                    placeholder='https://facebook.com/school'
-                    value={editDialog.form.facebook}
-                    onChange={(e) =>
-                      setEditDialog((prev) => ({
-                        ...prev,
-                        form: { ...prev.form, facebook: e.target.value },
-                      }))
-                    }
-                    className='h-10 rounded-xl'
+                    readOnly
+                    placeholder='Facebook'
+                    value={editDialog.form.facebook || '—'}
+                    className='h-10 rounded-xl bg-slate-50/80 dark:bg-slate-900/60 border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 cursor-default focus-visible:ring-0'
                   />
                 </div>
 
@@ -470,15 +579,10 @@ export default function SchoolsPage() {
                     LinkedIn
                   </Label>
                   <Input
-                    placeholder='https://linkedin.com/company/school'
-                    value={editDialog.form.linkedin}
-                    onChange={(e) =>
-                      setEditDialog((prev) => ({
-                        ...prev,
-                        form: { ...prev.form, linkedin: e.target.value },
-                      }))
-                    }
-                    className='h-10 rounded-xl'
+                    readOnly
+                    placeholder='LinkedIn'
+                    value={editDialog.form.linkedin || '—'}
+                    className='h-10 rounded-xl bg-slate-50/80 dark:bg-slate-900/60 border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 cursor-default focus-visible:ring-0'
                   />
                 </div>
 
@@ -487,33 +591,22 @@ export default function SchoolsPage() {
                     Twitter / X
                   </Label>
                   <Input
-                    placeholder='https://x.com/school'
-                    value={editDialog.form.twitter}
-                    onChange={(e) =>
-                      setEditDialog((prev) => ({
-                        ...prev,
-                        form: { ...prev.form, twitter: e.target.value },
-                      }))
-                    }
-                    className='h-10 rounded-xl'
+                    readOnly
+                    placeholder='Twitter / X'
+                    value={editDialog.form.twitter || '—'}
+                    className='h-10 rounded-xl bg-slate-50/80 dark:bg-slate-900/60 border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 cursor-default focus-visible:ring-0'
                   />
                 </div>
               </div>
             </div>
 
             <Button
-              onClick={handleSaveInstituteDetails}
-              disabled={savingDetails}
-              className='w-full h-11 font-semibold rounded-xl bg-amber-600 hover:bg-amber-700 text-white shadow-md transition-all mt-4 cursor-pointer'
+              type='button'
+              variant='outline'
+              onClick={() => setEditDialog((prev) => ({ ...prev, open: false }))}
+              className='w-full h-11 font-semibold rounded-xl border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 shadow-sm transition-all mt-4 cursor-pointer'
             >
-              {savingDetails ? (
-                <span className='flex items-center gap-2'>
-                  <RefreshCw className='w-4 h-4 animate-spin' />
-                  Saving...
-                </span>
-              ) : (
-                'Save Institute Details'
-              )}
+              Close
             </Button>
           </div>
         </DialogContent>

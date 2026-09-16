@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Edit, Plus, Trash2, Check, X, Crown } from 'lucide-react';
+import { Edit, Plus, Trash2, Check, X, Crown, History, RotateCw } from 'lucide-react';
 
 import { useRequireAuth } from '@/lib/auth-context';
 import { PageHeader } from '@/components/enterprise/page-header';
@@ -81,7 +81,12 @@ type CustomPlanRequest = {
     phone: string | null;
   }[];
   requestedFacultyLimit: number;
-  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  price?: number | null;
+  priceYearly?: number | null;
+  billingCycle?: string | null;
+  isPaid?: boolean;
+  paidAt?: string | null;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'COMPLETED';
   rejectionReason: string | null;
   createdAt: string;
 };
@@ -131,10 +136,18 @@ export default function PlansPage() {
   const [plans, setPlans]                 = useState<SaasPlan[]>([]);
   const [trialRequests, setTrialRequests] = useState<SchoolTrialRequest[]>([]);
   const [customPlanRequests, setCustomPlanRequests] = useState<CustomPlanRequest[]>([]);
+  const [customPlanHistory, setCustomPlanHistory] = useState<CustomPlanRequest[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [historyFilter, setHistoryFilter] = useState<'all' | 'approved' | 'rejected'>('all');
   const [loading, setLoading]             = useState(true);
   const [saving, setSaving]               = useState(false);
   const [fetchError, setFetchError]       = useState<string | null>(null);
   const [processingCustomPlan, setProcessingCustomPlan] = useState<string | null>(null);
+  const [approveModalOpen, setApproveModalOpen] = useState(false);
+  const [requestToApprove, setRequestToApprove] = useState<CustomPlanRequest | null>(null);
+  const [quotePrice, setQuotePrice] = useState<string>('');
+  const [quotePriceYearly, setQuotePriceYearly] = useState<string>('');
+  const [yearlyManuallyEdited, setYearlyManuallyEdited] = useState<boolean>(false);
 
   // form dialog
   const [formOpen, setFormOpen]         = useState(false);
@@ -173,25 +186,74 @@ export default function PlansPage() {
 
   const fetchCustomPlanRequests = async () => {
     try {
-      const res = await fetch('/api/super-admin/custom-plan-requests');
+      const res = await fetch('/api/super-admin/custom-plan-requests?status=PENDING');
       if (res.ok) setCustomPlanRequests(await res.json());
     } catch (err) {
       console.error('Failed to load custom plan requests:', err);
     }
   };
 
-  const handleApproveCustomPlan = async (requestId: string, schoolId: string, facultyLimit: number) => {
-    setProcessingCustomPlan(requestId);
+  const fetchCustomPlanHistory = async () => {
+    setLoadingHistory(true);
     try {
-      const res = await fetch(`/api/super-admin/custom-plan-requests/${requestId}`, {
+      const res = await fetch('/api/super-admin/custom-plan-requests?status=history');
+      if (res.ok) setCustomPlanHistory(await res.json());
+    } catch (err) {
+      console.error('Failed to load custom plan history:', err);
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
+
+  const openApproveModal = (req: CustomPlanRequest) => {
+    setRequestToApprove(req);
+    setQuotePrice('');
+    setQuotePriceYearly('');
+    setYearlyManuallyEdited(false);
+    setApproveModalOpen(true);
+  };
+
+  const handleMonthlyPriceChange = (val: string) => {
+    setQuotePrice(val);
+    const num = Number(val);
+    if (!yearlyManuallyEdited && Number.isFinite(num) && num > 0) {
+      // 17% discount on 12 months = Math.round(monthly * 12 * 0.83)
+      const yearly = Math.round(num * 12 * 0.83);
+      setQuotePriceYearly(yearly.toString());
+    } else if (!val && !yearlyManuallyEdited) {
+      setQuotePriceYearly('');
+    }
+  };
+
+  const handleConfirmApprove = async () => {
+    if (!requestToApprove) return;
+    const priceNum = Number(quotePrice);
+    if (!Number.isFinite(priceNum) || priceNum <= 0) {
+      toast.error('Please enter a valid monthly price greater than 0');
+      return;
+    }
+
+    const yearlyNum = Number(quotePriceYearly) > 0
+      ? Number(quotePriceYearly)
+      : Math.round(priceNum * 12 * 0.83);
+
+    setProcessingCustomPlan(requestToApprove.id);
+    try {
+      const res = await fetch(`/api/super-admin/custom-plan-requests/${requestToApprove.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'approve', facultyLimit })
+        body: JSON.stringify({ action: 'approve', price: priceNum, priceYearly: yearlyNum })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to approve');
-      toast.success('Custom plan approved and Max plan granted');
+      toast.success(data.message || `Custom plan approved: ₹${priceNum.toLocaleString('en-IN')}/mo & ₹${yearlyNum.toLocaleString('en-IN')}/yr`);
+      setApproveModalOpen(false);
+      setRequestToApprove(null);
+      setQuotePrice('');
+      setQuotePriceYearly('');
+      setYearlyManuallyEdited(false);
       fetchCustomPlanRequests();
+      fetchCustomPlanHistory();
     } catch (err: any) {
       toast.error(err.message || 'Failed to approve custom plan');
     } finally {
@@ -211,6 +273,7 @@ export default function PlansPage() {
       if (!res.ok) throw new Error(data.error || 'Failed to reject');
       toast.success('Custom plan request rejected');
       fetchCustomPlanRequests();
+      fetchCustomPlanHistory();
     } catch (err: any) {
       toast.error(err.message || 'Failed to reject custom plan');
     } finally {
@@ -222,6 +285,7 @@ export default function PlansPage() {
     fetchPlans();
     fetchTrialRequests();
     fetchCustomPlanRequests();
+    fetchCustomPlanHistory();
   }, []);
 
   const planRows = useMemo(() => plans, [plans]);
@@ -232,7 +296,7 @@ export default function PlansPage() {
       acc[plan.name] = (acc[plan.name] || 0) + 1;
       return acc;
     }, {} as Record<string, number>);
-    return Object.entries(nameCounts).filter(([_, count]) => count > 1).map(([name]) => name);
+    return Object.entries(nameCounts).filter(([_, count]) => Number(count) > 1).map(([name]) => name);
   }, [plans]);
 
   // ── Form helpers ───────────────────────────────────────────────────────────
@@ -452,9 +516,9 @@ export default function PlansPage() {
                     </Button>
                     <Button
                       size='sm'
-                      onClick={() => handleApproveCustomPlan(req.id, req.schoolId, req.requestedFacultyLimit)}
+                      onClick={() => openApproveModal(req)}
                       disabled={processingCustomPlan === req.id}
-                      className='bg-emerald-600 hover:bg-emerald-700'
+                      className='bg-emerald-600 hover:bg-emerald-700 text-white'
                     >
                       <Check className='w-4 h-4 mr-1' /> Approve
                     </Button>
@@ -761,66 +825,344 @@ export default function PlansPage() {
         </DialogContent>
       </Dialog>
 
-      {/* ── Custom Plan Requests Section ── */}
+      {/* ── Custom Plan Requests History Section ── */}
       <GlassCard className='p-6 mt-6'>
-        <div className='flex items-center justify-between mb-4'>
+        <div className='flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-5 pb-4 border-b border-border/40'>
           <div className='flex items-center gap-3'>
-            <div className='w-10 h-10 rounded-lg bg-amber-500/10 flex items-center justify-center'>
-              <Crown className='w-5 h-5 text-amber-500' />
+            <div className='w-10 h-10 rounded-xl bg-indigo-500/10 dark:bg-indigo-500/20 flex items-center justify-center text-indigo-600 dark:text-indigo-400'>
+              <History className='w-5 h-5' />
             </div>
             <div>
-              <h3 className='font-semibold'>Custom Plan Requests</h3>
-              <p className='text-xs text-muted-foreground'>{customPlanRequests.length} pending requests</p>
+              <h3 className='font-bold text-base text-slate-900 dark:text-white'>Custom Plan Requests History</h3>
+              <p className='text-xs text-muted-foreground'>
+                Record of all approved, active, and rejected custom enterprise requests
+              </p>
             </div>
           </div>
-          <Button variant='outline' size='sm' onClick={fetchCustomPlanRequests}>
-            Refresh
-          </Button>
+
+          <div className='flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end flex-wrap'>
+            {/* Filter Tabs */}
+            <div className='flex items-center gap-1 bg-muted/40 p-1 rounded-lg border'>
+              <Button
+                size='sm'
+                variant={historyFilter === 'all' ? 'secondary' : 'ghost'}
+                onClick={() => setHistoryFilter('all')}
+                className='h-7 px-2.5 text-xs font-medium'
+              >
+                All ({customPlanHistory.length})
+              </Button>
+              <Button
+                size='sm'
+                variant={historyFilter === 'approved' ? 'secondary' : 'ghost'}
+                onClick={() => setHistoryFilter('approved')}
+                className='h-7 px-2.5 text-xs font-medium text-emerald-700 dark:text-emerald-400'
+              >
+                Approved ({customPlanHistory.filter(r => r.status === 'APPROVED' || r.status === 'COMPLETED').length})
+              </Button>
+              <Button
+                size='sm'
+                variant={historyFilter === 'rejected' ? 'secondary' : 'ghost'}
+                onClick={() => setHistoryFilter('rejected')}
+                className='h-7 px-2.5 text-xs font-medium text-rose-700 dark:text-rose-400'
+              >
+                Rejected ({customPlanHistory.filter(r => r.status === 'REJECTED').length})
+              </Button>
+            </div>
+
+            <Button
+              variant='outline'
+              size='sm'
+              onClick={fetchCustomPlanHistory}
+              disabled={loadingHistory}
+              className='h-8 text-xs gap-1.5'
+            >
+              <RotateCw className={`w-3.5 h-3.5 ${loadingHistory ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
+          </div>
         </div>
 
-        {customPlanRequests.length === 0 ? (
-          <div className='text-center py-8 text-sm text-muted-foreground'>
-            No custom plan requests
-          </div>
-        ) : (
-          <div className='space-y-3 max-h-80 overflow-y-auto'>
-            {customPlanRequests.map((req) => (
-              <div key={req.id} className='p-4 rounded-lg bg-muted/20 border border-border/40'>
-                <div className='flex items-start justify-between mb-2'>
-                  <div>
-                    <p className='font-medium text-sm'>{req.schoolName}</p>
-                    <p className='text-xs text-muted-foreground'>Requested Faculty Limit: {req.requestedFacultyLimit}</p>
+        {(() => {
+          const filtered = customPlanHistory.filter((req) => {
+            if (historyFilter === 'approved') return req.status === 'APPROVED' || req.status === 'COMPLETED';
+            if (historyFilter === 'rejected') return req.status === 'REJECTED';
+            return true;
+          });
+
+          if (loadingHistory) {
+            return (
+              <div className='text-center py-10 text-sm text-muted-foreground flex items-center justify-center gap-2'>
+                <RotateCw className='w-4 h-4 animate-spin' /> Loading history...
+              </div>
+            );
+          }
+
+          if (filtered.length === 0) {
+            return (
+              <div className='text-center py-10 text-sm text-muted-foreground'>
+                No custom plan requests history found.
+              </div>
+            );
+          }
+
+          return (
+            <div className='space-y-3 max-h-[520px] overflow-y-auto pr-1'>
+              {filtered.map((req) => {
+                const isApprovedOrCompleted = req.status === 'APPROVED' || req.status === 'COMPLETED';
+                const monthlyBase = req.price ? Number(req.price) : 0;
+                const yearlyBase = req.priceYearly ? Number(req.priceYearly) : Math.round(monthlyBase * 12 * 0.83);
+
+                return (
+                  <div
+                    key={req.id}
+                    className='p-4 rounded-xl bg-background/60 border border-border/60 hover:border-border transition-colors flex flex-col md:flex-row md:items-center justify-between gap-4'
+                  >
+                    <div className='space-y-1.5 flex-1'>
+                      <div className='flex items-center gap-2 flex-wrap'>
+                        <span className='font-bold text-sm text-slate-900 dark:text-white'>
+                          {req.schoolName}
+                        </span>
+                        <span className='text-xs text-muted-foreground'>
+                          ({req.schoolCity || 'N/A'}, {req.schoolCountry || 'India'})
+                        </span>
+
+                        {/* Status Badges */}
+                        {req.isPaid || req.status === 'COMPLETED' ? (
+                          <Badge className='bg-emerald-600 text-white text-[10px] font-bold px-2 py-0.5'>
+                            Paid &amp; Active
+                          </Badge>
+                        ) : req.status === 'APPROVED' ? (
+                          <Badge className='bg-blue-600 text-white text-[10px] font-bold px-2 py-0.5'>
+                            Quote Approved (Pending Payment)
+                          </Badge>
+                        ) : (
+                          <Badge variant='destructive' className='text-[10px] font-bold px-2 py-0.5'>
+                            Rejected
+                          </Badge>
+                        )}
+                      </div>
+
+                      <div className='flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground'>
+                        <span>
+                          Requested Limit:{' '}
+                          <strong className='text-amber-600 dark:text-amber-400 font-bold'>
+                            {req.requestedFacultyLimit} Teachers
+                          </strong>
+                        </span>
+                        {req.currentPlan && (
+                          <span>Previous Plan: {req.currentPlan.name}</span>
+                        )}
+                        <span>
+                          Requested on:{' '}
+                          {new Date(req.createdAt).toLocaleDateString('en-IN', {
+                            day: 'numeric',
+                            month: 'short',
+                            year: 'numeric',
+                          })}
+                        </span>
+                        {req.paidAt && (
+                          <span className='text-emerald-600 dark:text-emerald-400 font-semibold'>
+                            Paid on:{' '}
+                            {new Date(req.paidAt).toLocaleDateString('en-IN', {
+                              day: 'numeric',
+                              month: 'short',
+                              year: 'numeric',
+                            })}
+                          </span>
+                        )}
+                      </div>
+
+                      {req.adminContacts && req.adminContacts.length > 0 && (
+                        <p className='text-[11px] text-muted-foreground'>
+                          Admin: {req.adminContacts[0].name} ({req.adminContacts[0].email})
+                          {req.adminContacts[0].phone ? ` • ${req.adminContacts[0].phone}` : ''}
+                        </p>
+                      )}
+
+                      {req.status === 'REJECTED' && req.rejectionReason && (
+                        <p className='text-xs text-rose-600 dark:text-rose-400 font-medium bg-rose-50 dark:bg-rose-950/30 px-2.5 py-1 rounded-md inline-block'>
+                          Reason: {req.rejectionReason}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Pricing Display */}
+                    {isApprovedOrCompleted && monthlyBase > 0 && (
+                      <div className='text-left md:text-right bg-muted/30 p-3 rounded-lg border shrink-0 min-w-[210px]'>
+                        <p className='text-xs font-bold text-slate-900 dark:text-white'>
+                          ₹{monthlyBase.toLocaleString('en-IN')}/mo · ₹{yearlyBase.toLocaleString('en-IN')}/yr
+                        </p>
+                        <p className='text-[10px] text-muted-foreground mt-0.5'>
+                          Base Price (+18% GST)
+                        </p>
+                        <p className='text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold mt-1'>
+                          Total: ₹{(monthlyBase + Math.round(monthlyBase * 0.18)).toLocaleString('en-IN')}/mo · ₹{(yearlyBase + Math.round(yearlyBase * 0.18)).toLocaleString('en-IN')}/yr
+                        </p>
+                      </div>
+                    )}
                   </div>
-                  <Badge variant={req.status === 'PENDING' ? 'outline' : req.status === 'APPROVED' ? 'default' : 'destructive'}>
-                    {req.status}
+                );
+              })}
+            </div>
+          );
+        })()}
+      </GlassCard>
+
+      {/* ── Custom Plan Approval Dialog with Price Quote ── */}
+      <Dialog open={approveModalOpen} onOpenChange={setApproveModalOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold flex items-center gap-2">
+              <Crown className="w-5 h-5 text-amber-500" />
+              Approve Custom Plan Request
+            </DialogTitle>
+            <DialogDescription>
+              Set monthly and yearly rates for this school. By default, annual rate offers 17% off (Monthly × 12 - 17%) and both are fully editable.
+            </DialogDescription>
+          </DialogHeader>
+          {requestToApprove && (
+            <div className="space-y-4 py-2">
+              <div className="p-3 bg-muted/40 rounded-lg border text-sm space-y-1.5">
+                <p><span className="font-semibold text-foreground">School:</span> {requestToApprove.schoolName}</p>
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold text-foreground">Requested Limit:</span>
+                  <Badge className="bg-amber-500/15 text-amber-700 dark:text-amber-300 font-bold border-amber-500/30">
+                    {requestToApprove.requestedFacultyLimit} Teachers
                   </Badge>
                 </div>
-                {req.status === 'PENDING' && (
-                  <div className='flex gap-2 mt-3'>
-                    <Button
-                      size='sm'
-                      onClick={() => handleApproveCustomPlan(req.id, req.schoolId, req.requestedFacultyLimit)}
-                      disabled={processingCustomPlan === req.id}
-                      className='h-7 text-xs bg-emerald-600 hover:bg-emerald-700 text-white'
-                    >
-                      {processingCustomPlan === req.id ? '...' : 'Confirm & Grant Max Plan'}
-                    </Button>
-                    <Button
-                      size='sm'
-                      variant='outline'
-                      onClick={() => handleRejectCustomPlan(req.id)}
-                      disabled={processingCustomPlan === req.id}
-                      className='h-7 text-xs text-rose-600 border-rose-200 hover:bg-rose-50'
-                    >
-                      {processingCustomPlan === req.id ? '...' : 'Reject'}
-                    </Button>
-                  </div>
+                <p><span className="font-semibold text-foreground">Current Teachers:</span> {requestToApprove.currentTeacherCount}</p>
+                {requestToApprove.adminContacts && requestToApprove.adminContacts.length > 0 && (
+                  <p className="text-xs text-muted-foreground pt-1 border-t">
+                    <span className="font-medium text-foreground">Admin:</span> {requestToApprove.adminContacts[0].name} ({requestToApprove.adminContacts[0].email})
+                  </p>
                 )}
               </div>
-            ))}
-          </div>
-        )}
-      </GlassCard>
+
+              {/* Monthly Rate Input */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="quote-price-monthly" className="font-semibold text-sm">
+                    Monthly Price (₹ / month) <span className="text-rose-500">*</span>
+                  </Label>
+                  <span className="text-[11px] text-muted-foreground">30-day cycle</span>
+                </div>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-semibold text-base">₹</span>
+                  <Input
+                    id="quote-price-monthly"
+                    type="number"
+                    min="1"
+                    step="1"
+                    placeholder="e.g. 500"
+                    value={quotePrice}
+                    onChange={(e) => handleMonthlyPriceChange(e.target.value)}
+                    className="pl-8 text-base font-semibold"
+                    autoFocus
+                  />
+                </div>
+              </div>
+
+              {/* Yearly Rate Input (Default: monthly * 12 with 17% off, and editable) */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="quote-price-yearly" className="font-semibold text-sm">
+                    Yearly Price (₹ / year) <span className="text-rose-500">*</span>
+                  </Label>
+                  <Badge variant="outline" className="text-[10px] bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/30 dark:text-emerald-300">
+                    17% Off Default
+                  </Badge>
+                </div>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-semibold text-base">₹</span>
+                  <Input
+                    id="quote-price-yearly"
+                    type="number"
+                    min="1"
+                    step="1"
+                    placeholder="e.g. 4980"
+                    value={quotePriceYearly}
+                    onChange={(e) => {
+                      setQuotePriceYearly(e.target.value);
+                      setYearlyManuallyEdited(true);
+                    }}
+                    className="pl-8 text-base font-semibold"
+                  />
+                </div>
+                <div className="flex items-center justify-between text-xs text-muted-foreground pt-0.5">
+                  <span>Regular 12 mo: ₹{quotePrice ? (Number(quotePrice) * 12).toLocaleString('en-IN') : '0'}</span>
+                  {yearlyManuallyEdited && quotePrice && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const calculated = Math.round(Number(quotePrice) * 12 * 0.83);
+                        setQuotePriceYearly(calculated.toString());
+                        setYearlyManuallyEdited(false);
+                      }}
+                      className="text-indigo-600 hover:underline text-[11px] font-medium cursor-pointer"
+                    >
+                      Reset to 17% off
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* GST 18% Breakdown Summary */}
+              {quotePrice && Number(quotePrice) > 0 && (
+                <div className="bg-muted/40 rounded-xl p-3.5 border space-y-2 text-xs">
+                  <div className="flex items-center justify-between font-semibold text-slate-800 dark:text-slate-200">
+                    <span>Pricing Breakdown (18% GST Included at Checkout)</span>
+                    <Badge variant="outline" className="text-[10px] bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-300">
+                      +18% GST Auto-Calculated
+                    </Badge>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 pt-1 border-t border-border/50">
+                    <div className="bg-background/80 p-2.5 rounded-lg border">
+                      <p className="font-semibold text-foreground">Monthly Cycle</p>
+                      <p className="text-muted-foreground text-[11px] mt-0.5">Base: ₹{Number(quotePrice).toLocaleString('en-IN')}</p>
+                      <p className="text-muted-foreground text-[11px]">18% GST: ₹{Math.round(Number(quotePrice) * 0.18).toLocaleString('en-IN')}</p>
+                      <p className="font-bold text-emerald-600 dark:text-emerald-400 text-xs mt-1 pt-1 border-t">
+                        Total: ₹{(Number(quotePrice) + Math.round(Number(quotePrice) * 0.18)).toLocaleString('en-IN')}/mo
+                      </p>
+                    </div>
+
+                    <div className="bg-background/80 p-2.5 rounded-lg border">
+                      <p className="font-semibold text-foreground">Yearly Cycle</p>
+                      <p className="text-muted-foreground text-[11px] mt-0.5">Base: ₹{Number(quotePriceYearly || 0).toLocaleString('en-IN')}</p>
+                      <p className="text-muted-foreground text-[11px]">18% GST: ₹{Math.round(Number(quotePriceYearly || 0) * 0.18).toLocaleString('en-IN')}</p>
+                      <p className="font-bold text-emerald-600 dark:text-emerald-400 text-xs mt-1 pt-1 border-t">
+                        Total: ₹{(Number(quotePriceYearly || 0) + Math.round(Number(quotePriceYearly || 0) * 0.18)).toLocaleString('en-IN')}/yr
+                      </p>
+                    </div>
+                  </div>
+
+                  <p className="text-[11px] text-muted-foreground">
+                    School admin will see both Monthly and Annual options with base price + 18% GST and can choose either cycle at checkout.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setApproveModalOpen(false)}
+              disabled={Boolean(processingCustomPlan)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={handleConfirmApprove}
+              disabled={Boolean(processingCustomPlan) || !quotePrice || Number(quotePrice) <= 0}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium"
+            >
+              {processingCustomPlan ? 'Sending Approval...' : 'Approve & Send Quote'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* ── Delete confirmation ── */}
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>

@@ -107,6 +107,7 @@ export default function SignupPage() {
 
   const [instituteName, setInstituteName] = useState('');
   const [instituteType, setInstituteType] = useState('');
+  const [state, setState] = useState('');
   const [city, setCity] = useState('');
   const [country, setCountry] = useState('India');
   const [studentsRange, setStudentsRange] = useState('');
@@ -251,6 +252,7 @@ export default function SignupPage() {
         body: JSON.stringify({
           instituteName,
           instituteType,
+          state,
           city,
           country,
           studentsRange,
@@ -726,10 +728,26 @@ export default function SignupPage() {
 
                   <div>
                     <label className='mb-2 block text-sm font-medium text-slate-700'>
+                      State <RequiredMark />
+                    </label>
+                    <Input
+                      className='h-12 rounded-xl border-slate-200 bg-slate-50 text-slate-900 focus-visible:ring-blue-500'
+                      placeholder='Enter state'
+                      value={state}
+                      onChange={(e) => setState(e.target.value)}
+                      required
+                      disabled={loading}
+                    />
+                    {fieldErrors.state && <p className='mt-1 text-xs text-rose-500'>{fieldErrors.state}</p>}
+                  </div>
+
+                  <div>
+                    <label className='mb-2 block text-sm font-medium text-slate-700'>
                       City <RequiredMark />
                     </label>
                     <Input
                       className='h-12 rounded-xl border-slate-200 bg-slate-50 text-slate-900 focus-visible:ring-blue-500'
+                      placeholder='Enter city'
                       value={city}
                       onChange={(e) => setCity(e.target.value)}
                       required

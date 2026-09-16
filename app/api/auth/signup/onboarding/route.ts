@@ -22,6 +22,7 @@ export async function POST(request: NextRequest) {
 
     const instituteName = String(body.instituteName ?? '').trim();
     const instituteType = String(body.instituteType ?? '').trim();
+    const state = String(body.state ?? '').trim();
     const city = String(body.city ?? '').trim();
     const country = String(body.country ?? '').trim();
     const studentsRange = String(body.studentsRange ?? '').trim();
@@ -32,6 +33,7 @@ export async function POST(request: NextRequest) {
     else if (!INSTITUTE_TYPES.includes(instituteType as (typeof INSTITUTE_TYPES)[number])) {
       errors.instituteType = 'Select a valid institute type';
     }
+    if (!state) errors.state = 'State is required';
     if (!city) errors.city = 'City is required';
     if (!country) errors.country = 'Country is required';
     if (!studentsRange) errors.studentsRange = 'Select number of students';
@@ -80,6 +82,7 @@ export async function POST(request: NextRequest) {
         data: {
           name: instituteName,
           type: instituteType,
+          state,
           city,
           country,
           studentsRange,

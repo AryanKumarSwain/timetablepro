@@ -12,6 +12,7 @@ export async function checkTeacherLimit(schoolId: string): Promise<void> {
     where: { id: schoolId },
     select: {
       planId: true,
+      customTeacherLimit: true,
     },
   });
 
@@ -19,9 +20,9 @@ export async function checkTeacherLimit(schoolId: string): Promise<void> {
     throw new Error('School not found');
   }
 
-  let teacherMax = 5; // Default baseline limit for schools without a plan (Free plan)
+  let teacherMax = school.customTeacherLimit ?? 5; // Use custom limit if set, otherwise fallback baseline
 
-  if (school.planId) {
+  if (!school.customTeacherLimit && school.planId) {
     const plan = await prisma.saaSPlan.findUnique({
       where: { id: school.planId },
       select: { teacherMax: true },
@@ -48,11 +49,16 @@ export async function getTeacherLimit(schoolId: string): Promise<number> {
     where: { id: schoolId },
     select: {
       planId: true,
+      customTeacherLimit: true,
     },
   });
 
   if (!school) {
     return 5; // Default baseline limit (Free plan)
+  }
+
+  if (school.customTeacherLimit) {
+    return school.customTeacherLimit;
   }
 
   if (!school.planId) {

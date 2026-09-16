@@ -4,12 +4,12 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
-import { Check, CheckCircle2, Sparkles, ChevronRight, Zap, Rocket, Crown, X, Clock } from 'lucide-react';
+import { Check, CheckCircle2, Sparkles, ChevronRight, Zap, Rocket, Crown, X, Clock, RotateCw } from 'lucide-react';
 import { fetchSaasPlans, submitTrialRequest } from '@/lib/api-services';
 import { getTeachers, deleteTeacher } from '@/lib/api-services';
 import type { SaasPlan } from '@/lib/api-services';
@@ -84,10 +84,11 @@ export default function UpgradePage() {
   const [trialForm, setTrialForm] = useState<TrialFormState>({ instituteName: '', contactNo: '', email: '', planId: '', reason: '' });
   const [schoolData, setSchoolData] = useState<SchoolData | null>(null);
   const [userEmail, setUserEmail] = useState<string>('');
+  const [userPhone, setUserPhone] = useState<string>('');
   const [upiId, setUpiId] = useState<string>('example@upi');
   const [customPlanDialogOpen, setCustomPlanDialogOpen] = useState<boolean>(false);
   const [submittingCustomPlan, setSubmittingCustomPlan] = useState<boolean>(false);
-  const [customPlanFacultyLimit, setCustomPlanFacultyLimit] = useState<number>(100);
+  const [customPlanFacultyLimit, setCustomPlanFacultyLimit] = useState<number>(101);
   const [customPlanForm, setCustomPlanForm] = useState<CustomPlanFormState>({ instituteName: '', contactNo: '', email: '', reason: '' });
   const [teacherCount, setTeacherCount] = useState<number>(0);
   const [couponCode, setCouponCode] = useState<string>('');
@@ -103,6 +104,26 @@ export default function UpgradePage() {
   const [teacherSelectionOpen, setTeacherSelectionOpen] = useState<boolean>(false);
   const [teachersList, setTeachersList] = useState<any[]>([]);
   const [selectedTeachersToRemove, setSelectedTeachersToRemove] = useState<string[]>([]);
+  const [activeCustomRequest, setActiveCustomRequest] = useState<any>(null);
+  const [activeCustomPlan, setActiveCustomPlan] = useState<any>(null);
+  const [payingCustomPlan, setPayingCustomPlan] = useState<boolean>(false);
+  const [customBillingCycle, setCustomBillingCycle] = useState<'monthly' | 'annual'>('monthly');
+  const [renewDialogOpen, setRenewDialogOpen] = useState<boolean>(false);
+  const [renewBillingCycle, setRenewBillingCycle] = useState<'monthly' | 'annual'>('monthly');
+  const [renewing, setRenewing] = useState<boolean>(false);
+
+  const fetchActiveCustomRequest = async () => {
+    try {
+      const res = await fetch('/api/admin/custom-plan-requests', { credentials: 'include' });
+      if (res.ok) {
+        const d = await res.json();
+        setActiveCustomRequest(d.request || null);
+        setActiveCustomPlan(d.activeCustomPlan || null);
+      }
+    } catch (err) {
+      console.error('Failed to fetch active custom plan request:', err);
+    }
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -153,14 +174,18 @@ export default function UpgradePage() {
           }
         }
 
-        const sessionRes = await fetch('/api/auth/session', { credentials: 'include' });
-        if (sessionRes.ok && isMounted) {
-          try {
-            const sessionData = await sessionRes.json();
-            setUserEmail(sessionData.user?.email || '');
-          } catch (jsonError) {
-            console.error('Failed to parse session data:', jsonError);
+        // Fetch user signup profile details from /api/auth/me
+        try {
+          const meRes = await fetch('/api/auth/me', { credentials: 'include' });
+          if (meRes.ok && isMounted) {
+            const meData = await meRes.json();
+            if (meData.user) {
+              setUserEmail(meData.user.email || '');
+              setUserPhone(meData.user.phone || '');
+            }
           }
+        } catch (meError) {
+          console.error('Failed to parse user session data:', meError);
         }
 
         try {
@@ -177,6 +202,18 @@ export default function UpgradePage() {
         } catch (fetchError) {
           console.error('Failed to fetch UPI settings:', fetchError);
           setUpiId('example@upi');
+        }
+
+        // Fetch any pending or approved custom plan requests
+        try {
+          const customReqRes = await fetch('/api/admin/custom-plan-requests', { credentials: 'include' });
+          if (customReqRes.ok && isMounted) {
+            const customReqData = await customReqRes.json();
+            setActiveCustomRequest(customReqData.request || null);
+            setActiveCustomPlan(customReqData.activeCustomPlan || null);
+          }
+        } catch (customReqError) {
+          console.error('Failed to fetch active custom plan request:', customReqError);
         }
       } catch (error) {
         console.error('Failed to load upgrade page data:', error);
@@ -383,16 +420,16 @@ export default function UpgradePage() {
   const openCustomPlanDialog = () => {
     setCustomPlanForm({
       instituteName: schoolData?.name || '',
-      contactNo: '',
-      email: userEmail || '',
+      contactNo: userPhone || schoolData?.phone || '',
+      email: userEmail || schoolData?.email || '',
       reason: '',
     });
     setCustomPlanDialogOpen(true);
   };
 
   const handleCustomPlanSubmit = async () => {
-    if (customPlanFacultyLimit < 1) {
-      return toast.error('Faculty limit must be at least 1');
+    if (customPlanFacultyLimit < 101) {
+      return toast.error('Custom plan requires at least 101 teachers. Up to 100 teachers are already covered by the Elite plan.');
     }
     if (
       !customPlanForm.instituteName.trim() ||
@@ -425,13 +462,132 @@ export default function UpgradePage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to submit request');
-      toast.success('Custom plan request submitted successfully');
+      toast.success('Custom plan request submitted successfully! Super Admin will review and send your pricing quote.');
       setCustomPlanDialogOpen(false);
       setCustomPlanForm({ instituteName: '', contactNo: '', email: '', reason: '' });
+      fetchActiveCustomRequest();
     } catch (err: any) {
       toast.error(err.message || 'Failed to submit custom plan request');
     } finally {
       setSubmittingCustomPlan(false);
+    }
+  };
+
+  // ── Pay for Approved Custom Plan ──────────────────────────────────────────
+  const handlePayCustomPlan = async (customReqToPay = activeCustomRequest, cycle: 'monthly' | 'annual' = customBillingCycle) => {
+    const targetReq = customReqToPay || activeCustomRequest;
+    if (!targetReq) return;
+
+    setPayingCustomPlan(true);
+
+    try {
+      await loadRazorpayScript();
+
+      const monthlyBase = Number(targetReq.price || 0);
+      const yearlyBase = targetReq.priceYearly
+        ? Number(targetReq.priceYearly)
+        : Math.round(monthlyBase * 12 * 0.83);
+      const chosenBase = cycle === 'annual' ? yearlyBase : monthlyBase;
+      const gstAmount = Math.round(chosenBase * 0.18);
+      const chosenAmount = chosenBase + gstAmount;
+
+      // 1. Create order through razorpay order endpoint
+      const orderRes = await fetch('/api/admin/razorpay/order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          planId: `custom_${targetReq.id}`,
+          amount: chosenAmount,
+          billingCycle: cycle,
+        }),
+      });
+
+      const orderData = await orderRes.json();
+      if (!orderRes.ok) {
+        throw new Error(orderData.error || 'Failed to create Razorpay payment order');
+      }
+
+      // 2. Open Razorpay modal
+      const razorpayOptions = {
+        key: orderData.keyId,
+        amount: orderData.amount,
+        currency: orderData.currency,
+        name: 'Timetable Pro',
+        description: `Custom Plan (${targetReq.requestedFacultyLimit} Teachers) - ${cycle === 'annual' ? 'Annual' : 'Monthly'}`,
+        order_id: orderData.orderId,
+        handler: async function (response: any) {
+          try {
+            const payRes = await fetch(`/api/admin/custom-plan-requests/${targetReq.id}/pay`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify({
+                razorpayPaymentId: response.razorpay_payment_id,
+                razorpayOrderId: response.razorpay_order_id,
+                razorpaySignature: response.razorpay_signature,
+                billingCycle: cycle,
+              }),
+            });
+
+            const payData = await payRes.json();
+            if (!payRes.ok) {
+              throw new Error(payData.error || 'Payment verification failed');
+            }
+
+            toast.success(payData.message || 'Payment successful! Your custom plan is now active.');
+            setActiveCustomRequest(null);
+            setRenewDialogOpen(false);
+
+            if (typeof window !== 'undefined') {
+              setTimeout(() => window.location.reload(), 1500);
+            }
+          } catch (err: any) {
+            toast.error(err.message || 'Payment verification failed');
+          }
+        },
+        prefill: {
+          name: schoolData?.name || '',
+          email: userEmail || '',
+        },
+        notes: {
+          schoolName: schoolData?.name || '',
+          customRequestId: targetReq.id,
+          requestedFacultyLimit: targetReq.requestedFacultyLimit,
+          billingCycle: cycle,
+        },
+        theme: {
+          color: '#10b981',
+        },
+      };
+
+      const razorpay = new (window as any).Razorpay(razorpayOptions);
+      razorpay.open();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to start Razorpay payment');
+    } finally {
+      setPayingCustomPlan(false);
+    }
+  };
+
+  const handleRenewCustomPlan = async () => {
+    setRenewing(true);
+    try {
+      const res = await fetch('/api/admin/custom-plan-requests/renew', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ billingCycle: renewBillingCycle })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to initiate renewal');
+
+      setRenewDialogOpen(false);
+      await handlePayCustomPlan(data.request, renewBillingCycle);
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to start renewal');
+    } finally {
+      setRenewing(false);
     }
   };
 
@@ -566,8 +722,8 @@ export default function UpgradePage() {
   const openTrialDialog = () => {
     setTrialForm({
       instituteName: schoolData?.name || '',
-      contactNo: '',
-      email: userEmail || '',
+      contactNo: userPhone || schoolData?.phone || '',
+      email: userEmail || schoolData?.email || '',
       planId: '',
       reason: '',
     });
@@ -579,7 +735,7 @@ export default function UpgradePage() {
     if (!selectedPlan) return;
 
     const currentPlan = plans.find(p => p.id === currentPlanId);
-    const currentLimit = currentPlan?.teacherMax || 15;
+    const currentLimit = schoolData?.customTeacherLimit || currentPlan?.teacherMax || 15;
     const newLimit = selectedPlan.teacherMax;
 
     console.log('Plan selection details:', {
@@ -829,7 +985,19 @@ export default function UpgradePage() {
                     <div key={tx.id} className="p-3 border rounded-lg">
                       <div className="flex items-center justify-between">
                         <div>
-                          <div className="font-semibold">{tx.plan?.name || 'Plan'}</div>
+                          <div className="font-semibold flex items-center gap-2">
+                            <span>
+                              {tx.plan?.name || 'Plan'}
+                              {(tx.isCustomPlan || (tx.plan?.name?.toLowerCase().includes('elite') && schoolData?.customTeacherLimit))
+                                ? ' (Custom Plan)'
+                                : ''}
+                            </span>
+                            {(tx.isCustomPlan || (tx.plan?.name?.toLowerCase().includes('elite') && schoolData?.customTeacherLimit)) && (
+                              <Badge variant="outline" className="text-[10px] font-medium px-1.5 py-0 bg-amber-50 text-amber-800 border-amber-300 dark:bg-amber-950/40 dark:text-amber-300">
+                                {tx.customFacultyLimit ? `${tx.customFacultyLimit} Teachers` : `${schoolData?.customTeacherLimit || 101} Teachers`}
+                              </Badge>
+                            )}
+                          </div>
                           <div className="text-xs text-muted-foreground">{new Date(tx.createdAt).toLocaleString()}</div>
                         </div>
                         <div className="text-right text-sm">
@@ -846,11 +1014,224 @@ export default function UpgradePage() {
           </DialogContent>
         </Dialog>
 
+        {/* Custom Plan Request Status Banner (Approved or Pending) */}
+        {activeCustomRequest && (
+          <div className="mb-6 w-full">
+            {activeCustomRequest.status === 'APPROVED' && !activeCustomRequest.isPaid && (() => {
+              const monthlyBase = Number(activeCustomRequest.price || 0);
+              const monthlyGst = Math.round(monthlyBase * 0.18);
+              const monthlyTotal = monthlyBase + monthlyGst;
+
+              const yearlyBase = activeCustomRequest.priceYearly
+                ? Number(activeCustomRequest.priceYearly)
+                : Math.round(monthlyBase * 12 * 0.83);
+              const yearlyGst = Math.round(yearlyBase * 0.18);
+              const yearlyTotal = yearlyBase + yearlyGst;
+
+              const selectedTotal = customBillingCycle === 'annual' ? yearlyTotal : monthlyTotal;
+
+              return (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="p-6 rounded-2xl bg-gradient-to-r from-emerald-500/15 via-teal-500/10 to-emerald-500/15 border-2 border-emerald-500/30 dark:border-emerald-500/20 shadow-xl shadow-emerald-500/5 backdrop-blur-sm"
+                >
+                  <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-5 mb-5">
+                    <div className="flex items-start gap-4">
+                      <div className="p-3 bg-emerald-600 text-white rounded-2xl shadow-lg shadow-emerald-600/30 shrink-0">
+                        <Crown className="h-7 w-7" />
+                      </div>
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h3 className="text-lg font-bold text-slate-900 dark:text-white">
+                            Custom Plan Approved! 🎉
+                          </h3>
+                          <Badge className="bg-emerald-600 hover:bg-emerald-600 text-white text-xs font-semibold px-2.5 py-0.5">
+                            Action Required: Select Plan &amp; Complete Payment
+                          </Badge>
+                        </div>
+                        <p className="text-sm text-slate-700 dark:text-slate-300 mt-1.5 leading-relaxed">
+                          Super Admin has approved your request for{' '}
+                          <strong className="text-emerald-700 dark:text-emerald-300 font-bold">
+                            {activeCustomRequest.requestedFacultyLimit} Teachers
+                          </strong>. Choose your billing cycle below:
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Billing Selection Cards: Monthly vs Yearly (Base + 18% GST) */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-5">
+                    <div
+                      onClick={() => setCustomBillingCycle('monthly')}
+                      className={`p-4 rounded-xl border-2 transition-all cursor-pointer flex items-center justify-between ${
+                        customBillingCycle === 'monthly'
+                          ? 'border-emerald-600 bg-white dark:bg-slate-900 shadow-md ring-2 ring-emerald-500/20'
+                          : 'border-slate-200 dark:border-slate-800 bg-white/60 dark:bg-slate-900/60 hover:border-emerald-300'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${customBillingCycle === 'monthly' ? 'border-emerald-600' : 'border-slate-400'}`}>
+                          {customBillingCycle === 'monthly' && <div className="w-2 h-2 rounded-full bg-emerald-600" />}
+                        </div>
+                        <div>
+                          <p className="text-sm font-bold text-slate-900 dark:text-white">Monthly Plan</p>
+                          <p className="text-xs text-slate-500 dark:text-slate-400">Base ₹{monthlyBase.toLocaleString('en-IN')} + 18% GST (₹{monthlyGst.toLocaleString('en-IN')})</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-lg font-extrabold text-emerald-600 dark:text-emerald-400">₹{monthlyTotal.toLocaleString('en-IN')}</p>
+                        <p className="text-[10px] text-slate-400">Total /month</p>
+                      </div>
+                    </div>
+
+                    <div
+                      onClick={() => setCustomBillingCycle('annual')}
+                      className={`p-4 rounded-xl border-2 transition-all cursor-pointer flex items-center justify-between relative overflow-hidden ${
+                        customBillingCycle === 'annual'
+                          ? 'border-emerald-600 bg-white dark:bg-slate-900 shadow-md ring-2 ring-emerald-500/20'
+                          : 'border-slate-200 dark:border-slate-800 bg-white/60 dark:bg-slate-900/60 hover:border-emerald-300'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${customBillingCycle === 'annual' ? 'border-emerald-600' : 'border-slate-400'}`}>
+                          {customBillingCycle === 'annual' && <div className="w-2 h-2 rounded-full bg-emerald-600" />}
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-bold text-slate-900 dark:text-white">Annual Plan</p>
+                            <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border-none text-[10px] font-bold px-2 py-0">
+                              Save 17%
+                            </Badge>
+                          </div>
+                          <p className="text-xs text-slate-500 dark:text-slate-400">Base ₹{yearlyBase.toLocaleString('en-IN')} + 18% GST (₹{yearlyGst.toLocaleString('en-IN')})</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-lg font-extrabold text-emerald-600 dark:text-emerald-400">₹{yearlyTotal.toLocaleString('en-IN')}</p>
+                        <p className="text-[10px] text-slate-400">Total /year (₹{Math.round(yearlyTotal / 12).toLocaleString('en-IN')}/mo)</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-3 border-t border-emerald-500/20">
+                    <p className="text-xs text-slate-600 dark:text-slate-300">
+                      Prices include 18% GST. Subscription countdown timer activates for <strong>{customBillingCycle === 'annual' ? '365 days' : '30 days'}</strong>.
+                    </p>
+                    <Button
+                      onClick={() => handlePayCustomPlan(activeCustomRequest, customBillingCycle)}
+                      disabled={payingCustomPlan}
+                      className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-6 rounded-xl font-extrabold text-sm shadow-lg shadow-emerald-600/25 hover:shadow-emerald-600/35 hover:-translate-y-0.5 active:translate-y-0 transition-all cursor-pointer shrink-0"
+                    >
+                      {payingCustomPlan ? (
+                        <span className="flex items-center gap-2">
+                          <span className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                          Opening Razorpay...
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-2">
+                          <Zap className="h-5 w-5 fill-white" />
+                          Pay ₹{selectedTotal.toLocaleString('en-IN')} (incl. 18% GST) &amp; Activate Plan
+                        </span>
+                      )}
+                    </Button>
+                  </div>
+                </motion.div>
+              );
+            })()}
+
+            {activeCustomRequest.status === 'PENDING' && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="p-4 rounded-xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/60 flex items-center justify-between gap-4"
+              >
+                <div className="flex items-center gap-3">
+                  <Clock className="h-5 w-5 text-amber-600 shrink-0" />
+                  <div>
+                    <p className="text-xs font-semibold text-amber-900 dark:text-amber-200">
+                      Custom Plan Request Under Review ({activeCustomRequest.requestedFacultyLimit} Teachers)
+                    </p>
+                    <p className="text-[11px] text-amber-700 dark:text-amber-400">
+                      Our team is reviewing your request. Once approved with a price quote, you will receive an email and notification to complete payment and activate your plan.
+                    </p>
+                  </div>
+                </div>
+                <Badge variant="outline" className="text-amber-700 border-amber-300 text-xs shrink-0">
+                  Pending Review
+                </Badge>
+              </motion.div>
+            )}
+          </div>
+        )}
+
+        {/* Active Custom Enterprise Plan Card (when school has customTeacherLimit) */}
+        {schoolData?.customTeacherLimit && schoolData.customTeacherLimit > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-8 p-6 rounded-2xl bg-gradient-to-r from-amber-500/10 via-purple-500/10 to-indigo-500/10 border-2 border-amber-500/40 shadow-xl relative overflow-hidden"
+          >
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+              <div className="flex items-start gap-4">
+                <div className="p-3.5 bg-gradient-to-br from-amber-500 to-amber-600 text-white rounded-2xl shadow-lg shadow-amber-500/30 shrink-0">
+                  <Crown className="h-8 w-8" />
+                </div>
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h2 className="text-xl font-extrabold text-slate-900 dark:text-white">
+                      Custom Enterprise Plan
+                    </h2>
+                    <Badge className="bg-emerald-600 text-white text-xs font-bold px-2.5 py-0.5">
+                      Current Active Plan
+                    </Badge>
+                  </div>
+                  <p className="text-sm text-slate-600 dark:text-slate-300 mt-1 font-medium">
+                    Faculty Limit: <strong className="text-amber-600 dark:text-amber-400 font-bold">{schoolData.customTeacherLimit} Teachers</strong>
+                    {' '}• All Elite features unlocked (Reports, Attendance, Timetables, Exports, No Watermark)
+                  </p>
+                  <div className="flex flex-wrap items-center gap-4 mt-2 text-xs text-slate-500 dark:text-slate-400">
+                    {activeCustomPlan?.price && (() => {
+                      const mBase = Number(activeCustomPlan.price);
+                      const mTotal = mBase + Math.round(mBase * 0.18);
+                      const yBase = activeCustomPlan.priceYearly ? Number(activeCustomPlan.priceYearly) : Math.round(mBase * 12 * 0.83);
+                      const yTotal = yBase + Math.round(yBase * 0.18);
+                      return (
+                        <span className="font-semibold text-slate-700 dark:text-slate-300">
+                          Price: ₹{mTotal.toLocaleString('en-IN')}/mo (Base ₹{mBase} + 18% GST) · ₹{yTotal.toLocaleString('en-IN')}/yr (Base ₹{yBase} + 18% GST)
+                        </span>
+                      );
+                    })()}
+                    {schoolData.planEndsAt && (
+                      <span className={new Date(schoolData.planEndsAt) > new Date() ? 'text-purple-600 dark:text-purple-400 font-semibold' : 'text-rose-600 font-semibold'}>
+                        {new Date(schoolData.planEndsAt) > new Date()
+                          ? `Expires: ${new Date(schoolData.planEndsAt).toLocaleDateString()}`
+                          : `Expired on: ${new Date(schoolData.planEndsAt).toLocaleDateString()}`}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Renewal Button */}
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full md:w-auto shrink-0">
+                <Button
+                  onClick={() => setRenewDialogOpen(true)}
+                  className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white px-6 py-5 rounded-xl font-bold text-xs shadow-lg shadow-purple-600/25 hover:shadow-purple-600/35 hover:-translate-y-0.5 transition-all cursor-pointer flex items-center justify-center gap-2"
+                >
+                  <RotateCw className="h-4 w-4" />
+                  Renew Custom Plan
+                </Button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
         {/* Plan Cards */}
         <div className="flex sm:grid sm:grid-cols-2 md:grid-cols-3 gap-5 sm:gap-6 items-stretch mb-4 sm:mb-8 overflow-x-auto sm:overflow-x-visible pt-4 sm:pt-2 pb-5 sm:pb-0 -mx-4 sm:mx-0 px-4 sm:px-0 snap-x snap-mandatory scroll-smooth [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
           {plans.map((plan, idx) => {
             const style = PLAN_TIER_CONFIG[idx % PLAN_TIER_CONFIG.length] || PLAN_TIER_CONFIG[0];
-            const isCurrentPlan = currentPlanId === plan.id && (!schoolData || !schoolData.planEndsAt || new Date(schoolData.planEndsAt) > new Date());
+            const isCurrentPlan = currentPlanId === plan.id && (!schoolData || !schoolData.planEndsAt || new Date(schoolData.planEndsAt) > new Date()) && !schoolData?.customTeacherLimit;
             const isPopular = plan.name.toLowerCase().includes('premium') || (plans.length >= 3 && idx === 1);
             const isLuxury = plan.name.toLowerCase().includes('elite') || (plans.length >= 3 && idx === plans.length - 1);
 
@@ -921,7 +1302,13 @@ export default function UpgradePage() {
                       : style.btn
                   }`}
                 >
-                  <span>{isCurrentPlan ? `Renew ${plan.name}` : `Switch to ${plan.name}`}</span>
+                  <span>
+                    {isCurrentPlan
+                      ? `Renew ${plan.name}`
+                      : schoolData?.customTeacherLimit && plan.teacherMax < schoolData.customTeacherLimit
+                        ? `Downgrade to ${plan.name}`
+                        : `Switch to ${plan.name}`}
+                  </span>
                   <ChevronRight className="h-3.5 w-3.5 group-hover:translate-x-1 transition-transform duration-200" />
                 </Button>
               </motion.div>
@@ -958,16 +1345,41 @@ export default function UpgradePage() {
               </DialogHeader>
               <div className="space-y-3 py-2 text-sm">
                 <div className="space-y-1">
-                  <Label>Institute Name *</Label>
-                  <Input type="text" placeholder="Your school" value={trialForm.instituteName} onChange={e => setTrialForm({ ...trialForm, instituteName: e.target.value })} />
+                  <div className="flex items-center justify-between">
+                    <Label>Institute Name *</Label>
+                    <span className="text-[10px] text-muted-foreground font-medium">Registered (Locked)</span>
+                  </div>
+                  <Input
+                    type="text"
+                    placeholder="Your school"
+                    value={trialForm.instituteName}
+                    readOnly
+                    disabled
+                    className="bg-muted/50 cursor-not-allowed text-muted-foreground select-none font-medium"
+                  />
                 </div>
                 <div className="space-y-1">
                   <Label>Contact Number *</Label>
-                  <Input type="text" inputMode="numeric" pattern="[0-9]*" placeholder="9876543210" value={trialForm.contactNo} onChange={e => handleDigitFilter(e.target.value, (clean) => setTrialForm({ ...trialForm, contactNo: clean }))} maxLength={11} />
+                  <Input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    placeholder="9876543210"
+                    value={trialForm.contactNo}
+                    onChange={e => handleDigitFilter(e.target.value, (clean) => setTrialForm({ ...trialForm, contactNo: clean }))}
+                    maxLength={11}
+                  />
+                  <p className="text-[10px] text-muted-foreground">Auto-fetched from sign up details (editable)</p>
                 </div>
                 <div className="space-y-1">
                   <Label>Email *</Label>
-                  <Input type="email" placeholder="email@school.com" value={trialForm.email} onChange={e => setTrialForm({ ...trialForm, email: e.target.value })} />
+                  <Input
+                    type="email"
+                    placeholder="email@school.com"
+                    value={trialForm.email}
+                    onChange={e => setTrialForm({ ...trialForm, email: e.target.value })}
+                  />
+                  <p className="text-[10px] text-muted-foreground">Auto-fetched from sign up details (editable)</p>
                 </div>
                 <div className="space-y-1">
                   <Label>Select Target Plan *</Label>
@@ -1023,12 +1435,17 @@ export default function UpgradePage() {
               </DialogHeader>
               <div className="space-y-3 py-2 text-sm">
                 <div className="space-y-1">
-                  <Label>Institute Name *</Label>
+                  <div className="flex items-center justify-between">
+                    <Label>Institute Name *</Label>
+                    <span className="text-[10px] text-muted-foreground font-medium">Registered (Locked)</span>
+                  </div>
                   <Input
                     type="text"
                     placeholder="Your school"
                     value={customPlanForm.instituteName}
-                    onChange={e => setCustomPlanForm({ ...customPlanForm, instituteName: e.target.value })}
+                    readOnly
+                    disabled
+                    className="bg-muted/50 cursor-not-allowed text-muted-foreground select-none font-medium"
                   />
                 </div>
                 <div className="space-y-1">
@@ -1042,6 +1459,7 @@ export default function UpgradePage() {
                     onChange={e => handleDigitFilter(e.target.value, (clean) => setCustomPlanForm({ ...customPlanForm, contactNo: clean }))}
                     maxLength={11}
                   />
+                  <p className="text-[10px] text-muted-foreground">Auto-fetched from sign up details (editable)</p>
                 </div>
                 <div className="space-y-1">
                   <Label>Email *</Label>
@@ -1051,17 +1469,21 @@ export default function UpgradePage() {
                     value={customPlanForm.email}
                     onChange={e => setCustomPlanForm({ ...customPlanForm, email: e.target.value })}
                   />
+                  <p className="text-[10px] text-muted-foreground">Auto-fetched from sign up details (editable)</p>
                 </div>
                 <div className="space-y-1">
-                  <Label>Desired Faculty Limit *</Label>
+                  <div className="flex items-center justify-between">
+                    <Label>Desired Faculty Limit (101+) *</Label>
+                    <span className="text-[11px] text-amber-600 dark:text-amber-400 font-semibold">Min 101</span>
+                  </div>
                   <Input
                     type="number"
-                    min="1"
+                    min="101"
                     placeholder="e.g. 150"
                     value={customPlanFacultyLimit}
-                    onChange={e => setCustomPlanFacultyLimit(parseInt(e.target.value) || 1)}
+                    onChange={e => setCustomPlanFacultyLimit(parseInt(e.target.value) || 101)}
                   />
-                  <p className="text-[10px] text-slate-400">Number of faculty members you need to support</p>
+                  <p className="text-[10px] text-slate-400">Elite plan covers up to 100 teachers. Custom plan is mandatory for 101+ teachers.</p>
                 </div>
                 <div className="space-y-1">
                   <Label>Requirements / Reason *</Label>
@@ -1090,6 +1512,121 @@ export default function UpgradePage() {
                   )}
                 </Button>
               </div>
+            </DialogContent>
+          </Dialog>
+
+          {/* Renew Custom Enterprise Plan Dialog */}
+          <Dialog open={renewDialogOpen} onOpenChange={setRenewDialogOpen}>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle className="text-xl font-bold flex items-center gap-2">
+                  <Crown className="w-5 h-5 text-amber-500" />
+                  Renew Custom Enterprise Plan
+                </DialogTitle>
+                <DialogDescription>
+                  Extend your {schoolData?.customTeacherLimit || 100}-teacher custom subscription. Choose your billing cycle:
+                </DialogDescription>
+              </DialogHeader>
+
+              {/* Options with Base + 18% GST */}
+              {(() => {
+                const rMonthlyBase = activeCustomPlan?.price ? Number(activeCustomPlan.price) : 500;
+                const rMonthlyGst = Math.round(rMonthlyBase * 0.18);
+                const rMonthlyTotal = rMonthlyBase + rMonthlyGst;
+
+                const rYearlyBase = activeCustomPlan?.priceYearly
+                  ? Number(activeCustomPlan.priceYearly)
+                  : Math.round(rMonthlyBase * 12 * 0.83);
+                const rYearlyGst = Math.round(rYearlyBase * 0.18);
+                const rYearlyTotal = rYearlyBase + rYearlyGst;
+
+                return (
+                  <div className="space-y-3 py-3">
+                    {/* Monthly Option */}
+                    <div
+                      onClick={() => setRenewBillingCycle('monthly')}
+                      className={`p-4 rounded-xl border-2 transition-all cursor-pointer flex items-center justify-between ${
+                        renewBillingCycle === 'monthly'
+                          ? 'border-purple-600 bg-purple-50/50 dark:bg-purple-950/20 shadow-sm ring-2 ring-purple-500/20'
+                          : 'border-slate-200 dark:border-slate-800 hover:border-purple-300'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${renewBillingCycle === 'monthly' ? 'border-purple-600' : 'border-slate-400'}`}>
+                          {renewBillingCycle === 'monthly' && <div className="w-2 h-2 rounded-full bg-purple-600" />}
+                        </div>
+                        <div>
+                          <p className="text-sm font-bold text-slate-900 dark:text-white">Renew Monthly</p>
+                          <p className="text-xs text-slate-500">Base ₹{rMonthlyBase.toLocaleString('en-IN')} + 18% GST (₹{rMonthlyGst.toLocaleString('en-IN')}) • +30 Days</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-base font-extrabold text-purple-600 dark:text-purple-400">
+                          ₹{rMonthlyTotal.toLocaleString('en-IN')}
+                        </p>
+                        <p className="text-[10px] text-slate-400">Total /month</p>
+                      </div>
+                    </div>
+
+                    {/* Annual Option */}
+                    <div
+                      onClick={() => setRenewBillingCycle('annual')}
+                      className={`p-4 rounded-xl border-2 transition-all cursor-pointer flex items-center justify-between ${
+                        renewBillingCycle === 'annual'
+                          ? 'border-purple-600 bg-purple-50/50 dark:bg-purple-950/20 shadow-sm ring-2 ring-purple-500/20'
+                          : 'border-slate-200 dark:border-slate-800 hover:border-purple-300'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${renewBillingCycle === 'annual' ? 'border-purple-600' : 'border-slate-400'}`}>
+                          {renewBillingCycle === 'annual' && <div className="w-2 h-2 rounded-full bg-purple-600" />}
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-bold text-slate-900 dark:text-white">Renew Annual</p>
+                            <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border-none text-[10px] font-bold px-2 py-0">
+                              Save 17%
+                            </Badge>
+                          </div>
+                          <p className="text-xs text-slate-500">Base ₹{rYearlyBase.toLocaleString('en-IN')} + 18% GST (₹{rYearlyGst.toLocaleString('en-IN')}) • +365 Days</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-base font-extrabold text-purple-600 dark:text-purple-400">
+                          ₹{rYearlyTotal.toLocaleString('en-IN')}
+                        </p>
+                        <p className="text-[10px] text-slate-400">Total /year</p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              <DialogFooter className="gap-2 sm:gap-0">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setRenewDialogOpen(false)}
+                  disabled={renewing || payingCustomPlan}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  onClick={handleRenewCustomPlan}
+                  disabled={renewing || payingCustomPlan}
+                  className="bg-purple-600 hover:bg-purple-700 text-white font-semibold"
+                >
+                  {renewing || payingCustomPlan ? (
+                    <span className="flex items-center gap-2">
+                      <span className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      Opening Checkout...
+                    </span>
+                  ) : (
+                    <span>Proceed to Payment</span>
+                  )}
+                </Button>
+              </DialogFooter>
             </DialogContent>
           </Dialog>
         </div>

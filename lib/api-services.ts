@@ -431,6 +431,13 @@ export type PlatformSummary = {
 export type PlatformSchoolRow = {
   id: string;
   name: string;
+  type?: string | null;
+  state?: string | null;
+  city?: string | null;
+  country?: string | null;
+  studentsRange?: string | null;
+  facultyRange?: string | null;
+  teacherCount?: number;
   address?: string | null;
   phone?: string | null;
   email?: string | null;
@@ -443,6 +450,11 @@ export type PlatformSchoolRow = {
   licenseDate: string;
   planName: string;
   adminEmails: string[];
+  isCustomPlan?: boolean;
+  customTeacherLimit?: number | null;
+  customPriceMonthly?: number | null;
+  customPriceYearly?: number | null;
+  customBillingCycle?: string | null;
 };
 
 export type PlatformTeacherDistribution = {

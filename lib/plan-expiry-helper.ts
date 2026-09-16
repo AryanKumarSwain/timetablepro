@@ -144,6 +144,7 @@ export async function checkAndUpdateSchoolPlanExpiry(schoolId: string) {
     where: { id: school.id },
     data: {
       planId: freePlan.id,
+      customTeacherLimit: null,
       planStartsAt: null,
       planEndsAt: null,
       autoDowngradedAt: new Date(),

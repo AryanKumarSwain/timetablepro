@@ -12,8 +12,10 @@ import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
 import { useTheme } from 'next-themes';
-import { KeyRound, RefreshCw, ShieldCheck, Mail, CheckCircle2, Building2, Plus, Trash2, Sun, Moon } from 'lucide-react';
+import { KeyRound, RefreshCw, ShieldCheck, Mail, CheckCircle2, Building2, Plus, Trash2, Sun, Moon, Users } from 'lucide-react';
 import { PlanButton } from '@/components/ui/plan-button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { INSTITUTE_TYPES, STUDENT_RANGES, FACULTY_RANGES, COUNTRIES } from '@/lib/signup-constants';
 
 async function fetchClient<T>(url: string, { method = 'GET', body }: { method?: string; body?: any } = {}): Promise<T> {
   const res = await fetch(url, {
@@ -108,6 +110,13 @@ export function SettingsPageContent({ initialUser, activeTab }: SettingsPageCont
   // Institute Details State
   const [instituteDetails, setInstituteDetails] = useState({
     name: '',
+    type: '',
+    state: '',
+    city: '',
+    country: 'India',
+    studentsRange: '',
+    facultyRange: '',
+    teacherCount: 0,
     address: '',
     phone: '',
     email: '',
@@ -173,6 +182,13 @@ export function SettingsPageContent({ initialUser, activeTab }: SettingsPageCont
         const data = await res.json();
         setInstituteDetails({
           name: data.name || '',
+          type: data.type || '',
+          state: data.state || '',
+          city: data.city || '',
+          country: data.country || 'India',
+          studentsRange: data.studentsRange || '',
+          facultyRange: data.facultyRange || '',
+          teacherCount: data.teacherCount || 0,
           address: data.address || '',
           phone: data.phone || '',
           email: data.email || '',
@@ -304,6 +320,12 @@ export function SettingsPageContent({ initialUser, activeTab }: SettingsPageCont
         method: 'PATCH',
         body: {
           name: instituteDetails.name.trim(),
+          type: instituteDetails.type.trim() || undefined,
+          state: instituteDetails.state.trim() || undefined,
+          city: instituteDetails.city.trim() || undefined,
+          country: instituteDetails.country.trim() || undefined,
+          studentsRange: instituteDetails.studentsRange.trim() || undefined,
+          facultyRange: instituteDetails.facultyRange.trim() || undefined,
           address: instituteDetails.address.trim() || undefined,
           phone: instituteDetails.phone.trim() || undefined,
           email: instituteDetails.email.trim() || undefined,
@@ -724,6 +746,47 @@ export function SettingsPageContent({ initialUser, activeTab }: SettingsPageCont
                   className="rounded-xl border-border/80 text-xs focus-visible:ring-indigo-500"
                 />
               </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="instituteType" className="text-xs font-bold">Institute Type</Label>
+                  <Select
+                    value={instituteDetails.type}
+                    onValueChange={(val) => setInstituteDetails(prev => ({ ...prev, type: val }))}
+                  >
+                    <SelectTrigger id="instituteType" className="rounded-xl border-border/80 text-xs h-10 w-full focus-visible:ring-indigo-500">
+                      <SelectValue placeholder="Select institute type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {INSTITUTE_TYPES.map((t) => (
+                        <SelectItem key={t} value={t} className="text-xs">
+                          {t}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="instituteCountry" className="text-xs font-bold">Country</Label>
+                  <Select
+                    value={instituteDetails.country}
+                    onValueChange={(val) => setInstituteDetails(prev => ({ ...prev, country: val }))}
+                  >
+                    <SelectTrigger id="instituteCountry" className="rounded-xl border-border/80 text-xs h-10 w-full focus-visible:ring-indigo-500">
+                      <SelectValue placeholder="Select country" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {COUNTRIES.map((c) => (
+                        <SelectItem key={c} value={c} className="text-xs">
+                          {c}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
               <div className="space-y-1.5">
                 <Label htmlFor="instituteAddress" className="text-xs font-bold">Address</Label>
                 <Textarea
@@ -732,28 +795,100 @@ export function SettingsPageContent({ initialUser, activeTab }: SettingsPageCont
                   onChange={(e) => setInstituteDetails(prev => ({ ...prev, address: e.target.value }))}
                   placeholder="Full institute address"
                   className="rounded-xl border-border/80 text-xs focus-visible:ring-indigo-500"
-                  rows={3}
+                  rows={2}
                 />
               </div>
+
               <div className="space-y-1.5">
-                <Label htmlFor="institutePhone" className="text-xs font-bold">Phone Number</Label>
+                <Label htmlFor="instituteState" className="text-xs font-bold">State</Label>
                 <Input
-                  id="institutePhone"
-                  value={instituteDetails.phone}
-                  onChange={(e) => setInstituteDetails(prev => ({ ...prev, phone: e.target.value }))}
-                  placeholder="+91 XXXXX XXXXX"
+                  id="instituteState"
+                  value={instituteDetails.state}
+                  onChange={(e) => setInstituteDetails(prev => ({ ...prev, state: e.target.value }))}
+                  placeholder="Enter state"
                   className="rounded-xl border-border/80 text-xs focus-visible:ring-indigo-500"
                 />
               </div>
+
               <div className="space-y-1.5">
-                <Label htmlFor="instituteEmail" className="text-xs font-bold">Email Address</Label>
+                <Label htmlFor="instituteCity" className="text-xs font-bold">City</Label>
                 <Input
-                  id="instituteEmail"
-                  value={instituteDetails.email}
-                  onChange={(e) => setInstituteDetails(prev => ({ ...prev, email: e.target.value }))}
-                  placeholder="contact@school.edu"
+                  id="instituteCity"
+                  value={instituteDetails.city}
+                  onChange={(e) => setInstituteDetails(prev => ({ ...prev, city: e.target.value }))}
+                  placeholder="Enter city"
                   className="rounded-xl border-border/80 text-xs focus-visible:ring-indigo-500"
                 />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="instituteFaculty" className="text-xs font-bold">No. of Faculty</Label>
+                    {instituteDetails.teacherCount !== undefined && (
+                      <span className="text-[10px] text-muted-foreground font-medium flex items-center gap-1">
+                        <Users className="w-3 h-3" /> {instituteDetails.teacherCount} Registered
+                      </span>
+                    )}
+                  </div>
+                  <Select
+                    value={instituteDetails.facultyRange}
+                    onValueChange={(val) => setInstituteDetails(prev => ({ ...prev, facultyRange: val }))}
+                  >
+                    <SelectTrigger id="instituteFaculty" className="rounded-xl border-border/80 text-xs h-10 w-full focus-visible:ring-indigo-500">
+                      <SelectValue placeholder="Select faculty size" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {FACULTY_RANGES.map((r) => (
+                        <SelectItem key={r} value={r} className="text-xs">
+                          {r} Faculty
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="instituteStudents" className="text-xs font-bold">No. of Students</Label>
+                  <Select
+                    value={instituteDetails.studentsRange}
+                    onValueChange={(val) => setInstituteDetails(prev => ({ ...prev, studentsRange: val }))}
+                  >
+                    <SelectTrigger id="instituteStudents" className="rounded-xl border-border/80 text-xs h-10 w-full focus-visible:ring-indigo-500">
+                      <SelectValue placeholder="Select student count" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {STUDENT_RANGES.map((r) => (
+                        <SelectItem key={r} value={r} className="text-xs">
+                          {r} Students
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="institutePhone" className="text-xs font-bold">Phone Number</Label>
+                  <Input
+                    id="institutePhone"
+                    value={instituteDetails.phone}
+                    onChange={(e) => setInstituteDetails(prev => ({ ...prev, phone: e.target.value }))}
+                    placeholder="+91 XXXXX XXXXX"
+                    className="rounded-xl border-border/80 text-xs focus-visible:ring-indigo-500"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="instituteEmail" className="text-xs font-bold">Email Address</Label>
+                  <Input
+                    id="instituteEmail"
+                    value={instituteDetails.email}
+                    onChange={(e) => setInstituteDetails(prev => ({ ...prev, email: e.target.value }))}
+                    placeholder="contact@school.edu"
+                    className="rounded-xl border-border/80 text-xs focus-visible:ring-indigo-500"
+                  />
+                </div>
               </div>
               <div className="pt-2 border-t border-border/40">
                 <p className="text-xs font-bold text-slate-700 dark:text-slate-300 mb-3">Social Media & Web Links</p>

@@ -7,10 +7,19 @@ export async function GET(request: NextRequest) {
   try {
     await requireSuperAdmin();
     
-    const status = request.nextUrl.searchParams.get('status') || 'PENDING';
+    const statusParam = request.nextUrl.searchParams.get('status');
+    let whereClause: any = { status: 'PENDING' };
+    
+    if (statusParam === 'history') {
+      whereClause = { status: { in: ['APPROVED', 'COMPLETED', 'REJECTED'] } };
+    } else if (statusParam === 'all') {
+      whereClause = {};
+    } else if (statusParam) {
+      whereClause = { status: statusParam as any };
+    }
     
     const requests = await prisma.customPlanRequest.findMany({
-      where: { status: status as any },
+      where: whereClause,
       include: {
         school: {
           include: {
@@ -51,6 +60,12 @@ export async function GET(request: NextRequest) {
         phone: u.phone
       })),
       requestedFacultyLimit: req.requestedFacultyLimit,
+      price: req.price ? Number(req.price) : null,
+      priceYearly: req.priceYearly ? Number(req.priceYearly) : (req.price ? Math.round(Number(req.price) * 12 * 0.83) : null),
+      billingCycle: req.billingCycle || null,
+      isPaid: req.isPaid,
+      paidAt: req.paidAt,
+      razorpayPaymentId: req.razorpayPaymentId,
       status: req.status,
       rejectionReason: req.rejectionReason,
       createdAt: req.createdAt
