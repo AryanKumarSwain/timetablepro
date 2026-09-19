@@ -34,3 +34,40 @@ export async function GET(_request: Request, context: RouteContext) {
     return handleApiError(error);
   }
 }
+
+export async function PATCH(request: Request, context: RouteContext) {
+  try {
+    const { schoolId } = await requireSchoolAdmin();
+    const { id } = await context.params;
+
+    const report = await prisma.dailyReport.findFirst({
+      where: { id, ...schoolWhere(schoolId) },
+    });
+
+    if (!report) {
+      return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    }
+
+    const body = await request.json();
+    const { entries } = body;
+
+    if (Array.isArray(entries)) {
+      for (const entry of entries) {
+        if (entry.id) {
+          await prisma.reportEntry.update({
+            where: { id: entry.id },
+            data: {
+              ...(entry.description !== undefined && { description: entry.description }),
+              ...(entry.isCompleted !== undefined && { isCompleted: entry.isCompleted }),
+            },
+          });
+        }
+      }
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    return handleApiError(error);
+  }
+}
+

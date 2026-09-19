@@ -821,7 +821,7 @@ export default function DailyDeskPage() {
                     onChange={(e) => setSelectedDate(e.target.value)}
                     className="text-xs font-bold text-foreground bg-background border border-border/80 rounded-xl px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 print:hidden shadow-xs"
                   />
-                  <strong className='hidden sm:inline text-xs text-foreground print:text-sm print:text-black'>{selectedDate}</strong>
+                  <strong className='hidden print:inline text-sm text-black'>{selectedDate}</strong>
                 </div>
               </div>
 

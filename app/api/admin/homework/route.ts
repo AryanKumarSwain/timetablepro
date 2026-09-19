@@ -61,7 +61,9 @@ export async function GET(request: NextRequest) {
           title: hw.title,
           description: hw.description,
           teacher: { name: hw.teacher.name, email: hw.teacher.email },
+          teacherId: hw.teacherId,
           class: { name: hw.class.name, id: hw.class.id },
+          classId: hw.classId,
           subject: hw.subject,
           createdAt: hw.createdAt,
         });

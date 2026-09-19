@@ -45,7 +45,7 @@ export const ADMIN_NAV: NavItem[] = [
   { label: 'Classes', href: '/admin/classes', icon: GraduationCap },
   { label: 'Rooms', href: '/admin/rooms', icon: DoorOpen },
   { label: 'Subjects', href: '/admin/subjects', icon: BookOpen },
-  { label: 'Attendance', href: '/admin/attendance', icon: UserCheck, featureKey: 'attendance' },
+  { label: 'Teacher Attendance', href: '/admin/attendance', icon: UserCheck, featureKey: 'attendance' },
   { label: 'Time Tables', href: '/admin/timetables', icon: Table2 },
   { label: 'Lesson Planning', href: '/admin/lesson-planning', icon: BookMarked, featureKey: 'lesson-planning' },
   { label: 'Daily Desk', href: '/admin/daily-desk', icon: ClipboardList },

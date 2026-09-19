@@ -5,7 +5,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useRequireAuth, useAuth } from '@/lib/auth-context';
 import {
   getAdminHomework,
-  createAdminHomework,
   updateAdminHomework,
   deleteAdminHomework,
   type Homework,
@@ -160,6 +159,7 @@ export default function AdminHomeworkPage() {
               id: `report-${entry.id}`,
               title: entry.subjectName || 'Homework',
               description: homeworkText,
+              rawDescription: entry.description,
               teacher: { name: report.teacherName, email: report.teacherEmail },
               class: { name: entry.className, id: entry.classId },
               subject: { name: entry.subjectName, id: entry.subjectId },
@@ -181,42 +181,31 @@ export default function AdminHomeworkPage() {
     }
   };
 
-  const handleCreate = async () => {
-    if (!form.title || !form.description || !form.classId || !form.teacherId) {
-      toast.error('Please fill in all required fields');
-      return;
-    }
-
-    setSubmitting(true);
-    try {
-      await createAdminHomework(form);
-      setSuccessMsg('Homework assignment created successfully.');
-      setDialogOpen(false);
-      setForm({ title: '', description: '', classId: '', teacherId: '' });
-      setEditingHomework(null);
-      await load();
-    } catch (error) {
-      toast.error('Failed to create homework');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleEdit = (hw: Homework) => {
+  const handleEdit = (hw: any) => {
     setEditingHomework(hw);
-    setForm({ title: hw.title, description: hw.description, classId: hw.classId, teacherId: hw.teacherId });
+    setForm({ 
+      title: hw.title || '', 
+      description: hw.description || '', 
+      classId: hw.classId || hw.class?.id || '', 
+      teacherId: hw.teacherId || hw.teacher?.id || '' 
+    });
     setDialogOpen(true);
   };
 
   const handleUpdate = async () => {
-    if (!editingHomework || !form.title || !form.description || !form.classId || !form.teacherId) {
-      toast.error('Please fill in all required fields');
+    if (!editingHomework || !form.title || !form.description) {
+      toast.error('Please fill in assignment title and description');
       return;
     }
 
     setSubmitting(true);
     try {
-      await updateAdminHomework(editingHomework.id, form);
+      await updateAdminHomework(editingHomework.id, {
+        title: form.title,
+        description: form.description,
+        ...(form.classId ? { classId: form.classId } : {}),
+        ...(form.teacherId ? { teacherId: form.teacherId } : {}),
+      });
       setSuccessMsg('Homework assignment updated successfully.');
       setDialogOpen(false);
       setForm({ title: '', description: '', classId: '', teacherId: '' });
@@ -241,7 +230,7 @@ export default function AdminHomeworkPage() {
 
   const handleEditReportHomework = (hw: any) => {
     setEditingHomework(hw);
-    setForm({ title: hw.title, description: hw.description, classId: hw.class?.id || '', teacherId: '' });
+    setForm({ title: hw.title || 'Homework', description: hw.description || '', classId: hw.class?.id || '', teacherId: '' });
     setDialogOpen(true);
   };
 
@@ -249,19 +238,29 @@ export default function AdminHomeworkPage() {
 
   const handleUpdateReportHomework = async () => {
     if (!editingHomework || !form.description) {
-      toast.error('Please fill in the required fields');
+      toast.error('Please fill in the homework description');
       return;
     }
 
     setSubmitting(true);
     try {
+      const rawDesc = editingHomework.rawDescription || '';
+      const homeworkMarker = '\n\nHomework:';
+      const idx = rawDesc.indexOf(homeworkMarker);
+      let updatedFullDescription = '';
+      if (idx !== -1) {
+        updatedFullDescription = rawDesc.slice(0, idx) + homeworkMarker + ' ' + form.description.trim();
+      } else {
+        updatedFullDescription = rawDesc ? `${rawDesc}${homeworkMarker} ${form.description.trim()}` : `${homeworkMarker} ${form.description.trim()}`;
+      }
+
       const response = await fetch(`/api/admin/reports/${editingHomework.reportId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           entries: [{
             id: editingHomework.entryId,
-            description: form.description,
+            description: updatedFullDescription,
             isCompleted: true,
           }],
         }),
@@ -682,12 +681,6 @@ export default function AdminHomeworkPage() {
     }
   };
 
-  const openDialog = () => {
-    setEditingHomework(null);
-    setForm({ title: '', description: '', classId: '', teacherId: '' });
-    setDialogOpen(true);
-  };
-
   const toggleClass = (className: string) => {
     setExpandedClasses((prev) => ({
       ...prev,
@@ -780,22 +773,12 @@ export default function AdminHomeworkPage() {
       {/* Page Header */}
       <PageHeader
         title="Homework Management"
-        description="Monitor, assign, and export homework assignments across all school classes."
+        description="Monitor, view, edit, and export homework assignments across all school classes."
         breadcrumbs={[
           { label: 'Admin', href: '/admin/dashboard' },
           { label: 'Academic' },
           { label: 'Homework' },
         ]}
-        actions={
-          <PlanButton
-            onClick={openDialog}
-            variant="primary"
-            className="gap-2 rounded-xl shadow-md hover:shadow-purple-500/20 hover:-translate-y-0.5 transition-all cursor-pointer"
-          >
-            <Plus className="h-4 w-4" />
-            Create Homework
-          </PlanButton>
-        }
       />
 
       {/* TOP-RIGHT POPUP TOAST BOX */}
@@ -1025,9 +1008,20 @@ export default function AdminHomeworkPage() {
                     <div>
                       <div className="flex items-start justify-between gap-2 mb-2">
                         <h4 className="font-bold text-base text-slate-900 dark:text-white">{hw.title}</h4>
-                        <Badge variant="outline" className="bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border-purple-200">
-                          {hw.class?.name || 'Class'}
-                        </Badge>
+                        <div className="flex items-center gap-1.5">
+                          <Badge variant="outline" className="bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border-purple-200">
+                            {hw.class?.name || 'Class'}
+                          </Badge>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => handleEdit(hw)}
+                            className="h-7 w-7 text-slate-600 hover:text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-950/40 rounded-lg"
+                            title="Edit Assignment"
+                          >
+                            <Edit className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
                       </div>
                       <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed mb-4">{hw.description}</p>
                     </div>
@@ -1052,12 +1046,9 @@ export default function AdminHomeworkPage() {
             <GlassCard className="p-12 text-center">
               <BookOpen className="h-12 w-12 mx-auto mb-4 text-muted-foreground/50" />
               <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-1">No Homework Assignments Found</h3>
-              <p className="text-xs text-muted-foreground max-w-md mx-auto mb-6">
-                No homework assignments have been created or submitted yet. Click below to create your first homework assignment.
+              <p className="text-xs text-muted-foreground max-w-md mx-auto">
+                No homework assignments have been submitted by teachers yet.
               </p>
-              <PlanButton onClick={openDialog} variant="primary" className="gap-2 rounded-xl">
-                <Plus className="h-4 w-4" /> Create Homework
-              </PlanButton>
             </GlassCard>
           ) : (
             <div className="space-y-6">
@@ -1261,16 +1252,22 @@ export default function AdminHomeworkPage() {
           )
         )}
 
-        {/* CREATE / EDIT HOMEWORK DIALOG */}
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        {/* EDIT HOMEWORK DIALOG */}
+        <Dialog open={dialogOpen} onOpenChange={(open) => {
+          setDialogOpen(open);
+          if (!open) {
+            setEditingHomework(null);
+            setForm({ title: '', description: '', classId: '', teacherId: '' });
+          }
+        }}>
           <DialogContent className="max-w-md rounded-2xl p-6">
             <DialogHeader>
               <DialogTitle className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
                 <BookOpen className="h-5 w-5 text-purple-600" />
-                {editingHomework ? 'Edit Homework Assignment' : 'Create New Homework Assignment'}
+                Edit Homework Assignment
               </DialogTitle>
               <DialogDescription className="text-xs text-muted-foreground">
-                {editingHomework ? 'Update the details for this assignment.' : 'Fill in assignment details to notify students and teachers.'}
+                Update the homework details submitted by the teacher.
               </DialogDescription>
             </DialogHeader>
 
@@ -1310,7 +1307,7 @@ export default function AdminHomeworkPage() {
                   </div>
 
                   <div className="space-y-1">
-                    <Label htmlFor="teacher" className="font-semibold text-slate-700 dark:text-slate-300">Assigned Teacher *</Label>
+                    <Label htmlFor="teacher" className="font-semibold text-slate-700 dark:text-slate-300">Assigned Teacher</Label>
                     <select
                       id="teacher"
                       value={form.teacherId}
@@ -1327,7 +1324,7 @@ export default function AdminHomeworkPage() {
                   </div>
 
                   <div className="space-y-1">
-                    <Label htmlFor="class" className="font-semibold text-slate-700 dark:text-slate-300">Target Class *</Label>
+                    <Label htmlFor="class" className="font-semibold text-slate-700 dark:text-slate-300">Target Class</Label>
                     <select
                       id="class"
                       value={form.classId}
@@ -1358,11 +1355,11 @@ export default function AdminHomeworkPage() {
               </div>
 
               <Button
-                onClick={editingHomework?.isFromReport ? handleUpdateReportHomework : (editingHomework ? handleUpdate : handleCreate)}
+                onClick={editingHomework?.isFromReport ? handleUpdateReportHomework : handleUpdate}
                 disabled={submitting}
                 className="w-full h-10 text-xs font-semibold rounded-xl bg-purple-600 hover:bg-purple-700 text-white shadow-md hover:shadow-purple-500/20 transition-all mt-2 cursor-pointer"
               >
-                {submitting ? 'Saving Assignment...' : editingHomework?.isFromReport ? 'Update Report Homework' : (editingHomework ? 'Update Homework' : 'Create Homework Assignment')}
+                {submitting ? 'Saving Changes...' : 'Save Changes'}
               </Button>
             </div>
           </DialogContent>

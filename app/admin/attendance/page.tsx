@@ -23,7 +23,19 @@ import {
   FileSpreadsheet,
   Lock,
   ChevronDown,
+  History,
+  CalendarRange,
+  Sparkles,
 } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -77,6 +89,7 @@ export default function AdminAttendancePage() {
   const [endDate, setEndDate] = useState<string>(todayStr);
   const [rangeSummary, setRangeSummary] = useState<Record<string, DayLog[]>>({});
   const [isRangeLoading, setIsRangeLoading] = useState<boolean>(false);
+  const [historyModalOpen, setHistoryModalOpen] = useState<boolean>(false);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [allowedFormats, setAllowedFormats] = useState<string[]>(['pdf']);
   const [watermarkRequired, setWatermarkRequired] = useState<boolean>(true);
@@ -158,6 +171,31 @@ export default function AdminAttendancePage() {
       setIsRangeLoading(false);
     }
   }, [startDate, endDate]);
+
+  const setQuickRange = (type: 'today' | 'last7' | 'last14' | 'month') => {
+    const end = new Date();
+    const start = new Date();
+    if (type === 'last7') {
+      start.setDate(end.getDate() - 6);
+    } else if (type === 'last14') {
+      start.setDate(end.getDate() - 13);
+    } else if (type === 'month') {
+      start.setDate(1);
+    }
+    const fmt = (d: Date) => d.toISOString().split('T')[0];
+    setStartDate(fmt(start));
+    setEndDate(fmt(end));
+  };
+
+  const handleClearRange = () => {
+    setRangeSummary({});
+    toast.info('Returned to single-day view');
+  };
+
+  const handleGenerateFromModal = async () => {
+    await fetchRangeTelemetry();
+    setHistoryModalOpen(false);
+  };
 
   const getTeacherCurrentStatus = useCallback((teacherId: string): 'PRESENT' | 'ABSENT' => {
     if (!gridData) return 'PRESENT';
@@ -557,7 +595,7 @@ export default function AdminAttendancePage() {
       <PageHeader
         title={
           <div className="flex items-center gap-3">
-            <span className="font-black tracking-tight text-2xl">Attendance & Substitution Desk</span>
+            <span className="font-black tracking-tight text-2xl">Teacher Attendance & Substitution Desk</span>
             {isPastDate && <span className="text-xs bg-zinc-600 text-white px-2 py-0.5 rounded-md font-bold">READ ONLY</span>}
           </div>
         }
@@ -565,20 +603,37 @@ export default function AdminAttendancePage() {
         breadcrumbs={[
           { label: 'Admin', href: '/admin/dashboard' },
           { label: 'Operations' },
-          { label: 'Attendance' },
+          { label: 'Teacher Attendance' },
         ]}
         actions={
-          <div className="flex items-center gap-3 w-full md:w-auto pointer-events-auto">
+          <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto pointer-events-auto">
+            <button
+              onClick={() => setHistoryModalOpen(true)}
+              className={cn(
+                "inline-flex items-center justify-center px-3.5 h-9 rounded-xl text-xs font-bold gap-2 transition-all cursor-pointer",
+                uniqueDates.length > 0
+                  ? "bg-purple-600 text-white shadow-md shadow-purple-500/25 hover:bg-purple-700"
+                  : "bg-card border border-border/80 text-foreground hover:bg-muted"
+              )}
+            >
+              <History className="h-3.5 w-3.5" />
+              <span>Attendance History</span>
+              {uniqueDates.length > 0 && (
+                <span className="px-1.5 py-0.5 text-[10px] bg-white/20 rounded-md font-extrabold">
+                  {uniqueDates.length}d
+                </span>
+              )}
+            </button>
             <div className="relative">
               <Calendar className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
               <input
                 type="date"
                 value={selectedDate}
                 onChange={(e) => setSelectedDate(e.target.value)}
-                className="pl-9 pr-4 py-1.5 w-full md:w-48 rounded-lg bg-card border text-xs font-semibold focus:outline-none"
+                className="pl-9 pr-4 py-1.5 w-full md:w-44 rounded-xl bg-card border text-xs font-semibold focus:outline-none"
               />
             </div>
-            <button onClick={() => void loadDataRegistry(false)} className={`inline-flex items-center justify-center px-3 h-9 rounded-xl bg-${theme.primary} text-white text-xs font-bold gap-1.5`}>
+            <button onClick={() => void loadDataRegistry(false)} className={`inline-flex items-center justify-center px-3 h-9 rounded-xl bg-${theme.primary} text-white text-xs font-bold gap-1.5 cursor-pointer`}>
               <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
               Sync
             </button>
@@ -600,31 +655,36 @@ export default function AdminAttendancePage() {
       {/* 2. PROTECTED WRAPPER GUARDS ONLY THE UNDERLYING DASHBOARD BLOCKS */}
       <ProtectedFeature
         featureKey='attendance'
-        featureName='Attendance Management'
+        featureName='Teacher Attendance Management'
         isEnabled={featureEnabled}
         schoolId={user?.schoolId || undefined}
       >
         <div className="space-y-6">
-          {/* CHRONOLOGICAL RANGE FILTER PANEL (MOVED UP NEAR CURRENT DATE PICKER) */}
-          <div className="glass-panel p-4 rounded-2xl border border-border/80 space-y-3 pointer-events-auto bg-card/60 shadow-sm">
-            <div className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-muted-foreground">
-              <SlidersHorizontal className="h-3.5 w-3.5 text-primary" />
-              Date Range Report
-            </div>
-            <div className="flex flex-wrap items-center gap-4">
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground font-medium">From:</span>
-                <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="bg-card border p-1.5 rounded-lg text-xs font-semibold" />
+          {/* ACTIVE RANGE REPORT BADGE / DISMISS STRIP */}
+          {uniqueDates.length > 0 && (
+            <div className="flex flex-wrap items-center justify-between gap-3 p-3 px-4 rounded-2xl bg-purple-500/10 border border-purple-500/20 text-purple-700 dark:text-purple-300 animate-in fade-in slide-in-from-top-2">
+              <div className="flex items-center gap-2 text-xs font-semibold">
+                <CalendarRange className="h-4 w-4 text-purple-600 dark:text-purple-400 shrink-0" />
+                <span>
+                  Showing attendance history matrix from <strong className="font-bold">{startDate}</strong> to <strong className="font-bold">{endDate}</strong> ({uniqueDates.length} days active)
+                </span>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground font-medium">To:</span>
-                <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="bg-card border p-1.5 rounded-lg text-xs font-semibold" />
+                <button
+                  onClick={() => setHistoryModalOpen(true)}
+                  className="text-xs font-bold underline hover:opacity-80 px-1 py-0.5 cursor-pointer"
+                >
+                  Change Dates
+                </button>
+                <button
+                  onClick={handleClearRange}
+                  className="inline-flex items-center gap-1 text-xs font-bold bg-white dark:bg-zinc-800 border border-purple-300 dark:border-purple-700 px-2.5 py-1 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-all cursor-pointer shadow-xs"
+                >
+                  <X className="h-3 w-3" /> Clear History View
+                </button>
               </div>
-              <button onClick={fetchRangeTelemetry} disabled={isRangeLoading} className={`px-4 py-2 bg-${theme.primary} text-white text-xs font-bold rounded-lg disabled:opacity-50`}>
-                {isRangeLoading ? 'Spreading Columns...' : 'Generate '}
-              </button>
             </div>
-          </div>
+          )}
 
           {/* TODAY'S TARGET PRESENT/ABSENT OVERVIEW SEGMENT */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-muted/30 p-4 rounded-2xl border border-border/80">
@@ -689,7 +749,6 @@ export default function AdminAttendancePage() {
               <thead>
                 <tr className="bg-muted/80 border-b text-[10px] font-black uppercase tracking-widest text-muted-foreground">
                   <th className="p-4 min-w-[200px]">Faculty Head</th>
-                  <th className="p-4 text-center w-[140px]">Selected Date Status</th>
                   
                   {/* Dynamic Column Binding for Unique Dates */}
                   {uniqueDates.map(dateHeader => (
@@ -724,17 +783,6 @@ export default function AdminAttendancePage() {
                       <td className="p-4 sticky left-0 bg-card/90 backdrop-blur-sm shadow-sm">
                         <div className="font-extrabold text-sm text-foreground">{teacher.name}</div>
                         <div className="text-[10px] text-muted-foreground font-normal">{teacher.email || 'N/A'}</div>
-                      </td>
-
-                      {/* Targeted Day Indicator */}
-                      <td className="p-4 text-center">
-                        <span className={cn(
-                          "px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider inline-flex items-center gap-1",
-                          liveStatus === 'PRESENT' ? "bg-emerald-500 text-white" : "bg-destructive text-white"
-                        )}>
-                          {liveStatus === 'PRESENT' ? <Check className="h-2.5 w-2.5" /> : <X className="h-2.5 w-2.5" />}
-                          {liveStatus}
-                        </span>
                       </td>
 
                       {/* Render sequential data points directly corresponding to headers */}
@@ -819,15 +867,6 @@ export default function AdminAttendancePage() {
                       <h4 className="font-extrabold text-sm text-foreground truncate">{teacher.name}</h4>
                       <p className="text-[11px] text-muted-foreground truncate">{teacher.email || 'No email'}</p>
                     </div>
-                    <span
-                      className={cn(
-                        "px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider shrink-0 inline-flex items-center gap-1",
-                        liveStatus === 'PRESENT' ? "bg-emerald-500 text-white" : "bg-destructive text-white"
-                      )}
-                    >
-                      {liveStatus === 'PRESENT' ? <Check className="h-2.5 w-2.5" /> : <X className="h-2.5 w-2.5" />}
-                      {liveStatus}
-                    </span>
                   </div>
 
                   {/* Range history badges if present */}
@@ -930,6 +969,121 @@ export default function AdminAttendancePage() {
             </div>
           </div>
         </div>
+
+        {/* ATTENDANCE HISTORY / DATE RANGE POPUP MODAL */}
+        <Dialog open={historyModalOpen} onOpenChange={setHistoryModalOpen}>
+          <DialogContent className="max-w-md rounded-2xl p-6">
+            <DialogHeader>
+              <DialogTitle className="text-lg font-bold text-foreground flex items-center gap-2">
+                <CalendarRange className="h-5 w-5 text-purple-600" />
+                Attendance History & Range Report
+              </DialogTitle>
+              <DialogDescription className="text-xs text-muted-foreground">
+                Select a custom date range to compile multi-day faculty attendance matrices and export reports.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 py-2 text-xs">
+              {/* Quick Presets */}
+              <div className="space-y-1.5">
+                <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Quick Presets</span>
+                <div className="grid grid-cols-4 gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setQuickRange('today')}
+                    className="py-1.5 px-2 rounded-xl border bg-muted/40 hover:bg-muted text-[11px] font-semibold text-center transition-all cursor-pointer"
+                  >
+                    Today
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setQuickRange('last7')}
+                    className="py-1.5 px-2 rounded-xl border bg-muted/40 hover:bg-muted text-[11px] font-semibold text-center transition-all cursor-pointer"
+                  >
+                    Last 7 Days
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setQuickRange('last14')}
+                    className="py-1.5 px-2 rounded-xl border bg-muted/40 hover:bg-muted text-[11px] font-semibold text-center transition-all cursor-pointer"
+                  >
+                    Last 14 Days
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setQuickRange('month')}
+                    className="py-1.5 px-2 rounded-xl border bg-muted/40 hover:bg-muted text-[11px] font-semibold text-center transition-all cursor-pointer"
+                  >
+                    This Month
+                  </button>
+                </div>
+              </div>
+
+              {/* Date Inputs */}
+              <div className="grid grid-cols-2 gap-3 pt-1">
+                <div className="space-y-1">
+                  <span className="font-semibold text-foreground text-xs">From Date</span>
+                  <input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="w-full bg-card border rounded-xl p-2 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-purple-500/20"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <span className="font-semibold text-foreground text-xs">To Date</span>
+                  <input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    className="w-full bg-card border rounded-xl p-2 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-purple-500/20"
+                  />
+                </div>
+              </div>
+
+              {/* Range Active Indicator */}
+              {uniqueDates.length > 0 && (
+                <div className="p-2.5 rounded-xl bg-purple-500/10 border border-purple-500/20 text-[11px] flex items-center justify-between text-purple-700 dark:text-purple-300">
+                  <span>Currently active: <strong>{uniqueDates.length} days</strong> compiled</span>
+                  <button
+                    type="button"
+                    onClick={() => { handleClearRange(); setHistoryModalOpen(false); }}
+                    className="text-destructive font-bold hover:underline cursor-pointer"
+                  >
+                    Clear Matrix
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <DialogFooter className="flex-row items-center justify-between sm:justify-between gap-2 pt-3 border-t">
+              <Button
+                variant="ghost"
+                onClick={() => setHistoryModalOpen(false)}
+                className="text-xs rounded-xl"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleGenerateFromModal}
+                disabled={isRangeLoading || !startDate || !endDate}
+                className="text-xs font-bold rounded-xl bg-purple-600 hover:bg-purple-700 text-white gap-1.5 shadow-md hover:shadow-purple-500/20 transition-all cursor-pointer"
+              >
+                {isRangeLoading ? (
+                  <>
+                    <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                    Compiling Matrix...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="h-3.5 w-3.5" />
+                    Generate Report
+                  </>
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </ProtectedFeature>
     </div>
   );
