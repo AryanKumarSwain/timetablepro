@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { Sparkles, Shield, GraduationCap, CheckCircle2, CalendarRange, School, Users, BarChart3, ArrowLeft, Eye, EyeOff } from 'lucide-react';
+import { Sparkles, Shield, GraduationCap, CheckCircle2, CalendarRange, School, Users, BarChart3, ArrowLeft, Eye, EyeOff, XCircle, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -14,6 +14,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
 import {
   COUNTRIES,
@@ -48,6 +58,7 @@ function StepShell({
   subtitle,
   children,
   onBack,
+  onCancel,
 }: {
   step: Step;
   currentStep: Step;
@@ -55,6 +66,7 @@ function StepShell({
   subtitle?: string;
   children: React.ReactNode;
   onBack?: () => void;
+  onCancel?: () => void;
 }) {
   const isActive = step === currentStep;
 
@@ -74,7 +86,20 @@ function StepShell({
         </Button>
       )}
       <div className={cn('mb-6', onBack && 'pt-8')}>
-        <h1 className='text-2xl font-bold text-slate-900'>{title}</h1>
+        <div className='flex items-center justify-between gap-3'>
+          <h1 className='text-2xl font-bold text-slate-900'>{title}</h1>
+          {onCancel && (
+            <Button
+              type='button'
+              variant='ghost'
+              size='sm'
+              onClick={onCancel}
+              className='h-8 text-xs font-semibold text-rose-600 hover:bg-rose-50 hover:text-rose-700 rounded-lg px-2.5 transition-colors'
+            >
+              Cancel Signup
+            </Button>
+          )}
+        </div>
         {subtitle && <p className='mt-1 text-sm text-slate-500'>{subtitle}</p>}
       </div>
       {children}
@@ -115,6 +140,25 @@ export default function SignupPage() {
   const [country, setCountry] = useState('India');
   const [studentsRange, setStudentsRange] = useState('');
   const [facultyRange, setFacultyRange] = useState('');
+
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+
+  const handleCancelSignup = async () => {
+    try {
+      setCancelling(true);
+      await fetch('/api/auth/signup/cancel', {
+        method: 'POST',
+        credentials: 'include',
+      });
+      window.location.href = '/signup';
+    } catch (err) {
+      console.error('Cancel signup error:', err);
+      window.location.href = '/signup';
+    } finally {
+      setCancelling(false);
+    }
+  };
 
   useEffect(() => {
     async function resolveSessionStep() {
@@ -758,13 +802,8 @@ export default function SignupPage() {
                 currentStep={step}
                 title='One last step!'
                 subtitle='Tell us about your institute to personalize your experience'
-                onBack={() => {
-                  if (googleEmail) {
-                    setStep(3);
-                  } else {
-                    setStep(2);
-                  }
-                }}
+                onBack={() => setCancelDialogOpen(true)}
+                onCancel={() => setCancelDialogOpen(true)}
               >
                 <form onSubmit={handleOnboarding} className='space-y-4'>
                   <div>
@@ -894,13 +933,26 @@ export default function SignupPage() {
                     </p>
                   )}
 
-                  <Button
-                    type='submit'
-                    disabled={loading}
-                    className='h-12 w-full rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-base font-semibold text-white shadow-lg shadow-blue-600/20 hover:brightness-105'
-                  >
-                    {loading ? 'Completing setup…' : 'Complete Setup'}
-                  </Button>
+                  <div className='space-y-2.5 pt-2'>
+                    <Button
+                      type='submit'
+                      disabled={loading || cancelling}
+                      className='h-12 w-full rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-base font-semibold text-white shadow-lg shadow-blue-600/20 hover:brightness-105'
+                    >
+                      {loading ? 'Completing setup…' : 'Complete Setup'}
+                    </Button>
+
+                    <Button
+                      type='button'
+                      variant='outline'
+                      disabled={loading || cancelling}
+                      onClick={() => setCancelDialogOpen(true)}
+                      className='h-11 w-full rounded-xl border border-slate-200 bg-white text-slate-600 hover:text-rose-600 hover:bg-rose-50 hover:border-rose-200 text-sm font-medium transition-colors'
+                    >
+                      <XCircle className='mr-1.5 h-4 w-4' />
+                      Cancel Signup
+                    </Button>
+                  </div>
                 </form>
               </StepShell>
 
@@ -914,6 +966,42 @@ export default function SignupPage() {
           </div>
         </div>
       </div>
+
+      <AlertDialog open={cancelDialogOpen} onOpenChange={setCancelDialogOpen}>
+        <AlertDialogContent className='rounded-2xl max-w-md bg-white border border-slate-200 p-6'>
+          <AlertDialogHeader>
+            <div className='flex items-center gap-3 mb-1'>
+              <div className='flex h-10 w-10 items-center justify-center rounded-full bg-rose-100 text-rose-600'>
+                <AlertTriangle className='h-5 w-5' />
+              </div>
+              <AlertDialogTitle className='text-lg font-bold text-slate-900'>
+                Cancel Signup?
+              </AlertDialogTitle>
+            </div>
+            <AlertDialogDescription className='text-sm text-slate-600 leading-relaxed pt-1'>
+              Are you sure you want to cancel registration? Your progress will be discarded and your session will be cleared so you can sign up again anytime.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className='mt-4 flex gap-2 sm:justify-end'>
+            <AlertDialogCancel
+              disabled={cancelling}
+              className='rounded-xl border-slate-200 text-slate-700 hover:bg-slate-100'
+            >
+              Keep Signing Up
+            </AlertDialogCancel>
+            <AlertDialogAction
+              disabled={cancelling}
+              onClick={(e) => {
+                e.preventDefault();
+                handleCancelSignup();
+              }}
+              className='rounded-xl bg-rose-600 text-white hover:bg-rose-700 shadow-md shadow-rose-600/20'
+            >
+              {cancelling ? 'Cancelling...' : 'Yes, Cancel Signup'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
