@@ -124,12 +124,16 @@ export default function TimetableEditPage() {
   const load = useCallback(async (showSkeleton = false) => {
     try {
       if (showSkeleton) setLoading(true);
-      const [d, w] = await Promise.all([
+      const [detailResult, workloadResult] = await Promise.allSettled([
         getTimetableDetail(timetableId),
         getTimetableWorkload(timetableId),
       ]);
 
-      const data = d as ExtendedTimetableDetail;
+      if (detailResult.status !== 'fulfilled') {
+        throw detailResult.reason;
+      }
+
+      const data = detailResult.value as ExtendedTimetableDetail;
       const initialPeriods = data.periods && data.periods.length > 0 ? data.periods : [];
 
       if (data.baseStartTime) setBaseStartTime(data.baseStartTime);
@@ -140,7 +144,10 @@ export default function TimetableEditPage() {
         ...data,
         periods: recalculateTimetableTimes(initialPeriods, data.baseStartTime || "08:00", data.periodDuration || 45)
       });
-      setWorkload(w);
+
+      if (workloadResult.status === 'fulfilled') {
+        setWorkload(workloadResult.value);
+      }
       setSelectedId((prev) => prev || data.classes[0]?.id || '');
 
       // Load school plan to check AI timetable feature gate
@@ -151,7 +158,8 @@ export default function TimetableEditPage() {
         console.error('Failed to load plan details:', err);
       }
     } catch (e) {
-      console.error(e);
+      console.error('Failed to load timetable:', e);
+      toast.error('Failed to load timetable details. Please refresh or check connection.');
     } finally {
       if (showSkeleton) setLoading(false);
     }

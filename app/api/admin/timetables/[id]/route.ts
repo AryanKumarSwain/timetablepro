@@ -15,48 +15,71 @@ export async function GET(_request: NextRequest, context: RouteContext) {
     const { schoolId } = await requireSchoolAdmin();
     const { id } = await context.params;
 
-    const timetable = await prisma.timetable.findFirst({
-      where: { id, ...schoolWhere(schoolId) },
-      include: {
-        slots: {
-          include: {
-            period: true,
-            class: true,
-            subject: true,
-            teacher: true,
-            room: true,
+    let timetable: any;
+    try {
+      timetable = await prisma.timetable.findFirst({
+        where: { id, ...schoolWhere(schoolId) },
+        include: {
+          slots: {
+            include: {
+              period: true,
+              class: true,
+              subject: true,
+              teacher: true,
+              room: true,
+            },
           },
         },
-      },
-    });
+      });
+    } catch {
+      // Fallback if Room table or room relation doesn't exist in DB
+      timetable = await prisma.timetable.findFirst({
+        where: { id, ...schoolWhere(schoolId) },
+        include: {
+          slots: {
+            include: {
+              period: true,
+              class: true,
+              subject: true,
+              teacher: true,
+            },
+          },
+        },
+      });
+    }
 
     if (!timetable) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
 
-    const targetClassName = timetable.slots[0]?.class?.name || "General Schedule";
+    const targetClassName = timetable.slots?.[0]?.class?.name || "General Schedule";
 
     const [timetablePeriods, classes, rooms, subjects, teachers] = await Promise.all([
       prisma.period.findMany({
         where: { schoolId, timetableId: id },
         orderBy: { startTime: 'asc' },
-      }),
+      }).catch(() =>
+        prisma.period.findMany({
+          where: { schoolId },
+          orderBy: { startTime: 'asc' },
+        }).catch(() => [])
+      ),
       prisma.classRoom.findMany({
         where: schoolWhere(schoolId),
         orderBy: { name: 'asc' },
-      }),
+      }).catch(() => []),
       prisma.room.findMany({
         where: schoolWhere(schoolId),
         orderBy: { roomNumber: 'asc' },
-      }),
+      }).catch(() => []),
       prisma.subject.findMany({
         where: schoolWhere(schoolId),
         orderBy: { name: 'asc' },
-      }),
+      }).catch(() => []),
       prisma.teacher.findMany({
         where: schoolWhere(schoolId),
         orderBy: { name: 'asc' },
-      }),
+      }).catch(() => []),
     ]);
 
     const finalPeriods = timetablePeriods;
@@ -140,7 +163,7 @@ export async function GET(_request: NextRequest, context: RouteContext) {
           subjectSpecialtyId: t.subjectSpecialtyId || undefined,
         };
       }),
-      slots: timetable.slots.map((s: any) => ({
+      slots: (timetable.slots || []).map((s: any) => ({
         id: s.id,
         dayOfWeek: s.dayOfWeek,
         periodId: s.periodId,
@@ -149,10 +172,10 @@ export async function GET(_request: NextRequest, context: RouteContext) {
         teacherId: s.teacherId,
         roomId: s.roomId || undefined,
         roomNumber: s.room?.roomNumber || undefined,
-        periodNumber: s.period.periodNumber,
-        className: s.class.name,
-        subjectName: s.subject.name,
-        teacherName: s.teacher.name,
+        periodNumber: s.period?.periodNumber ?? 0,
+        className: s.class?.name || 'General Class',
+        subjectName: s.subject?.name || 'General Subject',
+        teacherName: s.teacher?.name || 'Unassigned',
       })),
     });
   } catch (error) {

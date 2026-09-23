@@ -13,10 +13,32 @@ export async function GET(_request: Request, context: RouteContext) {
     const { schoolId } = await requireSchoolAdmin();
     const { id: timetableId } = await context.params;
 
-    const timetable = await prisma.timetable.findFirst({
-      where: { id: timetableId, ...schoolWhere(schoolId) },
-      include: { slots: true },
-    });
+    let timetable: any;
+    try {
+      timetable = await prisma.timetable.findFirst({
+        where: { id: timetableId, ...schoolWhere(schoolId) },
+        include: { slots: true },
+      });
+    } catch {
+      timetable = await prisma.timetable.findFirst({
+        where: { id: timetableId, ...schoolWhere(schoolId) },
+      });
+      if (timetable) {
+        timetable.slots = await prisma.timetableSlot.findMany({
+          where: { timetableId },
+          select: {
+            id: true,
+            timetableId: true,
+            schoolId: true,
+            dayOfWeek: true,
+            periodId: true,
+            classId: true,
+            subjectId: true,
+            teacherId: true,
+          },
+        }).catch(() => []);
+      }
+    }
 
     if (!timetable) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
@@ -26,26 +48,40 @@ export async function GET(_request: Request, context: RouteContext) {
       prisma.period.findMany({
         where: { schoolId, timetableId: timetableId },
         orderBy: { startTime: 'asc' },
-      }),
-      prisma.classRoom.findMany({ where: schoolWhere(schoolId) }),
-      prisma.teacher.findMany({ where: schoolWhere(schoolId) }),
+      }).catch(() =>
+        prisma.period.findMany({
+          where: { schoolId },
+          orderBy: { startTime: 'asc' },
+        }).catch(() => [])
+      ),
+      prisma.classRoom.findMany({ where: schoolWhere(schoolId) }).catch(() => []),
+      prisma.teacher.findMany({ where: schoolWhere(schoolId) }).catch(() => []),
       prisma.replacementAssignment.findMany({
         where: schoolWhere(schoolId),
-      }),
+      }).catch(() => []),
     ]);
 
     // Use actual working days from timetable configuration, default to 5 if not set
-    const workingDays = timetable.workingDays && Array.isArray(timetable.workingDays) 
-      ? timetable.workingDays.length 
-      : 5;
+    let workingDays = 5;
+    if (timetable.workingDays) {
+      if (Array.isArray(timetable.workingDays)) {
+        workingDays = timetable.workingDays.length || 5;
+      } else if (typeof timetable.workingDays === 'string') {
+        try {
+          const parsed = JSON.parse(timetable.workingDays);
+          if (Array.isArray(parsed)) workingDays = parsed.length || 5;
+        } catch {}
+      }
+    }
     
     // Exclude break periods from the calculation
-    const activePeriods = timetablePeriods.filter(p => !p.isBreak);
+    const activePeriods = (timetablePeriods || []).filter((p: any) => !p.isBreak);
     const totalCellsPerClass = activePeriods.length * workingDays;
     const totalCellsPerTeacher = activePeriods.length * workingDays;
+    const slots = timetable.slots || [];
 
     const classWorkload = classes.map((cls) => {
-      const assigned = timetable.slots.filter((s) => s.classId === cls.id).length;
+      const assigned = slots.filter((s: any) => s.classId === cls.id).length;
       const remaining = Math.max(0, totalCellsPerClass - assigned);
       const utilization =
         totalCellsPerClass > 0
@@ -63,8 +99,8 @@ export async function GET(_request: Request, context: RouteContext) {
 
     const teacherWorkload = teachers.map((teacher: any) => {
       // Count standard timetable slots
-      const assignedSlots = timetable.slots.filter(
-        (s) => s.teacherId === teacher.id
+      const assignedSlots = slots.filter(
+        (s: any) => s.teacherId === teacher.id
       ).length;
       
       // Count active proxy/substitution assignments (confirmed status)
