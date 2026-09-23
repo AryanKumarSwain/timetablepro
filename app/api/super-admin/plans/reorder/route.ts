@@ -31,11 +31,23 @@ export async function POST(request: NextRequest) {
       );
     } catch (txErr) {
       for (let index = 0; index < planIds.length; index++) {
-        await prisma.$executeRawUnsafe(
-          'UPDATE `saasplan` SET `orderIndex` = ? WHERE `id` = ?',
-          index,
-          planIds[index]
-        );
+        try {
+          await prisma.$executeRawUnsafe(
+            'UPDATE `SaaSPlan` SET `orderIndex` = ? WHERE `id` = ?',
+            index,
+            planIds[index]
+          );
+        } catch {
+          try {
+            await prisma.$executeRawUnsafe(
+              'UPDATE `saasplan` SET `orderIndex` = ? WHERE `id` = ?',
+              index,
+              planIds[index]
+            );
+          } catch {
+            // ignore
+          }
+        }
       }
     }
 

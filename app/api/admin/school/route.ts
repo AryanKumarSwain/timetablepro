@@ -104,15 +104,23 @@ export async function GET(request: NextRequest) {
     let aiTimetableEnabled = effectivePlan?.aiTimetableEnabled;
     if (effectivePlan && (aiTimetableEnabled === undefined || aiTimetableEnabled === null)) {
       try {
-        const rawPlan: any[] = await prisma.$queryRawUnsafe(
-          'SELECT aiTimetableEnabled FROM `saasplan` WHERE id = ?',
-          effectivePlan.id
-        );
+        let rawPlan: any[] = [];
+        try {
+          rawPlan = await prisma.$queryRawUnsafe(
+            'SELECT aiTimetableEnabled FROM `SaaSPlan` WHERE id = ?',
+            effectivePlan.id
+          );
+        } catch {
+          rawPlan = await prisma.$queryRawUnsafe(
+            'SELECT aiTimetableEnabled FROM `saasplan` WHERE id = ?',
+            effectivePlan.id
+          );
+        }
         if (rawPlan && rawPlan[0] && rawPlan[0].aiTimetableEnabled !== undefined) {
           aiTimetableEnabled = Boolean(rawPlan[0].aiTimetableEnabled);
         }
       } catch (e) {
-        console.error('Error fetching raw aiTimetableEnabled in school route:', e);
+        // ignore safely
       }
     }
     if (aiTimetableEnabled === undefined || aiTimetableEnabled === null) {

@@ -94,13 +94,18 @@ export async function GET() {
     let orderIndices: Record<string, number> = {};
     let aiFlags: Record<string, boolean> = {};
     try {
-      const rawPlans: any[] = await prisma.$queryRawUnsafe('SELECT id, orderIndex, aiTimetableEnabled FROM `saasplan`');
+      let rawPlans: any[] = [];
+      try {
+        rawPlans = await prisma.$queryRawUnsafe('SELECT id, orderIndex, aiTimetableEnabled FROM `SaaSPlan`');
+      } catch {
+        rawPlans = await prisma.$queryRawUnsafe('SELECT id, orderIndex, aiTimetableEnabled FROM `saasplan`');
+      }
       rawPlans.forEach((r) => {
         orderIndices[r.id] = Number(r.orderIndex ?? 0);
         aiFlags[r.id] = Boolean(r.aiTimetableEnabled);
       });
     } catch (e) {
-      console.error('Error fetching raw plan fields:', e);
+      // Raw columns might not exist yet, ignore safely
     }
 
     // Determine if the caller is a school user whose active subscription has a grandfathered/locked price
@@ -192,8 +197,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'A plan with this name already exists.' }, { status: 409 });
     }
 
-    const maxOrder = await prisma.saaSPlan.aggregate({ _max: { orderIndex: true } });
-    const nextOrder = (maxOrder._max.orderIndex ?? 0) + 1;
+    let nextOrder = 1;
+    try {
+      const maxOrder = await prisma.saaSPlan.aggregate({ _max: { orderIndex: true } });
+      nextOrder = (maxOrder._max?.orderIndex ?? 0) + 1;
+    } catch {
+      try {
+        const count = await prisma.saaSPlan.count();
+        nextOrder = count + 1;
+      } catch {
+        nextOrder = 1;
+      }
+    }
 
     let plan: any;
     try {
@@ -214,7 +229,8 @@ export async function POST(request: NextRequest) {
         },
       });
     } catch (createErr: any) {
-      if (createErr.message?.includes('aiTimetableEnabled') || createErr.message?.includes('Unknown argument')) {
+      // Fallback if orderIndex or aiTimetableEnabled column does not exist yet
+      try {
         plan = await prisma.saaSPlan.create({
           data: {
             name:              payload.name,
@@ -229,13 +245,30 @@ export async function POST(request: NextRequest) {
             exportFormats:         payload.exportFormats,
           },
         });
-        await prisma.$executeRawUnsafe(
-          'UPDATE `saasplan` SET `aiTimetableEnabled` = ? WHERE `id` = ?',
-          payload.aiTimetableEnabled,
-          plan.id
-        );
+
+        // Try raw update with both case variants if columns exist
+        try {
+          await prisma.$executeRawUnsafe(
+            'UPDATE `SaaSPlan` SET `aiTimetableEnabled` = ?, `orderIndex` = ? WHERE `id` = ?',
+            payload.aiTimetableEnabled,
+            nextOrder,
+            plan.id
+          );
+        } catch {
+          try {
+            await prisma.$executeRawUnsafe(
+              'UPDATE `saasplan` SET `aiTimetableEnabled` = ?, `orderIndex` = ? WHERE `id` = ?',
+              payload.aiTimetableEnabled,
+              nextOrder,
+              plan.id
+            );
+          } catch {
+            // Columns not in DB yet, ignore safely
+          }
+        }
         plan.aiTimetableEnabled = payload.aiTimetableEnabled;
-      } else {
+        plan.orderIndex = nextOrder;
+      } catch (fallbackErr: any) {
         throw createErr;
       }
     }

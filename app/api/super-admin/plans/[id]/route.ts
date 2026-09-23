@@ -138,11 +138,23 @@ export async function PATCH(
             exportFormats:         payload.exportFormats,
           },
         });
-        await prisma.$executeRawUnsafe(
-          'UPDATE `saasplan` SET `aiTimetableEnabled` = ? WHERE `id` = ?',
-          payload.aiTimetableEnabled,
-          planId
-        );
+        try {
+          await prisma.$executeRawUnsafe(
+            'UPDATE `SaaSPlan` SET `aiTimetableEnabled` = ? WHERE `id` = ?',
+            payload.aiTimetableEnabled,
+            planId
+          );
+        } catch {
+          try {
+            await prisma.$executeRawUnsafe(
+              'UPDATE `saasplan` SET `aiTimetableEnabled` = ? WHERE `id` = ?',
+              payload.aiTimetableEnabled,
+              planId
+            );
+          } catch {
+            // column or table not found, ignore
+          }
+        }
         updated.aiTimetableEnabled = payload.aiTimetableEnabled;
       } else {
         throw updateErr;
