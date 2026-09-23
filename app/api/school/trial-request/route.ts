@@ -71,7 +71,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ 
       success: true, 
-      message: 'Trial request submitted successfully. Please wait for Super Admin approval.' 
+      message: 'Trial request submitted successfully. Please wait for Team Timetable Pro approval.' 
     });
   } catch (error) {
     return handleApiError(error);

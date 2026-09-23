@@ -17,6 +17,8 @@ interface SearchableSelectOption {
   id: string;
   label: string;
   sublabel?: string;
+  badge?: string;
+  disabled?: boolean;
 }
 
 interface SearchableSelectProps {
@@ -27,6 +29,7 @@ interface SearchableSelectProps {
   options: SearchableSelectOption[];
   allowNone?: boolean;
   noneLabel?: string;
+  helperText?: string;
 }
 
 export function SearchableSelect({
@@ -37,6 +40,7 @@ export function SearchableSelect({
   options,
   allowNone = false,
   noneLabel = 'No Room / Default',
+  helperText,
 }: SearchableSelectProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -70,9 +74,16 @@ export function SearchableSelect({
 
   return (
     <div className="space-y-1.5 relative" ref={dropdownRef}>
-      <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider block">
-        {label}
-      </label>
+      <div className="flex items-center justify-between">
+        <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider block">
+          {label}
+        </label>
+        {helperText && (
+          <span className="text-[11px] text-muted-foreground font-medium">
+            {helperText}
+          </span>
+        )}
+      </div>
       <button
         type="button"
         onClick={() => setOpen(!open)}
@@ -80,11 +91,16 @@ export function SearchableSelect({
       >
         <span
           className={cn(
-            'truncate',
+            'truncate flex items-center gap-2',
             (!value || value === 'none') && !selectedOption && 'text-muted-foreground'
           )}
         >
           {displayLabel}
+          {selectedOption?.badge && (
+            <span className="text-[9px] px-1.5 py-0.5 rounded font-semibold uppercase bg-primary/10 text-primary border border-primary/20">
+              {selectedOption.badge}
+            </span>
+          )}
         </span>
         <ChevronDown className="h-4 w-4 opacity-50 shrink-0 ml-2" />
       </button>
@@ -132,24 +148,45 @@ export function SearchableSelect({
             ) : (
               filteredOptions.map((opt) => {
                 const isSelected = opt.id === value;
+                const isDisabled = !!opt.disabled;
                 return (
                   <button
                     key={opt.id}
                     type="button"
+                    disabled={isDisabled}
                     onClick={() => {
+                      if (isDisabled) return;
                       onChange(opt.id);
                       setOpen(false);
                       setSearch('');
                     }}
                     className={cn(
                       'w-full text-left px-3 py-2 text-xs rounded-lg flex items-center justify-between transition-colors',
-                      isSelected
+                      isDisabled
+                        ? 'opacity-40 cursor-not-allowed bg-muted/20 text-muted-foreground'
+                        : isSelected
                         ? 'bg-indigo-600 text-white font-semibold shadow-xs'
                         : 'hover:bg-muted/60 text-foreground'
                     )}
                   >
                     <div className="truncate pr-2">
-                      <span className="block truncate">{opt.label}</span>
+                      <div className="flex items-center gap-1.5 truncate">
+                        <span className="truncate">{opt.label}</span>
+                        {opt.badge && (
+                          <span
+                            className={cn(
+                              'text-[9px] px-1.5 py-0.2 rounded font-semibold shrink-0 uppercase',
+                              isDisabled
+                                ? 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/20'
+                                : isSelected
+                                ? 'bg-white/20 text-white'
+                                : 'bg-primary/10 text-primary border border-primary/20'
+                            )}
+                          >
+                            {opt.badge}
+                          </span>
+                        )}
+                      </div>
                       {opt.sublabel && (
                         <span
                           className={cn(
@@ -430,10 +467,14 @@ interface SlotEditorSheetProps {
   onOpenChange: (open: boolean) => void;
   slot: SlotCell | null;
   dayOfWeek: number;
+  periodId?: string;
   periodLabel: string;
+  currentClassId?: string;
+  currentClassName?: string;
   subjects: TimetableDetail['subjects'];
   teachers: TimetableDetail['teachers'];
   rooms?: TimetableDetail['rooms'];
+  allSlots?: TimetableDetail['slots'];
   draft: { subjectId: string; teacherId: string; roomId?: string };
   onDraftChange: (patch: Partial<{ subjectId: string; teacherId: string; roomId?: string }>) => void;
   onSave: () => void;
@@ -446,10 +487,14 @@ export function SlotEditorSheet({
   onOpenChange,
   slot,
   dayOfWeek,
+  periodId,
   periodLabel,
+  currentClassId,
+  currentClassName,
   subjects,
   teachers,
   rooms = [],
+  allSlots = [],
   draft,
   onDraftChange,
   onSave,
@@ -457,38 +502,242 @@ export function SlotEditorSheet({
   saving,
 }: SlotEditorSheetProps) {
   const dayLabel = DAYS[dayOfWeek] ?? '';
+
+  // 1. Filter subjects for current class
+  const classSubjects = useMemo(() => {
+    if (!currentClassId) return subjects || [];
+    return (subjects || []).filter((s) => {
+      // s.classIds empty or not set = school-wide subject
+      if (!s.classIds || s.classIds.length === 0) return true;
+      return s.classIds.includes(currentClassId);
+    });
+  }, [subjects, currentClassId]);
+
+  // 2. Track busy teachers during this exact day and period
+  const busyTeacherMap = useMemo(() => {
+    const map = new Map<string, string>(); // teacherId -> className
+    (allSlots || []).forEach((s) => {
+      if (
+        s.dayOfWeek === dayOfWeek &&
+        (s.periodId === periodId || (slot?.periodNumber && s.periodNumber === slot.periodNumber)) &&
+        s.classId !== currentClassId &&
+        s.id !== slot?.id
+      ) {
+        map.set(s.teacherId, s.className || 'Another class');
+      }
+    });
+    return map;
+  }, [allSlots, dayOfWeek, periodId, slot, currentClassId]);
+
+  // 3. Track busy rooms during this exact day and period
+  const busyRoomMap = useMemo(() => {
+    const map = new Map<string, string>(); // roomId -> className
+    (allSlots || []).forEach((s) => {
+      if (
+        s.roomId &&
+        s.dayOfWeek === dayOfWeek &&
+        (s.periodId === periodId || (slot?.periodNumber && s.periodNumber === slot.periodNumber)) &&
+        s.classId !== currentClassId &&
+        s.id !== slot?.id
+      ) {
+        map.set(s.roomId, s.className || 'Another class');
+      }
+    });
+    return map;
+  }, [allSlots, dayOfWeek, periodId, slot, currentClassId]);
+
+  // 4. Active teachers
+  const activeTeachers = useMemo(() => {
+    return (teachers || []).filter((t) => isTeacherActive(t.active));
+  }, [teachers]);
+
+  // 5. Intelligent Teacher Options
+  const teacherOptions = useMemo(() => {
+    const selectedSubId = draft?.subjectId;
+
+    const list = activeTeachers.map((t) => {
+      const isBusy = busyTeacherMap.has(t.id);
+      const busyClass = busyTeacherMap.get(t.id);
+
+      // Check class qualification
+      const tClasses = Array.isArray(t.classes) ? t.classes : [];
+      const teachesClass = tClasses.length === 0 || (currentClassId ? tClasses.includes(currentClassId) : true);
+
+      // Check subject qualification
+      const tSubjects = Array.isArray(t.subjects) ? t.subjects : [];
+      const teachesSubject = !selectedSubId || tSubjects.includes(selectedSubId) || (t as any).subjectSpecialtyId === selectedSubId;
+
+      let badge: string | undefined;
+      if (isBusy) {
+        badge = `BUSY (${busyClass})`;
+      } else if (teachesClass && teachesSubject && selectedSubId) {
+        badge = 'QUALIFIED';
+      } else if (teachesClass) {
+        badge = 'CLASS FACULTY';
+      }
+
+      // Priority rank for sorting
+      let rank = 3;
+      if (isBusy) {
+        rank = 4; // Busy always at bottom
+      } else if (teachesClass && teachesSubject && selectedSubId) {
+        rank = 1; // Qualified at top
+      } else if (teachesClass) {
+        rank = 2; // Class faculty next
+      }
+
+      return {
+        id: t.id,
+        label: t.name,
+        sublabel: t.email,
+        badge,
+        disabled: isBusy,
+        rank,
+      };
+    });
+
+    // Sort by rank: Qualified -> Class Faculty -> General -> Busy
+    list.sort((a, b) => a.rank - b.rank);
+    return list;
+  }, [activeTeachers, busyTeacherMap, currentClassId, draft?.subjectId]);
+
+  // 6. Intelligent Room Options
+  const roomOptions = useMemo(() => {
+    return (rooms || []).map((r) => {
+      const isBusy = busyRoomMap.has(r.id);
+      const busyClass = busyRoomMap.get(r.id);
+      return {
+        id: r.id,
+        label: `Room ${r.roomNumber}`,
+        sublabel: `${r.floor ? r.floor : ''}${r.block ? ` [${r.block}]` : ''}`.trim(),
+        badge: isBusy ? `OCCUPIED (${busyClass})` : undefined,
+        disabled: isBusy,
+      };
+    });
+  }, [rooms, busyRoomMap]);
+
+  // 7. Auto-assignment on Subject Change
+  const handleSubjectChange = (newSubjectId: string) => {
+    const matchingTeachers = activeTeachers.filter((t) => {
+      if (busyTeacherMap.has(t.id)) return false;
+      const tClasses = Array.isArray(t.classes) ? t.classes : [];
+      const teachesClass = tClasses.length === 0 || (currentClassId ? tClasses.includes(currentClassId) : true);
+      const tSubjects = Array.isArray(t.subjects) ? t.subjects : [];
+      const teachesSubject = tSubjects.includes(newSubjectId) || (t as any).subjectSpecialtyId === newSubjectId;
+      return teachesClass && teachesSubject;
+    });
+
+    if (matchingTeachers.length === 1) {
+      // Auto-assign the sole qualified teacher
+      onDraftChange({ subjectId: newSubjectId, teacherId: matchingTeachers[0].id });
+    } else {
+      // Check if existing teacher is qualified for the new subject
+      const currentTeacher = activeTeachers.find((t) => t.id === draft?.teacherId);
+      const currentTSubjects = Array.isArray(currentTeacher?.subjects) ? currentTeacher!.subjects : [];
+      const curValid = currentTeacher && (currentTSubjects.includes(newSubjectId) || (currentTeacher as any).subjectSpecialtyId === newSubjectId);
+      onDraftChange({
+        subjectId: newSubjectId,
+        teacherId: curValid ? draft?.teacherId : '',
+      });
+    }
+  };
+
+  // 8. Auto-assignment on Teacher Change
+  const handleTeacherChange = (newTeacherId: string) => {
+    const teacher = activeTeachers.find((t) => t.id === newTeacherId);
+    if (teacher && !draft?.subjectId) {
+      const tSubjects = Array.isArray(teacher.subjects) ? teacher.subjects : [];
+      const matchingSubjects = classSubjects.filter((s) =>
+        tSubjects.includes(s.id) || (teacher as any).subjectSpecialtyId === s.id
+      );
+      if (matchingSubjects.length === 1) {
+        onDraftChange({ teacherId: newTeacherId, subjectId: matchingSubjects[0].id });
+        return;
+      }
+    }
+    onDraftChange({ teacherId: newTeacherId });
+  };
+
+  const selectedSubject = (subjects || []).find((s) => s.id === draft?.subjectId);
+  const isSelectedTeacherBusy = draft?.teacherId ? busyTeacherMap.has(draft.teacherId) : false;
+  const busyTeacherClass = draft?.teacherId ? busyTeacherMap.get(draft.teacherId) : null;
+  const isSelectedRoomBusy = draft?.roomId ? busyRoomMap.has(draft.roomId) : false;
+  const busyRoomClass = draft?.roomId ? busyRoomMap.get(draft.roomId) : null;
+
+  const hasQualifiedTeachers = useMemo(() => {
+    if (!draft?.subjectId) return true;
+    return activeTeachers.some((t) => {
+      const tClasses = Array.isArray(t.classes) ? t.classes : [];
+      const teachesClass = tClasses.length === 0 || (currentClassId ? tClasses.includes(currentClassId) : true);
+      const tSubjects = Array.isArray(t.subjects) ? t.subjects : [];
+      const teachesSubject = tSubjects.includes(draft.subjectId) || (t as any).subjectSpecialtyId === draft.subjectId;
+      return teachesClass && teachesSubject;
+    });
+  }, [activeTeachers, draft?.subjectId, currentClassId]);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="rounded-2xl max-w-md p-6">
         <DialogHeader className="pb-4 border-b">
-          <DialogTitle className="text-xl font-bold text-foreground">{slot ? 'Modify Slot' : 'Assign Grid Slot'}</DialogTitle>
-          <DialogDescription className="text-xs text-muted-foreground font-medium">{dayLabel} Layout Framework — <span className="text-indigo-600 font-semibold">{periodLabel}</span></DialogDescription>
+          <DialogTitle className="text-xl font-bold text-foreground">
+            {slot ? 'Modify Slot' : 'Assign Grid Slot'}
+          </DialogTitle>
+          <DialogDescription className="text-xs text-muted-foreground font-medium flex items-center gap-1.5 flex-wrap pt-0.5">
+            {currentClassName && (
+              <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-bold bg-primary/10 text-primary border border-primary/20">
+                {currentClassName}
+              </span>
+            )}
+            <span>{dayLabel} Layout Framework — <span className="text-indigo-600 font-semibold">{periodLabel}</span></span>
+          </DialogDescription>
         </DialogHeader>
-        <div className='space-y-5 mt-2'>
+
+        <div className='space-y-4 mt-2'>
+          {/* SUBJECT SELECT */}
           <SearchableSelect
             label="Subject"
             placeholder="Choose subject configuration"
             value={draft?.subjectId ?? ''}
-            onChange={(v) => onDraftChange({ subjectId: v })}
-            options={(subjects ?? []).map((s) => ({
+            onChange={handleSubjectChange}
+            helperText={currentClassName ? `Filtered for ${currentClassName}` : undefined}
+            options={classSubjects.map((s) => ({
               id: s.id,
               label: s.name,
               sublabel: s.code,
             }))}
           />
 
+          {/* FACULTY SELECT */}
           <SearchableSelect
             label="Faculty / Teacher"
             placeholder="Assign course tutor"
             value={draft?.teacherId ?? ''}
-            onChange={(v) => onDraftChange({ teacherId: v })}
-            options={((teachers ?? []).filter((t) => isTeacherActive(t.active))).map((t) => ({
-              id: t.id,
-              label: t.name,
-              sublabel: t.email,
-            }))}
+            onChange={handleTeacherChange}
+            helperText={draft?.subjectId ? "Prioritizes qualified teachers" : undefined}
+            options={teacherOptions}
           />
 
+          {/* NOTICE: NO QUALIFIED TEACHERS FOUND */}
+          {draft?.subjectId && !hasQualifiedTeachers && (
+            <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-400 text-xs flex items-start gap-2">
+              <span className="font-bold text-amber-600">Note:</span>
+              <span>
+                No teacher is specifically linked to <strong>{selectedSubject?.name}</strong> for {currentClassName || 'this class'}. You can assign any available faculty or link them under the Teachers tab.
+              </span>
+            </div>
+          )}
+
+          {/* ERROR: SELECTED TEACHER IS BUSY */}
+          {isSelectedTeacherBusy && (
+            <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 text-xs flex items-start gap-2">
+              <span className="font-bold text-rose-600">Conflict:</span>
+              <span>
+                This teacher is already assigned to <strong>{busyTeacherClass}</strong> at this time. Please select another teacher.
+              </span>
+            </div>
+          )}
+
+          {/* ROOM SELECT */}
           <SearchableSelect
             label="Room (Optional)"
             placeholder="Select room"
@@ -496,16 +745,36 @@ export function SlotEditorSheet({
             onChange={(v) => onDraftChange({ roomId: v === 'none' ? '' : v })}
             allowNone
             noneLabel="No Room / Default"
-            options={(rooms ?? []).map((r) => ({
-              id: r.id,
-              label: `Room ${r.roomNumber}`,
-              sublabel: `${r.floor ? r.floor : ''}${r.block ? ` [${r.block}]` : ''}`.trim(),
-            }))}
+            options={roomOptions}
           />
 
-          <div className="pt-4 space-y-2.5">
-            <Button className='w-full h-11 rounded-xl font-semibold shadow-sm' disabled={saving} onClick={onSave}>{saving ? 'Processing Canvas…' : 'Save Assignment'}</Button>
-            {slot && (<Button variant='destructive' className='w-full h-11 rounded-xl font-semibold' onClick={onRemove}>Drop Grid Mapping</Button>)}
+          {/* ERROR: SELECTED ROOM IS BUSY */}
+          {isSelectedRoomBusy && (
+            <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 text-xs flex items-start gap-2">
+              <span className="font-bold text-rose-600">Room Conflict:</span>
+              <span>
+                This room is already occupied by <strong>{busyRoomClass}</strong> at this time. Please select another room.
+              </span>
+            </div>
+          )}
+
+          <div className="pt-3 space-y-2.5">
+            <Button
+              className='w-full h-11 rounded-xl font-semibold shadow-sm'
+              disabled={saving || !draft?.subjectId || !draft?.teacherId || isSelectedTeacherBusy || isSelectedRoomBusy}
+              onClick={onSave}
+            >
+              {saving ? 'Processing Canvas…' : 'Save Assignment'}
+            </Button>
+            {slot && (
+              <Button
+                variant='destructive'
+                className='w-full h-11 rounded-xl font-semibold'
+                onClick={onRemove}
+              >
+                Drop Grid Mapping
+              </Button>
+            )}
           </div>
         </div>
       </DialogContent>

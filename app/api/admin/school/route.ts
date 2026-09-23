@@ -95,6 +95,31 @@ export async function GET(request: NextRequest) {
 
     const watermarkRequired = effectivePlan ? effectivePlan.watermarkRequired !== false : true;
 
+    const now = new Date();
+    const isPlanActive = Boolean(!isTrialActive && school.planId && school.planEndsAt && new Date(school.planEndsAt) > now);
+    const effectivePlanPrice = (isPlanActive && school.subscribedPlanPrice !== null && school.subscribedPlanPrice !== undefined)
+      ? Number(school.subscribedPlanPrice)
+      : (effectivePlan ? Number(effectivePlan.priceMonthly) : 0);
+
+    let aiTimetableEnabled = effectivePlan?.aiTimetableEnabled;
+    if (effectivePlan && (aiTimetableEnabled === undefined || aiTimetableEnabled === null)) {
+      try {
+        const rawPlan: any[] = await prisma.$queryRawUnsafe(
+          'SELECT aiTimetableEnabled FROM `saasplan` WHERE id = ?',
+          effectivePlan.id
+        );
+        if (rawPlan && rawPlan[0] && rawPlan[0].aiTimetableEnabled !== undefined) {
+          aiTimetableEnabled = Boolean(rawPlan[0].aiTimetableEnabled);
+        }
+      } catch (e) {
+        console.error('Error fetching raw aiTimetableEnabled in school route:', e);
+      }
+    }
+    if (aiTimetableEnabled === undefined || aiTimetableEnabled === null) {
+      const planName = String(effectivePlan?.name || '').toLowerCase();
+      aiTimetableEnabled = planName.includes('elite') || planName.includes('premium');
+    }
+
     return NextResponse.json({
       name: school.name,
       type: school.type || '',
@@ -114,6 +139,7 @@ export async function GET(request: NextRequest) {
       planId: effectivePlan?.id || school.planId,
       planStartsAt: school.planStartsAt,
       planEndsAt: school.planEndsAt,
+      subscribedPlanPrice: school.subscribedPlanPrice ? Number(school.subscribedPlanPrice) : null,
       queuedPlanId: school.queuedPlanId,
       queuedPlanStartsAt: school.queuedPlanStartsAt,
       queuedPlan: school.queuedPlan ? {
@@ -126,6 +152,7 @@ export async function GET(request: NextRequest) {
         attendanceEnabled: school.queuedPlan.attendanceEnabled,
         homeworkEnabled: school.queuedPlan.homeworkEnabled,
         lessonPlanningEnabled: school.queuedPlan.lessonPlanningEnabled ?? false,
+        aiTimetableEnabled: Boolean(school.queuedPlan.aiTimetableEnabled),
         exportFormats: school.queuedPlan.exportFormats,
         watermarkRequired: school.queuedPlan.watermarkRequired,
       } : null,
@@ -147,11 +174,12 @@ export async function GET(request: NextRequest) {
         name: effectivePlan.name,
         teacherMin: effectivePlan.teacherMin,
         teacherMax: school.customTeacherLimit ?? effectivePlan.teacherMax,
-        priceMonthly: Number(effectivePlan.priceMonthly),
+        priceMonthly: effectivePlanPrice,
         reportEnabled: effectivePlan.reportEnabled,
         attendanceEnabled: effectivePlan.attendanceEnabled,
         homeworkEnabled: effectivePlan.homeworkEnabled,
         lessonPlanningEnabled: effectivePlan.lessonPlanningEnabled ?? false,
+        aiTimetableEnabled: Boolean(aiTimetableEnabled),
         exportFormats: normalizedExportFormats,
         watermarkRequired,
         customTeacherLimit: school.customTeacherLimit,

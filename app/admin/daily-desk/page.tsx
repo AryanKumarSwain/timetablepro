@@ -37,12 +37,35 @@ import {
   ZoomOut,
   History,
   ChevronRight,
+  ChevronDown,
   X,
   FileSpreadsheet,
+  FileText,
+  FileCheck,
+  Lock,
   Coffee,
 } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  Document,
+  Packer,
+  Paragraph,
+  TextRun,
+  Table,
+  TableRow,
+  TableCell,
+  WidthType,
+  HeadingLevel,
+  AlignmentType,
+  PageOrientation,
+} from 'docx';
+import { toast } from 'sonner';
 import html2canvas from 'html2canvas';
-import * as XLSX from 'xlsx';
 import { cn, isTeacherActive } from '@/lib/utils';
 import { getSchoolDetails } from '@/lib/api-services';
 import { usePlanTheme } from '@/lib/plan-theme';
@@ -129,6 +152,19 @@ export default function DailyDeskPage() {
   const [leaveReasons, setLeaveReasons] = useState<string[]>([]);
   const [absentRequests, setAbsentRequests] = useState<any[]>([]);
 
+  // Export & Plan Permission States
+  const [allowedFormats, setAllowedFormats] = useState<string[]>(['pdf']);
+  const [watermarkRequired, setWatermarkRequired] = useState<boolean>(true);
+  const [planName, setPlanName] = useState<string>('Free');
+  const [schoolName, setSchoolName] = useState<string>('School');
+
+  const isFormatAllowed = (fmt: string) => {
+    const f = fmt.toLowerCase().trim();
+    if (f === 'word' || f === 'docx') return allowedFormats.includes('docx') || allowedFormats.includes('word');
+    if (f === 'csv') return allowedFormats.includes('csv');
+    return allowedFormats.includes(f);
+  };
+
   const localeDate = new Date();
   const today = `${localeDate.getFullYear()}-${String(localeDate.getMonth() + 1).padStart(2, '0')}-${String(localeDate.getDate()).padStart(2, '0')}`;
   const [selectedDate, setSelectedDate] = useState<string>(today);
@@ -150,6 +186,18 @@ export default function DailyDeskPage() {
       if (!schoolId) {
         console.warn('School context missing, skipping data load');
         return;
+      }
+
+      // Fetch school plan details for export restrictions
+      try {
+        const schoolData = await getSchoolDetails();
+        const plan = schoolData?.plan;
+        setAllowedFormats(schoolData?.exportFormats || plan?.exportFormats || ['pdf']);
+        setWatermarkRequired(schoolData?.watermarkRequired !== false && plan?.watermarkRequired !== false);
+        setPlanName(plan?.name || 'Free');
+        setSchoolName(schoolData?.name || 'School');
+      } catch (e) {
+        console.error('Failed to fetch school details for export formats:', e);
       }
 
       // Fetch leave reasons
@@ -564,6 +612,14 @@ export default function DailyDeskPage() {
     }
   };
 
+  const handleExportPDF = async () => {
+    if (!isFormatAllowed('pdf')) {
+      toast.error(`"PDF" export is not included in your ${planName} plan. Please upgrade.`);
+      return;
+    }
+    await handlePrintPDF();
+  };
+
   const handleDownloadModalPDF = async () => {
     if (!historyModalRef.current) return;
     
@@ -647,63 +703,414 @@ export default function DailyDeskPage() {
       }, 1000);
     } catch (error) {
       console.error('Failed to generate PDF:', error);
-      alert('Failed to generate PDF. Please try using the Excel export instead.');
+      toast.error('Failed to generate PDF. Please try using another export format.');
     }
   };
 
-  const handleDownloadExcel = async () => {
-    if (!historyGridData) return;
+  const handleExportModalPDF = async () => {
+    if (!isFormatAllowed('pdf')) {
+      toast.error(`"PDF" export is not included in your ${planName} plan. Please upgrade.`);
+      return;
+    }
+    await handleDownloadModalPDF();
+  };
 
-    // Fetch school plan to check watermark requirement
-    let showWatermark = true;
-    try {
-      const schoolData = await getSchoolDetails();
-      showWatermark = schoolData.watermarkRequired !== false;
-    } catch (e) {
-      console.error('Failed to fetch plan for watermark check:', e);
+  const handleExportWord = async (isHistory = false) => {
+    if (!isFormatAllowed('docx')) {
+      toast.error(`"Word" export is not included in your ${planName} plan. Please upgrade.`);
+      return;
     }
 
-    const worksheetData: any[][] = [];
-    
-    // Add header row
-    const headerRow = ['Class', ...(historyGridData.periods ?? []).map(p => 
-      p.isBreak ? (p.label || 'BREAK') : `P${p.periodNumber} (${p.startTime}-${p.endTime})`
-    )];
-    worksheetData.push(headerRow);
+    const currentGrid = isHistory ? historyGridData : gridData;
+    const targetDate = isHistory ? selectedHistoryDate : selectedDate;
 
-    // Add data rows
-    (historyGridData.classes ?? []).forEach(cls => {
-      const row = [cls.name];
-      
-      (historyGridData.periods ?? []).forEach(period => {
-        const periodRow = (historyGridData.grid ?? []).find((r: any) => r.periodId === period.id);
-        const cell = periodRow?.cells?.find((c: any) => c.classId === cls.id);
-        
-        if (!cell || cell.empty) {
-          row.push('');
-        } else {
-          const cellData = `${cell.subjectName}\n${cell.teacherName}`;
-          if (cell.isAbsent) {
-            row.push(`${cellData} (ABSENT)`);
+    if (!currentGrid) {
+      toast.error('No grid data available to export.');
+      return;
+    }
+
+    try {
+      toast.info('Generating Daily Desk Word document...');
+
+      const headerRow = [
+        'Class',
+        ...(currentGrid.periods ?? []).map((p) =>
+          p.isBreak ? (p.label || 'BREAK') : `P${p.periodNumber} (${p.startTime}-${p.endTime})`
+        ),
+      ];
+
+      const documentChildren: any[] = [];
+
+      if (watermarkRequired) {
+        documentChildren.push(
+          new Paragraph({
+            alignment: AlignmentType.CENTER,
+            children: [
+              new TextRun({
+                text: '⚠️ GENERATED VIA TIMETABLEPRO • WATERMARKED EDITION (UPGRADE PLAN TO REMOVE)',
+                size: 16,
+                bold: true,
+                color: '718096',
+              }),
+            ],
+            spacing: { after: 150 },
+          })
+        );
+      }
+
+      documentChildren.push(
+        new Paragraph({
+          text: (schoolName || 'School').toUpperCase(),
+          heading: HeadingLevel.HEADING_2,
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 100 },
+        }),
+        new Paragraph({
+          text: 'DAILY DESK OPERATIONAL MATRIX',
+          heading: HeadingLevel.HEADING_1,
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 150 },
+        }),
+        new Paragraph({
+          children: [
+            new TextRun({ text: 'Date: ', bold: true }),
+            new TextRun({ text: `${targetDate}    |    ` }),
+            new TextRun({ text: 'Total Classes: ', bold: true }),
+            new TextRun({ text: `${currentGrid.classes?.length || 0}    |    ` }),
+            new TextRun({ text: 'Total Periods: ', bold: true }),
+            new TextRun({ text: `${currentGrid.periods?.length || 0}` }),
+          ],
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 300 },
+        })
+      );
+
+      const tableRows = [
+        new TableRow({
+          tableHeader: true,
+          children: headerRow.map((h) => (
+            new TableCell({
+              shading: { fill: '3730A3' },
+              children: [
+                new Paragraph({
+                  alignment: AlignmentType.CENTER,
+                  children: [
+                    new TextRun({
+                      text: h,
+                      bold: true,
+                      color: 'FFFFFF',
+                      size: 19,
+                    }),
+                  ],
+                }),
+              ],
+            })
+          )),
+        }),
+      ];
+
+      (currentGrid.classes ?? []).forEach((cls, idx) => {
+        const bg = idx % 2 === 0 ? 'FFFFFF' : 'F8FAFC';
+        const cells: TableCell[] = [];
+
+        // Class Name Column
+        cells.push(
+          new TableCell({
+            shading: { fill: bg },
+            children: [
+              new Paragraph({
+                alignment: AlignmentType.CENTER,
+                children: [
+                  new TextRun({
+                    text: cls.name,
+                    bold: true,
+                    size: 20,
+                    color: '0F172A',
+                  }),
+                ],
+              }),
+            ],
+          })
+        );
+
+        // Period Columns
+        (currentGrid.periods ?? []).forEach((period) => {
+          if (period.isBreak) {
+            cells.push(
+              new TableCell({
+                shading: { fill: 'FEF3C7' },
+                children: [
+                  new Paragraph({
+                    alignment: AlignmentType.CENTER,
+                    children: [
+                      new TextRun({
+                        text: period.label || 'BREAK',
+                        bold: true,
+                        size: 18,
+                        color: '92400E',
+                      }),
+                    ],
+                  }),
+                ],
+              })
+            );
+            return;
+          }
+
+          const periodRow = (currentGrid.grid ?? []).find((r: any) => r.periodId === period.id);
+          const cell = periodRow?.cells?.find((c: any) => c.classId === cls.id);
+
+          if (!cell || cell.empty) {
+            cells.push(
+              new TableCell({
+                shading: { fill: bg },
+                children: [
+                  new Paragraph({
+                    alignment: AlignmentType.CENTER,
+                    children: [
+                      new TextRun({
+                        text: '—',
+                        color: '94A3B8',
+                        size: 18,
+                      }),
+                    ],
+                  }),
+                ],
+              })
+            );
           } else {
+            const cellParagraphs: Paragraph[] = [];
+
+            // 1. Subject Name on Line 1 (Bold, Dark)
+            if (cell.subjectName) {
+              cellParagraphs.push(
+                new Paragraph({
+                  spacing: { after: 30 },
+                  children: [
+                    new TextRun({
+                      text: cell.subjectName,
+                      bold: true,
+                      size: 20,
+                      color: '0F172A',
+                    }),
+                  ],
+                })
+              );
+            }
+
+            // 2. Teacher Name on Line 2 (New Line, Differentiated Style)
+            if (cell.teacherName) {
+              cellParagraphs.push(
+                new Paragraph({
+                  spacing: { after: cell.isAbsent ? 30 : 0 },
+                  children: [
+                    new TextRun({
+                      text: cell.teacherName,
+                      size: 18,
+                      color: '475569',
+                      italics: true,
+                    }),
+                  ],
+                })
+              );
+            }
+
+            // 3. Substitution or Absent info on Line 3
+            if (cell.isAbsent) {
+              if (cell.replacement) {
+                const subName = cell.replacement.replacementTeacherName || 'Assigned';
+                cellParagraphs.push(
+                  new Paragraph({
+                    children: [
+                      new TextRun({
+                        text: `Sub: ${subName}`,
+                        bold: true,
+                        size: 16,
+                        color: '059669',
+                      }),
+                    ],
+                  })
+                );
+              } else {
+                cellParagraphs.push(
+                  new Paragraph({
+                    children: [
+                      new TextRun({
+                        text: '[ABSENT]',
+                        bold: true,
+                        size: 16,
+                        color: 'DC2626',
+                      }),
+                    ],
+                  })
+                );
+              }
+            }
+
+            if (cellParagraphs.length === 0) {
+              cellParagraphs.push(new Paragraph({ text: '—' }));
+            }
+
+            cells.push(
+              new TableCell({
+                shading: {
+                  fill: cell.isAbsent
+                    ? cell.replacement
+                      ? 'ECFDF5'
+                      : 'FEF2F2'
+                    : bg,
+                },
+                children: cellParagraphs,
+              })
+            );
+          }
+        });
+
+        tableRows.push(
+          new TableRow({
+            children: cells,
+          })
+        );
+      });
+
+      documentChildren.push(
+        new Table({
+          rows: tableRows,
+          width: { size: 14000, type: WidthType.DXA },
+        })
+      );
+
+      if (watermarkRequired) {
+        documentChildren.push(
+          new Paragraph({
+            children: [
+              new TextRun({
+                text: 'Generated via TimetablePro • Watermarked Plan Edition',
+                italics: true,
+                color: '94A3B8',
+                size: 16,
+              }),
+            ],
+            alignment: AlignmentType.RIGHT,
+            spacing: { before: 300 },
+          })
+        );
+      }
+
+      const doc = new Document({
+        sections: [
+          {
+            properties: {
+              page: {
+                size: {
+                  orientation: PageOrientation.LANDSCAPE,
+                },
+                margin: {
+                  top: 720,
+                  bottom: 720,
+                  left: 720,
+                  right: 720,
+                },
+              },
+            },
+            children: documentChildren,
+          },
+        ],
+      });
+
+      const blob = await Packer.toBlob(doc);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `daily-desk-${targetDate}.docx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success('Daily Desk Word document downloaded successfully');
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to generate Daily Desk Word document');
+    }
+  };
+
+  const handleExportCSV = (isHistory = false) => {
+    if (!isFormatAllowed('csv')) {
+      toast.error(`"CSV" export is not included in your ${planName} plan. Please upgrade.`);
+      return;
+    }
+
+    const currentGrid = isHistory ? historyGridData : gridData;
+    const targetDate = isHistory ? selectedHistoryDate : selectedDate;
+
+    if (!currentGrid) {
+      toast.error('No grid data available to export.');
+      return;
+    }
+
+    try {
+      const headerRow = [
+        'Class',
+        ...(currentGrid.periods ?? []).map((p) =>
+          p.isBreak ? (p.label || 'BREAK') : `P${p.periodNumber} (${p.startTime}-${p.endTime})`
+        ),
+      ];
+
+      const rows: string[][] = [];
+
+      (currentGrid.classes ?? []).forEach((cls) => {
+        const row = [cls.name];
+
+        (currentGrid.periods ?? []).forEach((period) => {
+          if (period.isBreak) {
+            row.push(period.label || 'BREAK');
+            return;
+          }
+          const periodRow = (currentGrid.grid ?? []).find((r: any) => r.periodId === period.id);
+          const cell = periodRow?.cells?.find((c: any) => c.classId === cls.id);
+
+          if (!cell || cell.empty) {
+            row.push('—');
+          } else {
+            let cellData = `${cell.subjectName || ''} (${cell.teacherName || ''})`.trim();
+            if (cell.isAbsent) {
+              if (cell.replacement) {
+                const subName = cell.replacement.replacementTeacherName || 'Assigned';
+                cellData += ` [Sub: ${subName}]`;
+              } else {
+                cellData += ' [ABSENT]';
+              }
+            }
             row.push(cellData);
           }
-        }
+        });
+
+        rows.push(row);
       });
-      
-      worksheetData.push(row);
-    });
 
-    // Add watermark row if required
-    if (showWatermark) {
-      worksheetData.push([]);
-      worksheetData.push(['Generated via Timetable Pro']);
+      const csvRows = [headerRow, ...rows]
+        .map((e) => e.map((val) => `"${(val || '').replace(/"/g, '""')}"`).join(','))
+        .join('\n');
+
+      let finalContent = '\uFEFF' + csvRows;
+      if (watermarkRequired) {
+        finalContent += '\n\n"# Generated via TimetablePro [Watermarked Plan - Upgrade to remove watermark]"\n';
+      }
+
+      const blob = new Blob([finalContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', `daily-desk-${targetDate}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      toast.success('Daily Desk CSV spreadsheet downloaded successfully.');
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to compile data stream to CSV format.');
     }
-
-    const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Daily Desk');
-    XLSX.writeFile(workbook, `daily-desk-${selectedHistoryDate}.xlsx`);
   };
 
   const openCoverForm = (classId: string, periodId: string, originalTeacherId: string) => {
@@ -868,16 +1275,43 @@ export default function DailyDeskPage() {
                     Share
                   </Button>
                 )}
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={handlePrintPDF}
-                  disabled={isTimetableEmpty}
-                  className="rounded-xl text-xs font-semibold h-9 border-border/80 hover:bg-muted shadow-xs"
-                >
-                  <Download className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
-                  <span>Download PDF</span>
-                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={isTimetableEmpty}
+                      className="rounded-xl text-xs font-semibold h-9 border-border/80 hover:bg-muted shadow-xs gap-1.5 cursor-pointer"
+                    >
+                      <Download className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />
+                      <span>Export</span>
+                      <ChevronDown className="h-3.5 w-3.5 opacity-60" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-56 rounded-xl">
+                    <DropdownMenuItem onClick={handleExportPDF} className="cursor-pointer text-xs flex items-center justify-between">
+                      <span className="flex items-center gap-2">
+                        <FileText className="h-4 w-4 text-rose-500" />
+                        <span>Export as PDF</span>
+                      </span>
+                      {!isFormatAllowed('pdf') && <Lock className="h-3 w-3 text-muted-foreground" />}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => void handleExportWord(false)} className="cursor-pointer text-xs flex items-center justify-between">
+                      <span className="flex items-center gap-2">
+                        <FileCheck className="h-4 w-4 text-blue-500" />
+                        <span>Export as Word Document</span>
+                      </span>
+                      {!isFormatAllowed('docx') && <Lock className="h-3 w-3 text-muted-foreground" />}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleExportCSV(false)} className="cursor-pointer text-xs flex items-center justify-between">
+                      <span className="flex items-center gap-2">
+                        <FileSpreadsheet className="h-4 w-4 text-emerald-500" />
+                        <span>Export as CSV Spreadsheet</span>
+                      </span>
+                      {!isFormatAllowed('csv') && <Lock className="h-3 w-3 text-muted-foreground" />}
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             </div>
 
@@ -1503,28 +1937,43 @@ export default function DailyDeskPage() {
           </DialogHeader>
           
           <div className="flex flex-wrap items-center justify-end gap-2 mb-4">
-            <div className="flex flex-wrap items-center gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={handleDownloadModalPDF}
-                disabled={!historyGridData}
-                className="rounded-xl text-xs font-semibold h-9 border-border/80 hover:bg-muted shadow-xs"
-              >
-                <Download className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
-                <span>Download PDF</span>
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={handleDownloadExcel}
-                disabled={!historyGridData}
-                className="rounded-xl text-xs font-bold h-9 border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 shadow-xs"
-              >
-                <FileSpreadsheet className="h-3.5 w-3.5 mr-1.5" />
-                <span>Download Excel</span>
-              </Button>
-            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={!historyGridData}
+                  className="rounded-xl text-xs font-semibold h-9 border-border/80 hover:bg-muted shadow-xs gap-1.5 cursor-pointer"
+                >
+                  <Download className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />
+                  <span>Export</span>
+                  <ChevronDown className="h-3.5 w-3.5 opacity-60" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56 rounded-xl">
+                <DropdownMenuItem onClick={handleExportModalPDF} className="cursor-pointer text-xs flex items-center justify-between">
+                  <span className="flex items-center gap-2">
+                    <FileText className="h-4 w-4 text-rose-500" />
+                    <span>Export as PDF</span>
+                  </span>
+                  {!isFormatAllowed('pdf') && <Lock className="h-3 w-3 text-muted-foreground" />}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => void handleExportWord(true)} className="cursor-pointer text-xs flex items-center justify-between">
+                  <span className="flex items-center gap-2">
+                    <FileCheck className="h-4 w-4 text-blue-500" />
+                    <span>Export as Word Document</span>
+                  </span>
+                  {!isFormatAllowed('docx') && <Lock className="h-3 w-3 text-muted-foreground" />}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExportCSV(true)} className="cursor-pointer text-xs flex items-center justify-between">
+                  <span className="flex items-center gap-2">
+                    <FileSpreadsheet className="h-4 w-4 text-emerald-500" />
+                    <span>Export as CSV Spreadsheet</span>
+                  </span>
+                  {!isFormatAllowed('csv') && <Lock className="h-3 w-3 text-muted-foreground" />}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
 
           {loadingHistoryGrid ? (

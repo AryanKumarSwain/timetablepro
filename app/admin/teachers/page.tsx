@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRequireAuth } from '@/lib/auth-context';
 import {
   getTeachers,
@@ -9,8 +9,10 @@ import {
   deleteTeacher,
   resendTeacherCredentials,
   getSchoolDetails,
+  getClasses,
+  getSubjects,
 } from '@/lib/api-services';
-import { Teacher } from '@/lib/types';
+import { Teacher, Class, Subject } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { PlanButton } from '@/components/ui/plan-button';
 import { Card } from '@/components/ui/card';
@@ -49,6 +51,8 @@ import {
   Copy,
   Check,
   Loader2,
+  BookOpen,
+  Layers,
 } from 'lucide-react';
 
 type TeacherFormState = Omit<Teacher, 'id'>;
@@ -59,6 +63,7 @@ const createEmptyTeacherForm = (): TeacherFormState => ({
   phone: '',
   qualifications: [],
   subjects: [],
+  classes: [],
   active: true,
   joinDate: new Date().toISOString().split('T')[0],
 });
@@ -67,6 +72,8 @@ export default function TeachersPage() {
   useRequireAuth('admin');
 
   const [teachers, setTeachers] = useState<Teacher[]>([]);
+  const [classes, setClasses] = useState<Class[]>([]);
+  const [allSubjects, setAllSubjects] = useState<Subject[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -92,7 +99,7 @@ export default function TeachersPage() {
 
   // 1. Core Initial Data Fetch
   useEffect(() => {
-    loadTeachers();
+    loadData();
     loadSchoolPlan();
   }, []);
 
@@ -116,15 +123,30 @@ export default function TeachersPage() {
     return () => clearTimeout(timer);
   }, [successMsg]);
 
-  const loadTeachers = async () => {
+  const loadData = async () => {
     try {
       setLoading(true);
+      const [teachersData, classesData, subjectsData] = await Promise.all([
+        getTeachers(),
+        getClasses(),
+        getSubjects(),
+      ]);
+      setTeachers(teachersData);
+      setClasses(classesData);
+      setAllSubjects(subjectsData);
+    } catch (error) {
+      console.error('Failed to load faculty data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadTeachers = async () => {
+    try {
       const data = await getTeachers();
       setTeachers(data);
     } catch (error) {
-      console.error('Failed to load teachers:', error);
-    } finally {
-      setLoading(false);
+      console.error('Failed to reload teachers:', error);
     }
   };
 
@@ -168,7 +190,7 @@ export default function TeachersPage() {
 
   const handleBulkUploadSuccess = async () => {
     setSuccessMsg('Bulk import successful! Welcome credentials have been sent to all registered teachers.');
-    await loadTeachers();
+    await loadData();
   };
 
   const handleEdit = (teacher: Teacher) => {
@@ -180,6 +202,7 @@ export default function TeachersPage() {
       phone: teacher.phone ?? '',
       qualifications: Array.isArray(teacher.qualifications) ? teacher.qualifications : [],
       subjects: Array.isArray(teacher.subjects) ? teacher.subjects : [],
+      classes: Array.isArray(teacher.classes) ? teacher.classes : [],
       active: teacher.active ?? true,
       joinDate: teacher.joinDate ?? new Date().toISOString().split('T')[0],
     });
@@ -241,14 +264,96 @@ export default function TeachersPage() {
     }
   };
 
-
-
   const resetForm = () => {
     setFormData(createEmptyTeacherForm());
     setEditingId(null);
     setShowForm(false);
     setErrorMsg(null);
     setSuccessMsg(null);
+  };
+
+  // Lookup maps
+  const classMap = useMemo(() => {
+    const map = new Map<string, Class>();
+    classes.forEach((c) => map.set(c.id, c));
+    return map;
+  }, [classes]);
+
+  const subjectMap = useMemo(() => {
+    const map = new Map<string, Subject>();
+    allSubjects.forEach((s) => map.set(s.id, s));
+    return map;
+  }, [allSubjects]);
+
+  // Subjects available for the classes selected by this teacher
+  const availableSubjects = useMemo(() => {
+    const selectedClassIds = formData.classes || [];
+    if (selectedClassIds.length === 0) {
+      return [];
+    }
+    return allSubjects.filter((s) => {
+      // School-wide subjects (no specific classes attached) are available to any class
+      if (!s.classIds || s.classIds.length === 0) return true;
+      // Subjects linked to at least one of the selected classes
+      return s.classIds.some((cid) => selectedClassIds.includes(cid));
+    });
+  }, [allSubjects, formData.classes]);
+
+  const toggleClassSelection = (classId: string) => {
+    setFormData((prev) => {
+      const current = prev.classes || [];
+      const exists = current.includes(classId);
+      const nextClasses = exists
+        ? current.filter((id) => id !== classId)
+        : [...current, classId];
+      return {
+        ...prev,
+        classes: nextClasses,
+      };
+    });
+  };
+
+  const selectAllClasses = () => {
+    setFormData((prev) => ({
+      ...prev,
+      classes: classes.map((c) => c.id),
+    }));
+  };
+
+  const clearAllClasses = () => {
+    setFormData((prev) => ({
+      ...prev,
+      classes: [],
+      subjects: [],
+    }));
+  };
+
+  const toggleSubjectSelection = (subjectId: string) => {
+    setFormData((prev) => {
+      const current = prev.subjects || [];
+      const exists = current.includes(subjectId);
+      const nextSubjects = exists
+        ? current.filter((id) => id !== subjectId)
+        : [...current, subjectId];
+      return {
+        ...prev,
+        subjects: nextSubjects,
+      };
+    });
+  };
+
+  const selectAllAvailableSubjects = () => {
+    setFormData((prev) => ({
+      ...prev,
+      subjects: Array.from(new Set([...(prev.subjects || []), ...availableSubjects.map((s) => s.id)])),
+    }));
+  };
+
+  const clearAllSubjects = () => {
+    setFormData((prev) => ({
+      ...prev,
+      subjects: [],
+    }));
   };
 
   if (loading) {
@@ -393,7 +498,158 @@ export default function TeachersPage() {
               </div>
             </div>
 
-            <div className='flex gap-2 pt-2'>
+            {/* 1. ASSIGNED CLASSES (MULTI-SELECT) */}
+            <div className='pt-3 border-t border-border/50'>
+              <div className='flex items-center justify-between mb-2'>
+                <div>
+                  <label className='block text-sm font-semibold text-foreground'>
+                    1. Assign Classes
+                  </label>
+                  <p className='text-xs text-muted-foreground'>
+                    Select which classes this teacher is responsible for
+                  </p>
+                </div>
+                {classes.length > 0 && (
+                  <div className='flex items-center gap-2'>
+                    <button
+                      type='button'
+                      onClick={selectAllClasses}
+                      className='text-xs font-medium text-primary hover:underline'
+                    >
+                      Select All
+                    </button>
+                    <span className='text-xs text-muted-foreground'>•</span>
+                    <button
+                      type='button'
+                      onClick={clearAllClasses}
+                      className='text-xs font-medium text-muted-foreground hover:text-foreground'
+                    >
+                      Clear
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {classes.length === 0 ? (
+                <div className='p-3 bg-muted/40 rounded-xl border border-dashed border-border text-center text-xs text-muted-foreground'>
+                  No classes created yet. Please create classes first under the Classes tab.
+                </div>
+              ) : (
+                <div className='flex flex-wrap gap-2 pt-1 max-h-40 overflow-y-auto p-1'>
+                  {classes.map((cls) => {
+                    const isSelected = (formData.classes || []).includes(cls.id);
+                    const label = cls.section ? `${cls.name} (${cls.section})` : cls.name;
+                    return (
+                      <button
+                        key={cls.id}
+                        type='button'
+                        onClick={() => toggleClassSelection(cls.id)}
+                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all border ${
+                          isSelected
+                            ? 'bg-primary text-primary-foreground border-primary shadow-sm'
+                            : 'bg-card text-muted-foreground border-border hover:border-foreground/30 hover:text-foreground'
+                        }`}
+                      >
+                        <span className={`w-3.5 h-3.5 rounded-sm flex items-center justify-center text-[10px] border ${
+                          isSelected ? 'bg-primary-foreground text-primary border-primary-foreground' : 'border-muted-foreground/40'
+                        }`}>
+                          {isSelected && '✓'}
+                        </span>
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+              <div className='mt-2 flex items-center gap-2 text-xs text-muted-foreground'>
+                <span className='inline-block w-2 h-2 rounded-full bg-primary/70' />
+                {(formData.classes || []).length === 0 ? (
+                  <span>No specific classes selected (Select classes to enable subject filtering)</span>
+                ) : (
+                  <span>Selected for <strong>{(formData.classes || []).length}</strong> of {classes.length} classes</span>
+                )}
+              </div>
+            </div>
+
+            {/* 2. ASSIGNED SUBJECTS (FILTERED BY SELECTED CLASSES) */}
+            <div className='pt-3 border-t border-border/50'>
+              <div className='flex items-center justify-between mb-2'>
+                <div>
+                  <label className='block text-sm font-semibold text-foreground'>
+                    2. Assign Subjects
+                  </label>
+                  <p className='text-xs text-muted-foreground'>
+                    Available subjects taught in the selected classes
+                  </p>
+                </div>
+                {availableSubjects.length > 0 && (
+                  <div className='flex items-center gap-2'>
+                    <button
+                      type='button'
+                      onClick={selectAllAvailableSubjects}
+                      className='text-xs font-medium text-primary hover:underline'
+                    >
+                      Select All
+                    </button>
+                    <span className='text-xs text-muted-foreground'>•</span>
+                    <button
+                      type='button'
+                      onClick={clearAllSubjects}
+                      className='text-xs font-medium text-muted-foreground hover:text-foreground'
+                    >
+                      Clear
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {(formData.classes || []).length === 0 ? (
+                <div className='p-4 bg-muted/30 rounded-xl border border-dashed border-border text-center text-xs text-muted-foreground flex flex-col items-center gap-1.5'>
+                  <Layers className='h-4 w-4 text-muted-foreground' />
+                  <span>Please select one or more classes above to unlock available subjects for this teacher.</span>
+                </div>
+              ) : availableSubjects.length === 0 ? (
+                <div className='p-4 bg-amber-500/10 rounded-xl border border-amber-500/20 text-center text-xs text-amber-600 dark:text-amber-400'>
+                  No subjects are currently linked to the selected classes. You can link subjects under the Subjects tab.
+                </div>
+              ) : (
+                <div className='flex flex-wrap gap-2 pt-1 max-h-48 overflow-y-auto p-1'>
+                  {availableSubjects.map((sub) => {
+                    const isSelected = (formData.subjects || []).includes(sub.id) || (formData.subjects || []).includes(sub.name);
+                    return (
+                      <button
+                        key={sub.id}
+                        type='button'
+                        onClick={() => toggleSubjectSelection(sub.id)}
+                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all border ${
+                          isSelected
+                            ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                            : 'bg-card text-muted-foreground border-border hover:border-foreground/30 hover:text-foreground'
+                        }`}
+                      >
+                        <span className={`w-3.5 h-3.5 rounded-sm flex items-center justify-center text-[10px] border ${
+                          isSelected ? 'bg-white text-emerald-600 border-white' : 'border-muted-foreground/40'
+                        }`}>
+                          {isSelected && '✓'}
+                        </span>
+                        <span>{sub.name}</span>
+                        <span className={`text-[10px] font-mono px-1 rounded ${isSelected ? 'bg-emerald-700/50 text-white' : 'bg-muted text-muted-foreground'}`}>
+                          {sub.code}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+              {(formData.classes || []).length > 0 && (
+                <div className='mt-2 flex items-center gap-2 text-xs text-muted-foreground'>
+                  <span className='inline-block w-2 h-2 rounded-full bg-emerald-500' />
+                  <span>Assigned <strong>{(formData.subjects || []).length}</strong> subjects for this teacher</span>
+                </div>
+              )}
+            </div>
+
+            <div className='flex gap-2 pt-3 border-t border-border/50'>
               <Button
                 type='submit'
                 className='bg-primary hover:bg-primary/90'
@@ -426,145 +682,208 @@ export default function TeachersPage() {
           <DataGridTable>
             <DataGridHead>
               <tr>
-                <DataGridTh className='w-[28%] min-w-[180px]'>Name</DataGridTh>
-                <DataGridTh className='w-[28%] min-w-[200px]'>Email</DataGridTh>
-                <DataGridTh className='w-[16%] min-w-[130px]'>Phone</DataGridTh>
-                <DataGridTh className='w-[10%] min-w-[90px] text-center'>Status</DataGridTh>
-                <DataGridTh className='w-[18%] min-w-[200px] text-right pr-6'>Actions</DataGridTh>
+                <DataGridTh className='w-[18%] min-w-[150px]'>Name</DataGridTh>
+                <DataGridTh className='w-[20%] min-w-[170px]'>Contact</DataGridTh>
+                <DataGridTh className='w-[22%] min-w-[170px]'>Assigned Classes</DataGridTh>
+                <DataGridTh className='w-[22%] min-w-[170px]'>Assigned Subjects</DataGridTh>
+                <DataGridTh className='w-[8%] min-w-[80px] text-center'>Status</DataGridTh>
+                <DataGridTh className='w-[10%] min-w-[150px] text-right pr-6'>Actions</DataGridTh>
               </tr>
             </DataGridHead>
             <tbody>
-              {teachers.map((teacher) => (
-                <DataGridRow key={teacher.id}>
-                  <DataGridTd className='font-medium'>{teacher.name}</DataGridTd>
-                  <DataGridTd className='text-muted-foreground'>
-                    {teacher.email}
-                  </DataGridTd>
-                  <DataGridTd className='text-muted-foreground'>
-                    {teacher.phone || '—'}
-                  </DataGridTd>
-                  <DataGridTd className='text-center'>
-                    {teacher.active ? (
-                      <span className='inline-flex items-center px-2.5 py-0.5 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 text-xs rounded-full font-medium'>
-                        Active
-                      </span>
-                    ) : (
-                      <span className='inline-flex items-center px-2.5 py-0.5 bg-muted text-muted-foreground text-xs rounded-full'>
-                        Inactive
-                      </span>
-                    )}
-                  </DataGridTd>
-                  <DataGridTd className='text-right pr-6'>
-                    <div className='flex items-center justify-end gap-1.5'>
-                      <Button
-                        onClick={() => setSelectedTeacherForView(teacher)}
-                        size='sm'
-                        variant='ghost'
-                        className='rounded-lg h-8 text-primary hover:bg-primary/10'
-                      >
-                        <Eye className='h-3.5 w-3.5 mr-1' />
-                        View
-                      </Button>
-                      <Button
-                        onClick={() => handleResendCredentials(teacher)}
-                        size='sm'
-                        variant='outline'
-                        disabled={resendingId === teacher.id}
-                        className='rounded-lg h-8 border-amber-500/30 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/30'
-                        title='Resend login credentials to teacher email'
-                      >
-                        {resendingId === teacher.id ? (
-                          <Loader2 className='h-3.5 w-3.5 animate-spin mr-1' />
-                        ) : (
-                          <KeyRound className='h-3.5 w-3.5 mr-1' />
-                        )}
-                        Resend
-                      </Button>
-                      <Button
-                        onClick={() => handleEdit(teacher)}
-                        size='sm'
-                        variant='outline'
-                        className='rounded-lg h-8'
-                      >
-                        <Pencil className='h-3.5 w-3.5 mr-1' />
-                        Edit
-                      </Button>
-                      <Button
-                        onClick={() => handleDelete(teacher.id)}
-                        size='sm'
-                        variant='outline'
-                        className='rounded-lg h-8 border-rose-500/30 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30'
-                      >
-                        <Trash2 className='h-3.5 w-3.5 mr-1' />
-                        Delete
-                      </Button>
-                    </div>
-                  </DataGridTd>
-                </DataGridRow>
-              ))}
+              {teachers.map((teacher) => {
+                const teacherClasses = Array.isArray(teacher.classes) ? teacher.classes : [];
+                const teacherSubjects = Array.isArray(teacher.subjects) ? teacher.subjects : [];
+
+                return (
+                  <DataGridRow key={teacher.id}>
+                    <DataGridTd className='font-medium'>{teacher.name}</DataGridTd>
+                    <DataGridTd className='text-muted-foreground text-xs'>
+                      <div className='flex flex-col'>
+                        <span className='truncate'>{teacher.email}</span>
+                        {teacher.phone && <span className='text-muted-foreground/70'>{teacher.phone}</span>}
+                      </div>
+                    </DataGridTd>
+                    <DataGridTd>
+                      {teacherClasses.length > 0 ? (
+                        <div className='flex flex-wrap gap-1 max-w-[220px]'>
+                          {teacherClasses.map((cid) => {
+                            const cls = classMap.get(cid);
+                            const label = cls ? (cls.section ? `${cls.name} (${cls.section})` : cls.name) : cid;
+                            return (
+                              <span
+                                key={cid}
+                                className='inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-medium bg-primary/10 text-primary border border-primary/20'
+                              >
+                                {label}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <span className='text-xs text-muted-foreground italic'>None assigned</span>
+                      )}
+                    </DataGridTd>
+                    <DataGridTd>
+                      {teacherSubjects.length > 0 ? (
+                        <div className='flex flex-wrap gap-1 max-w-[220px]'>
+                          {teacherSubjects.map((sid) => {
+                            const sub = subjectMap.get(sid) || allSubjects.find((s) => s.name === sid);
+                            const label = sub ? sub.name : sid;
+                            return (
+                              <span
+                                key={sid}
+                                className='inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'
+                              >
+                                {label}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <span className='text-xs text-muted-foreground italic'>None assigned</span>
+                      )}
+                    </DataGridTd>
+                    <DataGridTd className='text-center'>
+                      {teacher.active ? (
+                        <span className='inline-flex items-center px-2 py-0.5 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 text-xs rounded-full font-medium'>
+                          Active
+                        </span>
+                      ) : (
+                        <span className='inline-flex items-center px-2 py-0.5 bg-muted text-muted-foreground text-xs rounded-full'>
+                          Inactive
+                        </span>
+                      )}
+                    </DataGridTd>
+                    <DataGridTd className='text-right pr-6'>
+                      <div className='flex items-center justify-end gap-1.5'>
+                        <Button
+                          onClick={() => setSelectedTeacherForView(teacher)}
+                          size='sm'
+                          variant='ghost'
+                          className='rounded-lg h-8 text-primary hover:bg-primary/10'
+                        >
+                          <Eye className='h-3.5 w-3.5 mr-1' />
+                          View
+                        </Button>
+                        <Button
+                          onClick={() => handleResendCredentials(teacher)}
+                          size='sm'
+                          variant='outline'
+                          disabled={resendingId === teacher.id}
+                          className='rounded-lg h-8 border-amber-500/30 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/30'
+                          title='Resend login credentials to teacher email'
+                        >
+                          {resendingId === teacher.id ? (
+                            <Loader2 className='h-3.5 w-3.5 animate-spin mr-1' />
+                          ) : (
+                            <KeyRound className='h-3.5 w-3.5 mr-1' />
+                          )}
+                          Resend
+                        </Button>
+                        <Button
+                          onClick={() => handleEdit(teacher)}
+                          size='sm'
+                          variant='outline'
+                          className='rounded-lg h-8'
+                        >
+                          <Pencil className='h-3.5 w-3.5 mr-1' />
+                          Edit
+                        </Button>
+                        <Button
+                          onClick={() => handleDelete(teacher.id)}
+                          size='sm'
+                          variant='outline'
+                          className='rounded-lg h-8 border-rose-500/30 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30'
+                        >
+                          <Trash2 className='h-3.5 w-3.5 mr-1' />
+                          Delete
+                        </Button>
+                      </div>
+                    </DataGridTd>
+                  </DataGridRow>
+                );
+              })}
             </tbody>
           </DataGridTable>
         </div>
 
         {/* MOBILE COMPACT LIST VIEW - NO HORIZONTAL SCROLL NEEDED */}
         <div className='block md:hidden divide-y divide-border/40'>
-          {teachers.map((teacher) => (
-            <div key={teacher.id} className='p-3.5 flex items-center justify-between gap-3 hover:bg-muted/20 transition-colors'>
-              <div className='min-w-0 flex-1'>
-                <div className='flex items-center gap-2'>
-                  <p className='font-semibold text-sm text-foreground truncate'>{teacher.name}</p>
-                  {teacher.active ? (
-                    <span className='inline-block w-2 h-2 rounded-full bg-emerald-500 shrink-0' title='Active' />
-                  ) : (
-                    <span className='inline-block w-2 h-2 rounded-full bg-zinc-400 shrink-0' title='Inactive' />
-                  )}
+          {teachers.map((teacher) => {
+            const teacherClasses = Array.isArray(teacher.classes) ? teacher.classes : [];
+            const teacherSubjects = Array.isArray(teacher.subjects) ? teacher.subjects : [];
+
+            return (
+              <div key={teacher.id} className='p-3.5 flex items-center justify-between gap-3 hover:bg-muted/20 transition-colors'>
+                <div className='min-w-0 flex-1'>
+                  <div className='flex items-center gap-2'>
+                    <p className='font-semibold text-sm text-foreground truncate'>{teacher.name}</p>
+                    {teacher.active ? (
+                      <span className='inline-block w-2 h-2 rounded-full bg-emerald-500 shrink-0' title='Active' />
+                    ) : (
+                      <span className='inline-block w-2 h-2 rounded-full bg-zinc-400 shrink-0' title='Inactive' />
+                    )}
+                  </div>
+                  <div className='flex flex-wrap gap-1 mt-1 text-[11px]'>
+                    {teacherClasses.length > 0 && (
+                      <span className='px-1.5 py-0.5 rounded bg-primary/10 text-primary font-medium'>
+                        {teacherClasses.length} {teacherClasses.length === 1 ? 'class' : 'classes'}
+                      </span>
+                    )}
+                    {teacherSubjects.length > 0 && (
+                      <span className='px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-medium'>
+                        {teacherSubjects.length} {teacherSubjects.length === 1 ? 'subject' : 'subjects'}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                
+                <div className='flex items-center gap-1 shrink-0'>
+                  <Button
+                    onClick={() => setSelectedTeacherForView(teacher)}
+                    size='sm'
+                    variant='outline'
+                    className='h-8 px-2.5 text-xs text-primary border-primary/30 rounded-lg hover:bg-primary/10'
+                  >
+                    <Eye className='h-3.5 w-3.5 mr-1' />
+                    View
+                  </Button>
+                  <Button
+                    onClick={() => handleResendCredentials(teacher)}
+                    size='sm'
+                    variant='outline'
+                    disabled={resendingId === teacher.id}
+                    className='h-8 px-2 text-xs border-amber-500/30 text-amber-600 rounded-lg hover:bg-amber-50 dark:hover:bg-amber-950/30'
+                    title='Resend credentials'
+                  >
+                    {resendingId === teacher.id ? (
+                      <Loader2 className='h-3.5 w-3.5 animate-spin' />
+                    ) : (
+                      <KeyRound className='h-3.5 w-3.5' />
+                    )}
+                  </Button>
+                  <Button
+                    onClick={() => handleEdit(teacher)}
+                    size='sm'
+                    variant='outline'
+                    className='h-8 px-2.5 text-xs rounded-lg'
+                  >
+                    <Pencil className='h-3.5 w-3.5 mr-1' />
+                    Edit
+                  </Button>
+                  <Button
+                    onClick={() => handleDelete(teacher.id)}
+                    size='sm'
+                    variant='outline'
+                    className='h-8 px-2 text-xs border-rose-500/30 text-rose-600 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/30'
+                  >
+                    <Trash2 className='h-3.5 w-3.5' />
+                  </Button>
                 </div>
               </div>
-              
-              <div className='flex items-center gap-1 shrink-0'>
-                <Button
-                  onClick={() => setSelectedTeacherForView(teacher)}
-                  size='sm'
-                  variant='outline'
-                  className='h-8 px-2.5 text-xs text-primary border-primary/30 rounded-lg hover:bg-primary/10'
-                >
-                  <Eye className='h-3.5 w-3.5 mr-1' />
-                  View
-                </Button>
-                <Button
-                  onClick={() => handleResendCredentials(teacher)}
-                  size='sm'
-                  variant='outline'
-                  disabled={resendingId === teacher.id}
-                  className='h-8 px-2 text-xs border-amber-500/30 text-amber-600 rounded-lg hover:bg-amber-50 dark:hover:bg-amber-950/30'
-                  title='Resend credentials'
-                >
-                  {resendingId === teacher.id ? (
-                    <Loader2 className='h-3.5 w-3.5 animate-spin' />
-                  ) : (
-                    <KeyRound className='h-3.5 w-3.5' />
-                  )}
-                </Button>
-                <Button
-                  onClick={() => handleEdit(teacher)}
-                  size='sm'
-                  variant='outline'
-                  className='h-8 px-2.5 text-xs rounded-lg'
-                >
-                  <Pencil className='h-3.5 w-3.5 mr-1' />
-                  Edit
-                </Button>
-                <Button
-                  onClick={() => handleDelete(teacher.id)}
-                  size='sm'
-                  variant='outline'
-                  className='h-8 px-2 text-xs border-rose-500/30 text-rose-600 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/30'
-                >
-                  <Trash2 className='h-3.5 w-3.5' />
-                </Button>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </DataGrid>
 
@@ -592,7 +911,7 @@ export default function TeachersPage() {
               </DialogDescription>
             </DialogHeader>
 
-            <div className='space-y-4 py-2 text-sm'>
+            <div className='space-y-3.5 py-2 text-sm'>
               <div className='flex items-center gap-3 p-3 rounded-xl bg-muted/40 border border-border/50'>
                 <Mail className='h-4 w-4 text-primary shrink-0' />
                 <div className='min-w-0 flex-1'>
@@ -615,6 +934,52 @@ export default function TeachersPage() {
                   <p className='text-xs text-muted-foreground font-medium'>Joining Date</p>
                   <p className='font-semibold text-foreground'>{selectedTeacherForView.joinDate || 'N/A'}</p>
                 </div>
+              </div>
+
+              {/* ASSIGNED CLASSES */}
+              <div className='p-3 rounded-xl bg-muted/40 border border-border/50 space-y-1.5'>
+                <div className='flex items-center gap-2 text-xs text-muted-foreground font-medium'>
+                  <Layers className='h-4 w-4 text-primary' />
+                  <span>Assigned Classes</span>
+                </div>
+                {Array.isArray(selectedTeacherForView.classes) && selectedTeacherForView.classes.length > 0 ? (
+                  <div className='flex flex-wrap gap-1.5 pt-1'>
+                    {selectedTeacherForView.classes.map((cid) => {
+                      const cls = classMap.get(cid);
+                      const label = cls ? (cls.section ? `${cls.name} (${cls.section})` : cls.name) : cid;
+                      return (
+                        <span key={cid} className='px-2 py-0.5 text-xs bg-primary/10 text-primary rounded-md border border-primary/20 font-medium'>
+                          {label}
+                        </span>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className='text-xs text-muted-foreground italic'>No classes assigned</p>
+                )}
+              </div>
+
+              {/* ASSIGNED SUBJECTS */}
+              <div className='p-3 rounded-xl bg-muted/40 border border-border/50 space-y-1.5'>
+                <div className='flex items-center gap-2 text-xs text-muted-foreground font-medium'>
+                  <BookOpen className='h-4 w-4 text-emerald-500' />
+                  <span>Assigned Subjects</span>
+                </div>
+                {Array.isArray(selectedTeacherForView.subjects) && selectedTeacherForView.subjects.length > 0 ? (
+                  <div className='flex flex-wrap gap-1.5 pt-1'>
+                    {selectedTeacherForView.subjects.map((sid) => {
+                      const sub = subjectMap.get(sid) || allSubjects.find((s) => s.name === sid);
+                      const label = sub ? `${sub.name} (${sub.code})` : sid;
+                      return (
+                        <span key={sid} className='px-2 py-0.5 text-xs bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-md border border-emerald-500/20 font-medium'>
+                          {label}
+                        </span>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className='text-xs text-muted-foreground italic'>No subjects assigned</p>
+                )}
               </div>
 
               {selectedTeacherForView.qualifications && selectedTeacherForView.qualifications.length > 0 && (

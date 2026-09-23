@@ -16,9 +16,5 @@ function createPrismaClient() {
   return client;
 }
 
-// Global caching layer to protect against hot reload duplication leaks in Next.js development
-export const prisma = globalForPrisma.prisma || createPrismaClient();
-
-if (process.env.NODE_ENV !== 'production') {
-  globalForPrisma.prisma = prisma;
-}
+export const prisma = globalForPrisma.prisma ?? createPrismaClient();
+globalForPrisma.prisma = prisma;

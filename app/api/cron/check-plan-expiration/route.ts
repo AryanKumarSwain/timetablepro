@@ -51,6 +51,7 @@ export async function GET(request: NextRequest) {
             where: { id: school.id },
             data: {
               planId: school.pausedPlanId,
+              subscribedPlanPrice: school.pausedPlan?.priceMonthly ?? null,
               planStartsAt: nowStart,
               planEndsAt: resumeEndsAt,
               pausedPlanId: null,
@@ -90,6 +91,7 @@ export async function GET(request: NextRequest) {
             where: { id: school.id },
             data: {
               planId: school.queuedPlanId,
+              subscribedPlanPrice: school.queuedPlan?.priceMonthly ?? null,
               planStartsAt: school.queuedPlanStartsAt,
               planEndsAt: queuedPlanEndsAt,
               queuedPlanId: null,
@@ -141,6 +143,7 @@ export async function GET(request: NextRequest) {
             where: { id: school.id },
             data: {
               planId: freePlan.id,
+              subscribedPlanPrice: null,
               planStartsAt: null,
               planEndsAt: null,
               licenseStatus: 'ACTIVE',
@@ -210,6 +213,7 @@ export async function GET(request: NextRequest) {
             where: { id: school.id },
             data: {
               planId: freePlan.id,
+              subscribedPlanPrice: null,
               planStartsAt: null,
               planEndsAt: null,
               licenseStatus: 'ACTIVE',

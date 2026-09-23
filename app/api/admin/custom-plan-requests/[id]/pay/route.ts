@@ -74,24 +74,35 @@ export async function POST(
     const gstAmount = Math.round(basePrice * 0.18);
     const chargedAmount = basePrice + gstAmount;
 
-    // Find the Elite / top feature plan so school gets all premium capabilities
-    let topPlan = await prisma.saaSPlan.findFirst({
+    // Find the Custom plan catalog template so school gets all configured custom features
+    let customPlan = await prisma.saaSPlan.findFirst({
       where: {
         OR: [
-          { name: { contains: 'elite' } },
-          { name: { contains: 'Elite' } },
-          { name: { contains: 'ELITE' } }
-        ]
-      }
+          { id: 'plan-custom' },
+          { name: 'Custom' },
+        ],
+      },
     });
 
-    if (!topPlan) {
-      topPlan = await prisma.saaSPlan.findFirst({
+    if (!customPlan) {
+      customPlan = await prisma.saaSPlan.findFirst({
+        where: {
+          OR: [
+            { name: { contains: 'elite' } },
+            { name: { contains: 'Elite' } },
+            { name: { contains: 'ELITE' } },
+          ],
+        },
+      });
+    }
+
+    if (!customPlan) {
+      customPlan = await prisma.saaSPlan.findFirst({
         orderBy: { teacherMax: 'desc' }
       });
     }
 
-    if (!topPlan) {
+    if (!customPlan) {
       return NextResponse.json({ error: 'No baseline plan available' }, { status: 500 });
     }
 
@@ -115,12 +126,13 @@ export async function POST(
         }
       }),
 
-      // 2. Update school with customTeacherLimit, dates, and active plan
+      // 2. Update school with customTeacherLimit, dates, active plan, and custom locked price
       prisma.school.update({
         where: { id: customRequest.schoolId },
         data: {
           customTeacherLimit: customRequest.requestedFacultyLimit,
-          planId: topPlan.id,
+          planId: customPlan.id,
+          subscribedPlanPrice: customRequest.price,
           licenseStatus: 'ACTIVE',
           planStartsAt: isRenewal ? (customRequest.school.planStartsAt || now) : now,
           planEndsAt: planEndsAt,
@@ -133,7 +145,7 @@ export async function POST(
       prisma.subscriptionTransaction.create({
         data: {
           schoolId: customRequest.schoolId,
-          planId: topPlan.id,
+          planId: customPlan.id,
           amount: chargedAmount.toFixed(2),
           billingCycle: cycle,
           utrNumber: razorpayPaymentId,

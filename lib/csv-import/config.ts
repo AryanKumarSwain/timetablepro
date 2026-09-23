@@ -13,24 +13,24 @@ export const CSV_IMPORT_CONFIGS: Record<CsvImportEntity, CsvImportConfig> = {
   teachers: {
     entity: 'teachers',
     title: 'Import Teachers',
-    description: 'Upload a CSV with faculty details.',
-    headers: ['name', 'email', 'phone', 'joinDate'],
-    requiredFields: ['name', 'email', 'phone'], // joinDate is optional
+    description: 'Upload a CSV with faculty details, assigned classes, and subjects.',
+    headers: ['name', 'email', 'phone', 'classes', 'subjects', 'joinDate'],
+    requiredFields: ['name', 'email', 'phone'], // classes, subjects, joinDate are optional
     sampleRows: [
-      ['Jane Smith', 'jane.smith@school.edu', '+1-555-0101', '2024-08-01'],
-      ['John Doe', 'john.doe@school.edu', '+1-555-0102', ''],
+      ['Jane Smith', 'jane.smith@school.edu', '+1-555-0101', 'Class 10-A;Class 10-B', 'MAT101;PHY101', '2024-08-01'],
+      ['John Doe', 'john.doe@school.edu', '+1-555-0102', 'Class 9-A', 'ENG101', ''],
     ],
   },
   subjects: {
     entity: 'subjects',
     title: 'Import Subjects',
-    description: 'Upload a CSV with course name and unique subject codes.',
-    headers: ['name', 'code'],
-    requiredFields: ['name', 'code'],
+    description: 'Upload a CSV with course name, unique subject codes, and assigned classes.',
+    headers: ['name', 'code', 'classes'],
+    requiredFields: ['name', 'code'], // classes is optional (leave empty for school-wide)
     sampleRows: [
-      ['Mathematics', 'MAT101'],
-      ['Physics', 'PHY101'],
-      ['English', 'ENG101'],
+      ['Mathematics', 'MAT101', 'Class 10-A;Class 10-B'],
+      ['Physics', 'PHY101', 'Class 10-A'],
+      ['English', 'ENG101', ''],
     ],
   },
   classes: {

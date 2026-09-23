@@ -53,7 +53,7 @@ export async function PATCH(
       prisma.notification.create({
         data: {
           title: 'Plan Upgraded',
-          message: `Your school has been upgraded to the ${plan.name} plan by the platform administrator.`,
+          message: `Your school has been upgraded to the ${plan.name} plan by Team Timetable Pro.`,
           type: 'INFO',
           scope: 'ALL_ADMINS',
           senderId: superAdmin.id,

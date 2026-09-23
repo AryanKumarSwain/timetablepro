@@ -37,6 +37,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
 
     const requestSubjects = normalizeStringArray(body.subjects);
+    const requestClasses = normalizeStringArray(body.classes);
     const subjectSpecialtyId =
       typeof body.subjectSpecialtyId === 'string' && body.subjectSpecialtyId
         ? body.subjectSpecialtyId
@@ -58,6 +59,7 @@ export async function POST(request: NextRequest) {
         phone: String(body.phone ?? '').trim(),
         qualifications: normalizeStringArray(body.qualifications),
         subjects: requestSubjects.length > 0 ? requestSubjects : (resolvedSubjectSpecialtyId ? [resolvedSubjectSpecialtyId] : []),
+        classes: requestClasses,
         active: typeof body.active === 'boolean' ? body.active : true,
         joinDate: String(body.joinDate ?? new Date().toISOString().split('T')[0]),
         maxPeriodsPerWeek: Number(body.maxPeriodsPerWeek ?? 24),

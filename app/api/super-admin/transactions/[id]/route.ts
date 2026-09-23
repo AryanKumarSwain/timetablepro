@@ -74,6 +74,8 @@ export async function PATCH(
       // If school has an active plan with end date, pause it (store remaining seconds)
       const hasActivePlan = school?.planId && school?.planEndsAt && new Date(school.planEndsAt) > now;
 
+      const targetPlan = await prisma.saaSPlan.findUnique({ where: { id: transaction.planId } });
+
       await prisma.$transaction([
         // 1. Update transaction status
         prisma.subscriptionTransaction.update({
@@ -86,11 +88,12 @@ export async function PATCH(
           where: { id: transaction.schoolId },
           data: {
             planId: transaction.planId,
+            subscribedPlanPrice: targetPlan?.priceMonthly ?? null,
             planStartsAt,
             planEndsAt,
             licenseStatus: 'ACTIVE',
             // Pause current plan preserving remaining duration so it can resume
-            ...(hasActivePlan && (() => {
+            ...(hasActivePlan && school?.planEndsAt && (() => {
               const remainingMs = new Date(school.planEndsAt).getTime() - now.getTime();
               const remainingSeconds = Math.max(0, Math.floor(remainingMs / 1000));
               return {

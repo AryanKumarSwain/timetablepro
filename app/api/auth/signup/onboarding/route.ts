@@ -55,69 +55,62 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true });
     }
 
-    const result = await prisma.$transaction(async (tx) => {
-      // Find or create the free plan with a consistent ID
-      let freePlan = await tx.saaSPlan.findFirst({
-        where: { name: 'Free' }
+    // Find free plan reliably without blocking transactions
+    let freePlan = await prisma.saaSPlan.findFirst({
+      where: {
+        OR: [
+          { id: 'plan-free' },
+          { name: 'Free' },
+        ],
+      },
+    });
+
+    if (!freePlan) {
+      freePlan = await prisma.saaSPlan.findFirst({
+        orderBy: { orderIndex: 'asc' },
       });
+    }
 
-      if (!freePlan) {
-        freePlan = await tx.saaSPlan.create({
-          data: {
-            id: 'free-plan-default',
-            name: 'Free',
-            teacherMin: 0,
-            teacherMax: 5,
-            priceMonthly: 0,
-            reportEnabled: false,
-            attendanceEnabled: false,
-            homeworkEnabled: false,
-            exportFormats: [],
-            watermarkRequired: true
-          }
-        });
-      }
+    const school = await prisma.school.create({
+      data: {
+        name: instituteName,
+        type: instituteType,
+        state,
+        city,
+        country,
+        studentsRange,
+        facultyRange,
+        licenseStatus: 'ACTIVE',
+        planId: freePlan ? freePlan.id : null,
+      },
+    });
 
-      const school = await tx.school.create({
-        data: {
-          name: instituteName,
-          type: instituteType,
-          state,
-          city,
-          country,
-          studentsRange,
-          facultyRange,
-          licenseStatus: 'ACTIVE',
-          planId: freePlan.id
-        },
-      });
-
-      const user = await tx.user.update({
-        where: { id: dbUser.id },
-        data: {
-          schoolId: school.id,
-          onboardingDone: true,
-          role: 'ADMIN',
-        },
-      });
-
-      return { school, user };
+    const updatedUser = await prisma.user.update({
+      where: { id: dbUser.id },
+      data: {
+        schoolId: school.id,
+        onboardingDone: true,
+        role: 'ADMIN',
+      },
     });
 
     session.user = {
-      id: result.user.id,
-      email: result.user.email,
-      role: result.user.role,
-      schoolId: result.user.schoolId,
+      id: updatedUser.id,
+      email: updatedUser.email,
+      role: updatedUser.role,
+      schoolId: updatedUser.schoolId,
       onboardingDone: true,
+      name: updatedUser.name,
+      phone: updatedUser.phone,
+      countryCode: updatedUser.countryCode,
     };
     await session.save();
 
-    return NextResponse.json({ success: true });
-  } catch (error) {
+    return NextResponse.json({ success: true, schoolId: school.id });
+  } catch (error: any) {
     console.error('[auth/signup/onboarding]', error);
     return NextResponse.json(
-      { success: false, error: 'Failed to complete onboarding' },
+      { success: false, error: error?.message || 'Failed to complete onboarding' },
       { status: 500 }
     );
   }

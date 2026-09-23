@@ -57,9 +57,10 @@ interface CustomPlanFormState {
 }
 
 const PLAN_TIER_CONFIG: PlanConfig[] = [
-  { border: 'border-slate-200 dark:border-slate-800 hover:border-slate-400 dark:hover:border-slate-700 hover:shadow-lg transition-all duration-300', btn: 'bg-slate-900 hover:bg-slate-800 text-white dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white shadow-md hover:shadow-lg hover:shadow-slate-900/20 hover:-translate-y-0.5 transition-all duration-200 cursor-pointer', icon: <Zap className="h-5 w-5 text-amber-500 group-hover:scale-110 transition-transform duration-300" />, desc: 'Ideal for growing institutions' },
-  { border: 'border-purple-500 dark:border-purple-600 ring-2 ring-purple-500/20 hover:border-purple-400 hover:shadow-purple-500/10 hover:shadow-xl transition-all duration-300', btn: 'bg-purple-600 hover:bg-purple-700 text-white shadow-md shadow-purple-500/20 hover:shadow-lg hover:shadow-purple-500/30 hover:-translate-y-0.5 transition-all duration-200 cursor-pointer', icon: <Rocket className="h-5 w-5 text-white group-hover:scale-110 transition-transform duration-300" />, desc: 'Ideal for growing institutions' },
-  { border: 'border-amber-400 dark:border-amber-500 shadow-md shadow-amber-500/5 hover:border-amber-300 hover:shadow-amber-500/15 hover:shadow-xl transition-all duration-300', btn: 'bg-amber-500 hover:bg-amber-600 text-white shadow-md shadow-amber-500/20 hover:shadow-lg hover:shadow-amber-500/30 hover:-translate-y-0.5 transition-all duration-200 cursor-pointer', icon: <Crown className="h-5 w-5 text-amber-500 group-hover:scale-110 transition-transform duration-300" />, desc: 'For large schools and districts' }
+  { border: 'border-slate-200 dark:border-slate-800 hover:border-slate-400 dark:hover:border-slate-700 hover:shadow-lg transition-all duration-300', btn: 'bg-slate-900 hover:bg-slate-800 text-white dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white shadow-md hover:shadow-lg hover:shadow-slate-900/20 hover:-translate-y-0.5 transition-all duration-200 cursor-pointer', icon: <Zap className="h-5 w-5 text-indigo-500 group-hover:scale-110 transition-transform duration-300" />, desc: 'Ideal for growing institutions' },
+  { border: 'border-emerald-500 dark:border-emerald-600 ring-2 ring-emerald-500/20 hover:border-emerald-400 hover:shadow-emerald-500/10 hover:shadow-xl transition-all duration-300', btn: 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-500/20 hover:shadow-lg hover:shadow-emerald-500/30 hover:-translate-y-0.5 transition-all duration-200 cursor-pointer', icon: <Rocket className="h-5 w-5 text-emerald-500 dark:text-emerald-400 group-hover:scale-110 transition-transform duration-300" />, desc: 'For scaling institutions' },
+  { border: 'border-amber-400 dark:border-amber-500 shadow-md shadow-amber-500/5 hover:border-amber-300 hover:shadow-amber-500/15 hover:shadow-xl transition-all duration-300', btn: 'bg-amber-500 hover:bg-amber-600 text-white shadow-md shadow-amber-500/20 hover:shadow-lg hover:shadow-amber-500/30 hover:-translate-y-0.5 transition-all duration-200 cursor-pointer', icon: <Crown className="h-5 w-5 text-amber-500 group-hover:scale-110 transition-transform duration-300" />, desc: 'For large schools and districts' },
+  { border: 'border-pink-500/50 dark:border-pink-500/40 ring-2 ring-pink-500/20 hover:border-pink-400 hover:shadow-pink-500/20 hover:shadow-xl transition-all duration-300', btn: 'bg-gradient-pink-purple hover:brightness-105 text-white shadow-md shadow-pink-500/25 hover:shadow-lg hover:shadow-pink-500/40 hover:-translate-y-0.5 transition-all duration-200 cursor-pointer', icon: <Sparkles className="h-5 w-5 text-pink-500 group-hover:scale-110 transition-transform duration-300" />, desc: 'Next-gen automated intelligence' },
 ];
 
 export default function UpgradePage() {
@@ -135,7 +136,7 @@ export default function UpgradePage() {
         const data = await fetchSaasPlans();
         if (!isMounted) return;
         setAllPlans(data || []);
-        setPlans((data || []).filter(p => p.name.toLowerCase() !== 'free'));
+        setPlans((data || []).filter(p => p.name.toLowerCase() !== 'free' && p.name.toLowerCase() !== 'custom' && p.id !== 'plan-custom'));
 
         const schoolRes = await fetch('/api/admin/school', { credentials: 'include' });
         if (schoolRes.ok && isMounted) {
@@ -462,7 +463,7 @@ export default function UpgradePage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to submit request');
-      toast.success('Custom plan request submitted successfully! Super Admin will review and send your pricing quote.');
+      toast.success('Custom plan request submitted successfully! Team Timetable Pro will review and send your pricing quote.');
       setCustomPlanDialogOpen(false);
       setCustomPlanForm({ instituteName: '', contactNo: '', email: '', reason: '' });
       fetchActiveCustomRequest();
@@ -854,7 +855,7 @@ export default function UpgradePage() {
 
   return (
     <div className="w-full min-h-[calc(100vh-4rem)] bg-gradient-to-b from-slate-50 to-indigo-50/30 dark:from-slate-950 dark:to-indigo-950/10 py-6 px-4 md:px-8 transition-all flex items-center justify-center">
-      <div className="max-w-5xl w-full mx-auto flex flex-col justify-between">
+      <div className="max-w-7xl 2xl:max-w-[1440px] w-full mx-auto flex flex-col justify-between">
 
         {/* Header */}
         <div className="text-center mb-8">
@@ -1051,7 +1052,7 @@ export default function UpgradePage() {
                           </Badge>
                         </div>
                         <p className="text-sm text-slate-700 dark:text-slate-300 mt-1.5 leading-relaxed">
-                          Super Admin has approved your request for{' '}
+                          Team Timetable Pro has approved your request for{' '}
                           <strong className="text-emerald-700 dark:text-emerald-300 font-bold">
                             {activeCustomRequest.requestedFacultyLimit} Teachers
                           </strong>. Choose your billing cycle below:
@@ -1228,12 +1229,20 @@ export default function UpgradePage() {
         )}
 
         {/* Plan Cards */}
-        <div className="flex sm:grid sm:grid-cols-2 md:grid-cols-3 gap-5 sm:gap-6 items-stretch mb-4 sm:mb-8 overflow-x-auto sm:overflow-x-visible pt-4 sm:pt-2 pb-5 sm:pb-0 -mx-4 sm:mx-0 px-4 sm:px-0 snap-x snap-mandatory scroll-smooth [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+        <div className="flex sm:grid sm:grid-cols-2 lg:grid-cols-4 gap-4 xl:gap-5 items-stretch mb-4 sm:mb-8 overflow-x-auto sm:overflow-x-visible pt-4 sm:pt-2 pb-5 sm:pb-0 -mx-4 sm:mx-0 px-4 sm:px-0 snap-x snap-mandatory scroll-smooth [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
           {plans.map((plan, idx) => {
-            const style = PLAN_TIER_CONFIG[idx % PLAN_TIER_CONFIG.length] || PLAN_TIER_CONFIG[0];
+            const nameLower = plan.name.toLowerCase().trim();
+            const isAi = nameLower.includes('ai');
+            const isPopular = nameLower === 'premium' || (nameLower.includes('popular') && !isAi);
+            const isLuxury = (nameLower === 'elite' || nameLower.includes('luxury')) && !isAi;
+            const style = isAi
+              ? PLAN_TIER_CONFIG[3]
+              : isPopular
+                ? PLAN_TIER_CONFIG[1]
+                : isLuxury
+                  ? PLAN_TIER_CONFIG[2]
+                  : (PLAN_TIER_CONFIG[idx % PLAN_TIER_CONFIG.length] || PLAN_TIER_CONFIG[0]);
             const isCurrentPlan = currentPlanId === plan.id && (!schoolData || !schoolData.planEndsAt || new Date(schoolData.planEndsAt) > new Date()) && !schoolData?.customTeacherLimit;
-            const isPopular = plan.name.toLowerCase().includes('premium') || (plans.length >= 3 && idx === 1);
-            const isLuxury = plan.name.toLowerCase().includes('elite') || (plans.length >= 3 && idx === plans.length - 1);
 
             // Feature rows: [label, enabled]
             const features: [string, boolean][] = [
@@ -1242,6 +1251,7 @@ export default function UpgradePage() {
               ['Attendance', !!plan.attendanceEnabled],
               ['Homework', !!plan.homeworkEnabled],
               ['Lesson Planning', !!plan.lessonPlanningEnabled],
+              ['Generate Timetable with AI', !!plan.aiTimetableEnabled],
               [
                 `Exports: ${plan.exportFormats && plan.exportFormats.length > 0 ? plan.exportFormats.join(', ').toUpperCase() : 'None'}`,
                 !!(plan.exportFormats && plan.exportFormats.length > 0),
@@ -1253,64 +1263,83 @@ export default function UpgradePage() {
               <motion.div
                 key={plan.id}
                 whileHover={{ y: -4, scale: 1.005 }}
-                className={`relative bg-white dark:bg-slate-900 rounded-2xl p-6 flex flex-col justify-between shadow-sm border ${style.border} min-w-[84vw] sm:min-w-0 max-w-[340px] sm:max-w-none shrink-0 sm:shrink snap-center`}
+                className={`relative rounded-2xl flex flex-col justify-between shadow-sm min-w-[78vw] sm:min-w-0 max-w-[340px] sm:max-w-none shrink-0 sm:shrink snap-center transition-all duration-300 ${
+                  isAi
+                    ? 'p-[2px] bg-gradient-pink-purple shadow-xl shadow-pink-500/20 hover:shadow-pink-500/35'
+                    : `bg-white dark:bg-slate-900 p-4 sm:p-5 border ${style.border}`
+                }`}
               >
                 {isPopular && (
-                  <span className="absolute -top-3 left-1/2 -translate-x-1/2 z-20 bg-purple-600 text-white text-[10px] font-bold px-3.5 py-1 rounded-full uppercase tracking-wider whitespace-nowrap shadow-sm">Most Popular</span>
+                  <span className="absolute -top-3 left-1/2 -translate-x-1/2 z-20 bg-emerald-600 text-white text-[10px] font-bold px-3 py-0.5 rounded-full uppercase tracking-wider whitespace-nowrap shadow-sm">
+                    Most Popular
+                  </span>
                 )}
                 {isLuxury && !isPopular && (
-                  <span className="absolute -top-3 left-1/2 -translate-x-1/2 z-20 bg-amber-500 text-white text-[10px] font-bold px-3.5 py-1 rounded-full uppercase tracking-wider flex items-center gap-1 whitespace-nowrap shadow-sm">
+                  <span className="absolute -top-3 left-1/2 -translate-x-1/2 z-20 bg-amber-500 text-white text-[10px] font-bold px-3 py-0.5 rounded-full uppercase tracking-wider flex items-center gap-1 whitespace-nowrap shadow-sm">
                     <Crown className="h-3 w-3" /> Luxury Tier
                   </span>
                 )}
-
-                <div className="mb-6">
-                  <div className="flex items-center gap-2 mb-3">
-                    {style.icon}
-                    <h3 className="text-xl font-bold text-slate-900 dark:text-white">{plan.name}</h3>
-                    {isCurrentPlan && (
-                      <Badge className="ml-auto bg-emerald-500 hover:bg-emerald-600 text-white text-[10px]">Active</Badge>
-                    )}
-                  </div>
-                  <div className="flex items-baseline gap-1 mb-1">
-                    <span className="text-3xl font-extrabold text-slate-900 dark:text-white">₹{plan.priceMonthly}</span>
-                    <span className="text-slate-400 text-xs">/month</span>
-                  </div>
-                  <p className="text-slate-500 dark:text-slate-400 text-xs leading-relaxed">{style.desc}</p>
-                  <hr className="border-slate-100 dark:border-slate-800 my-3" />
-
-                  {/* Feature list — ✅ enabled / ❌ locked */}
-                  <ul className="space-y-3">
-                    {features.map(([label, enabled], fIdx) => (
-                      <li key={fIdx} className="flex items-center gap-2.5 text-xs">
-                        {enabled
-                          ? <Check className="h-4 w-4 text-emerald-500 shrink-0" />
-                          : <X className="h-4 w-4 text-rose-500 shrink-0" />}
-                        <span className={`truncate ${enabled ? 'text-slate-600 dark:text-slate-300' : 'text-slate-400 dark:text-slate-600 line-through'}`}>
-                          {label}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-
-                <Button
-                  onClick={() => handlePlanSelection(plan.id)}
-                  className={`w-full group py-5 font-semibold rounded-xl text-xs flex items-center justify-center gap-2 transition-all duration-200 cursor-pointer ${
-                    isCurrentPlan
-                      ? 'bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 border border-purple-300 dark:border-purple-700 hover:bg-purple-200 dark:hover:bg-purple-900/60 hover:shadow-md hover:-translate-y-0.5'
-                      : style.btn
-                  }`}
-                >
-                  <span>
-                    {isCurrentPlan
-                      ? `Renew ${plan.name}`
-                      : schoolData?.customTeacherLimit && plan.teacherMax < schoolData.customTeacherLimit
-                        ? `Downgrade to ${plan.name}`
-                        : `Switch to ${plan.name}`}
+                {isAi && (
+                  <span className="absolute -top-3 left-1/2 -translate-x-1/2 z-20 bg-gradient-pink-purple text-white text-[10px] font-extrabold px-3.5 py-0.5 rounded-full uppercase tracking-wider flex items-center gap-1.5 whitespace-nowrap shadow-md shadow-pink-500/30">
+                    <Sparkles className="h-3 w-3 animate-pulse text-pink-100" /> AI Powered
                   </span>
-                  <ChevronRight className="h-3.5 w-3.5 group-hover:translate-x-1 transition-transform duration-200" />
-                </Button>
+                )}
+
+                <div className={`flex flex-col justify-between h-full w-full ${isAi ? 'bg-white dark:bg-slate-900 rounded-[14px] p-4 sm:p-5' : ''}`}>
+                  <div className="mb-3.5">
+                    <div className="flex items-center gap-2 mb-1.5">
+                      {isAi ? (
+                        <Sparkles className="h-4.5 w-4.5 text-pink-500 dark:text-pink-400 group-hover:scale-110 transition-transform duration-300" />
+                      ) : (
+                        style.icon
+                      )}
+                      <h3 className="text-base xl:text-lg font-bold text-slate-900 dark:text-white">{plan.name}</h3>
+                      {isCurrentPlan && (
+                        <Badge className={`ml-auto text-white text-[9px] px-2 py-0 ${isAi ? 'bg-gradient-pink-purple' : 'bg-emerald-500 hover:bg-emerald-600'}`}>Active</Badge>
+                      )}
+                    </div>
+                    <div className="flex items-baseline gap-1 mb-0.5">
+                      <span className="text-xl xl:text-2xl font-extrabold text-slate-900 dark:text-white">₹{plan.priceMonthly}</span>
+                      <span className="text-slate-400 text-[11px]">/month</span>
+                    </div>
+                    <p className="text-slate-500 dark:text-slate-400 text-[11px] leading-snug line-clamp-1">{style.desc}</p>
+                    <hr className="border-slate-100 dark:border-slate-800 my-2" />
+
+                    {/* Feature list — ✅ enabled / ❌ locked */}
+                    <ul className="space-y-1.5">
+                      {features.map(([label, enabled], fIdx) => (
+                        <li key={fIdx} className="flex items-center gap-2 text-xs">
+                          {enabled
+                            ? <Check className={`h-3.5 w-3.5 ${isAi ? 'text-pink-500 dark:text-pink-400' : 'text-emerald-500'} shrink-0`} />
+                            : <X className="h-3.5 w-3.5 text-rose-500 shrink-0" />}
+                          <span className={`leading-tight ${enabled ? 'text-slate-600 dark:text-slate-300' : 'text-slate-400 dark:text-slate-600 line-through'}`}>
+                            {label}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  <Button
+                    onClick={() => handlePlanSelection(plan.id)}
+                    className={`w-full group py-3 sm:py-3.5 font-semibold rounded-xl text-xs flex items-center justify-center gap-2 transition-all duration-200 cursor-pointer ${
+                      isCurrentPlan
+                        ? 'bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 border border-purple-300 dark:border-purple-700 hover:bg-purple-200 dark:hover:bg-purple-900/60 hover:shadow-md hover:-translate-y-0.5'
+                        : isAi
+                          ? 'bg-gradient-pink-purple hover:brightness-105 text-white shadow-md shadow-pink-500/25 hover:shadow-lg hover:shadow-pink-500/40 hover:-translate-y-0.5'
+                          : style.btn
+                    }`}
+                  >
+                    <span>
+                      {isCurrentPlan
+                        ? `Renew ${plan.name}`
+                        : schoolData?.customTeacherLimit && plan.teacherMax < schoolData.customTeacherLimit
+                          ? `Downgrade to ${plan.name}`
+                          : `Switch to ${plan.name}`}
+                    </span>
+                    <ChevronRight className="h-3.5 w-3.5 group-hover:translate-x-1 transition-transform duration-200" />
+                  </Button>
+                </div>
               </motion.div>
             );
           })}
@@ -1657,8 +1686,12 @@ export default function UpgradePage() {
                 <div className="md:col-span-7 p-6 md:p-8 bg-slate-50/50 dark:bg-slate-900/50 flex flex-col justify-between border-b md:border-b-0 md:border-r border-slate-100 dark:border-slate-800">
                   <div>
                     <div className="flex items-center gap-2 mb-3">
-                      {(PLAN_TIER_CONFIG[plans.findIndex(p => p.id === selectedPlanId)] || PLAN_TIER_CONFIG[2]).icon}
-                      <Badge variant="outline" className="text-purple-600 dark:text-purple-400 border-purple-200 text-[11px]">Selected Plan</Badge>
+                      {selectedPlan.name.toLowerCase().includes('ai') ? (
+                        <Sparkles className="h-5 w-5 text-pink-500" />
+                      ) : (
+                        (PLAN_TIER_CONFIG[plans.findIndex(p => p.id === selectedPlanId)] || PLAN_TIER_CONFIG[2]).icon
+                      )}
+                      <Badge variant="outline" className={`${selectedPlan.name.toLowerCase().includes('ai') ? 'text-pink-600 dark:text-pink-400 border-pink-200' : 'text-purple-600 dark:text-purple-400 border-purple-200'} text-[11px]`}>Selected Plan</Badge>
                     </div>
                     <h2 className="text-2xl font-extrabold text-slate-900 dark:text-white mb-1">{selectedPlan.name}</h2>
                     <p className="text-xs text-slate-400 mb-4">Full feature breakdown for this plan.</p>
@@ -1672,6 +1705,7 @@ export default function UpgradePage() {
                           ['Attendance module', !!selectedPlan.attendanceEnabled],
                           ['Homework module', !!selectedPlan.homeworkEnabled],
                           ['Lesson Planning module', !!selectedPlan.lessonPlanningEnabled],
+                          ['Generate Timetable with AI', !!selectedPlan.aiTimetableEnabled],
                           [
                             `Exports: ${selectedPlan.exportFormats?.length ? selectedPlan.exportFormats.join(', ').toUpperCase() : 'None'}`,
                             !!(selectedPlan.exportFormats?.length),
@@ -1687,7 +1721,7 @@ export default function UpgradePage() {
                             }`}
                         >
                           {enabled
-                            ? <CheckCircle2 className="h-4 w-4 text-purple-600 shrink-0" />
+                            ? <CheckCircle2 className={`h-4 w-4 ${selectedPlan.name.toLowerCase().includes('ai') ? 'text-pink-500' : 'text-purple-600'} shrink-0`} />
                             : <X className="h-4 w-4 text-rose-500 shrink-0" />}
                           <span className={`font-medium ${enabled ? 'text-slate-700 dark:text-slate-300' : 'text-slate-400 line-through'}`}>
                             {label}

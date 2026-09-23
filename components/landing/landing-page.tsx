@@ -433,8 +433,8 @@ export function LandingPage() {
           </div>
         </section>
 
-        <section id='pricing' className='border-t border-sky-100 bg-white/70 px-4 py-24 sm:px-6 lg:px-8'>
-          <div className='mx-auto max-w-7xl'>
+        <section id='pricing' className='border-t border-sky-100 bg-white/70 px-3 py-20 sm:px-6 lg:px-8'>
+          <div className='mx-auto max-w-[1540px] w-full px-1 sm:px-2'>
             <div className='mx-auto max-w-2xl text-center'>
               <p className='text-sm font-medium uppercase tracking-[0.2em] text-emerald-600'>Pricing</p>
               <h2 className='mt-3 text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl'>Choose the right plan for your school</h2>
@@ -462,105 +462,130 @@ export function LandingPage() {
               </span>
             </div>
 
-            <div className='mt-8 pt-5 pb-6 flex gap-5 overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0 md:grid md:grid-cols-2 lg:grid-cols-3 md:overflow-visible md:pt-4 md:mt-12'>
-              {(() => {
-                const rawPlans = (plans && plans.length > 0 ? plans : [
-                  { id: 'standard', name: 'Standard', teacherMin: 0, teacherMax: 15, priceMonthly: 199, reportEnabled: true, attendanceEnabled: false, homeworkEnabled: false, lessonPlanningEnabled: true, watermarkRequired: false, exportFormats: ['pdf'] },
-                  { id: 'premium', name: 'Premium', teacherMin: 16, teacherMax: 30, priceMonthly: 299, reportEnabled: true, attendanceEnabled: true, homeworkEnabled: false, lessonPlanningEnabled: true, watermarkRequired: false, exportFormats: ['pdf', 'docx'] },
-                  { id: 'elite', name: 'Elite', teacherMin: 31, teacherMax: 100, priceMonthly: 399, reportEnabled: true, attendanceEnabled: true, homeworkEnabled: true, lessonPlanningEnabled: true, watermarkRequired: false, exportFormats: ['pdf', 'docx', 'csv'] },
-                ])
-                  .filter((plan) => plan.name.toLowerCase() !== 'free' && Number(plan.priceMonthly) > 0)
-                  .sort((a, b) => Number(a.priceMonthly) - Number(b.priceMonthly));
+            {(() => {
+              const rawPlans = (plans && plans.length > 0 ? plans : [
+                { id: 'standard', name: 'Standard', teacherMin: 0, teacherMax: 15, priceMonthly: 199, reportEnabled: true, attendanceEnabled: false, homeworkEnabled: false, lessonPlanningEnabled: true, aiTimetableEnabled: false, watermarkRequired: false, exportFormats: ['pdf'] },
+                { id: 'premium', name: 'Premium', teacherMin: 16, teacherMax: 30, priceMonthly: 299, reportEnabled: true, attendanceEnabled: true, homeworkEnabled: false, lessonPlanningEnabled: true, aiTimetableEnabled: true, watermarkRequired: false, exportFormats: ['pdf', 'docx'] },
+                { id: 'elite', name: 'Elite', teacherMin: 31, teacherMax: 100, priceMonthly: 399, reportEnabled: true, attendanceEnabled: true, homeworkEnabled: true, lessonPlanningEnabled: true, aiTimetableEnabled: true, watermarkRequired: false, exportFormats: ['pdf', 'docx', 'csv'] },
+                { id: 'elite-ai', name: 'Elite AI', teacherMin: 31, teacherMax: 100, priceMonthly: 499, reportEnabled: true, attendanceEnabled: true, homeworkEnabled: true, lessonPlanningEnabled: true, aiTimetableEnabled: true, watermarkRequired: false, exportFormats: ['pdf', 'docx', 'csv'] },
+              ])
+                .filter((plan) => plan.name.toLowerCase() !== 'free' && Number(plan.priceMonthly) > 0)
+                .sort((a, b) => Number(a.priceMonthly) - Number(b.priceMonthly));
 
-                return rawPlans.map((plan, index) => {
-                  const isPremium = plan.name.toLowerCase().includes('premium') || (rawPlans.length >= 3 && index === 1);
-                  const isElite = plan.name.toLowerCase().includes('elite') || (rawPlans.length >= 3 && index === 2);
-                  const isPopular = isPremium || (rawPlans.length === 1 ? false : index === 1);
-                  const isTopTier = isElite || (rawPlans.length >= 3 && index === rawPlans.length - 1);
+              const gridColsClass = rawPlans.length >= 4
+                ? 'lg:grid-cols-4'
+                : rawPlans.length === 3
+                  ? 'lg:grid-cols-3'
+                  : rawPlans.length === 2
+                    ? 'lg:grid-cols-2'
+                    : 'lg:grid-cols-1';
 
-                  const baseAnnual = Math.round(Number(plan.priceMonthly) * 12 * 0.83);
-                  const displayPrice = yearly ? baseAnnual : Number(plan.priceMonthly);
-                  const periodicLabel = yearly ? ' / year' : ' / month';
+              return (
+                <div className={cn(
+                  'mt-8 pt-5 pb-6 flex gap-4 xl:gap-6 overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0 md:grid md:grid-cols-2 md:overflow-visible md:pt-4 md:mt-12 items-stretch',
+                  gridColsClass
+                )}>
+                  {rawPlans.map((plan, index) => {
+                    const isAi = plan.name.toLowerCase().includes('ai');
+                    const isPremium = (plan.name.toLowerCase().includes('premium') || (rawPlans.length >= 3 && index === 1)) && !isAi;
+                    const isElite = (plan.name.toLowerCase().includes('elite') || (rawPlans.length >= 3 && index === 2)) && !isAi;
+                    const isPopular = isPremium || (rawPlans.length === 1 ? false : index === 1 && !isAi);
+                    const isTopTier = (isElite || (rawPlans.length >= 3 && index === rawPlans.length - 1)) && !isAi;
 
-                  const featureList: { label: string; enabled: boolean }[] = [
-                    { label: `${plan.teacherMin ?? 0}–${plan.teacherMax} Teachers`, enabled: true },
-                    { label: 'Reports', enabled: !!plan.reportEnabled },
-                    { label: 'Attendance', enabled: !!plan.attendanceEnabled },
-                    { label: 'Homework', enabled: !!plan.homeworkEnabled },
-                    { label: 'Lesson Planning', enabled: !!plan.lessonPlanningEnabled },
-                    {
-                      label: `Exports: ${plan.exportFormats && plan.exportFormats.length > 0 ? plan.exportFormats.join(', ').toUpperCase() : 'None'}`,
-                      enabled: !!(plan.exportFormats && plan.exportFormats.length > 0),
-                    },
-                    { label: 'No watermark', enabled: !plan.watermarkRequired },
-                  ];
+                    const baseAnnual = Math.round(Number(plan.priceMonthly) * 12 * 0.83);
+                    const displayPrice = yearly ? baseAnnual : Number(plan.priceMonthly);
+                    const periodicLabel = yearly ? ' / year' : ' / month';
 
-                  return (
-                    <div
-                      key={plan.id || plan.name}
-                      className={cn(
-                        'relative flex min-h-[520px] flex-col rounded-[22px] border bg-white p-0 shadow-[0_20px_45px_rgba(15,23,42,0.08)] min-w-[300px] md:min-w-0',
-                        isPopular && 'border-violet-500 ring-2 ring-violet-100',
-                        isTopTier && !isPopular && 'border-amber-400 bg-amber-50/40',
-                        !isPopular && !isTopTier && 'border-slate-200'
-                      )}
-                    >
-                      {isPopular && (
-                        <div className='absolute inset-x-0 -top-3.5 z-20 flex justify-center pointer-events-none'>
-                          <span className='rounded-full bg-gradient-to-r from-violet-700 to-purple-700 px-3.5 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-white shadow-md whitespace-nowrap'>Most Popular</span>
+                    const featureList: { label: string; enabled: boolean }[] = [
+                      { label: `${plan.teacherMin ?? 0}–${plan.teacherMax} Teachers`, enabled: true },
+                      { label: 'Reports', enabled: !!plan.reportEnabled },
+                      { label: 'Attendance', enabled: !!plan.attendanceEnabled },
+                      { label: 'Homework', enabled: !!plan.homeworkEnabled },
+                      { label: 'Lesson Planning', enabled: !!plan.lessonPlanningEnabled },
+                      { label: 'Generate Timetable with AI', enabled: Boolean(plan.aiTimetableEnabled || plan.name.toLowerCase().includes('ai')) },
+                      {
+                        label: `Exports: ${plan.exportFormats && plan.exportFormats.length > 0 ? plan.exportFormats.join(', ').toUpperCase() : 'None'}`,
+                        enabled: !!(plan.exportFormats && plan.exportFormats.length > 0),
+                      },
+                      { label: 'No watermark', enabled: !plan.watermarkRequired },
+                    ];
+
+                    return (
+                      <div
+                        key={plan.id || plan.name}
+                        className={cn(
+                          'relative flex min-h-[470px] sm:min-h-[490px] flex-col rounded-[22px] border bg-white p-0 shadow-[0_15px_35px_rgba(15,23,42,0.06)] min-w-[280px] lg:min-w-0 transition-all duration-300',
+                          isAi && 'p-[2px] bg-gradient-pink-purple shadow-xl shadow-pink-500/20 border-transparent',
+                          isPopular && 'border-emerald-500 ring-2 ring-emerald-100 shadow-lg shadow-emerald-500/10',
+                          isTopTier && !isPopular && 'border-amber-400 bg-amber-50/40 shadow-lg shadow-amber-500/10',
+                          !isPopular && !isTopTier && !isAi && 'border-slate-200'
+                        )}
+                      >
+                        {isAi && (
+                          <div className='absolute inset-x-0 -top-3 z-20 flex justify-center pointer-events-none'>
+                            <span className='rounded-full bg-gradient-pink-purple px-3 py-0.5 text-[10px] font-bold uppercase tracking-[0.16em] text-white shadow-md shadow-pink-500/30 whitespace-nowrap flex items-center gap-1'>
+                              <Sparkles className="h-3 w-3 animate-pulse text-pink-100" /> AI Powered
+                            </span>
+                          </div>
+                        )}
+
+                        {isPopular && (
+                          <div className='absolute inset-x-0 -top-3 z-20 flex justify-center pointer-events-none'>
+                            <span className='rounded-full bg-gradient-to-r from-emerald-600 to-teal-600 px-3 py-0.5 text-[10px] font-bold uppercase tracking-[0.16em] text-white shadow-md whitespace-nowrap'>Most Popular</span>
+                          </div>
+                        )}
+
+                        {isTopTier && !isPopular && (
+                          <div className='absolute inset-x-0 -top-3 z-20 flex justify-center pointer-events-none'>
+                            <span className='rounded-full bg-gradient-to-r from-amber-500 to-lime-500 px-3 py-0.5 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-900 shadow-md whitespace-nowrap'>Luxury Tier</span>
+                          </div>
+                        )}
+
+                        <div className={cn(isAi ? 'rounded-t-[20px]' : 'rounded-t-[22px]', 'px-5 sm:px-6 pb-3.5 pt-5 sm:pt-6', isAi ? 'bg-gradient-pink-purple text-white' : isPopular ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white' : isTopTier ? 'bg-gradient-to-r from-amber-500 to-lime-500 text-slate-900' : 'bg-gradient-to-r from-slate-800 to-slate-900 text-white')}>
+                          <div className='flex items-center justify-between'>
+                            <h3 className='text-xl sm:text-2xl font-bold tracking-tight'>{plan.name}</h3>
+                          </div>
+                          <div className='mt-1.5 flex items-end gap-1.5'>
+                            <span className='text-3xl sm:text-4xl font-extrabold tracking-tight'>₹{displayPrice.toLocaleString('en-IN')}</span>
+                            <span className={cn('pb-0.5 text-xs font-semibold', isAi ? 'text-pink-100' : isPopular ? 'text-emerald-100' : isTopTier ? 'text-slate-800' : 'text-slate-200')}>{periodicLabel}</span>
+                          </div>
+                          <p className={cn('mt-1 text-[11px] sm:text-xs leading-normal line-clamp-1', isAi ? 'text-pink-100' : isPopular ? 'text-emerald-100' : isTopTier ? 'text-slate-800' : 'text-slate-300')}>
+                            {isAi ? 'Next-gen automated intelligence' : index === 0 ? 'Ideal for growing institutions' : index === 1 ? 'Best balance for active schools' : 'For large schools and districts'}
+                          </p>
                         </div>
-                      )}
 
-                      {isTopTier && !isPopular && (
-                        <div className='absolute inset-x-0 -top-3.5 z-20 flex justify-center pointer-events-none'>
-                          <span className='rounded-full bg-gradient-to-r from-amber-500 to-lime-500 px-3.5 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-900 shadow-md whitespace-nowrap'>Luxury Tier</span>
-                        </div>
-                      )}
+                        <div className={cn('flex flex-1 flex-col px-5 sm:px-6 py-4 sm:py-5 justify-between', isAi ? 'bg-white rounded-b-[20px]' : '')}>
+                          <ul className='space-y-2'>
+                            {featureList.map((feature) => (
+                              <li key={feature.label} className='flex items-center gap-2 text-xs text-slate-700'>
+                                <span className={cn('flex h-4 w-4 sm:h-4.5 sm:w-4.5 items-center justify-center rounded-full text-[10px] font-bold shrink-0', feature.enabled ? (isAi ? 'bg-pink-100 text-pink-600' : 'bg-emerald-100 text-emerald-600') : 'bg-rose-100 text-rose-500')}>
+                                  {feature.enabled ? '✓' : '✕'}
+                                </span>
+                                <span className={cn('leading-tight', feature.enabled ? 'text-slate-800 font-medium' : 'text-slate-400 line-through')}>{feature.label}</span>
+                              </li>
+                            ))}
+                          </ul>
 
-                      <div className={cn('rounded-t-[22px] px-5 pb-4 pt-7', isPopular ? 'bg-gradient-to-r from-violet-700 to-purple-700 text-white' : isTopTier ? 'bg-gradient-to-r from-amber-500 to-lime-500 text-slate-900' : 'bg-gradient-to-r from-slate-800 to-slate-900 text-white')}>
-                        <div className='flex items-center justify-between'>
-                          <h3 className='text-[1.75rem] font-bold tracking-[-0.04em]'>{plan.name}</h3>
+                          <div className='mt-5 pt-1'>
+                            <Button
+                              asChild
+                              className={cn(
+                                'h-10 sm:h-11 w-full rounded-xl border-0 text-xs sm:text-sm font-semibold shadow-md cursor-pointer transition-all hover:-translate-y-0.5',
+                                isAi ? 'bg-gradient-pink-purple text-white hover:brightness-105 shadow-pink-500/25' : isPopular ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white hover:brightness-110 shadow-emerald-500/20' : isTopTier ? 'bg-gradient-to-r from-amber-500 to-lime-500 text-slate-900 hover:brightness-105' : 'bg-slate-900 text-white hover:bg-slate-800'
+                              )}
+                            >
+                              <Link href='/signup'>
+                                Switch to {plan.name}
+                              </Link>
+                            </Button>
+                          </div>
                         </div>
-                        <div className='mt-2 flex items-end gap-2'>
-                          <span className='text-4xl font-black'>₹{displayPrice.toLocaleString('en-IN')}</span>
-                          <span className={cn('pb-1 text-sm font-medium', isPopular ? 'text-violet-100' : isTopTier ? 'text-slate-800' : 'text-slate-200')}>{periodicLabel}</span>
-                        </div>
-                        <p className={cn('mt-2 text-sm', isPopular ? 'text-violet-100' : isTopTier ? 'text-slate-800' : 'text-slate-300')}>
-                          {index === 0 ? 'Ideal for growing institutions' : index === 1 ? 'Best balance for active schools' : 'For large schools and districts'}
-                        </p>
                       </div>
-
-                      <div className='flex flex-1 flex-col px-5 pb-5 pt-5'>
-                        <ul className='space-y-3'>
-                          {featureList.map((feature) => (
-                            <li key={feature.label} className='flex items-center gap-3 text-sm text-slate-700'>
-                              <span className={cn('flex h-5 w-5 items-center justify-center rounded-full text-xs font-bold shrink-0', feature.enabled ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-500')}>
-                                {feature.enabled ? '✓' : '✕'}
-                              </span>
-                              <span className={cn(feature.enabled ? 'text-slate-800 font-medium' : 'text-slate-400 line-through')}>{feature.label}</span>
-                            </li>
-                          ))}
-                        </ul>
-
-                        <div className='mt-auto pt-6'>
-                          <Button
-                            asChild
-                            className={cn(
-                              'h-12 w-full rounded-xl border-0 text-base font-semibold shadow-md cursor-pointer',
-                              isPopular ? 'bg-gradient-to-r from-violet-700 to-purple-700 text-white hover:brightness-110' : isTopTier ? 'bg-gradient-to-r from-amber-500 to-lime-500 text-slate-900 hover:brightness-105' : 'bg-slate-900 text-white hover:bg-slate-800'
-                            )}
-                          >
-                            <Link href='/signup'>
-                              Switch to {plan.name}
-                            </Link>
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                });
-              })()}
-            </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
           </div>
         </section>
       </main>

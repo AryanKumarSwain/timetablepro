@@ -931,9 +931,6 @@ export default function AdminAttendancePage() {
               Active roster grid contains <span className="text-foreground font-black">{filteredTeachers.length}</span> faculty tracks.
             </p>
             <div className="flex flex-wrap gap-2 w-full sm:w-auto items-center">
-              <button onClick={() => window.print()} className="flex-1 sm:flex-initial inline-flex items-center justify-center h-10 px-4 rounded-xl border bg-card text-xs font-black uppercase tracking-wider gap-2">
-                <FileText className="h-4 w-4 text-destructive" /> Print Roster
-              </button>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button className="flex-1 sm:flex-initial inline-flex items-center justify-center h-10 px-4 rounded-xl bg-primary text-primary-foreground text-xs font-black uppercase tracking-wider gap-2 cursor-pointer">

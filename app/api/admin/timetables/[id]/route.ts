@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { Prisma } from '@prisma/client';
 import {
   requireSchoolAdmin,
   handleApiError,
@@ -59,7 +60,7 @@ export async function GET(_request: NextRequest, context: RouteContext) {
     ]);
 
     const finalPeriods = timetablePeriods;
-    const subjectIds = subjects.map((s) => s.id);
+    const subjectIds = subjects.map((s: any) => s.id);
 
     let parsedWorkingDays = [1, 2, 3, 4, 5];
     if (timetable.workingDays) {
@@ -82,7 +83,7 @@ export async function GET(_request: NextRequest, context: RouteContext) {
       baseStartTime: timetable.baseStartTime,
       periodDuration: timetable.periodDuration,
       workingDays: parsedWorkingDays,
-      periods: finalPeriods.map((p) => ({
+      periods: finalPeriods.map((p: any) => ({
         id: p.id,
         periodNumber: p.periodNumber,
         startTime: p.startTime,
@@ -90,33 +91,56 @@ export async function GET(_request: NextRequest, context: RouteContext) {
         isBreak: p.isBreak,
         label: p.isBreak ? (p.label || 'BREAK') : `Period ${p.periodNumber}`,
       })),
-      classes: classes.map((c) => ({
+      classes: classes.map((c: any) => ({
         id: c.id,
         name: c.name,
         grade: c.grade,
         section: c.section,
         roomNumber: c.roomNumber,
       })),
-      rooms: rooms.map((r) => ({
+      rooms: rooms.map((r: any) => ({
         id: r.id,
         roomNumber: r.roomNumber,
         name: r.roomNumber,
         floor: r.floor || undefined,
         block: r.block || undefined,
       })),
-      subjects: subjects.map((s) => ({
-        id: s.id,
-        name: s.name,
-        code: s.code,
-        color: subjectColor(s.id, subjectIds),
-      })),
-      teachers: teachers.map((t) => ({
-        id: t.id,
-        name: t.name,
-        email: t.email,
-        active: t.active,
-      })),
-      slots: timetable.slots.map((s) => ({
+      subjects: subjects.map((s: any) => {
+        let classIds: string[] = [];
+        if (Array.isArray(s.classIds)) classIds = s.classIds;
+        else if (typeof s.classIds === 'string') {
+          try { classIds = JSON.parse(s.classIds); } catch {}
+        }
+        return {
+          id: s.id,
+          name: s.name,
+          code: s.code,
+          classIds,
+          color: subjectColor(s.id, subjectIds),
+        };
+      }),
+      teachers: teachers.map((t: any) => {
+        let tSubjects: string[] = [];
+        if (Array.isArray(t.subjects)) tSubjects = t.subjects;
+        else if (typeof t.subjects === 'string') {
+          try { tSubjects = JSON.parse(t.subjects); } catch {}
+        }
+        let tClasses: string[] = [];
+        if (Array.isArray(t.classes)) tClasses = t.classes;
+        else if (typeof t.classes === 'string') {
+          try { tClasses = JSON.parse(t.classes); } catch {}
+        }
+        return {
+          id: t.id,
+          name: t.name,
+          email: t.email,
+          active: t.active,
+          subjects: tSubjects,
+          classes: tClasses,
+          subjectSpecialtyId: t.subjectSpecialtyId || undefined,
+        };
+      }),
+      slots: timetable.slots.map((s: any) => ({
         id: s.id,
         dayOfWeek: s.dayOfWeek,
         periodId: s.periodId,
@@ -171,7 +195,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       updateData.workingDays = workingDays;
     }
 
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       // 1. If publishing this timeline tracking matrix, demote other layouts
       if (status === 'PUBLISHED') {
         await tx.timetable.updateMany({
@@ -291,7 +315,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       baseStartTime: updated.baseStartTime,
       periodDuration: updated.periodDuration,
       workingDays: updated.workingDays,
-      periods: updated.periods.map(p => ({
+      periods: updated.periods.map((p: any) => ({
         id: p.id,
         periodNumber: p.periodNumber,
         startTime: p.startTime,

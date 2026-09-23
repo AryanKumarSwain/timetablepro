@@ -17,6 +17,7 @@ export interface Teacher {
   phone: string;
   qualifications: string[];
   subjects: string[];
+  classes?: string[];
   active: boolean;
   joinDate: string;
   maxPeriodsPerWeek?: number;
@@ -31,6 +32,7 @@ export interface Subject {
   id: string;
   name: string;
   code: string;
+  classIds?: string[];
   credits: number;
   description?: string;
 }
@@ -73,6 +75,7 @@ export interface SaasPlan {
   attendanceEnabled: boolean;
   homeworkEnabled: boolean;
   lessonPlanningEnabled?: boolean;
+  aiTimetableEnabled?: boolean;
   exportFormats: string[];
   watermarkRequired: boolean;
   schoolCount: number;

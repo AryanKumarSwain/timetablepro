@@ -37,6 +37,50 @@ export async function POST(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
+    // Prevent teacher double-booking at the same day & period in another class
+    const teacherConflict = await prisma.timetableSlot.findFirst({
+      where: {
+        timetableId,
+        dayOfWeek,
+        periodId,
+        teacherId,
+        classId: { not: classId },
+      },
+      include: {
+        class: true,
+      },
+    });
+
+    if (teacherConflict) {
+      return NextResponse.json(
+        { error: `Teacher is already assigned to ${teacherConflict.class.name} at this time.` },
+        { status: 409 }
+      );
+    }
+
+    // Prevent room double-booking at the same day & period in another class
+    if (roomId) {
+      const roomConflict = await prisma.timetableSlot.findFirst({
+        where: {
+          timetableId,
+          dayOfWeek,
+          periodId,
+          roomId,
+          classId: { not: classId },
+        },
+        include: {
+          class: true,
+        },
+      });
+
+      if (roomConflict) {
+        return NextResponse.json(
+          { error: `Room is already occupied by ${roomConflict.class.name} at this time.` },
+          { status: 409 }
+        );
+      }
+    }
+
     const slot = await prisma.timetableSlot.upsert({
       where: {
         timetableId_dayOfWeek_periodId_classId: {

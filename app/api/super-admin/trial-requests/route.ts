@@ -131,7 +131,7 @@ export async function PATCH(request: NextRequest) {
       await prisma.notification.create({
         data: {
           title: 'Trial Request Declined',
-          message: 'Your trial request has been declined by the super administrator.',
+          message: 'Your trial request has been declined by Team Timetable Pro.',
           type: 'SYSTEM',
           scope: 'ALL_ADMINS',
           schoolId: school.id,

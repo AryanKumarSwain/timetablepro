@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Edit, Plus, Trash2, Check, X, Crown, History, RotateCw } from 'lucide-react';
+import { Edit, Plus, Trash2, Check, X, Crown, History, RotateCw, Sparkles, ArrowUp, ArrowDown } from 'lucide-react';
 
 import { useRequireAuth } from '@/lib/auth-context';
 import { PageHeader } from '@/components/enterprise/page-header';
@@ -31,6 +31,7 @@ import {
   deleteSuperAdminPlan,
   getSuperAdminPlans,
   updateSuperAdminPlan,
+  reorderSuperAdminPlans,
   type SaasPlan,
 } from '@/lib/api-services';
 
@@ -100,6 +101,7 @@ const FEATURE_FLAGS = [
   { field: 'attendanceEnabled',     label: 'Attendance' },
   { field: 'homeworkEnabled',       label: 'Homework' },
   { field: 'lessonPlanningEnabled', label: 'Lesson Planning' },
+  { field: 'aiTimetableEnabled',    label: 'Generate Timetable with AI' },
   { field: 'watermarkRequired',     label: 'Watermark required on exported documents' },
 ] as const;
 
@@ -114,6 +116,7 @@ const emptyForm = {
   attendanceEnabled:    true,
   homeworkEnabled:      true,
   lessonPlanningEnabled: true,
+  aiTimetableEnabled:   false,
   watermarkRequired:    false,
   exportFormats:        [] as string[],
 };
@@ -288,7 +291,41 @@ export default function PlansPage() {
     fetchCustomPlanHistory();
   }, []);
 
-  const planRows = useMemo(() => plans, [plans]);
+  const [reordering, setReordering] = useState(false);
+
+  const planRows = useMemo(() => {
+    return [...plans].sort((a, b) => (a.orderIndex ?? 0) - (b.orderIndex ?? 0));
+  }, [plans]);
+
+  const handleMovePlan = async (index: number, direction: 'up' | 'down') => {
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= planRows.length) return;
+
+    const currentItem = planRows[index];
+    const targetItem = planRows[targetIndex];
+
+    const newRows = [...planRows];
+    newRows[index] = targetItem;
+    newRows[targetIndex] = currentItem;
+
+    // Sequential re-indexing
+    const updatedWithOrder = newRows.map((p, idx) => ({
+      ...p,
+      orderIndex: idx,
+    }));
+
+    setPlans(updatedWithOrder);
+    setReordering(true);
+    try {
+      await reorderSuperAdminPlans(updatedWithOrder.map((p) => p.id));
+      toast.success(`Moved ${currentItem.name} ${direction}. Order updated.`);
+    } catch (err: any) {
+      toast.error('Failed to update plan order. Reverting...');
+      fetchPlans();
+    } finally {
+      setReordering(false);
+    }
+  };
 
   // Check for duplicate plan names
   const duplicateNames = useMemo(() => {
@@ -298,6 +335,8 @@ export default function PlansPage() {
     }, {} as Record<string, number>);
     return Object.entries(nameCounts).filter(([_, count]) => Number(count) > 1).map(([name]) => name);
   }, [plans]);
+
+  const isSelectedCustom = Boolean(selectedPlan?.id === 'plan-custom' || selectedPlan?.name?.toLowerCase() === 'custom');
 
   // ── Form helpers ───────────────────────────────────────────────────────────
 
@@ -321,6 +360,7 @@ export default function PlansPage() {
       attendanceEnabled:     plan.attendanceEnabled     ?? true,
       homeworkEnabled:       plan.homeworkEnabled       ?? true,
       lessonPlanningEnabled: plan.lessonPlanningEnabled ?? true,
+      aiTimetableEnabled:    plan.aiTimetableEnabled    ?? false,
       watermarkRequired:     plan.watermarkRequired     ?? false,
       exportFormats:         plan.exportFormats         ?? [],
     });
@@ -352,6 +392,11 @@ export default function PlansPage() {
   // ── Validation ─────────────────────────────────────────────────────────────
 
   const validateForm = (): boolean => {
+    if (isSelectedCustom) {
+      setFormErrors({});
+      return true;
+    }
+
     const errors: Partial<Record<keyof PlanForm, string>> = {};
     const name        = formValues.name.trim();
     const teacherMin  = parseNumber(formValues.teacherMin);
@@ -377,18 +422,33 @@ export default function PlansPage() {
   const handleFormSubmit = async () => {
     if (!validateForm()) return;
 
-    const payload = {
-      name:              formValues.name.trim(),
-      teacherMin:        parseNumber(formValues.teacherMin),
-      teacherMax:        parseNumber(formValues.teacherMax),
-      priceMonthly:      parseNumber(formValues.priceMonthly),
-      reportEnabled:         formValues.reportEnabled,
-      attendanceEnabled:     formValues.attendanceEnabled,
-      homeworkEnabled:       formValues.homeworkEnabled,
-      lessonPlanningEnabled: formValues.lessonPlanningEnabled,
-      watermarkRequired:     formValues.watermarkRequired,
-      exportFormats:         formValues.exportFormats,
-    };
+    const payload = isSelectedCustom
+      ? {
+          name:                  selectedPlan?.name || 'Custom',
+          teacherMin:            selectedPlan?.teacherMin || 101,
+          teacherMax:            selectedPlan?.teacherMax || 999999,
+          priceMonthly:          Number(selectedPlan?.priceMonthly || 0),
+          reportEnabled:         formValues.reportEnabled,
+          attendanceEnabled:     formValues.attendanceEnabled,
+          homeworkEnabled:       formValues.homeworkEnabled,
+          lessonPlanningEnabled: formValues.lessonPlanningEnabled,
+          aiTimetableEnabled:    formValues.aiTimetableEnabled,
+          watermarkRequired:     formValues.watermarkRequired,
+          exportFormats:         formValues.exportFormats,
+        }
+      : {
+          name:                  formValues.name.trim(),
+          teacherMin:            parseNumber(formValues.teacherMin),
+          teacherMax:            parseNumber(formValues.teacherMax),
+          priceMonthly:          parseNumber(formValues.priceMonthly),
+          reportEnabled:         formValues.reportEnabled,
+          attendanceEnabled:     formValues.attendanceEnabled,
+          homeworkEnabled:       formValues.homeworkEnabled,
+          lessonPlanningEnabled: formValues.lessonPlanningEnabled,
+          aiTimetableEnabled:    formValues.aiTimetableEnabled,
+          watermarkRequired:     formValues.watermarkRequired,
+          exportFormats:         formValues.exportFormats,
+        };
 
     setSaving(true);
     try {
@@ -615,6 +675,7 @@ export default function PlansPage() {
           <Table>
             <TableHeader>
               <tr>
+                <TableHead className='w-20 text-center'>Order</TableHead>
                 <TableHead>Plan name</TableHead>
                 <TableHead>Teacher range</TableHead>
                 <TableHead>Monthly price</TableHead>
@@ -627,70 +688,136 @@ export default function PlansPage() {
             <TableBody>
               {planRows.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className='py-6 text-center text-sm text-muted-foreground'>
+                  <TableCell colSpan={8} className='py-6 text-center text-sm text-muted-foreground'>
                     No subscription plans are configured yet.
                   </TableCell>
                 </TableRow>
               ) : (
-                planRows.map((plan) => {
+                planRows.map((plan, idx) => {
                   const isDuplicate = duplicateNames.includes(plan.name);
+                  const isCustom = plan.id === 'plan-custom' || plan.name?.toLowerCase() === 'custom';
+
                   return (
-                    <TableRow key={plan.id} className={isDuplicate ? 'bg-amber-50/50 dark:bg-amber-950/20' : ''}>
+                    <TableRow
+                      key={plan.id}
+                      className={
+                        isCustom
+                          ? 'bg-purple-50/50 dark:bg-purple-950/20 border-l-4 border-l-purple-500'
+                          : isDuplicate
+                            ? 'bg-amber-50/50 dark:bg-amber-950/20'
+                            : ''
+                      }
+                    >
+                      <TableCell className='w-20'>
+                        <div className='flex items-center justify-center gap-0.5'>
+                          <Button
+                            variant='ghost'
+                            size='icon'
+                            className='h-7 w-7 text-muted-foreground hover:text-foreground hover:bg-muted/60 disabled:opacity-20 cursor-pointer'
+                            disabled={idx === 0 || reordering}
+                            onClick={() => handleMovePlan(idx, 'up')}
+                            title='Move plan up'
+                          >
+                            <ArrowUp className='w-3.5 h-3.5' />
+                          </Button>
+                          <Button
+                            variant='ghost'
+                            size='icon'
+                            className='h-7 w-7 text-muted-foreground hover:text-foreground hover:bg-muted/60 disabled:opacity-20 cursor-pointer'
+                            disabled={idx === planRows.length - 1 || reordering}
+                            onClick={() => handleMovePlan(idx, 'down')}
+                            title='Move plan down'
+                          >
+                            <ArrowDown className='w-3.5 h-3.5' />
+                          </Button>
+                        </div>
+                      </TableCell>
                       <TableCell className='font-medium'>
-                        {plan.name}
-                        {isDuplicate && (
-                          <Badge variant='outline' className='ml-2 text-xs text-amber-600 border-amber-500/50'>
-                            Duplicate
-                          </Badge>
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold">{plan.name}</span>
+                          {isCustom && (
+                            <Badge className="bg-purple-600 hover:bg-purple-600 text-white text-[10px] uppercase font-bold tracking-wider">
+                              Custom Catalog
+                            </Badge>
+                          )}
+                          {isDuplicate && !isCustom && (
+                            <Badge variant='outline' className='text-xs text-amber-600 border-amber-500/50'>
+                              Duplicate
+                            </Badge>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        {isCustom ? (
+                          <span className="inline-flex items-center text-xs font-semibold text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/60 px-2.5 py-1 rounded-md border border-purple-200 dark:border-purple-800">
+                            Custom per school
+                          </span>
+                        ) : (
+                          formatTeacherRange(plan.teacherMin, plan.teacherMax)
                         )}
                       </TableCell>
-                      <TableCell>{formatTeacherRange(plan.teacherMin, plan.teacherMax)}</TableCell>
-                      <TableCell>₹{plan.priceMonthly.toFixed(2)}</TableCell>
-
-                    {/* Feature flags summary */}
-                    <TableCell>
-                      <div className='flex flex-wrap gap-1'>
-                        {plan.reportEnabled         && <Badge variant='secondary' className='text-xs'>Reports</Badge>}
-                        {plan.attendanceEnabled     && <Badge variant='secondary' className='text-xs'>Attendance</Badge>}
-                        {plan.homeworkEnabled       && <Badge variant='secondary' className='text-xs'>Homework</Badge>}
-                        {plan.lessonPlanningEnabled && <Badge variant='secondary' className='text-xs'>Lesson Planning</Badge>}
-                        {plan.watermarkRequired ? (
-                          <Badge variant='outline' className='text-xs border-amber-500/40 text-amber-600 dark:text-amber-400'>
-                            Watermark
-                          </Badge>
+                      <TableCell>
+                        {isCustom ? (
+                          <span className="inline-flex items-center text-xs font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 px-2.5 py-1 rounded-md border border-emerald-200 dark:border-emerald-800">
+                            Custom quote
+                          </span>
                         ) : (
-                          <Badge variant='outline' className='text-xs border-emerald-500/40 text-emerald-600 dark:text-emerald-400'>
-                            No Watermark
-                          </Badge>
+                          `₹${plan.priceMonthly.toFixed(2)}`
                         )}
-                      </div>
-                    </TableCell>
+                      </TableCell>
 
-                    {/* Export formats summary */}
-                    <TableCell>
-                      <div className='flex flex-wrap gap-1'>
-                        {(plan.exportFormats ?? []).length === 0 ? (
-                          <span className='text-xs text-muted-foreground italic'>None</span>
-                        ) : (
-                          (plan.exportFormats ?? []).map((fmt) => (
-                            <Badge key={fmt} variant='outline' className='text-xs font-semibold uppercase'>
-                              {fmt === 'docx' ? 'DOCX' : fmt}
+                      {/* Feature flags summary */}
+                      <TableCell>
+                        <div className='flex flex-wrap gap-1'>
+                          {plan.reportEnabled         && <Badge variant='secondary' className='text-xs'>Reports</Badge>}
+                          {plan.attendanceEnabled     && <Badge variant='secondary' className='text-xs'>Attendance</Badge>}
+                          {plan.homeworkEnabled       && <Badge variant='secondary' className='text-xs'>Homework</Badge>}
+                          {plan.lessonPlanningEnabled && <Badge variant='secondary' className='text-xs'>Lesson Planning</Badge>}
+                          {plan.aiTimetableEnabled    && <Badge variant='secondary' className='text-xs bg-purple-500/10 text-purple-700 dark:text-purple-400 border border-purple-500/20'>AI Timetable</Badge>}
+                          {plan.watermarkRequired ? (
+                            <Badge variant='outline' className='text-xs border-amber-500/40 text-amber-600 dark:text-amber-400'>
+                              Watermark
                             </Badge>
-                          ))
-                        )}
-                      </div>
-                    </TableCell>
+                          ) : (
+                            <Badge variant='outline' className='text-xs border-emerald-500/40 text-emerald-600 dark:text-emerald-400'>
+                              No Watermark
+                            </Badge>
+                          )}
+                        </div>
+                      </TableCell>
 
-                    <TableCell>{plan.schoolCount}</TableCell>
-                    <TableCell className='text-right space-x-2'>
-                      <Button variant='outline' size='sm' onClick={() => openEdit(plan)}>
-                        <Edit className='w-4 h-4' />
-                      </Button>
-                      <Button variant='destructive' size='sm' onClick={() => openDelete(plan)}>
-                        <Trash2 className='w-4 h-4' />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
+                      {/* Export formats summary */}
+                      <TableCell>
+                        <div className='flex flex-wrap gap-1'>
+                          {(plan.exportFormats ?? []).length === 0 ? (
+                            <span className='text-xs text-muted-foreground italic'>None</span>
+                          ) : (
+                            (plan.exportFormats ?? []).map((fmt) => (
+                              <Badge key={fmt} variant='outline' className='text-xs font-semibold uppercase'>
+                                {fmt === 'docx' ? 'DOCX' : fmt}
+                              </Badge>
+                            ))
+                          )}
+                        </div>
+                      </TableCell>
+
+                      <TableCell>{plan.schoolCount}</TableCell>
+                      <TableCell className='text-right space-x-2'>
+                        <Button
+                          variant='outline'
+                          size='sm'
+                          onClick={() => openEdit(plan)}
+                          title={isCustom ? 'Configure Custom Plan Features' : 'Edit Plan'}
+                        >
+                          <Edit className='w-4 h-4' />
+                        </Button>
+                        {!isCustom && (
+                          <Button variant='destructive' size='sm' onClick={() => openDelete(plan)}>
+                            <Trash2 className='w-4 h-4' />
+                          </Button>
+                        )}
+                      </TableCell>
+                    </TableRow>
                   );
                 })
               )}
@@ -704,76 +831,117 @@ export default function PlansPage() {
         <DialogContent className='max-w-lg'>
           <DialogHeader>
             <DialogTitle>
-              {formMode === 'create' ? 'Create new plan' : 'Edit plan'}
+              {isSelectedCustom
+                ? 'Edit Custom Plan Catalog Features'
+                : formMode === 'create'
+                  ? 'Create new plan'
+                  : 'Edit plan'}
             </DialogTitle>
             <DialogDescription className='sr-only'>Plan creation and editing configuration</DialogDescription>
           </DialogHeader>
 
           <div className='space-y-5'>
-            {/* Name */}
-            <div className='grid gap-2'>
-              <Label htmlFor='plan-name'>Plan name</Label>
-              <Input
-                id='plan-name'
-                value={formValues.name}
-                onChange={(e) => setFormValues((c) => ({ ...c, name: e.target.value }))}
-              />
-              {formErrors.name && <p className='text-sm text-destructive'>{formErrors.name}</p>}
-            </div>
+            {/* Custom Plan Informational Banner */}
+            {isSelectedCustom ? (
+              <div className='p-3.5 bg-purple-50/80 dark:bg-purple-950/30 rounded-xl border border-purple-200 dark:border-purple-800 text-xs text-purple-900 dark:text-purple-200 space-y-1.5'>
+                <p className='font-bold flex items-center gap-1.5 text-purple-700 dark:text-purple-300'>
+                  <Sparkles className='w-4 h-4' />
+                  Custom Plan Catalog (Features Only)
+                </p>
+                <p className='text-muted-foreground leading-relaxed'>
+                  Teacher capacity and monthly subscription price are dynamic and quoted per school request. Here you can configure the exact platform feature gates and export formats included for all Custom Plan schools.
+                </p>
+              </div>
+            ) : (
+              /* Name */
+              <div className='grid gap-2'>
+                <Label htmlFor='plan-name'>Plan name</Label>
+                <Input
+                  id='plan-name'
+                  value={formValues.name}
+                  onChange={(e) => setFormValues((c) => ({ ...c, name: e.target.value }))}
+                />
+                {formErrors.name && <p className='text-sm text-destructive'>{formErrors.name}</p>}
+              </div>
+            )}
 
             {/* Plan Summary Display */}
             <div className='grid gap-2'>
               <Label>Plan Summary</Label>
               <div className='p-3 bg-slate-50 dark:bg-slate-900 rounded-md border border-slate-200 dark:border-slate-800 text-xs'>
-                <p className='font-semibold mb-1'>{formValues.name || 'Plan Name'}: {formValues.teacherMin}-{formValues.teacherMax} Teachers, ₹{formValues.priceMonthly}</p>
+                <p className='font-semibold mb-1'>
+                  {isSelectedCustom ? 'Custom Plan (Enterprise)' : formValues.name || 'Plan Name'}:{' '}
+                  {isSelectedCustom ? 'Custom per school' : `${formValues.teacherMin}-${formValues.teacherMax} Teachers`},{' '}
+                  {isSelectedCustom ? 'Custom Quote' : `₹${formValues.priceMonthly}`}
+                </p>
                 <p className='mb-1'>
-                  {formValues.reportEnabled ? 'Unlocked' : 'Locked'}: Reports, {formValues.attendanceEnabled ? 'Unlocked' : 'Locked'}: Attendance, {formValues.homeworkEnabled ? 'Unlocked' : 'Locked'}: Homework
+                  {formValues.reportEnabled ? 'Unlocked' : 'Locked'}: Reports,{' '}
+                  {formValues.attendanceEnabled ? 'Unlocked' : 'Locked'}: Attendance,{' '}
+                  {formValues.homeworkEnabled ? 'Unlocked' : 'Locked'}: Homework,{' '}
+                  {formValues.lessonPlanningEnabled ? 'Unlocked' : 'Locked'}: Lesson Planning,{' '}
+                  {formValues.aiTimetableEnabled ? 'Unlocked' : 'Locked'}: AI Timetable
                 </p>
                 <p>Allowed Exports: {formValues.exportFormats.length > 0 ? formValues.exportFormats.map((fmt) => fmt === 'word' ? 'Word' : fmt.toUpperCase()).join(', ') : 'None'}, Watermark: {formValues.watermarkRequired ? 'True' : 'False'}</p>
               </div>
             </div>
 
-            {/* Teacher range */}
-            <div className='grid gap-2 grid-cols-2'>
-              <div className='grid gap-2'>
-                <Label htmlFor='teacher-min'>Min teachers</Label>
-                <Input
-                  id='teacher-min'
-                  type='number'
-                  value={formValues.teacherMin}
-                  onChange={(e) => setFormValues((c) => ({ ...c, teacherMin: e.target.value }))}
-                />
-                {formErrors.teacherMin && (
-                  <p className='text-sm text-destructive'>{formErrors.teacherMin}</p>
-                )}
+            {/* Teacher range - hidden for Custom Plan */}
+            {!isSelectedCustom && (
+              <div className='grid gap-2 grid-cols-2'>
+                <div className='grid gap-2'>
+                  <Label htmlFor='teacher-min'>Min teachers</Label>
+                  <Input
+                    id='teacher-min'
+                    type='number'
+                    value={formValues.teacherMin}
+                    onChange={(e) => setFormValues((c) => ({ ...c, teacherMin: e.target.value }))}
+                  />
+                  {formErrors.teacherMin && (
+                    <p className='text-sm text-destructive'>{formErrors.teacherMin}</p>
+                  )}
+                </div>
+                <div className='grid gap-2'>
+                  <Label htmlFor='teacher-max'>Max teachers</Label>
+                  <Input
+                    id='teacher-max'
+                    type='number'
+                    value={formValues.teacherMax}
+                    onChange={(e) => setFormValues((c) => ({ ...c, teacherMax: e.target.value }))}
+                  />
+                  {formErrors.teacherMax && (
+                    <p className='text-sm text-destructive'>{formErrors.teacherMax}</p>
+                  )}
+                </div>
               </div>
-              <div className='grid gap-2'>
-                <Label htmlFor='teacher-max'>Max teachers</Label>
-                <Input
-                  id='teacher-max'
-                  type='number'
-                  value={formValues.teacherMax}
-                  onChange={(e) => setFormValues((c) => ({ ...c, teacherMax: e.target.value }))}
-                />
-                {formErrors.teacherMax && (
-                  <p className='text-sm text-destructive'>{formErrors.teacherMax}</p>
-                )}
-              </div>
-            </div>
+            )}
 
-            {/* Price */}
-            <div className='grid gap-2'>
-              <Label htmlFor='price-monthly'>Monthly price (₹)</Label>
-              <Input
-                id='price-monthly'
-                type='number'
-                value={formValues.priceMonthly}
-                onChange={(e) => setFormValues((c) => ({ ...c, priceMonthly: e.target.value }))}
-              />
-              {formErrors.priceMonthly && (
-                <p className='text-sm text-destructive'>{formErrors.priceMonthly}</p>
-              )}
-            </div>
+            {/* Price - hidden for Custom Plan */}
+            {!isSelectedCustom && (
+              <div className='grid gap-2'>
+                <div className='flex items-center justify-between'>
+                  <Label htmlFor='price-monthly'>Monthly price (₹)</Label>
+                  {formMode === 'edit' && (
+                    <span className='text-[11px] text-muted-foreground'>
+                      Active schools keep current price until period ends
+                    </span>
+                  )}
+                </div>
+                <Input
+                  id='price-monthly'
+                  type='number'
+                  value={formValues.priceMonthly}
+                  onChange={(e) => setFormValues((c) => ({ ...c, priceMonthly: e.target.value }))}
+                />
+                {formErrors.priceMonthly && (
+                  <p className='text-sm text-destructive'>{formErrors.priceMonthly}</p>
+                )}
+                {formMode === 'edit' && (
+                  <p className='text-[11px] text-muted-foreground bg-muted/40 p-2 rounded border border-border/40'>
+                    💡 <strong>Active Subscription Protection:</strong> Changing this price will not increase the rate for currently active schools on this plan. They will continue to see and pay their existing subscribed price until their current subscription expires.
+                  </p>
+                )}
+              </div>
+            )}
 
             {/* Feature flags */}
             <div className='space-y-3'>
@@ -819,7 +987,7 @@ export default function PlansPage() {
               <Button variant='outline' disabled={saving}>Cancel</Button>
             </DialogClose>
             <Button onClick={handleFormSubmit} disabled={saving}>
-              {saving ? 'Saving…' : formMode === 'create' ? 'Create plan' : 'Save changes'}
+              {saving ? 'Saving…' : isSelectedCustom ? 'Save Custom Features' : formMode === 'create' ? 'Create plan' : 'Save changes'}
             </Button>
           </DialogFooter>
         </DialogContent>

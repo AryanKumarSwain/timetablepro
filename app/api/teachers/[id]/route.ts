@@ -36,12 +36,13 @@ export async function PATCH(request: NextRequest, { params }: Params) {
       }
     }
 
-    const nextSubjects = normalizeStringArray(body.subjects);
+    const nextSubjects = body.subjects !== undefined ? normalizeStringArray(body.subjects) : undefined;
+    const nextClasses = body.classes !== undefined ? normalizeStringArray(body.classes) : undefined;
     const nextQualifications = normalizeStringArray(body.qualifications);
     const nextSubjectSpecialtyId =
       typeof body.subjectSpecialtyId === 'string' && body.subjectSpecialtyId
         ? body.subjectSpecialtyId
-        : nextSubjects[0] ?? existing.subjectSpecialtyId;
+        : (nextSubjects && nextSubjects[0]) ?? existing.subjectSpecialtyId;
 
     const row = await prisma.teacher.update({
       where: { id },
@@ -57,7 +58,8 @@ export async function PATCH(request: NextRequest, { params }: Params) {
           nextQualifications.length > 0
             ? (nextQualifications as any)
             : existing.qualifications,
-        subjects: nextSubjects.length > 0 ? (nextSubjects as any) : existing.subjects,
+        subjects: nextSubjects !== undefined ? (nextSubjects as any) : existing.subjects,
+        classes: nextClasses !== undefined ? (nextClasses as any) : (existing as any).classes,
         active: typeof body.active === 'boolean' ? body.active : existing.active,
         joinDate:
           typeof body.joinDate === 'string' && body.joinDate

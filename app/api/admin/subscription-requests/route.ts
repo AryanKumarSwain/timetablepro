@@ -85,6 +85,8 @@ export async function POST(request: NextRequest) {
       ? new Date(now.getFullYear() + 1, now.getMonth(), now.getDate())
       : new Date(now.getFullYear(), now.getMonth() + 1, now.getDate());
 
+    const targetPlan = await prisma.saaSPlan.findUnique({ where: { id: planId } });
+
     await prisma.$transaction([
       prisma.subscriptionTransaction.create({
         data: {
@@ -105,6 +107,7 @@ export async function POST(request: NextRequest) {
         data: hasActivePlan
           ? {
               planId,
+              subscribedPlanPrice: targetPlan?.priceMonthly ?? null,
               customTeacherLimit: null,
               planStartsAt: newPlanStartsAt,
               planEndsAt: newPlanEndsAt,
@@ -116,6 +119,7 @@ export async function POST(request: NextRequest) {
             }
           : {
               planId,
+              subscribedPlanPrice: targetPlan?.priceMonthly ?? null,
               customTeacherLimit: null,
               planStartsAt: newPlanStartsAt,
               planEndsAt: newPlanEndsAt,

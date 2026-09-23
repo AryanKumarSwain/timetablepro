@@ -44,6 +44,7 @@ export async function checkAndUpdateSchoolPlanExpiry(schoolId: string) {
       where: { id: school.id },
       data: {
         planId: school.pausedPlanId,
+        subscribedPlanPrice: school.pausedPlan?.priceMonthly ?? null,
         planStartsAt: resumeStartsAt,
         planEndsAt: resumeEndsAt,
         pausedPlanId: null,
@@ -87,6 +88,7 @@ export async function checkAndUpdateSchoolPlanExpiry(schoolId: string) {
       where: { id: school.id },
       data: {
         planId: school.queuedPlanId,
+        subscribedPlanPrice: school.queuedPlan?.priceMonthly ?? null,
         planStartsAt: now,
         planEndsAt: queuedPlanEndsAt,
         queuedPlanId: null,
@@ -144,6 +146,7 @@ export async function checkAndUpdateSchoolPlanExpiry(schoolId: string) {
     where: { id: school.id },
     data: {
       planId: freePlan.id,
+      subscribedPlanPrice: null,
       customTeacherLimit: null,
       planStartsAt: null,
       planEndsAt: null,

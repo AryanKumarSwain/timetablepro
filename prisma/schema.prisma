@@ -9,6 +9,7 @@ generator client {
 model SaaSPlan {
 	id               String   @id @default(uuid())
 	name             String
+	orderIndex       Int      @default(0)
 	teacherMin       Int
 	teacherMax       Int
 	priceMonthly     Decimal  @db.Decimal(10, 2)
@@ -16,6 +17,7 @@ model SaaSPlan {
 	attendanceEnabled  Boolean  @default(false)
 	homeworkEnabled    Boolean  @default(false)
 	lessonPlanningEnabled Boolean @default(false)
+	aiTimetableEnabled    Boolean @default(false)
 	exportFormats      Json     @default("[]")
 	watermarkRequired  Boolean  @default(true)
 	schools          School[]
@@ -50,6 +52,7 @@ model School {
 	pausedPlan            SaaSPlan?               @relation("SchoolPausedPlan", fields: [pausedPlanId], references: [id])
 	pausedPlanRemainingSeconds Int?
 	customTeacherLimit    Int?
+	subscribedPlanPrice   Decimal?                @db.Decimal(10, 2)
 	trialEndsAt           DateTime?
 	trialPlanId           String?
 	trialPlan             SaaSPlan?               @relation("SchoolTrialPlan", fields: [trialPlanId], references: [id])
@@ -225,6 +228,7 @@ model Teacher {
 	phone                String
 	qualifications       Json            @default("[]")
 	subjects             Json            @default("[]")
+	classes              Json            @default("[]")
 	active               Boolean         @default(true)
 	joinDate             String
 	maxPeriodsPerWeek    Int             @default(24)
@@ -251,6 +255,7 @@ model Subject {
 	school        School         @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 	name          String
 	code          String
+	classIds      Json           @default("[]")
 	weeklySlots   WeeklyTimetableSlot[]
 	reportEntries ReportEntry[]
 	timetableSlots TimetableSlot[]

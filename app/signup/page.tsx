@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { Sparkles, Shield, GraduationCap, CheckCircle2, CalendarRange, School, Users, BarChart3, ArrowLeft } from 'lucide-react';
+import { Sparkles, Shield, GraduationCap, CheckCircle2, CalendarRange, School, Users, BarChart3, ArrowLeft, Eye, EyeOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -95,6 +95,9 @@ export default function SignupPage() {
   const [phone, setPhone] = useState('');
   const [countryCode, setCountryCode] = useState('+1');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const [otp, setOtp] = useState('');
   const [pendingEmail, setPendingEmail] = useState('');
@@ -164,9 +167,28 @@ export default function SignupPage() {
   const handleEmailSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     if (loading) return;
-    setLoading(true);
     setFormError('');
     setFieldErrors({});
+
+    const clientErrors: FieldErrors = {};
+    if (!password) {
+      clientErrors.password = 'Password is required';
+    } else if (password.length < 6) {
+      clientErrors.password = 'Password must be at least 6 characters';
+    }
+
+    if (!confirmPassword) {
+      clientErrors.confirmPassword = 'Confirm your password';
+    } else if (password && confirmPassword && password !== confirmPassword) {
+      clientErrors.confirmPassword = 'Passwords do not match';
+    }
+
+    if (Object.keys(clientErrors).length > 0) {
+      setFieldErrors(clientErrors);
+      return;
+    }
+
+    setLoading(true);
 
     try {
       const res = await fetch('/api/auth/signup', {
@@ -436,17 +458,70 @@ export default function SignupPage() {
 
                   <div>
                     <label className='mb-2 block text-sm font-medium text-slate-700'>Password</label>
-                    <Input
-                      type='password'
-                      minLength={6}
-                      className='h-12 rounded-xl border-slate-200 bg-slate-50 text-slate-900 placeholder:text-slate-400 focus-visible:ring-blue-500'
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      required
-                      disabled={loading}
-                      placeholder='••••••••'
-                    />
+                    <div className='relative'>
+                      <Input
+                        type={showPassword ? 'text' : 'password'}
+                        minLength={6}
+                        className='h-12 rounded-xl border-slate-200 bg-slate-50 pr-11 text-slate-900 placeholder:text-slate-400 focus-visible:ring-blue-500'
+                        value={password}
+                        onChange={(e) => {
+                          setPassword(e.target.value);
+                          if (fieldErrors.password) {
+                            setFieldErrors((prev) => {
+                              const copy = { ...prev };
+                              delete copy.password;
+                              return copy;
+                            });
+                          }
+                        }}
+                        required
+                        disabled={loading}
+                        placeholder='••••••••'
+                      />
+                      <button
+                        type='button'
+                        aria-label={showPassword ? 'Hide password' : 'Show password'}
+                        className='absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 transition-colors hover:text-slate-600 focus:outline-none'
+                        onClick={() => setShowPassword((v) => !v)}
+                      >
+                        {showPassword ? <EyeOff className='h-4 w-4' /> : <Eye className='h-4 w-4' />}
+                      </button>
+                    </div>
                     {fieldErrors.password && <p className='mt-1 text-xs text-rose-500'>{fieldErrors.password}</p>}
+                  </div>
+
+                  <div>
+                    <label className='mb-2 block text-sm font-medium text-slate-700'>Confirm Password</label>
+                    <div className='relative'>
+                      <Input
+                        type={showConfirmPassword ? 'text' : 'password'}
+                        minLength={6}
+                        className='h-12 rounded-xl border-slate-200 bg-slate-50 pr-11 text-slate-900 placeholder:text-slate-400 focus-visible:ring-blue-500'
+                        value={confirmPassword}
+                        onChange={(e) => {
+                          setConfirmPassword(e.target.value);
+                          if (fieldErrors.confirmPassword) {
+                            setFieldErrors((prev) => {
+                              const copy = { ...prev };
+                              delete copy.confirmPassword;
+                              return copy;
+                            });
+                          }
+                        }}
+                        required
+                        disabled={loading}
+                        placeholder='••••••••'
+                      />
+                      <button
+                        type='button'
+                        aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+                        className='absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 transition-colors hover:text-slate-600 focus:outline-none'
+                        onClick={() => setShowConfirmPassword((v) => !v)}
+                      >
+                        {showConfirmPassword ? <EyeOff className='h-4 w-4' /> : <Eye className='h-4 w-4' />}
+                      </button>
+                    </div>
+                    {fieldErrors.confirmPassword && <p className='mt-1 text-xs text-rose-500'>{fieldErrors.confirmPassword}</p>}
                   </div>
 
                   <div>

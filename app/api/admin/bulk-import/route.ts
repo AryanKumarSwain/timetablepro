@@ -55,6 +55,10 @@ export async function POST(request: NextRequest) {
     };
 
     if (entity === 'subjects') {
+      const schoolClasses = await client.classRoom.findMany({
+        where: schoolWhere(schoolId),
+      });
+
       for (let i = 0; i < rows.length; i++) {
         const rowNumber = i + 2;
         const row = rows[i];
@@ -68,6 +72,28 @@ export async function POST(request: NextRequest) {
             message: 'name and code are required.',
           });
           continue;
+        }
+
+        // Parse classes if provided (semicolon or pipe separated)
+        const classIds: string[] = [];
+        if (row.classes?.trim()) {
+          const classTokens = row.classes
+            .split(/[;|]/)
+            .map((t) => t.trim().toLowerCase())
+            .filter(Boolean);
+
+          for (const token of classTokens) {
+            const matchedClass = schoolClasses.find(
+              (c) =>
+                c.id.toLowerCase() === token ||
+                c.name.toLowerCase() === token ||
+                `${c.name} (${c.section})`.toLowerCase() === token ||
+                `${c.name}-${c.section}`.toLowerCase() === token
+            );
+            if (matchedClass && !classIds.includes(matchedClass.id)) {
+              classIds.push(matchedClass.id);
+            }
+          }
         }
 
         try {
@@ -90,6 +116,7 @@ export async function POST(request: NextRequest) {
               schoolId,
               name,
               code,
+              classIds,
             },
           });
           result.imported++;
@@ -194,6 +221,10 @@ export async function POST(request: NextRequest) {
     let subjects = await client.subject.findMany({
       where: schoolWhere(schoolId),
     });
+    const schoolClasses = await client.classRoom.findMany({
+      where: schoolWhere(schoolId),
+    });
+
     const subjectByCode = new Map(
       subjects.map((subject) => [subject.code.toUpperCase(), subject])
     );
@@ -271,25 +302,53 @@ export async function POST(request: NextRequest) {
         continue;
       }
 
-      const subjectCode = row.subjectCode?.trim().toUpperCase();
-      const matchedSubject = subjectCode
-        ? subjectByCode.get(subjectCode)
-        : undefined;
+      // Resolve classes for teacher
+      const teacherClasses: string[] = [];
+      if (row.classes?.trim()) {
+        const classTokens = row.classes
+          .split(/[;|]/)
+          .map((t) => t.trim().toLowerCase())
+          .filter(Boolean);
 
-      if (subjectCode && !matchedSubject) {
-        result.failed++;
-        result.errors.push({
-          row: rowNumber,
-          field: 'subjectCode',
-          message: `Subject code "${subjectCode}" not found.`,
-        });
-        continue;
+        for (const token of classTokens) {
+          const matchedClass = schoolClasses.find(
+            (c) =>
+              c.id.toLowerCase() === token ||
+              c.name.toLowerCase() === token ||
+              `${c.name} (${c.section})`.toLowerCase() === token ||
+              `${c.name}-${c.section}`.toLowerCase() === token
+          );
+          if (matchedClass && !teacherClasses.includes(matchedClass.id)) {
+            teacherClasses.push(matchedClass.id);
+          }
+        }
       }
 
-      const subjectSpecialtyId = matchedSubject?.id ?? fallbackSubject.id;
-      const subjectIds = matchedSubject
-        ? [matchedSubject.id]
-        : [fallbackSubject.id];
+      // Resolve subjects for teacher (supports multiple subjects or subjectCode)
+      const teacherSubjects: string[] = [];
+      const subjectsInput = row.subjects?.trim() || row.subjectCode?.trim();
+      if (subjectsInput) {
+        const subTokens = subjectsInput
+          .split(/[;|]/)
+          .map((t) => t.trim().toUpperCase())
+          .filter(Boolean);
+
+        for (const token of subTokens) {
+          const matchedSub = subjects.find(
+            (s) =>
+              s.code.toUpperCase() === token ||
+              s.name.toUpperCase() === token ||
+              s.id.toUpperCase() === token
+          );
+          if (matchedSub && !teacherSubjects.includes(matchedSub.id)) {
+            teacherSubjects.push(matchedSub.id);
+          }
+        }
+      }
+
+      const finalSubjects =
+        teacherSubjects.length > 0 ? teacherSubjects : [fallbackSubject.id];
+      const subjectSpecialtyId = finalSubjects[0];
 
       try {
         // STRICT DUPLICATE / CROSS-TENANT CHECK
@@ -331,7 +390,8 @@ export async function POST(request: NextRequest) {
             maxPeriodsPerWeek: Number(row.maxPeriodsPerWeek?.trim() || 24),
             active: parseBoolean(row.active, true),
             qualifications: parseQualifications(row.qualifications),
-            subjects: subjectIds,
+            subjects: finalSubjects,
+            classes: teacherClasses,
             subjectSpecialtyId,
           },
         });

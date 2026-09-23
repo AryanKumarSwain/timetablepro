@@ -48,7 +48,7 @@ export async function PATCH(
           title: isUnsuspend ? 'Account Reactivated' : 'Account Suspended',
           message: isUnsuspend
             ? 'Your school account has been reactivated. You now have full access to your account.'
-            : 'Your school account has been suspended by the platform administrator. Please contact support for more information.',
+            : 'Your school account has been suspended by Team Timetable Pro. Please contact support for more information.',
           type: isUnsuspend ? 'INFO' : 'ALERT',
           scope: 'ALL_ADMINS',
           senderId: superAdmin.id,

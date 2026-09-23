@@ -261,4 +261,27 @@
     animation: marquee 30s linear infinite;
     width: max-content;
   }
+
+  @keyframes gradient-flow {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+  }
+
+  .animate-gradient-flow {
+    background-size: 300% 300%;
+    animation: gradient-flow 4s ease infinite;
+  }
+
+  .bg-gradient-pink-purple {
+    background: linear-gradient(135deg, #ec4899, #d946ef, #8b5cf6, #a855f7, #f43f5e, #ec4899);
+    background-size: 300% 300%;
+    animation: gradient-flow 4s ease infinite;
+  }
+
+  .bg-gradient-pink-purple-subtle {
+    background: linear-gradient(135deg, rgba(236, 72, 153, 0.08), rgba(168, 85, 247, 0.08), rgba(244, 63, 94, 0.08), rgba(139, 92, 246, 0.08));
+    background-size: 300% 300%;
+    animation: gradient-flow 6s ease infinite;
+  }
 }

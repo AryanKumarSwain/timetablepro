@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { requireSchoolAdmin, handleApiError, schoolWhere, getSchoolPlan } from '@/lib/auth-server';
+import { requireSchoolAdmin, handleApiError, schoolWhere, requireExportAccess } from '@/lib/auth-server';
 
 function parseDescription(desc = '') {
   const marker = '\n\nTLM:';
@@ -14,17 +14,17 @@ function parseDescription(desc = '') {
   };
 }
 
-function buildCsv(reports: Array<{ teacherName: string; reportDate: Date; status: string; submittedAt: Date | null; entries: Array<{ className: string; subjectName: string; description: string; entryType?: string; activityCategory?: string; activityDescription?: string; learningOutcome?: string; evidenceFiles?: any[] }> }> ) {
+function buildCsv(reports: Array<{ teacherName: string; reportDate: Date; status: string; submittedAt: Date | null; entries: Array<{ className: string; subjectName: string; description: string; entryType?: string; activityCategory?: string; activityDescription?: string; learningOutcome?: string; evidenceFiles?: any[] }> }>) {
   const header = 'Teacher,Date,Class,Subject,Type,Description,TLM,Activity Category,Activity Description,Learning Outcome,Evidence Files,Status,SubmittedAt';
   const rows = reports.flatMap((report) =>
     report.entries.map((entry) => {
       const { description, tlm } = parseDescription(entry.description);
       const escaped = (value: string) => `"${value.replace(/"/g, '""')}"`;
       const isActivity = entry.entryType === 'ACTIVITY';
-      
+
       // Format evidence files as comma-separated list
       const evidenceFilesText = entry.evidenceFiles && entry.evidenceFiles.length > 0
-        ? entry.evidenceFiles.map(f => typeof f === 'string' ? f : f.url).join(', ')
+        ? entry.evidenceFiles.map((f: any) => typeof f === 'string' ? f : f.url).join(', ')
         : '';
 
       return [
@@ -89,12 +89,12 @@ export async function GET(_request: Request, context: RouteContext) {
     }
 
     const csv = buildCsv(
-      reports.map((report) => ({
+      reports.map((report: any) => ({
         teacherName: report.teacher.name,
         reportDate: report.reportDate,
         status: report.status,
         submittedAt: report.submittedAt,
-        entries: report.entries.map((entry) => ({
+        entries: report.entries.map((entry: any) => ({
           className: entry.class.name,
           subjectName: entry.subject.name,
           description: entry.description,
@@ -110,8 +110,8 @@ export async function GET(_request: Request, context: RouteContext) {
     const { watermarkRequired } = await requireExportAccess('csv');
 
     // Add watermark if required
-    const finalCsv = '\uFEFF' + (watermarkRequired 
-      ? csv + '\n\n"# Generated via TimetablePro [Watermarked Plan - Upgrade to remove watermark]"\n' 
+    const finalCsv = '\uFEFF' + (watermarkRequired
+      ? csv + '\n\n"# Generated via TimetablePro [Watermarked Plan - Upgrade to remove watermark]"\n'
       : csv);
 
     const filename = `reports-${cleanId}.csv`;

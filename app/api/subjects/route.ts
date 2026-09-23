@@ -24,12 +24,16 @@ export async function POST(request: NextRequest) {
     const { schoolId } = await requireSchoolContext();
     await checkSubjectLimit(schoolId);
     const body = await request.json();
+    const classIds = Array.isArray(body.classIds)
+      ? body.classIds.filter((x: any) => typeof x === 'string')
+      : [];
     const row = await prisma.subject.create({
       data: {
         id: `subject-${crypto.randomUUID()}`,
         schoolId,
         name: String(body.name),
         code: String(body.code),
+        classIds,
       },
     });
     return NextResponse.json(mapSubject(row), { status: 201 });

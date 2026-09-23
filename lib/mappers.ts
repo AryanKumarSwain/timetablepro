@@ -33,6 +33,7 @@ export function mapTeacher(t: DbTeacher): Teacher {
     phone: t.phone,
     qualifications: normalizeStringArray(t.qualifications),
     subjects: normalizeStringArray(t.subjects),
+    classes: normalizeStringArray((t as any).classes),
     active: t.active,
     joinDate: t.joinDate,
     maxPeriodsPerWeek: t.maxPeriodsPerWeek,
@@ -45,6 +46,7 @@ export function mapSubject(s: DbSubject): Subject {
     id: s.id,
     name: s.name,
     code: s.code,
+    classIds: normalizeStringArray((s as any).classIds),
     credits: 0,
   };
 }

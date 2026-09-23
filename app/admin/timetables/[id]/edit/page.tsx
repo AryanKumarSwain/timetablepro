@@ -9,6 +9,7 @@ import {
   upsertTimetableSlot,
   deleteTimetableSlot,
   getTimetableWorkload,
+  getSchoolDetails,
   type TimetableDetail,
   type WorkloadData,
 } from '@/lib/api-services';
@@ -17,7 +18,8 @@ import { GlassCard } from '@/components/enterprise/glass-card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, Filter, AlertTriangle, Layers, CheckCircle } from 'lucide-react';
+import { ArrowLeft, Filter, AlertTriangle, Layers, CheckCircle, Sparkles, Lock, GraduationCap, BookOpen, Users, ChevronRight } from 'lucide-react';
+import { toast } from 'sonner';
 import { cn, isTeacherActive } from '@/lib/utils';
 import {
   TimetableGrid,
@@ -25,6 +27,7 @@ import {
   SubjectChip,
   WorkloadPanel,
 } from '@/components/timetable-builder/timetable-grid';
+import { AiGenerateModal } from '@/components/timetable-builder/ai-generate-modal';
 
 type ViewMode = 'section' | 'faculty' | 'room';
 
@@ -51,6 +54,8 @@ export default function TimetableEditPage() {
   const [search, setSearch] = useState('');
   const [selectedId, setSelectedId] = useState<string>('');
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [aiModalOpen, setAiModalOpen] = useState(false);
+  const [schoolPlan, setSchoolPlan] = useState<any>(null);
 
   const [workingDays, setWorkingDays] = useState<number[]>([1, 2, 3, 4, 5]);
   const [baseStartTime, setBaseStartTime] = useState<string>("08:00");
@@ -137,6 +142,14 @@ export default function TimetableEditPage() {
       });
       setWorkload(w);
       setSelectedId((prev) => prev || data.classes[0]?.id || '');
+
+      // Load school plan to check AI timetable feature gate
+      try {
+        const schoolData = await getSchoolDetails();
+        setSchoolPlan(schoolData?.plan || null);
+      } catch (err) {
+        console.error('Failed to load plan details:', err);
+      }
     } catch (e) {
       console.error(e);
     } finally {
@@ -297,10 +310,26 @@ export default function TimetableEditPage() {
     return (detail.rooms || []).filter((room) => !busyRoomIds.has(room.id));
   }, [detail, editCell]);
 
+  const activeCellClassName = useMemo(() => {
+    if (!detail) return undefined;
+    const targetClassId = editCell?.classId || (view === 'section' ? selectedId : undefined);
+    if (targetClassId) {
+      const found = detail.classes.find((c) => c.id === targetClassId);
+      if (found) return found.name;
+    }
+    return classCurrentlyEditing || undefined;
+  }, [detail, editCell, view, selectedId, classCurrentlyEditing]);
+
   const openEditor = (dayOfWeek: number, periodId: string, slot?: TimetableDetail['slots'][number]) => {
     let classId = selectedId;
-    if (view === 'faculty' && slot) {
-      classId = slot.classId;
+    if (view === 'faculty') {
+      if (slot) {
+        classId = slot.classId;
+      } else {
+        const teacher = detail?.teachers.find((t) => t.id === selectedId);
+        const teacherClasses = Array.isArray(teacher?.classes) ? teacher.classes : [];
+        classId = teacherClasses[0] || (detail?.classes[0]?.id || selectedId);
+      }
     } else if (view === 'room') {
       classId = slot ? slot.classId : (detail?.classes[0]?.id || selectedId);
     }
@@ -309,14 +338,17 @@ export default function TimetableEditPage() {
     setEditCell({ dayOfWeek, periodId, classId, slot });
     setDraft({
       subjectId: slot?.subjectId ?? '',
-      teacherId: slot?.teacherId ?? '',
+      teacherId: view === 'faculty' && !slot ? selectedId : (slot?.teacherId ?? ''),
       roomId: defaultRoomId,
     });
     setSheetOpen(true);
   };
 
   const handleSave = async () => {
-    if (!editCell || !draft.subjectId || !draft.teacherId) return;
+    if (!editCell || !draft.subjectId || !draft.teacherId) {
+      toast.error('Please select both a subject and a faculty member');
+      return;
+    }
     setSaving(true);
     try {
       await upsertTimetableSlot(timetableId, {
@@ -329,8 +361,10 @@ export default function TimetableEditPage() {
       });
       setSheetOpen(false);
       await load(false);
-    } catch (e) {
+      toast.success('Slot assignment saved successfully');
+    } catch (e: any) {
       console.error(e);
+      toast.error(e?.message || 'Failed to save slot assignment');
     } finally {
       setSaving(false);
     }
@@ -343,8 +377,10 @@ export default function TimetableEditPage() {
       await deleteTimetableSlot(timetableId, editCell.slot.id);
       setSheetOpen(false);
       await load(false);
-    } catch (e) {
+      toast.success('Slot assignment removed');
+    } catch (e: any) {
       console.error(e);
+      toast.error(e?.message || 'Failed to remove slot assignment');
     } finally {
       setSaving(false);
     }
@@ -429,10 +465,16 @@ export default function TimetableEditPage() {
   const periodLabel = editCell ? detail?.periods.find((p) => p.id === editCell.periodId)?.label ?? '' : '';
   const missingData = useMemo(() => {
     if (!detail) return null;
-    const missing = [];
-    if (detail.subjects.length === 0) missing.push('Subjects');
-    if (detail.teachers.length === 0) missing.push('Teachers');
-    if (detail.classes.length === 0) missing.push('Classes');
+    const missing: Array<{ key: string; label: string; href: string; icon: any; step: number }> = [];
+    if (detail.classes.length === 0) {
+      missing.push({ key: 'Classes', label: 'Add Classes', href: '/admin/classes', icon: GraduationCap, step: 1 });
+    }
+    if (detail.subjects.length === 0) {
+      missing.push({ key: 'Subjects', label: 'Add Subjects', href: '/admin/subjects', icon: BookOpen, step: 2 });
+    }
+    if (detail.teachers.length === 0) {
+      missing.push({ key: 'Teachers', label: 'Add Teachers', href: '/admin/teachers', icon: Users, step: 3 });
+    }
     return missing.length > 0 ? missing : null;
   }, [detail]);
 
@@ -443,23 +485,48 @@ export default function TimetableEditPage() {
   return (
     <div className='max-w-[1600px] mx-auto space-y-4 px-2 sm:px-4 py-2 relative'>
       {missingData && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/60 backdrop-blur-sm">
-          <GlassCard className="p-8 max-w-md text-center space-y-4">
-            <AlertTriangle className="h-12 w-12 mx-auto text-amber-500" />
-            <h2 className="text-xl font-bold text-foreground">Required Data Missing</h2>
-            <p className="text-sm text-muted-foreground">
-              The following data is required to create a timetable:
-            </p>
-            <div className="pt-2 space-y-2">
-              {missingData.includes('Subjects') && (
-                <Link href="/admin/subjects"><Button className="w-full rounded-xl">Add Subjects</Button></Link>
-              )}
-              {missingData.includes('Teachers') && (
-                <Link href="/admin/teachers"><Button className="w-full rounded-xl">Add Teachers</Button></Link>
-              )}
-              {missingData.includes('Classes') && (
-                <Link href="/admin/classes"><Button className="w-full rounded-xl">Add Classes</Button></Link>
-              )}
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-md p-4 animate-in fade-in duration-200">
+          <GlassCard className="p-6 sm:p-8 max-w-md w-full text-center space-y-5 rounded-3xl border border-border/80 shadow-2xl bg-card/95">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-500 shadow-sm">
+              <AlertTriangle className="h-7 w-7" />
+            </div>
+
+            <div className="space-y-1.5">
+              <h2 className="text-xl font-bold tracking-tight text-foreground">Required Data Missing</h2>
+              <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
+                Before generating or editing a timetable, you must configure the following academic setup:
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-2.5 pt-1 w-full text-left">
+              {missingData.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <Link key={item.key} href={item.href} className="block w-full group">
+                    <div className="flex items-center justify-between p-3.5 rounded-2xl border border-primary/20 bg-primary/5 hover:bg-primary/10 hover:border-primary/40 transition-all duration-150">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary group-hover:scale-105 transition-transform">
+                          <Icon className="h-4.5 w-4.5" />
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-bold text-primary uppercase tracking-wider">Step {item.step}</p>
+                          <p className="text-sm font-bold text-foreground">{item.label}</p>
+                        </div>
+                      </div>
+                      <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-primary group-hover:translate-x-0.5 transition-all" />
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+
+            <div className="pt-2 border-t border-border/60">
+              <Link href="/admin/timetables" className="block w-full">
+                <Button variant="ghost" className="w-full text-xs text-muted-foreground hover:text-foreground h-9 rounded-xl">
+                  <ArrowLeft className="mr-1.5 h-3.5 w-3.5" />
+                  Back to Timetables
+                </Button>
+              </Link>
             </div>
           </GlassCard>
         </div>
@@ -487,6 +554,33 @@ export default function TimetableEditPage() {
                   )}
                 </div>
               </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              {(() => {
+                const planName = String(schoolPlan?.name || '').toLowerCase();
+                const isPremiumOrElite = planName.includes('elite') || planName.includes('premium');
+                const isAiLocked = Boolean(schoolPlan && schoolPlan.aiTimetableEnabled === false && !isPremiumOrElite);
+
+                return (
+                  <Button
+                    onClick={() => {
+                      if (isAiLocked) {
+                        toast.error(`"Generate with AI" is not included in your ${schoolPlan?.name || 'current'} plan. Please upgrade to unlock this feature.`);
+                        return;
+                      }
+                      setAiModalOpen(true);
+                    }}
+                    className="rounded-xl h-9 text-xs font-bold bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-600 hover:from-violet-700 hover:via-purple-700 hover:to-indigo-700 text-white gap-1.5 shadow-md shadow-purple-500/20 px-3.5 transition-all active:scale-95 cursor-pointer"
+                  >
+                    {isAiLocked ? (
+                      <Lock className="h-3.5 w-3.5 text-white/80" />
+                    ) : (
+                      <Sparkles className="h-4 w-4 text-amber-300 animate-pulse" />
+                    )}
+                    Generate with AI
+                  </Button>
+                );
+              })()}
             </div>
           </div>
 
@@ -626,15 +720,32 @@ export default function TimetableEditPage() {
         onOpenChange={setSheetOpen}
         slot={editCell?.slot ?? null}
         dayOfWeek={editCell?.dayOfWeek ?? 1}
+        periodId={editCell?.periodId}
         periodLabel={periodLabel}
+        currentClassId={editCell?.classId || selectedId}
+        currentClassName={activeCellClassName}
         subjects={detail.subjects}
-        teachers={availableTeachersForCell}
-        rooms={availableRoomsForCell}
+        teachers={detail.teachers}
+        rooms={detail.rooms}
+        allSlots={detail.slots}
         draft={draft}
         onDraftChange={(p) => setDraft((d) => ({ ...d, ...p }))}
         onSave={() => void handleSave()}
         onRemove={() => void handleRemove()}
         saving={saving}
+      />
+
+      <AiGenerateModal
+        open={aiModalOpen}
+        onOpenChange={setAiModalOpen}
+        timetableId={timetableId}
+        teachers={detail.teachers}
+        subjects={detail.subjects}
+        classes={detail.classes}
+        currentClassId={selectedId}
+        onSuccess={async () => {
+          await load(false);
+        }}
       />
     </div>
   );

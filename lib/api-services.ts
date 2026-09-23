@@ -17,6 +17,8 @@ import type {
 export type SaasPlan = {
   id: string;
   name: string;
+  orderIndex?: number;
+  isCustom?: boolean;
   teacherMin: number;
   teacherMax: number;
   priceMonthly: number;
@@ -24,6 +26,7 @@ export type SaasPlan = {
   attendanceEnabled: boolean;
   homeworkEnabled: boolean;
   lessonPlanningEnabled?: boolean;
+  aiTimetableEnabled?: boolean;
   exportFormats: string[];
   watermarkRequired: boolean;
   schoolCount: number;
@@ -567,6 +570,13 @@ export async function deleteSuperAdminPlan(id: string): Promise<void> {
   });
 }
 
+export async function reorderSuperAdminPlans(planIds: string[]): Promise<{ success: boolean; message?: string }> {
+  return apiFetch('/api/super-admin/plans/reorder', {
+    method: 'POST',
+    body: JSON.stringify({ planIds }),
+  });
+}
+
 export async function getTodayScheduleForTeacher(
   teacherId?: string
 ): Promise<TodayScheduleItem[]> {
@@ -591,8 +601,8 @@ export type TimetableDetail = TimetableSummary & {
   periods: Period[];
   classes: { id: string; name: string; grade: string; section: string; roomNumber: string }[];
   rooms: { id: string; roomNumber: string; name?: string; floor?: string; block?: string }[];
-  subjects: { id: string; name: string; code: string; color: string }[];
-  teachers: { id: string; name: string; email: string; active: boolean }[];
+  subjects: { id: string; name: string; code: string; color: string; classIds?: string[] }[];
+  teachers: { id: string; name: string; email: string; active: boolean; subjects?: string[]; classes?: string[]; subjectSpecialtyId?: string }[];
   slots: {
     id: string;
     dayOfWeek: number;
