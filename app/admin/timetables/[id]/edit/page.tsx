@@ -17,7 +17,6 @@ import { PageSkeleton } from '@/components/enterprise/page-skeleton';
 import { GlassCard } from '@/components/enterprise/glass-card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ArrowLeft, Filter, AlertTriangle, Layers, CheckCircle, Sparkles, Lock, GraduationCap, BookOpen, Users, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn, isTeacherActive } from '@/lib/utils';
@@ -232,6 +231,14 @@ export default function TimetableEditPage() {
     return filledMap;
   }, [detail, workingDays, view]);
 
+  const [facultyFilter, setFacultyFilter] = useState<string>('all');
+  const [classFilter, setClassFilter] = useState<string>('all');
+
+  useEffect(() => {
+    setFacultyFilter('all');
+    setClassFilter('all');
+  }, [selectedId, view]);
+
   const sidebarItems = useMemo(() => {
     if (!detail) return [];
     const q = search.trim().toLowerCase();
@@ -258,22 +265,57 @@ export default function TimetableEditPage() {
     }
   }, [view, sidebarItems, selectedId]);
 
+  // Teachers associated with the currently selected class
+  const teachersInSelectedClass = useMemo(() => {
+    if (!detail || view !== 'section') return [];
+    const teacherIdsInSlots = new Set(
+      detail.slots.filter((s) => s.classId === selectedId).map((s) => s.teacherId)
+    );
+    return detail.teachers.filter((t) => {
+      const tClasses = Array.isArray(t.classes) ? t.classes : [];
+      return tClasses.includes(selectedId) || teacherIdsInSlots.has(t.id);
+    });
+  }, [detail, view, selectedId]);
+
+  // Classes associated with the currently selected teacher
+  const classesForSelectedTeacher = useMemo(() => {
+    if (!detail || view !== 'faculty') return [];
+    const teacher = detail.teachers.find((t) => t.id === selectedId);
+    const assignedClassIds = new Set<string>(
+      Array.isArray(teacher?.classes) ? teacher.classes : []
+    );
+    detail.slots
+      .filter((s) => s.teacherId === selectedId)
+      .forEach((s) => assignedClassIds.add(s.classId));
+
+    return detail.classes.filter((c) => assignedClassIds.has(c.id));
+  }, [detail, view, selectedId]);
+
   const filteredSlots = useMemo(() => {
     if (!detail) return [];
     if (view === 'room') {
       return detail.slots.filter((s) => s.roomId === selectedId || s.classId === selectedId);
     }
     if (view === 'faculty') {
-      return detail.slots.filter((s) => s.teacherId === selectedId);
+      let slots = detail.slots.filter((s) => s.teacherId === selectedId);
+      if (classFilter !== 'all') {
+        slots = slots.filter((s) => s.classId === classFilter);
+      }
+      return slots;
     }
-    return detail.slots.filter((s) => s.classId === selectedId);
-  }, [detail, view, selectedId]);
+    // view === 'section' (Class View)
+    let slots = detail.slots.filter((s) => s.classId === selectedId);
+    if (facultyFilter !== 'all') {
+      slots = slots.filter((s) => s.teacherId === facultyFilter);
+    }
+    return slots;
+  }, [detail, view, selectedId, classFilter, facultyFilter]);
 
   const classCurrentlyEditing = useMemo(() => {
     if (!detail) return null;
     if (view === 'faculty') {
-      const activeSlot = detail.slots.find((s) => s.teacherId === selectedId);
-      if (activeSlot) return activeSlot.className;
+      const activeTeacher = detail.teachers.find((t) => t.id === selectedId);
+      return activeTeacher ? activeTeacher.name : 'Faculty Schedule';
     }
     if (view === 'room') {
       const roomObj = detail.rooms?.find((r) => r.id === selectedId);
@@ -333,6 +375,8 @@ export default function TimetableEditPage() {
     if (view === 'faculty') {
       if (slot) {
         classId = slot.classId;
+      } else if (classFilter !== 'all') {
+        classId = classFilter;
       } else {
         const teacher = detail?.teachers.find((t) => t.id === selectedId);
         const teacherClasses = Array.isArray(teacher?.classes) ? teacher.classes : [];
@@ -593,20 +637,17 @@ export default function TimetableEditPage() {
           </div>
 
           <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-3 border-border/60">
-            <Tabs value={view} onValueChange={(v) => setView(v as ViewMode)} className="w-full sm:w-auto">
-              <TabsList className="rounded-xl p-1 bg-muted/80 w-full sm:w-auto grid grid-cols-2 sm:inline-flex">
-                <TabsTrigger value="section" className="rounded-lg text-xs font-semibold">Class</TabsTrigger>
-                <TabsTrigger value="faculty" className="rounded-lg text-xs font-semibold">Faculty</TabsTrigger>
-              </TabsList>
-            </Tabs>
+            <div className="flex items-center gap-2 text-xs font-bold text-muted-foreground uppercase tracking-wider">
+              <Layers className="h-4 w-4 text-indigo-500" />
+              <span>Academic Classes</span>
+            </div>
             <div className="w-full sm:w-auto flex items-center gap-2">
               <Input
-                placeholder={`Search ${view === 'section' ? 'class' : 'faculty'}...`}
+                placeholder="Search class or section..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className='rounded-xl text-xs bg-muted/40 focus-visible:ring-indigo-500/30 h-9 flex-1 sm:w-48'
+                className='rounded-xl text-xs bg-muted/40 focus-visible:ring-indigo-500/30 h-9 flex-1 sm:w-56'
               />
-              <Button variant="outline" size="sm" className="rounded-xl h-9 text-xs font-semibold hidden sm:inline-flex"><Filter className="h-3.5 w-3.5 mr-1.5" />Filter</Button>
             </div>
           </div>
         </div>
@@ -617,7 +658,7 @@ export default function TimetableEditPage() {
         <GlassCard className="p-3 w-full overflow-hidden">
           <div className="flex items-center gap-2 mb-2 text-xs font-bold text-muted-foreground uppercase tracking-wider px-1">
             <Layers className="h-3.5 w-3.5 text-indigo-500" />
-            <span>Select Active {view === 'section' ? 'Class' : 'Faculty'}</span>
+            <span>Select Active Class</span>
           </div>
           <div className="w-full overflow-x-auto pb-2 scrollbar-thin snap-x touch-pan-x">
             <div className="flex flex-nowrap items-center gap-1.5 sm:gap-2 min-w-max">
@@ -650,6 +691,126 @@ export default function TimetableEditPage() {
               )}
             </div>
           </div>
+
+          {/* FACULTY FILTER WHEN IN CLASS VIEW */}
+          {view === 'section' && teachersInSelectedClass.length > 0 && (
+            <div className="mt-3 pt-2.5 border-t border-border/50 flex items-center justify-between gap-2 flex-wrap">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+                  <GraduationCap className="h-3.5 w-3.5 text-indigo-500" />
+                  Filter by Faculty:
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setFacultyFilter('all')}
+                  className={cn(
+                    "px-2.5 py-1 text-xs font-semibold rounded-lg border transition-all",
+                    facultyFilter === 'all'
+                      ? "bg-indigo-600 text-white border-indigo-600 shadow-xs"
+                      : "bg-muted/40 text-muted-foreground border-border hover:bg-muted hover:text-foreground"
+                  )}
+                >
+                  All Faculty ({teachersInSelectedClass.length})
+                </button>
+                {teachersInSelectedClass.map((t) => {
+                  const isActive = facultyFilter === t.id;
+                  const slotCount = detail.slots.filter(
+                    (s) => s.classId === selectedId && s.teacherId === t.id
+                  ).length;
+                  return (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => setFacultyFilter(isActive ? 'all' : t.id)}
+                      className={cn(
+                        "px-2.5 py-1 text-xs font-medium rounded-lg border transition-all flex items-center gap-1.5",
+                        isActive
+                          ? "bg-indigo-600 text-white border-indigo-600 shadow-xs font-semibold"
+                          : "bg-background text-muted-foreground border-border hover:border-foreground/30 hover:text-foreground"
+                      )}
+                    >
+                      <span>{t.name}</span>
+                      <span className={cn(
+                        "text-[10px] px-1.5 py-0.2 rounded-full font-mono",
+                        isActive ? "bg-white/20 text-white" : "bg-muted text-muted-foreground"
+                      )}>
+                        {slotCount}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+              {facultyFilter !== 'all' && (
+                <button
+                  type="button"
+                  onClick={() => setFacultyFilter('all')}
+                  className="text-xs text-primary hover:underline font-medium"
+                >
+                  Clear filter
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* CLASS FILTER WHEN IN FACULTY VIEW */}
+          {view === 'faculty' && classesForSelectedTeacher.length > 0 && (
+            <div className="mt-3 pt-2.5 border-t border-border/50 flex items-center justify-between gap-2 flex-wrap">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+                  <Layers className="h-3.5 w-3.5 text-indigo-500" />
+                  Filter by Class:
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setClassFilter('all')}
+                  className={cn(
+                    "px-2.5 py-1 text-xs font-semibold rounded-lg border transition-all",
+                    classFilter === 'all'
+                      ? "bg-indigo-600 text-white border-indigo-600 shadow-xs"
+                      : "bg-muted/40 text-muted-foreground border-border hover:bg-muted hover:text-foreground"
+                  )}
+                >
+                  All Classes ({classesForSelectedTeacher.length})
+                </button>
+                {classesForSelectedTeacher.map((c) => {
+                  const isActive = classFilter === c.id;
+                  const slotCount = detail.slots.filter(
+                    (s) => s.teacherId === selectedId && s.classId === c.id
+                  ).length;
+                  return (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => setClassFilter(isActive ? 'all' : c.id)}
+                      className={cn(
+                        "px-2.5 py-1 text-xs font-medium rounded-lg border transition-all flex items-center gap-1.5",
+                        isActive
+                          ? "bg-primary text-primary-foreground border-primary shadow-xs font-semibold"
+                          : "bg-background text-muted-foreground border-border hover:border-foreground/30 hover:text-foreground"
+                      )}
+                    >
+                      <span>{c.name}</span>
+                      <span className={cn(
+                        "text-[10px] px-1.5 py-0.2 rounded-full font-mono",
+                        isActive ? "bg-white/20 text-white" : "bg-muted text-muted-foreground"
+                      )}>
+                        {slotCount}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+              {classFilter !== 'all' && (
+                <button
+                  type="button"
+                  onClick={() => setClassFilter('all')}
+                  className="text-xs text-primary hover:underline font-medium"
+                >
+                  Clear filter
+                </button>
+              )}
+            </div>
+          )}
         </GlassCard>
 
         {/* Dynamic Fluid Scale Timetable Engine Container */}
@@ -718,8 +879,23 @@ export default function TimetableEditPage() {
 
       {workload && (
         <GlassCard className="p-4 sm:p-6">
-          <h2 className="text-xs font-bold text-foreground uppercase tracking-widest mb-3">Faculty Workload Matrix</h2>
-          <WorkloadPanel teacherWorkload={workload.teacherWorkload} />
+          <WorkloadPanel
+            teacherWorkload={workload.teacherWorkload}
+            classWorkload={workload.classWorkload}
+            totalWeeklySlots={workload.totalWeeklySlots}
+            activePeriodsCount={workload.activePeriodsCount}
+            workingDaysCount={workload.workingDaysCount}
+            onSelectClass={(classId) => {
+              setView('section');
+              setSelectedId(classId);
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            onSelectTeacher={(teacherId) => {
+              setView('faculty');
+              setSelectedId(teacherId);
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+          />
         </GlassCard>
       )}
 
@@ -750,7 +926,7 @@ export default function TimetableEditPage() {
         teachers={detail.teachers}
         subjects={detail.subjects}
         classes={detail.classes}
-        currentClassId={selectedId}
+        currentClassId={view === 'section' ? selectedId : (classFilter !== 'all' ? classFilter : detail?.classes[0]?.id)}
         onSuccess={async () => {
           await load(false);
         }}

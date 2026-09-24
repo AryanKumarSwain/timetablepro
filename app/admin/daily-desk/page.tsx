@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState, useRef } from 'react';
+import { useCallback, useEffect, useState, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useRequireAuth } from '@/lib/auth-context';
 import {
@@ -44,6 +44,9 @@ import {
   FileCheck,
   Lock,
   Coffee,
+  User,
+  BookOpen,
+  Filter,
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -90,6 +93,11 @@ export default function DailyDeskPage() {
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [, setReplacements] = useState<Replacement[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  // Matrix Filters (Faculty & Subject)
+  const [facultyFilter, setFacultyFilter] = useState<string>('all');
+  const [subjectFilter, setSubjectFilter] = useState<string>('all');
+  const [onlyShowMatchingClasses, setOnlyShowMatchingClasses] = useState<boolean>(false);
   
   const [showReplacementForm, setShowReplacementForm] = useState(false);
   const [submittingReplacement, setSubmittingReplacement] = useState(false);
@@ -407,6 +415,92 @@ export default function DailyDeskPage() {
       if (firstPeriod) setFreeTeachersPeriodId(firstPeriod.id);
     }
   }, [gridData, freeTeachersPeriodId]);
+
+  // Faculty & Subject Matrix Filter Logic (Unconditional Hooks before early returns)
+  const availableFaculty = useMemo(() => {
+    const teacherMap = new Map<string, string>();
+    (teachers || []).forEach((t) => {
+      if (t.id && t.name) teacherMap.set(t.id, t.name);
+    });
+    gridData?.grid?.forEach((row) => {
+      row?.cells?.forEach((cell) => {
+        if (cell && !cell.empty) {
+          if (cell.teacherId && cell.teacherName) {
+            teacherMap.set(cell.teacherId, cell.teacherName);
+          }
+          if (cell.replacement?.replacementTeacherId && cell.replacement?.replacementTeacherName) {
+            teacherMap.set(cell.replacement.replacementTeacherId, cell.replacement.replacementTeacherName);
+          }
+        }
+      });
+    });
+    return Array.from(teacherMap.entries())
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [teachers, gridData]);
+
+  const availableSubjects = useMemo(() => {
+    const subjectMap = new Map<string, string>();
+    gridData?.grid?.forEach((row) => {
+      row?.cells?.forEach((cell) => {
+        if (cell && !cell.empty && cell.subjectName) {
+          const id = cell.subjectId || cell.subjectName;
+          subjectMap.set(id, cell.subjectName);
+        }
+      });
+    });
+    return Array.from(subjectMap.entries())
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [gridData]);
+
+  const hasActiveFilter = facultyFilter !== 'all' || subjectFilter !== 'all';
+
+  const isCellMatchingFilter = useCallback((cell: any) => {
+    if (!cell || cell.empty) return false;
+    if (facultyFilter === 'all' && subjectFilter === 'all') return true;
+
+    let matchesFaculty = true;
+    if (facultyFilter !== 'all') {
+      const origMatch = cell.teacherId === facultyFilter || cell.teacherName?.toLowerCase() === facultyFilter.toLowerCase();
+      const proxyMatch = cell.replacement?.replacementTeacherId === facultyFilter || cell.replacement?.replacementTeacherName?.toLowerCase() === facultyFilter.toLowerCase();
+      matchesFaculty = !!(origMatch || proxyMatch);
+    }
+
+    let matchesSubject = true;
+    if (subjectFilter !== 'all') {
+      matchesSubject = cell.subjectId === subjectFilter || cell.subjectName?.toLowerCase() === subjectFilter.toLowerCase();
+    }
+
+    return matchesFaculty && matchesSubject;
+  }, [facultyFilter, subjectFilter]);
+
+  const matchingSlotsCount = useMemo(() => {
+    if (!hasActiveFilter) return 0;
+    let count = 0;
+    gridData?.grid?.forEach((row) => {
+      row?.cells?.forEach((cell) => {
+        if (isCellMatchingFilter(cell)) count++;
+      });
+    });
+    return count;
+  }, [gridData, isCellMatchingFilter, hasActiveFilter]);
+
+  const classHasMatch = useCallback((classId: string) => {
+    if (!hasActiveFilter) return true;
+    return gridData?.grid?.some((row) => {
+      const c = row?.cells?.find((cell) => cell.classId === classId);
+      return isCellMatchingFilter(c);
+    }) ?? false;
+  }, [gridData, isCellMatchingFilter, hasActiveFilter]);
+
+  const displayedClasses = useMemo(() => {
+    const classesList = gridData?.classes ?? [];
+    if (!hasActiveFilter || !onlyShowMatchingClasses) {
+      return classesList;
+    }
+    return classesList.filter((cls) => classHasMatch(cls.id));
+  }, [gridData?.classes, hasActiveFilter, onlyShowMatchingClasses, classHasMatch]);
 
   // Early loading return - before any layout evaluations
   if (loading || !gridData) {
@@ -1315,6 +1409,100 @@ export default function DailyDeskPage() {
               </div>
             </div>
 
+            {/* MATRIX FILTER CONTROLS (FACULTY & SUBJECT) */}
+            {!isTimetableEmpty && (
+              <div className="flex flex-wrap items-center justify-between gap-2.5 p-2.5 sm:p-3 bg-muted/40 dark:bg-muted/20 border border-border/70 rounded-2xl mb-4 print:hidden">
+                <div className="flex flex-wrap items-center gap-2 flex-1 min-w-[260px]">
+                  {/* Faculty Filter */}
+                  <div className="flex items-center gap-1.5 bg-background border border-border/80 rounded-xl px-2.5 py-1.5 shadow-2xs text-xs">
+                    <User className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
+                    <span className="text-muted-foreground font-semibold text-[11px] hidden sm:inline">Faculty:</span>
+                    <select
+                      value={facultyFilter}
+                      onChange={(e) => setFacultyFilter(e.target.value)}
+                      className="bg-transparent text-xs font-bold text-foreground focus:outline-none cursor-pointer max-w-[130px] sm:max-w-[170px] truncate"
+                    >
+                      <option value="all">All Faculty ({availableFaculty.length})</option>
+                      {availableFaculty.map((f) => (
+                        <option key={f.id} value={f.id}>
+                          {f.name}
+                        </option>
+                      ))}
+                    </select>
+                    {facultyFilter !== 'all' && (
+                      <button
+                        onClick={() => setFacultyFilter('all')}
+                        className="text-muted-foreground hover:text-foreground p-0.5 rounded-full hover:bg-muted cursor-pointer"
+                        title="Clear Faculty Filter"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Subject Filter */}
+                  <div className="flex items-center gap-1.5 bg-background border border-border/80 rounded-xl px-2.5 py-1.5 shadow-2xs text-xs">
+                    <BookOpen className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                    <span className="text-muted-foreground font-semibold text-[11px] hidden sm:inline">Subject:</span>
+                    <select
+                      value={subjectFilter}
+                      onChange={(e) => setSubjectFilter(e.target.value)}
+                      className="bg-transparent text-xs font-bold text-foreground focus:outline-none cursor-pointer max-w-[130px] sm:max-w-[170px] truncate"
+                    >
+                      <option value="all">All Subjects ({availableSubjects.length})</option>
+                      {availableSubjects.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name}
+                        </option>
+                      ))}
+                    </select>
+                    {subjectFilter !== 'all' && (
+                      <button
+                        onClick={() => setSubjectFilter('all')}
+                        className="text-muted-foreground hover:text-foreground p-0.5 rounded-full hover:bg-muted cursor-pointer"
+                        title="Clear Subject Filter"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Focus Matching Classes toggle */}
+                  {hasActiveFilter && (
+                    <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none bg-background border border-border/80 rounded-xl px-2.5 py-1.5 shadow-2xs hover:text-foreground transition-colors">
+                      <input
+                        type="checkbox"
+                        checked={onlyShowMatchingClasses}
+                        onChange={(e) => setOnlyShowMatchingClasses(e.target.checked)}
+                        className="rounded border-border text-indigo-600 focus:ring-indigo-500 h-3.5 w-3.5"
+                      />
+                      <span className="text-[11px] font-medium whitespace-nowrap">Focus Matching Classes</span>
+                    </label>
+                  )}
+                </div>
+
+                {/* Filter Summary & Reset */}
+                {hasActiveFilter && (
+                  <div className="flex items-center gap-2">
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-[11px] font-bold bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 whitespace-nowrap">
+                      <Filter className="h-3 w-3" />
+                      {matchingSlotsCount} {matchingSlotsCount === 1 ? 'slot' : 'slots'} highlighted
+                    </span>
+                    <button
+                      onClick={() => {
+                        setFacultyFilter('all');
+                        setSubjectFilter('all');
+                        setOnlyShowMatchingClasses(false);
+                      }}
+                      className="text-[11px] font-bold text-rose-600 dark:text-rose-400 hover:underline px-1.5 py-1 transition-colors cursor-pointer whitespace-nowrap"
+                    >
+                      Reset Filters
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* GRID DATA RENDER ENGINE */}
             {isTimetableEmpty ? (
               <div className="flex flex-col items-center justify-center text-center py-16 px-4 border border-dashed border-border/60 bg-muted/10 rounded-2xl">
@@ -1348,34 +1536,72 @@ export default function DailyDeskPage() {
                   }}
                 >
                   <table className='w-full border-collapse text-left min-w-full print:min-w-full print:table-layout-fixed'>
-                      <thead>
-                        <tr className='bg-muted/80 backdrop-blur border-b border-border/40 print:bg-gray-100 print:border-b-2 print:border-gray-300'>
-                          <th className='p-2.5 sm:p-4 text-xs font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400 w-[110px] sm:w-[135px] md:w-[150px] sticky left-0 bg-muted z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] border-r border-border/40 print:static print:bg-gray-100 print:text-black print:shadow-none shrink-0'>
-                            Timetable
+                    <thead>
+                      <tr className='bg-muted/80 backdrop-blur border-b border-border/40 print:bg-gray-100 print:border-b-2 print:border-gray-300'>
+                        <th className='p-2.5 sm:p-4 text-xs font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400 w-[110px] sm:w-[135px] md:w-[150px] sticky left-0 bg-muted z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] border-r border-border/40 print:static print:bg-gray-100 print:text-black print:shadow-none shrink-0'>
+                          Timetable
+                        </th>
+                        {(gridData.periods ?? []).map((p) => (
+                          <th 
+                            key={p.id} 
+                            className={cn(
+                              'p-2.5 sm:p-3 border-l border-border/40 text-center min-w-[125px] sm:min-w-[145px] md:min-w-[160px] print:border-gray-300 print:p-2',
+                              p.isBreak ? 'bg-amber-500/10 dark:bg-amber-500/20 border-b-2 border-b-amber-500/50 print:bg-amber-100' : ''
+                            )}
+                          >
+                            <div className={cn(
+                              'text-[11px] sm:text-xs font-bold uppercase tracking-wider whitespace-nowrap flex items-center justify-center gap-1.5 print:text-black print:text-[11px]',
+                              p.isBreak ? 'text-amber-700 dark:text-amber-400' : 'text-foreground'
+                            )}>
+                              {p.isBreak && <Coffee className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 shrink-0 print:hidden" />}
+                              <span>{p.isBreak ? (p.label || 'BREAK') : `P${p.periodNumber}`}</span>
+                            </div>
+                            <div className={cn(
+                              'text-[9px] sm:text-[10px] font-medium mt-0.5 whitespace-nowrap print:text-gray-600 print:text-[9px]',
+                              p.isBreak ? 'text-amber-600/90 dark:text-amber-400/80' : 'text-muted-foreground'
+                            )}>
+                              {p.startTime}–{p.endTime}
+                            </div>
                           </th>
-                          {(gridData.periods ?? []).map((p) => (
-                            <th 
-                              key={p.id} 
-                              className={cn(
-                                'p-2 sm:p-3 border-l border-border/40 text-center min-w-[115px] sm:min-w-[135px] md:min-w-[145px] print:border-gray-300 print:p-2',
-                                p.isBreak ? 'bg-amber-500/15 dark:bg-amber-500/25 border-b-2 border-b-amber-500/50 print:bg-amber-100 min-w-[95px] sm:min-w-[115px]' : ''
-                              )}
-                            >
-                              <div className={cn('text-[11px] sm:text-xs font-bold uppercase tracking-wider print:text-black print:text-[11px]', p.isBreak ? 'text-amber-700 dark:text-amber-400' : 'text-foreground')}>
-                                {p.isBreak ? (p.label || 'BREAK') : `P${p.periodNumber}`}
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className='divide-y divide-border/40 bg-background/40 print:bg-transparent print:divide-gray-300'>
+                      {displayedClasses.length === 0 ? (
+                        <tr>
+                          <td
+                            colSpan={(gridData.periods ?? []).length + 1}
+                            className="p-10 text-center text-muted-foreground bg-muted/5"
+                          >
+                            <div className="flex flex-col items-center justify-center gap-2 max-w-sm mx-auto">
+                              <div className="p-3 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 rounded-full">
+                                <Filter className="h-5 w-5" />
                               </div>
-                              <div className={cn('text-[9px] sm:text-[10px] font-medium mt-0.5 print:text-gray-600 print:text-[9px]', p.isBreak ? 'text-amber-600 dark:text-amber-400/80' : 'text-muted-foreground')}>
-                                {p.startTime}–{p.endTime}
-                              </div>
-                            </th>
-                          ))}
+                              <p className="text-xs font-bold text-foreground">No classes match the active filter</p>
+                              <p className="text-[11px] text-muted-foreground">
+                                No scheduled lectures found matching your faculty or subject selection.
+                              </p>
+                              <button
+                                onClick={() => {
+                                  setFacultyFilter('all');
+                                  setSubjectFilter('all');
+                                  setOnlyShowMatchingClasses(false);
+                                }}
+                                className="mt-1 text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
+                              >
+                                Reset Filters
+                              </button>
+                            </div>
+                          </td>
                         </tr>
-                      </thead>
-                      <tbody className='divide-y divide-border/40 bg-background/40 print:bg-transparent print:divide-gray-300'>
-                        {(gridData.classes ?? []).map((cls) => (
+                      ) : (
+                        displayedClasses.map((cls) => (
                           <tr key={cls.id} className='hover:bg-muted/10 transition-colors print:hover:bg-transparent print:break-inside-avoid'>
-                            <td className='p-2.5 sm:p-4 font-bold text-xs sm:text-sm text-foreground bg-background/90 sticky left-0 z-10 border-r border-border/40 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] print:static print:bg-transparent print:text-black print:shadow-none print:p-2 print:border-r print:border-gray-300 shrink-0'>
-                              {cls.name}
+                            <td className='p-2.5 sm:p-3 font-bold text-xs sm:text-sm text-foreground bg-card sticky left-0 z-10 border-r border-border/60 shadow-[2px_0_6px_-2px_rgba(0,0,0,0.08)] print:static print:bg-transparent print:text-black print:shadow-none print:p-2 print:border-r print:border-gray-300 shrink-0 whitespace-nowrap'>
+                              <div className="flex items-center gap-1.5">
+                                <span className="h-2 w-2 rounded-full bg-indigo-500 shrink-0" />
+                                <span>{cls.name}</span>
+                              </div>
                             </td>
 
                             {(gridData.periods ?? []).map((period) => {
@@ -1383,14 +1609,14 @@ export default function DailyDeskPage() {
                                 return (
                                   <td
                                     key={`${cls.id}-${period.id}`}
-                                    className="p-1.5 sm:p-2 border-l border-border/40 text-center bg-amber-500/10 dark:bg-amber-500/20 border-amber-500/20 text-amber-700 dark:text-amber-400 min-h-[100px] align-middle print:bg-amber-100 print:border-gray-300"
+                                    className="p-1.5 sm:p-2 border-l border-border/40 text-center bg-amber-500/5 dark:bg-amber-500/10 align-middle print:bg-amber-50 min-w-[125px] sm:min-w-[145px] md:min-w-[160px]"
                                   >
-                                    <div className="flex flex-col items-center justify-center gap-1 h-full py-3 min-h-[90px] rounded-lg border border-amber-500/20 bg-amber-500/5 dark:bg-amber-500/10">
-                                      <Coffee className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 opacity-80 print:hidden" />
-                                      <span className="text-[10px] sm:text-xs font-extrabold uppercase tracking-wider text-amber-800 dark:text-amber-300 print:text-black">
-                                        {period.label || 'LUNCH BREAK'}
-                                      </span>
-                                      <span className="text-[9px] font-medium text-amber-600 dark:text-amber-400/80 print:text-gray-600">
+                                    <div className="flex flex-col items-center justify-center gap-1 py-2 px-1.5 rounded-xl border border-dashed border-amber-500/30 bg-amber-500/10 dark:bg-amber-500/15">
+                                      <div className="flex items-center gap-1 font-bold text-[10px] sm:text-[11px] uppercase tracking-wider text-amber-800 dark:text-amber-300">
+                                        <Coffee className="h-3 w-3 text-amber-600 dark:text-amber-400 shrink-0 print:hidden" />
+                                        <span className="truncate max-w-[110px]">{period.label || 'BREAK'}</span>
+                                      </div>
+                                      <span className="text-[9px] font-medium text-amber-600/90 dark:text-amber-400/80 whitespace-nowrap print:text-gray-600">
                                         {period.startTime} – {period.endTime}
                                       </span>
                                     </div>
@@ -1403,8 +1629,10 @@ export default function DailyDeskPage() {
 
                               if (!cell || cell.empty) {
                                 return (
-                                  <td key={`${cls.id}-${period.id}`} className='p-2 sm:p-3 border-l border-border/40 text-center text-muted-foreground/20 bg-background/5 min-h-[100px] print:border-gray-300 print:p-1'>
-                                    <span className="text-xs font-semibold tracking-widest print:text-gray-300">—</span>
+                                  <td key={`${cls.id}-${period.id}`} className='p-2 border-l border-border/40 text-center text-muted-foreground/20 bg-background/5 align-middle min-w-[125px] sm:min-w-[145px] md:min-w-[160px] print:border-gray-300 print:p-1'>
+                                    <div className="h-16 flex items-center justify-center rounded-xl border border-dashed border-border/40 text-muted-foreground/30">
+                                      <span className="text-xs font-semibold tracking-widest print:text-gray-300">—</span>
+                                    </div>
                                   </td>
                                 );
                               }
@@ -1415,120 +1643,139 @@ export default function DailyDeskPage() {
                               const isCoverMissing = cell.isReplacementAbsent === true;
                               const subjectColorClass = getSubjectClass(cell.subjectName);
 
+                              const isMatch = isCellMatchingFilter(cell);
+                              const isDimmed = hasActiveFilter && !isMatch;
+
                               return (
                                 <td
                                   key={`${cls.id}-${period.id}`}
                                   className={cn(
-                                    'p-1.5 sm:p-2 border-l border-border/40 h-full min-h-[100px] align-top transition-colors print:border-gray-300 print:p-1',
+                                    'p-1.5 sm:p-2 border-l border-border/40 align-top transition-colors min-w-[125px] sm:min-w-[145px] md:min-w-[160px] print:border-gray-300 print:p-1',
                                     cell.isAbsent
-                                      ? (isCovered && !isCoverMissing ? 'bg-emerald-50 dark:bg-emerald-950/30 print:bg-green-50' : 'bg-rose-50 dark:bg-rose-950/30 print:bg-red-50')
+                                      ? (isCovered && !isCoverMissing ? 'bg-emerald-50/50 dark:bg-emerald-950/20 print:bg-green-50' : 'bg-rose-50/50 dark:bg-rose-950/20 print:bg-red-50')
                                       : 'bg-background/10'
                                   )}
                                 >
                                   <Card
                                     className={cn(
-                                      'p-3 rounded-lg h-full text-xs flex flex-col justify-between shadow-none transition-all border print:p-1.5 print:border-gray-300 print:bg-white',
+                                      'p-2.5 rounded-xl h-full text-xs flex flex-col justify-between shadow-2xs transition-all border min-h-[88px] print:p-1.5 print:border-gray-300 print:bg-white',
                                       cell.isAbsent
                                         ? (isCovered && !isCoverMissing)
-                                          ? 'border-emerald-500/40 bg-emerald-50 dark:bg-emerald-950/20'
-                                          : 'border-rose-500/40 bg-rose-500/5 ring-1 ring-rose-500/10'
-                                        : cn('border-border/60 bg-background hover:border-indigo-500/40', subjectColorClass)
+                                          ? 'border-emerald-500/40 bg-emerald-500/5 dark:bg-emerald-950/20'
+                                          : 'border-rose-500/40 bg-rose-500/5 ring-1 ring-rose-500/20'
+                                        : cn('border-border/70 bg-card hover:border-indigo-500/50 hover:shadow-xs', subjectColorClass),
+                                      hasActiveFilter && isMatch && 'ring-2 ring-indigo-500 ring-offset-1 border-indigo-500 shadow-md bg-indigo-500/5',
+                                      isDimmed && 'opacity-25 grayscale-[40%] hover:opacity-100 hover:grayscale-0 transition-opacity'
                                     )}
                                   >
                                     <div>
                                       <div className="flex items-start justify-between gap-1 mb-1">
-                                        <p className='font-bold text-foreground truncate flex-1 print:text-black print:text-[11px]'>{cell.subjectName}</p>
+                                        <p className='font-bold text-foreground text-xs truncate flex-1 print:text-black print:text-[11px]' title={cell.subjectName}>
+                                          {cell.subjectName}
+                                        </p>
+                                        {hasActiveFilter && isMatch && (
+                                          <span className="inline-flex items-center px-1 py-0.2 rounded text-[8px] font-black uppercase tracking-wider bg-indigo-600 text-white shrink-0">
+                                            Match
+                                          </span>
+                                        )}
                                       </div>
-                                      <p className={cn(
-                                        'font-medium truncate mb-2 print:text-[10px] print:mb-1',
-                                        cell.isAbsent ? 'text-muted-foreground/60 line-through print:text-gray-400' : 'text-muted-foreground print:text-gray-700'
-                                      )}>
-                                        {cell.teacherName}
-                                      </p>
+                                      <div className="flex items-center gap-1 text-[11px] mb-2 min-w-0">
+                                        <User className="h-3 w-3 text-muted-foreground/60 shrink-0 print:hidden" />
+                                        <p className={cn(
+                                          'font-medium truncate',
+                                          cell.isAbsent ? 'text-muted-foreground/60 line-through print:text-gray-400' : 'text-muted-foreground print:text-gray-700'
+                                        )} title={cell.teacherName}>
+                                          {cell.teacherName}
+                                        </p>
+                                      </div>
                                     </div>
 
-                                    <div className='flex flex-col gap-1 mt-auto print:mt-0'>
+                                    <div className='flex flex-col gap-1 mt-auto pt-1.5 border-t border-border/40 print:mt-0'>
                                       {cell.isAbsent ? (
                                         <>
                                           {isCovered && !isCoverMissing && (
-                                            <div className="space-y-1.5 print:space-y-0.5">
-                                              <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 shadow-sm print:bg-transparent print:border-none print:p-0 print:text-green-700">
-                                                <CheckCircle2 className='h-3 w-3 shrink-0 text-emerald-500 print:hidden' />
-                                                <span className="text-[10px] font-bold uppercase tracking-wider print:text-[8px]">Cover Active</span>
+                                            <div className="space-y-1 print:space-y-0.5">
+                                              <div className="flex items-center justify-between gap-1">
+                                                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+                                                  <CheckCircle2 className='h-3 w-3 shrink-0 text-emerald-500 print:hidden' />
+                                                  <span>Covered</span>
+                                                </span>
+                                                <span className="text-[9px] text-muted-foreground font-mono">Proxy</span>
                                               </div>
-                                              <p className="text-[11px] font-medium text-foreground bg-muted/60 px-1.5 py-1 rounded border border-border/40 truncate print:text-[9px] print:bg-gray-50 print:p-0.5">
-                                                <span className="text-muted-foreground font-normal print:text-gray-600">Sub:</span> {cell.replacement?.replacementTeacherName}
+                                              <p className="text-[10px] font-medium text-emerald-950 dark:text-emerald-200 bg-emerald-500/10 px-1.5 py-0.5 rounded truncate border border-emerald-500/20" title={cell.replacement?.replacementTeacherName}>
+                                                {cell.replacement?.replacementTeacherName}
                                               </p>
                                             </div>
                                           )}
 
                                           {isCovered && isCoverMissing && (
-                                            <div className="space-y-1.5 print:space-y-0.5">
-                                              <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-amber-500/10 text-amber-600 border border-amber-500/20">
-                                                <AlertTriangle className='h-3 w-3 shrink-0' />
-                                                <span className="text-[10px] font-bold uppercase">Sub Absent!</span>
+                                            <div className="space-y-1 print:space-y-0.5">
+                                              <div className="flex items-center gap-1 text-[10px] font-bold text-amber-600">
+                                                <AlertTriangle className='h-3 w-3 shrink-0 text-amber-500' />
+                                                <span>Sub Absent!</span>
                                               </div>
-                                              <p className="text-[11px] font-medium text-muted-foreground bg-rose-500/5 px-1.5 py-1 rounded border border-rose-500/20 line-through truncate">
-                                                Sub: {cell.replacement?.replacementTeacherName}
+                                              <p className="text-[10px] font-medium text-muted-foreground bg-rose-500/5 px-1.5 py-0.5 rounded border border-rose-500/20 line-through truncate">
+                                                {cell.replacement?.replacementTeacherName}
                                               </p>
-                                              <Button
-                                                size='sm'
-                                                variant='secondary'
-                                                className='h-7 text-[10px] font-bold rounded bg-indigo-500/10 text-indigo-600 border border-indigo-500/20 hover:bg-indigo-500/20 w-full'
-                                                onClick={() => openCoverForm(
-                                                  cell.classId,
-                                                  period.id,
-                                                  cell.replacement?.replacementTeacherId || cell.teacherId
-                                                )}
-                                              >
-                                                Re-Assign Cover
-                                              </Button>
+                                              {!isPublicView && (
+                                                <Button
+                                                  size='sm'
+                                                  variant='secondary'
+                                                  className='h-6 text-[9px] font-bold rounded bg-indigo-500/10 text-indigo-600 border border-indigo-500/20 hover:bg-indigo-500/20 w-full p-0'
+                                                  onClick={() => openCoverForm(
+                                                    cell.classId,
+                                                    period.id,
+                                                    cell.replacement?.replacementTeacherId || cell.teacherId
+                                                  )}
+                                                >
+                                                  Re-Assign
+                                                </Button>
+                                              )}
                                             </div>
                                           )}
 
                                           {!isCovered && (
                                             <>
-                                              <div className="flex items-center gap-1.5 px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 mb-1 print:bg-transparent print:border-none print:p-0 print:text-red-700 print:mb-0">
-                                                <AlertTriangle className='h-3 w-3 shrink-0 text-rose-500 print:hidden' />
-                                                <span className="text-[9px] font-bold uppercase tracking-wide print:text-[8px]">ABSENT (ALL DAY)</span>
+                                              <div className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-wide text-rose-600 dark:text-rose-400 mb-0.5">
+                                                <AlertTriangle className='h-2.5 w-2.5 shrink-0 text-rose-500 print:hidden' />
+                                                <span>ABSENT</span>
                                               </div>
                                               {!isPublicView && (
-                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
-                                                  <Button
-                                                    size='sm'
-                                                    variant='outline'
-                                                    className='h-7 text-[10px] font-bold rounded border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/10 transition-colors px-1'
+                                                <div className="grid grid-cols-2 gap-1">
+                                                  <button
+                                                    type="button"
+                                                    className='h-6 text-[9px] font-bold rounded-md bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 border border-emerald-500/20 transition-colors cursor-pointer'
                                                     onClick={() => void handleMarkAttendance(cell.classId, period.id, cell.teacherId, false)}
                                                   >
                                                     Present
-                                                  </Button>
-                                                  <Button
-                                                    size='sm'
-                                                    variant='secondary'
-                                                    className='h-7 text-[10px] font-bold rounded bg-indigo-500/10 text-indigo-600 border border-indigo-500/20 hover:bg-indigo-500/20 transition-colors px-1'
+                                                  </button>
+                                                  <button
+                                                    type="button"
+                                                    className='h-6 text-[9px] font-bold rounded-md bg-indigo-600 hover:bg-indigo-700 text-white shadow-2xs transition-colors cursor-pointer'
                                                     onClick={() => openCoverForm(cell.classId, period.id, cell.teacherId)}
                                                   >
-                                                    Assign Cover
-                                                  </Button>
+                                                    + Cover
+                                                  </button>
                                                 </div>
                                               )}
                                             </>
                                           )}
                                         </>
                                       ) : (
-                                        <div className="flex flex-col gap-1 mt-auto">
-                                          <div className="text-[10px] text-muted-foreground italic">
+                                        <div className="flex items-center justify-between gap-1">
+                                          <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
+                                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
                                             Present
-                                          </div>
+                                          </span>
                                           {!isPublicView && (
-                                            <Button
-                                              size='sm'
-                                              variant='outline'
-                                              className='h-7 text-[10px] font-bold rounded border-rose-500/30 text-rose-600 hover:bg-rose-500/10 transition-colors px-1'
+                                            <button
+                                              type="button"
+                                              className='text-[9px] font-semibold text-muted-foreground/80 hover:text-rose-600 hover:bg-rose-500/10 border border-transparent hover:border-rose-500/20 px-1.5 py-0.5 rounded-md transition-all cursor-pointer'
                                               onClick={() => void handleMarkAttendance(cell.classId, period.id, cell.teacherId, true)}
+                                              title="Mark absent for today"
                                             >
                                               Mark Absent
-                                            </Button>
+                                            </button>
                                           )}
                                         </div>
                                       )}
@@ -1538,12 +1785,13 @@ export default function DailyDeskPage() {
                               );
                             })}
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
                 </div>
-              )}
+              </div>
+            )}
             </GlassCard>
 
           {/* HISTORICAL TIMELINE SNAPSHOT LOG */}

@@ -124,26 +124,103 @@ export async function POST(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: 'No subjects available.' }, { status: 400 });
     }
 
-    // 4. Build teacher eligibility mapping per subject
-    const subjectToTeachersMap = new Map<string, string[]>();
-    allSubjects.forEach((sub: any) => {
-      const eligibleTeacherIds: string[] = [];
-      allTeachers.forEach((teacher: any) => {
-        const mappedSubjects = teacherSubjectMap[teacher.id] || (Array.isArray(teacher.subjects) ? teacher.subjects : []);
-        if (
-          mappedSubjects.includes(sub.id) ||
-          mappedSubjects.includes(sub.name) ||
-          (teacher as any).subjectSpecialtyId === sub.id
-        ) {
-          eligibleTeacherIds.push(teacher.id);
+    // Helper to safely extract string array from Json/string field
+    const parseArray = (val: any): string[] => {
+      if (Array.isArray(val)) return val;
+      if (typeof val === 'string') {
+        try {
+          const parsed = JSON.parse(val);
+          return Array.isArray(parsed) ? parsed : [];
+        } catch {
+          return [];
         }
-      });
-      // Fallback: If no teacher explicitly mapped to this subject, allow any active teacher
-      if (eligibleTeacherIds.length === 0) {
-        eligibleTeacherIds.push(...allTeachers.map((t: any) => t.id));
       }
-      subjectToTeachersMap.set(sub.id, eligibleTeacherIds);
-    });
+      return [];
+    };
+
+    // Check if any subject in the entire school has class assignments
+    const anySubjectConfiguredInSchool = allSubjects.some(
+      (s: any) => parseArray(s.classIds).length > 0
+    );
+
+    // Build map: classId -> Subject[] strictly assigned to this class
+    const classToSubjectsMap = new Map<string, any[]>();
+    for (const classObj of classesToSchedule) {
+      const assigned = allSubjects.filter((sub: any) => {
+        const cIds = parseArray(sub.classIds);
+        return (
+          cIds.includes(classObj.id) ||
+          (classObj.name && cIds.includes(classObj.name))
+        );
+      });
+
+      if (assigned.length > 0) {
+        classToSubjectsMap.set(classObj.id, assigned);
+      } else if (!anySubjectConfiguredInSchool) {
+        // Fallback only if no subjects in the school have any class associations
+        classToSubjectsMap.set(classObj.id, allSubjects);
+      } else {
+        classToSubjectsMap.set(classObj.id, []);
+      }
+    }
+
+    // Check if any teacher in the school has classes assigned
+    const anyTeacherHasClasses = allTeachers.some(
+      (t: any) => parseArray(t.classes).length > 0
+    );
+
+    // Cache of qualified active teachers for a specific (class, subject)
+    const qualifiedTeacherCache = new Map<string, any[]>();
+
+    const getQualifiedTeachers = (classObj: any, subject: any): any[] => {
+      const key = `${classObj.id}_${subject.id}`;
+      if (qualifiedTeacherCache.has(key)) return qualifiedTeacherCache.get(key)!;
+
+      const qualified = allTeachers.filter((teacher: any) => {
+        // 1. Must teach this class
+        const teacherClasses = parseArray(teacher.classes);
+        if (teacherClasses.length === 0) {
+          // If teacher has NO classes assigned in Faculty Directory, they cannot teach ANY class
+          if (anyTeacherHasClasses) return false;
+        } else {
+          const teachesClass =
+            teacherClasses.includes(classObj.id) ||
+            (classObj.name && teacherClasses.includes(classObj.name));
+
+          if (!teachesClass) return false;
+        }
+
+        // 2. Must teach this subject (with per-class mapping support)
+        const rawSubjects = parseArray(teacher.subjects);
+        const baseSubjects = rawSubjects.map((s: string) => s.includes(':::') ? s.split(':::')[1] : s);
+
+        const classSpecificMappings = rawSubjects.filter((s: string) => s.includes(':::'));
+        if (classSpecificMappings.length > 0) {
+          const teachesSubjectInThisClass = classSpecificMappings.some((entry: string) => {
+            const [mCid, mSid] = entry.split(':::');
+            const classMatches = mCid === classObj.id || (classObj.name && mCid === classObj.name);
+            const subjectMatches = mSid === subject.id || (subject.name && mSid === subject.name);
+            return classMatches && subjectMatches;
+          });
+          if (!teachesSubjectInThisClass) return false;
+        } else {
+          if (baseSubjects.length === 0 && !(teacher as any).subjectSpecialtyId) {
+            return false;
+          }
+          const teachesSubject =
+            baseSubjects.includes(subject.id) ||
+            baseSubjects.includes(subject.name) ||
+            (teacher as any).subjectSpecialtyId === subject.id;
+
+          if (!teachesSubject) return false;
+        }
+
+        return true;
+      });
+
+      qualifiedTeacherCache.set(key, qualified);
+      return qualified;
+    };
 
     // 5. Tracking state for conflict-free scheduling
     const busyTeachers = new Map<string, Set<string>>();
@@ -152,6 +229,8 @@ export async function POST(request: NextRequest, context: RouteContext) {
     allTeachers.forEach((t: any) => teacherTotalWorkload.set(t.id, 0));
     const teacherDailyLoad = new Map<string, number>();
     const slotTeacherMap = new Map<string, string>();
+    const slotSubjectMap = new Map<string, string>();
+    const classSubjectPeriodCount = new Map<string, number>();
 
     const existingSlotKeys = new Set<string>();
 
@@ -172,6 +251,12 @@ export async function POST(request: NextRequest, context: RouteContext) {
         teacherTotalWorkload.set(slot.teacherId, (teacherTotalWorkload.get(slot.teacherId) || 0) + 1);
         const dayKey = `${slot.teacherId}_${slot.dayOfWeek}`;
         teacherDailyLoad.set(dayKey, (teacherDailyLoad.get(dayKey) || 0) + 1);
+        slotTeacherMap.set(`${slot.classId}_${slot.dayOfWeek}_${slot.periodId}`, slot.teacherId);
+        slotSubjectMap.set(`${slot.classId}_${slot.dayOfWeek}_${slot.periodId}`, slot.subjectId);
+        classSubjectPeriodCount.set(
+          `${slot.classId}_${slot.subjectId}`,
+          (classSubjectPeriodCount.get(`${slot.classId}_${slot.subjectId}`) || 0) + 1
+        );
       }
     });
 
@@ -190,8 +275,65 @@ export async function POST(request: NextRequest, context: RouteContext) {
     const roomByNumber = new Map<string, string>();
     allRooms.forEach((r: any) => roomByNumber.set(r.roomNumber, r.id));
 
+    // 5.5 Map to enforce: EXACTLY ONE teacher per (class, subject)
+    // Key: `${classId}_${subjectId}` -> teacherId
+    const classSubjectTeacherLock = new Map<string, string>();
+
+    if (fillOnlyEmpty) {
+      existingSlots.forEach((slot: any) => {
+        if (slot.classId && slot.subjectId && slot.teacherId) {
+          const key = `${slot.classId}_${slot.subjectId}`;
+          if (!classSubjectTeacherLock.has(key)) {
+            classSubjectTeacherLock.set(key, slot.teacherId);
+          }
+        }
+      });
+    }
+
+    // Pre-designate ONE teacher per (class, subject) to balance teaching loads across faculty
+    const teacherAssignedSubjectCount = new Map<string, number>();
+    allTeachers.forEach((t: any) => teacherAssignedSubjectCount.set(t.id, 0));
+
+    classSubjectTeacherLock.forEach((tId) => {
+      teacherAssignedSubjectCount.set(
+        tId,
+        (teacherAssignedSubjectCount.get(tId) || 0) + 1
+      );
+    });
+
+    for (const classObj of classesToSchedule) {
+      const candidateSubjects = classToSubjectsMap.get(classObj.id) || [];
+      for (const subject of candidateSubjects) {
+        const lockKey = `${classObj.id}_${subject.id}`;
+        if (!classSubjectTeacherLock.has(lockKey)) {
+          const qualified = getQualifiedTeachers(classObj, subject);
+          if (qualified.length > 0) {
+            const sortedTeachers = [...qualified].sort((a, b) => {
+              if (equalWorkload) {
+                const countA = teacherAssignedSubjectCount.get(a.id) || 0;
+                const countB = teacherAssignedSubjectCount.get(b.id) || 0;
+                if (countA !== countB) return countA - countB;
+              }
+              const priorityA = teacherSettings[a.id]?.priority || 1;
+              const priorityB = teacherSettings[b.id]?.priority || 1;
+              if (priorityA !== priorityB) return priorityB - priorityA;
+              return (a.name || '').localeCompare(b.name || '');
+            });
+
+            const designated = sortedTeachers[0];
+            classSubjectTeacherLock.set(lockKey, designated.id);
+            teacherAssignedSubjectCount.set(
+              designated.id,
+              (teacherAssignedSubjectCount.get(designated.id) || 0) + 1
+            );
+          }
+        }
+      }
+    }
+
     // 6. Execution Loop: Schedule slots for all target classes across all days and periods
     const targetClassIdsSet = new Set(classesToSchedule.map((c: any) => c.id));
+    const scheduledSlotCellMap = new Set<string>();
 
     for (let dayIdx = 0; dayIdx < workingDays.length; dayIdx++) {
       const dayOfWeek = workingDays[dayIdx];
@@ -206,89 +348,84 @@ export async function POST(request: NextRequest, context: RouteContext) {
         for (let classIdx = 0; classIdx < classesToSchedule.length; classIdx++) {
           const classObj = classesToSchedule[classIdx];
           const fullKey = `${timetableId}_${dayOfWeek}_${period.id}_${classObj.id}`;
+          const cellSlotKey = `${classObj.id}_${dayOfWeek}_${period.id}`;
 
           if (fillOnlyEmpty && existingSlotKeys.has(fullKey)) {
+            scheduledSlotCellMap.add(cellSlotKey);
             continue;
           }
 
-          // Filter candidate subjects that belong to this class
-          const subjectsForClass = allSubjects.filter((sub: any) => {
-            let subClassIds: string[] = [];
-            if (Array.isArray(sub.classIds)) subClassIds = sub.classIds;
-            else if (typeof sub.classIds === 'string') {
-              try { subClassIds = JSON.parse(sub.classIds); } catch {}
+          // Candidate subjects strictly assigned to this class
+          const candidateSubjects = classToSubjectsMap.get(classObj.id) || [];
+          if (candidateSubjects.length === 0) {
+            continue; // No subjects assigned to this class
+          }
+
+          // Only keep subjects that have a qualified/designated teacher
+          const subjectsWithTeachers = candidateSubjects.filter((sub) => {
+            const lockKey = `${classObj.id}_${sub.id}`;
+            const lockedTeacherId = classSubjectTeacherLock.get(lockKey);
+            if (lockedTeacherId) {
+              return allTeachers.some((t: any) => t.id === lockedTeacherId);
             }
-            if (subClassIds.length === 0) return true; // school-wide
-            return subClassIds.includes(classObj.id);
+            return getQualifiedTeachers(classObj, sub).length > 0;
           });
 
-          const classSubjectList = subjectsForClass.length > 0 ? subjectsForClass : allSubjects;
-          const subjectOffset = (classIdx * 2 + dayIdx * 3 + periodIdx) % classSubjectList.length;
-          const candidateSubjects = [
-            ...classSubjectList.slice(subjectOffset),
-            ...classSubjectList.slice(0, subjectOffset),
-          ];
+          if (subjectsWithTeachers.length === 0) {
+            continue; // No qualified teachers for this class's subjects
+          }
 
-          let assigned = false;
+          // Sort subjects to balance course distribution and avoid back-to-back same subject
+          const prevPeriodId = periodIdx > 0 ? activePeriods[periodIdx - 1]?.id : null;
+          const prevSubjectId = prevPeriodId
+            ? slotSubjectMap.get(`${classObj.id}_${dayOfWeek}_${prevPeriodId}`)
+            : null;
 
-          for (const subject of candidateSubjects) {
-            // Find eligible teachers specifically for this (subject, classObj)
-            let eligibleTeachers = allTeachers
-              .filter((teacher: any) => {
-                let mappedSubjects: string[] = [];
-                if (Array.isArray(teacher.subjects)) mappedSubjects = teacher.subjects;
-                else if (typeof teacher.subjects === 'string') {
-                  try { mappedSubjects = JSON.parse(teacher.subjects); } catch {}
-                }
-                if (teacherSubjectMap[teacher.id]) {
-                  mappedSubjects = teacherSubjectMap[teacher.id];
-                }
-
-                const hasSubject =
-                  mappedSubjects.includes(subject.id) ||
-                  mappedSubjects.includes(subject.name) ||
-                  (teacher as any).subjectSpecialtyId === subject.id;
-                if (!hasSubject) return false;
-
-                // Check teacher's assigned classes
-                let teacherClasses: string[] = [];
-                if (Array.isArray(teacher.classes)) teacherClasses = teacher.classes;
-                else if (typeof teacher.classes === 'string') {
-                  try { teacherClasses = JSON.parse(teacher.classes); } catch {}
-                }
-
-                // If explicit per-subject class restriction exists in request payload, check that
-                const classRestrictions = teacherSubjectClassMap?.[teacher.id]?.[subject.id];
-                if (Array.isArray(classRestrictions) && classRestrictions.length > 0) {
-                  return classRestrictions.includes(classObj.id);
-                }
-
-                // If teacher has assigned classes configured on their profile, they must teach this class
-                if (teacherClasses.length > 0) {
-                  return teacherClasses.includes(classObj.id);
-                }
-
-                // No restriction means eligible for all classes
-                return true;
-              })
-              .map((t: any) => t.id);
-
-            // Fallback: If no teacher specifically mapped to this class+subject, check general teachers for this subject
-            if (eligibleTeachers.length === 0) {
-              const generalTeachers = subjectToTeachersMap.get(subject.id) || [];
-              if (generalTeachers.length > 0) {
-                eligibleTeachers = generalTeachers;
-              }
+          const sortedSubjects = [...subjectsWithTeachers].sort((a, b) => {
+            if (avoidConsecutive && prevSubjectId) {
+              const aIsPrev = a.id === prevSubjectId;
+              const bIsPrev = b.id === prevSubjectId;
+              if (aIsPrev !== bIsPrev) return aIsPrev ? 1 : -1;
             }
 
-            if (eligibleTeachers.length === 0) continue;
+            const countA = classSubjectPeriodCount.get(`${classObj.id}_${a.id}`) || 0;
+            const countB = classSubjectPeriodCount.get(`${classObj.id}_${b.id}`) || 0;
+            if (countA !== countB) return countA - countB;
 
-            const freeTeachers = eligibleTeachers.filter((tId: string) => {
-              if (busyTeachers.get(cellKey)?.has(tId)) return false;
+            // Offset rotation across classes to minimize simultaneous collisions
+            return (a.name || '').localeCompare(b.name || '');
+          });
 
-              const tSetting = teacherSettings[tId];
-              const maxDay = tSetting?.maxPeriodsPerDay || 6;
-              const currentDayCount = teacherDailyLoad.get(`${tId}_${dayOfWeek}`) || 0;
+          // Rotate starting point by class and period to distribute teacher demand
+          const rotationOffset = (classIdx * 2 + dayIdx + periodIdx) % sortedSubjects.length;
+          const rotatedCandidateSubjects = [
+            ...sortedSubjects.slice(rotationOffset),
+            ...sortedSubjects.slice(0, rotationOffset),
+          ];
+
+          for (const subject of rotatedCandidateSubjects) {
+            const lockKey = `${classObj.id}_${subject.id}`;
+            const lockedTeacherId = classSubjectTeacherLock.get(lockKey);
+
+            // STRICT SINGLE TEACHER PER (CLASS, SUBJECT):
+            // Only allow the designated teacher who is locked for this class & subject!
+            const qualifiedTeachers = lockedTeacherId
+              ? allTeachers.filter((t: any) => t.id === lockedTeacherId)
+              : getQualifiedTeachers(classObj, subject);
+
+            if (qualifiedTeachers.length === 0) continue;
+
+            // Filter to teachers free at this time and under max daily load
+            const freeTeachers = qualifiedTeachers.filter((t: any) => {
+              if (busyTeachers.get(cellKey)?.has(t.id)) return false;
+
+              const tSetting = teacherSettings[t.id];
+              const maxDay =
+                tSetting?.maxPeriodsPerDay ||
+                (t.maxPeriodsPerWeek
+                  ? Math.ceil(t.maxPeriodsPerWeek / workingDays.length) + 1
+                  : 6);
+              const currentDayCount = teacherDailyLoad.get(`${t.id}_${dayOfWeek}`) || 0;
               if (currentDayCount >= maxDay) return false;
 
               return true;
@@ -296,27 +433,33 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
             if (freeTeachers.length === 0) continue;
 
-            freeTeachers.sort((a: string, b: string) => {
-              if (avoidConsecutive && periodIdx > 0) {
-                const prevPeriod = activePeriods[periodIdx - 1];
-                const prevTeacher = slotTeacherMap.get(`${classObj.id}_${dayOfWeek}_${prevPeriod.id}`);
-                const aIsPrev = a === prevTeacher;
-                const bIsPrev = b === prevTeacher;
+            const prevTeacherId = prevPeriodId
+              ? slotTeacherMap.get(`${classObj.id}_${dayOfWeek}_${prevPeriodId}`)
+              : null;
+
+            freeTeachers.sort((a: any, b: any) => {
+              if (avoidConsecutive && prevTeacherId) {
+                const aIsPrev = a.id === prevTeacherId;
+                const bIsPrev = b.id === prevTeacherId;
                 if (aIsPrev !== bIsPrev) return aIsPrev ? 1 : -1;
               }
 
               if (equalWorkload) {
-                const loadA = teacherTotalWorkload.get(a) || 0;
-                const loadB = teacherTotalWorkload.get(b) || 0;
+                const loadA = teacherTotalWorkload.get(a.id) || 0;
+                const loadB = teacherTotalWorkload.get(b.id) || 0;
                 if (loadA !== loadB) return loadA - loadB;
               }
 
-              const priorityA = teacherSettings[a]?.priority || 1;
-              const priorityB = teacherSettings[b]?.priority || 1;
+              const priorityA = teacherSettings[a.id]?.priority || 1;
+              const priorityB = teacherSettings[b.id]?.priority || 1;
               return priorityB - priorityA;
             });
 
-            const chosenTeacherId = freeTeachers[0];
+            const chosenTeacher = freeTeachers[0];
+
+            if (!classSubjectTeacherLock.has(lockKey)) {
+              classSubjectTeacherLock.set(lockKey, chosenTeacher.id);
+            }
 
             const slotId = `slot-${crypto.randomUUID()}`;
             newSlotsToCreate.push({
@@ -327,39 +470,85 @@ export async function POST(request: NextRequest, context: RouteContext) {
               periodId: period.id,
               classId: classObj.id,
               subjectId: subject.id,
-              teacherId: chosenTeacherId,
+              teacherId: chosenTeacher.id,
               roomId: undefined,
             });
 
-            busyTeachers.get(cellKey)!.add(chosenTeacherId);
+            busyTeachers.get(cellKey)!.add(chosenTeacher.id);
+            scheduledSlotCellMap.add(cellSlotKey);
 
-            teacherTotalWorkload.set(chosenTeacherId, (teacherTotalWorkload.get(chosenTeacherId) || 0) + 1);
-            const dayKey = `${chosenTeacherId}_${dayOfWeek}`;
+            teacherTotalWorkload.set(
+              chosenTeacher.id,
+              (teacherTotalWorkload.get(chosenTeacher.id) || 0) + 1
+            );
+            const dayKey = `${chosenTeacher.id}_${dayOfWeek}`;
             teacherDailyLoad.set(dayKey, (teacherDailyLoad.get(dayKey) || 0) + 1);
-            slotTeacherMap.set(`${classObj.id}_${dayOfWeek}_${period.id}`, chosenTeacherId);
 
-            assigned = true;
+            slotTeacherMap.set(`${classObj.id}_${dayOfWeek}_${period.id}`, chosenTeacher.id);
+            slotSubjectMap.set(`${classObj.id}_${dayOfWeek}_${period.id}`, subject.id);
+            classSubjectPeriodCount.set(
+              `${classObj.id}_${subject.id}`,
+              (classSubjectPeriodCount.get(`${classObj.id}_${subject.id}`) || 0) + 1
+            );
+
             break;
           }
+        }
+      }
+    }
 
-          if (!assigned) {
-            const fallbackTeacher = allTeachers.find((t: any) => !busyTeachers.get(cellKey)?.has(t.id));
-            if (fallbackTeacher) {
-              const fallbackSubject = allSubjects[periodIdx % allSubjects.length];
-              const slotId = `slot-${crypto.randomUUID()}`;
-              newSlotsToCreate.push({
-                id: slotId,
-                timetableId,
-                schoolId,
-                dayOfWeek,
-                periodId: period.id,
-                classId: classObj.id,
-                subjectId: fallbackSubject.id,
-                teacherId: fallbackTeacher.id,
-              });
-              busyTeachers.get(cellKey)!.add(fallbackTeacher.id);
-              teacherTotalWorkload.set(fallbackTeacher.id, (teacherTotalWorkload.get(fallbackTeacher.id) || 0) + 1);
-            }
+    // Pass 2: Backfill any remaining vacant slots for target classes using their designated subject teachers
+    for (let dayIdx = 0; dayIdx < workingDays.length; dayIdx++) {
+      const dayOfWeek = workingDays[dayIdx];
+      for (let periodIdx = 0; periodIdx < activePeriods.length; periodIdx++) {
+        const period = activePeriods[periodIdx];
+        const cellKey = `${dayOfWeek}_${period.id}`;
+
+        for (const classObj of classesToSchedule) {
+          const cellSlotKey = `${classObj.id}_${dayOfWeek}_${period.id}`;
+          if (scheduledSlotCellMap.has(cellSlotKey)) continue;
+
+          const candidateSubjects = classToSubjectsMap.get(classObj.id) || [];
+          for (const subject of candidateSubjects) {
+            const lockKey = `${classObj.id}_${subject.id}`;
+            const lockedTeacherId = classSubjectTeacherLock.get(lockKey);
+            if (!lockedTeacherId) continue;
+
+            if (busyTeachers.get(cellKey)?.has(lockedTeacherId)) continue;
+
+            const chosenTeacher = allTeachers.find((t: any) => t.id === lockedTeacherId);
+            if (!chosenTeacher) continue;
+
+            const slotId = `slot-${crypto.randomUUID()}`;
+            newSlotsToCreate.push({
+              id: slotId,
+              timetableId,
+              schoolId,
+              dayOfWeek,
+              periodId: period.id,
+              classId: classObj.id,
+              subjectId: subject.id,
+              teacherId: chosenTeacher.id,
+              roomId: undefined,
+            });
+
+            busyTeachers.get(cellKey)!.add(chosenTeacher.id);
+            scheduledSlotCellMap.add(cellSlotKey);
+
+            teacherTotalWorkload.set(
+              chosenTeacher.id,
+              (teacherTotalWorkload.get(chosenTeacher.id) || 0) + 1
+            );
+            const dayKey = `${chosenTeacher.id}_${dayOfWeek}`;
+            teacherDailyLoad.set(dayKey, (teacherDailyLoad.get(dayKey) || 0) + 1);
+
+            slotTeacherMap.set(`${classObj.id}_${dayOfWeek}_${period.id}`, chosenTeacher.id);
+            slotSubjectMap.set(`${classObj.id}_${dayOfWeek}_${period.id}`, subject.id);
+            classSubjectPeriodCount.set(
+              `${classObj.id}_${subject.id}`,
+              (classSubjectPeriodCount.get(`${classObj.id}_${subject.id}`) || 0) + 1
+            );
+            break;
           }
         }
       }
@@ -401,12 +590,22 @@ export async function POST(request: NextRequest, context: RouteContext) {
       assignedCount: teacherTotalWorkload.get(t.id) || 0,
     }));
 
+    const unscheduledClasses = classesToSchedule
+      .filter((c: any) => !newSlotsToCreate.some((s) => s.classId === c.id))
+      .map((c: any) => c.name);
+
+    let message = `Successfully auto-assigned ${newSlotsToCreate.length} slots across ${classesToSchedule.length} classes with 0 conflicts!`;
+    if (unscheduledClasses.length > 0) {
+      message = `Auto-assigned ${newSlotsToCreate.length} slots. Note: ${unscheduledClasses.join(', ')} had no qualified faculty assigned to their subjects.`;
+    }
+
     return NextResponse.json({
       success: true,
       totalSlotsAssigned: newSlotsToCreate.length,
       classesCount: classesToSchedule.length,
       workloadSummary,
-      message: `Successfully auto-assigned ${newSlotsToCreate.length} slots across ${classesToSchedule.length} classes with 0 conflicts!`,
+      unscheduledClasses,
+      message,
     });
   } catch (error) {
     console.error('Error auto-generating timetable slots:', error);

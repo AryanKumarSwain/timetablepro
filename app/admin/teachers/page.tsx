@@ -53,9 +53,14 @@ import {
   Loader2,
   BookOpen,
   Layers,
+  Lock,
+  AlertTriangle,
 } from 'lucide-react';
+import { toast } from 'sonner';
 
-type TeacherFormState = Omit<Teacher, 'id'>;
+type TeacherFormState = Omit<Teacher, 'id'> & {
+  classSubjectMap?: Record<string, string[]>;
+};
 
 const createEmptyTeacherForm = (): TeacherFormState => ({
   name: '',
@@ -64,6 +69,7 @@ const createEmptyTeacherForm = (): TeacherFormState => ({
   qualifications: [],
   subjects: [],
   classes: [],
+  classSubjectMap: {},
   active: true,
   joinDate: new Date().toISOString().split('T')[0],
 });
@@ -78,6 +84,7 @@ export default function TeachersPage() {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState<TeacherFormState>(createEmptyTeacherForm);
+  const [activeClassTab, setActiveClassTab] = useState<string>('');
   const [importOpen, setImportOpen] = useState(false);
   const [selectedTeacherForView, setSelectedTeacherForView] = useState<Teacher | null>(null);
   const [resendingId, setResendingId] = useState<string | null>(null);
@@ -97,6 +104,7 @@ export default function TeachersPage() {
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [schoolPlan, setSchoolPlan] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [resolvingConflicts, setResolvingConflicts] = useState(false);
 
   // 1. Core Initial Data Fetch
   useEffect(() => {
@@ -151,15 +159,103 @@ export default function TeachersPage() {
     }
   };
 
+  // Lookup maps
+  const classMap = useMemo(() => {
+    const map = new Map<string, Class>();
+    classes.forEach((c) => map.set(c.id, c));
+    return map;
+  }, [classes]);
+
+  const subjectMap = useMemo(() => {
+    const map = new Map<string, Subject>();
+    allSubjects.forEach((s) => map.set(s.id, s));
+    return map;
+  }, [allSubjects]);
+
+  const isClassEqual = (c1: string, c2: string) => {
+    if (!c1 || !c2) return false;
+    if (c1 === c2) return true;
+    const cls1 = classMap.get(c1) || classes.find((c) => c.id === c1 || c.name === c1 || (c.section ? `${c.name} (${c.section})` : c.name) === c1);
+    const cls2 = classMap.get(c2) || classes.find((c) => c.id === c2 || c.name === c2 || (c.section ? `${c.name} (${c.section})` : c.name) === c2);
+    if (cls1 && cls2) return cls1.id === cls2.id;
+    return false;
+  };
+
+  const isSubjectEqual = (s1: string, s2: string) => {
+    if (!s1 || !s2) return false;
+    if (s1.toLowerCase() === s2.toLowerCase()) return true;
+    const sub1 = subjectMap.get(s1) || allSubjects.find((s) => s.id === s1 || s.name.toLowerCase() === s1.toLowerCase());
+    const sub2 = subjectMap.get(s2) || allSubjects.find((s) => s.id === s2 || s.name.toLowerCase() === s2.toLowerCase());
+    if (sub1 && sub2) return sub1.id === sub2.id;
+    return false;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null); 
     setSuccessMsg(null);
     
     try {
+      const selectedClasses = formData.classes || [];
+      const classSubjectMap = formData.classSubjectMap || {};
+
+      // Build specific (cid, sid) pairs to validate
+      const classSubjectPairs: Array<{ cid: string; sid: string }> = [];
+      const allUniqueSubs = new Set<string>();
+
+      if (Object.keys(classSubjectMap).length > 0) {
+        for (const [cid, sids] of Object.entries(classSubjectMap)) {
+          if (!selectedClasses.includes(cid)) continue;
+          (sids || []).forEach((sid) => {
+            classSubjectPairs.push({ cid, sid });
+            allUniqueSubs.add(sid);
+          });
+        }
+      } else {
+        const selectedSubjects = selectedClasses.length > 0 ? (formData.subjects || []) : [];
+        for (const cid of selectedClasses) {
+          for (const sid of selectedSubjects) {
+            classSubjectPairs.push({ cid, sid });
+            allUniqueSubs.add(sid);
+          }
+        }
+      }
+
+      // Validate: Prevent assigning a subject that is already assigned to another teacher for that specific class
+      for (const { cid, sid } of classSubjectPairs) {
+        const conflicting = teachers.find((other) => {
+          if (editingId && other.id === editingId) return false;
+          const oClasses = Array.isArray(other.classes) ? other.classes : [];
+          const teachesClass = oClasses.some((oc) => isClassEqual(oc, cid));
+          if (!teachesClass) return false;
+
+          let otherSubsInThisClass: string[] = [];
+          if (other.classSubjectMap && Object.keys(other.classSubjectMap).length > 0) {
+            const matchCid = Object.keys(other.classSubjectMap).find((k) => isClassEqual(k, cid));
+            otherSubsInThisClass = matchCid ? other.classSubjectMap[matchCid] || [] : [];
+          } else {
+            otherSubsInThisClass = Array.isArray(other.subjects) ? other.subjects : [];
+          }
+
+          const teachesSub = otherSubsInThisClass.some((os) => isSubjectEqual(os, sid));
+          return teachesSub;
+        });
+
+        if (conflicting) {
+          const cls = classMap.get(cid) || classes.find((c) => isClassEqual(c.id, cid));
+          const cName = cls ? (cls.section ? `${cls.name} (${cls.section})` : cls.name) : cid;
+          const sub = subjectMap.get(sid) || allSubjects.find((s) => isSubjectEqual(s.id, sid) || isSubjectEqual(s.name, sid));
+          const sName = sub ? sub.name : sid;
+          setErrorMsg(`"${sName}" in ${cName} is already assigned to ${conflicting.name}. Only one teacher can be assigned to a subject per class.`);
+          return;
+        }
+      }
+
       const payload = {
         ...formData,
-        subjects: (formData.classes || []).length > 0 ? formData.subjects : [],
+        classes: selectedClasses,
+        subjects: Array.from(allUniqueSubs),
+        classSubjectMap,
       };
 
       if (editingId) {
@@ -167,20 +263,13 @@ export default function TeachersPage() {
         setSuccessMsg(`Profile updated successfully for ${formData.name}.`);
       } else {
         await createTeacher(payload);
-        
-        console.log('---------------------------------------------------------');
-        console.log(`[SMTP Dispatch Simulation Check]`);
-        console.log(`TO: ${formData.email}`);
-        console.log(`SUBJECT: Welcome to the Portal, ${formData.name}!`);
-        console.log(`BODY: Account registration successful. Status configured: ACTIVE.`);
-        console.log('---------------------------------------------------------');
-        
         setSuccessMsg(`Teacher profile created and credentials sent to ${formData.email}.`);
       }
       await loadTeachers();
       
       setFormData(createEmptyTeacherForm());
       setEditingId(null);
+      setActiveClassTab('');
       setShowForm(false); 
     } catch (error: any) {
       console.error('Failed to save teacher record setup:', error);
@@ -203,6 +292,15 @@ export default function TeachersPage() {
     setErrorMsg(null);
     setSuccessMsg(null);
     const teacherClasses = Array.isArray(teacher.classes) ? teacher.classes : [];
+    const teacherClassSubjectMap: Record<string, string[]> = {};
+    if (teacher.classSubjectMap && Object.keys(teacher.classSubjectMap).length > 0) {
+      Object.assign(teacherClassSubjectMap, teacher.classSubjectMap);
+    } else if (teacherClasses.length > 0 && Array.isArray(teacher.subjects)) {
+      teacherClasses.forEach((cid) => {
+        teacherClassSubjectMap[cid] = [...teacher.subjects];
+      });
+    }
+
     setFormData({
       name: teacher.name ?? '',
       email: teacher.email ?? '',
@@ -210,10 +308,12 @@ export default function TeachersPage() {
       qualifications: Array.isArray(teacher.qualifications) ? teacher.qualifications : [],
       subjects: teacherClasses.length > 0 && Array.isArray(teacher.subjects) ? teacher.subjects : [],
       classes: teacherClasses,
+      classSubjectMap: teacherClassSubjectMap,
       active: teacher.active ?? true,
       joinDate: teacher.joinDate ?? new Date().toISOString().split('T')[0],
     });
     setEditingId(teacher.id);
+    setActiveClassTab(teacherClasses[0] || '');
     setShowForm(true);
     setSelectedTeacherForView(null);
     if (typeof window !== 'undefined') {
@@ -279,32 +379,181 @@ export default function TeachersPage() {
     setSuccessMsg(null);
   };
 
-  // Lookup maps
-  const classMap = useMemo(() => {
-    const map = new Map<string, Class>();
-    classes.forEach((c) => map.set(c.id, c));
-    return map;
-  }, [classes]);
-
-  const subjectMap = useMemo(() => {
-    const map = new Map<string, Subject>();
-    allSubjects.forEach((s) => map.set(s.id, s));
-    return map;
-  }, [allSubjects]);
-
-  // Subjects available for the classes selected by this teacher
-  const availableSubjects = useMemo(() => {
-    const selectedClassIds = formData.classes || [];
-    if (selectedClassIds.length === 0) {
-      return [];
+  // Keep activeClassTab aligned with selected classes
+  useEffect(() => {
+    const currentClasses = formData.classes || [];
+    if (currentClasses.length === 0) {
+      if (activeClassTab !== '') setActiveClassTab('');
+    } else if (!currentClasses.includes(activeClassTab)) {
+      setActiveClassTab(currentClasses[0]);
     }
+  }, [formData.classes, activeClassTab]);
+
+  // Subjects available for the active class tab (or school-wide subjects)
+  const availableSubjects = useMemo(() => {
+    if (!activeClassTab) return [];
+    const cls = classMap.get(activeClassTab) || classes.find((c) => isClassEqual(c.id, activeClassTab));
+    const activeCid = cls ? cls.id : activeClassTab;
+
     return allSubjects.filter((s) => {
       // School-wide subjects (no specific classes attached) are available to any class
       if (!s.classIds || s.classIds.length === 0) return true;
-      // Subjects linked to at least one of the selected classes
-      return s.classIds.some((cid) => selectedClassIds.includes(cid));
+      // Subjects linked to the currently active class
+      return s.classIds.some((cid) => isClassEqual(cid, activeCid));
     });
-  }, [allSubjects, formData.classes]);
+  }, [allSubjects, activeClassTab, classMap, classes, isClassEqual]);
+
+  // Map of subject conflicts for the active class: subjectId/name -> { teacherName: string; className: string }
+  const subjectConflicts = useMemo(() => {
+    const map = new Map<string, { teacherName: string; className: string }>();
+    if (!activeClassTab) return map;
+
+    const cls = classMap.get(activeClassTab) || classes.find((c) => isClassEqual(c.id, activeClassTab));
+    const activeCid = cls ? cls.id : activeClassTab;
+    const className = cls ? (cls.section ? `${cls.name} (${cls.section})` : cls.name) : activeClassTab;
+
+    teachers.forEach((other) => {
+      if (editingId && other.id === editingId) return;
+
+      const otherClasses = Array.isArray(other.classes) ? other.classes : [];
+      if (!otherClasses.some((oc) => isClassEqual(oc, activeCid))) return;
+
+      let otherSubsInThisClass: string[] = [];
+      if (other.classSubjectMap && Object.keys(other.classSubjectMap).length > 0) {
+        const matchCid = Object.keys(other.classSubjectMap).find((k) => isClassEqual(k, activeCid));
+        otherSubsInThisClass = matchCid ? other.classSubjectMap[matchCid] || [] : [];
+      } else {
+        otherSubsInThisClass = Array.isArray(other.subjects) ? other.subjects : [];
+      }
+
+      allSubjects.forEach((sub) => {
+        if (otherSubsInThisClass.some((os) => isSubjectEqual(os, sub.id) || isSubjectEqual(os, sub.name))) {
+          if (!map.has(sub.id)) {
+            map.set(sub.id, { teacherName: other.name, className });
+          }
+          if (!map.has(sub.name)) {
+            map.set(sub.name, { teacherName: other.name, className });
+          }
+        }
+      });
+    });
+
+    return map;
+  }, [activeClassTab, teachers, editingId, classMap, classes, allSubjects, isClassEqual, isSubjectEqual]);
+
+  // School-wide duplicate assignments detection: subjects assigned to >1 teacher for the same class
+  const duplicateSubjectAssignments = useMemo(() => {
+    const assignmentMap = new Map<
+      string,
+      {
+        classId: string;
+        className: string;
+        subjectId: string;
+        subjectName: string;
+        teachers: Array<{ id: string; name: string }>;
+      }
+    >();
+
+    teachers.forEach((t) => {
+      const tClasses = Array.isArray(t.classes) ? t.classes : [];
+      const tSubjects = Array.isArray(t.subjects) ? t.subjects : [];
+      if (tClasses.length === 0 || tSubjects.length === 0) return;
+
+      tClasses.forEach((cid) => {
+        const cls = classMap.get(cid) || classes.find((c) => isClassEqual(c.id, cid));
+        const cId = cls ? cls.id : cid;
+        const cName = cls ? (cls.section ? `${cls.name} (${cls.section})` : cls.name) : cid;
+
+        let subjectsInClass = tSubjects;
+        if (t.classSubjectMap && Object.keys(t.classSubjectMap).length > 0) {
+          const matchCid = Object.keys(t.classSubjectMap).find((k) => isClassEqual(k, cid));
+          subjectsInClass = matchCid ? t.classSubjectMap[matchCid] || [] : [];
+        }
+
+        subjectsInClass.forEach((sid) => {
+          const sub = subjectMap.get(sid) || allSubjects.find((s) => isSubjectEqual(s.id, sid) || isSubjectEqual(s.name, sid));
+          const sId = sub ? sub.id : sid;
+          const sName = sub ? sub.name : sid;
+
+          const key = `${cId}::${sId}`;
+          const existing = assignmentMap.get(key) || {
+            classId: cId,
+            className: cName,
+            subjectId: sId,
+            subjectName: sName,
+            teachers: [],
+          };
+
+          if (!existing.teachers.some((et) => et.id === t.id)) {
+            existing.teachers.push({ id: t.id, name: t.name });
+          }
+          assignmentMap.set(key, existing);
+        });
+      });
+    });
+
+    const conflicts: Array<{
+      key: string;
+      classId: string;
+      className: string;
+      subjectId: string;
+      subjectName: string;
+      teachers: Array<{ id: string; name: string }>;
+    }> = [];
+
+    assignmentMap.forEach((val, key) => {
+      if (val.teachers.length > 1) {
+        conflicts.push({ key, ...val });
+      }
+    });
+
+    return conflicts;
+  }, [teachers, classes, allSubjects, classMap, subjectMap, isClassEqual, isSubjectEqual]);
+
+  const handleAutoResolveConflicts = async () => {
+    if (duplicateSubjectAssignments.length === 0) return;
+    try {
+      setResolvingConflicts(true);
+      const teacherUpdates = new Map<string, string[]>();
+
+      duplicateSubjectAssignments.forEach((c) => {
+        // First teacher keeps it, subsequent teachers have this subject removed
+        for (let i = 1; i < c.teachers.length; i++) {
+          const tId = c.teachers[i].id;
+          const teacherObj = teachers.find((t) => t.id === tId);
+          if (!teacherObj) continue;
+
+          const currentSubs = teacherUpdates.has(tId)
+            ? teacherUpdates.get(tId)!
+            : Array.isArray(teacherObj.subjects)
+            ? [...teacherObj.subjects]
+            : [];
+
+          const filteredSubs = currentSubs.filter(
+            (s) => !isSubjectEqual(s, c.subjectId) && !isSubjectEqual(s, c.subjectName)
+          );
+          teacherUpdates.set(tId, filteredSubs);
+        }
+      });
+
+      for (const [tId, updatedSubs] of teacherUpdates.entries()) {
+        const teacherObj = teachers.find((t) => t.id === tId);
+        if (!teacherObj) continue;
+        await updateTeacher(tId, {
+          ...teacherObj,
+          subjects: updatedSubs,
+        });
+      }
+
+      toast.success('Duplicate assignments auto-resolved! Each subject is now exclusively assigned to one teacher.');
+      await loadTeachers();
+    } catch (err: any) {
+      console.error('Failed to resolve duplicate conflicts:', err);
+      toast.error(err?.message || 'Failed to auto-resolve conflicts.');
+    } finally {
+      setResolvingConflicts(false);
+    }
+  };
 
   // Filtered teachers list based on search query
   const filteredTeachers = useMemo(() => {
@@ -322,7 +571,7 @@ export default function TeachersPage() {
       // 4. Assigned classes match (e.g. "Class 10", "10A", section)
       const teacherClasses = Array.isArray(teacher.classes) ? teacher.classes : [];
       const matchesClass = teacherClasses.some((cid) => {
-        const cls = classMap.get(cid);
+        const cls = classMap.get(cid) || classes.find((c) => isClassEqual(c.id, cid));
         if (!cls) return cid.toLowerCase().includes(q);
         const nameMatch = cls.name?.toLowerCase().includes(q);
         const secMatch = cls.section?.toLowerCase().includes(q);
@@ -334,7 +583,7 @@ export default function TeachersPage() {
       // 5. Assigned subjects match
       const teacherSubjects = Array.isArray(teacher.subjects) ? teacher.subjects : [];
       const matchesSubject = teacherSubjects.some((sid) => {
-        const sub = subjectMap.get(sid) || allSubjects.find((s) => s.id === sid || s.name === sid);
+        const sub = subjectMap.get(sid) || allSubjects.find((s) => isSubjectEqual(s.id, sid) || isSubjectEqual(s.name, sid));
         const name = sub?.name || sid;
         return name.toLowerCase().includes(q);
       });
@@ -342,7 +591,7 @@ export default function TeachersPage() {
 
       return false;
     });
-  }, [teachers, searchQuery, classMap, subjectMap, allSubjects]);
+  }, [teachers, searchQuery, classMap, classes, subjectMap, allSubjects, isClassEqual, isSubjectEqual]);
 
   const toggleClassSelection = (classId: string) => {
     setFormData((prev) => {
@@ -351,18 +600,42 @@ export default function TeachersPage() {
       const nextClasses = exists
         ? current.filter((id) => id !== classId)
         : [...current, classId];
+
+      const nextMap = { ...(prev.classSubjectMap || {}) };
+      if (exists) {
+        delete nextMap[classId];
+      } else {
+        if (!nextMap[classId]) {
+          nextMap[classId] = [];
+        }
+      }
+
+      // Recompute flat subjects from nextMap
+      const allSubs = new Set<string>();
+      Object.values(nextMap).forEach((sids) => (sids || []).forEach((s) => allSubs.add(s)));
+
       return {
         ...prev,
         classes: nextClasses,
+        classSubjectMap: nextMap,
+        subjects: Array.from(allSubs),
       };
     });
   };
 
   const selectAllClasses = () => {
-    setFormData((prev) => ({
-      ...prev,
-      classes: classes.map((c) => c.id),
-    }));
+    setFormData((prev) => {
+      const nextClasses = classes.map((c) => c.id);
+      const nextMap = { ...(prev.classSubjectMap || {}) };
+      nextClasses.forEach((cid) => {
+        if (!nextMap[cid]) nextMap[cid] = [];
+      });
+      return {
+        ...prev,
+        classes: nextClasses,
+        classSubjectMap: nextMap,
+      };
+    });
   };
 
   const clearAllClasses = () => {
@@ -370,35 +643,152 @@ export default function TeachersPage() {
       ...prev,
       classes: [],
       subjects: [],
+      classSubjectMap: {},
     }));
   };
 
   const toggleSubjectSelection = (subjectId: string) => {
+    if (!activeClassTab) {
+      toast.error('Please select a class first.');
+      return;
+    }
+
     setFormData((prev) => {
-      const current = prev.subjects || [];
-      const exists = current.includes(subjectId);
-      const nextSubjects = exists
-        ? current.filter((id) => id !== subjectId)
-        : [...current, subjectId];
+      const nextMap = { ...(prev.classSubjectMap || {}) };
+      const currentForClass = nextMap[activeClassTab] || [];
+      const exists = currentForClass.some((s) => isSubjectEqual(s, subjectId));
+
+      if (!exists) {
+        const conflict = subjectConflicts.get(subjectId) || subjectConflicts.get(
+          subjectMap.get(subjectId)?.name || ''
+        );
+        if (conflict) {
+          const sub = subjectMap.get(subjectId) || allSubjects.find((s) => isSubjectEqual(s.id, subjectId) || isSubjectEqual(s.name, subjectId));
+          const sName = sub ? sub.name : subjectId;
+          toast.error(`"${sName}" in ${conflict.className} is already assigned to ${conflict.teacherName}. Only one teacher can be assigned to a subject per class.`);
+          return prev;
+        }
+      }
+
+      const nextForClass = exists
+        ? currentForClass.filter((id) => !isSubjectEqual(id, subjectId))
+        : [...currentForClass, subjectId];
+
+      nextMap[activeClassTab] = nextForClass;
+
+      // Recalculate overall unique subjects
+      const allSubs = new Set<string>();
+      Object.values(nextMap).forEach((sids) => (sids || []).forEach((s) => allSubs.add(s)));
+
       return {
         ...prev,
-        subjects: nextSubjects,
+        classSubjectMap: nextMap,
+        subjects: Array.from(allSubs),
       };
     });
   };
 
   const selectAllAvailableSubjects = () => {
-    setFormData((prev) => ({
-      ...prev,
-      subjects: Array.from(new Set([...(prev.subjects || []), ...availableSubjects.map((s) => s.id)])),
-    }));
+    if (!activeClassTab) return;
+    const unconflicted = availableSubjects
+      .filter((s) => !subjectConflicts.has(s.id) && !subjectConflicts.has(s.name))
+      .map((s) => s.id);
+
+    setFormData((prev) => {
+      const nextMap = { ...(prev.classSubjectMap || {}) };
+      nextMap[activeClassTab] = Array.from(new Set([...(nextMap[activeClassTab] || []), ...unconflicted]));
+
+      const allSubs = new Set<string>();
+      Object.values(nextMap).forEach((sids) => (sids || []).forEach((s) => allSubs.add(s)));
+
+      return {
+        ...prev,
+        classSubjectMap: nextMap,
+        subjects: Array.from(allSubs),
+      };
+    });
   };
 
   const clearAllSubjects = () => {
-    setFormData((prev) => ({
-      ...prev,
-      subjects: [],
-    }));
+    if (!activeClassTab) return;
+    setFormData((prev) => {
+      const nextMap = { ...(prev.classSubjectMap || {}) };
+      nextMap[activeClassTab] = [];
+
+      const allSubs = new Set<string>();
+      Object.values(nextMap).forEach((sids) => (sids || []).forEach((s) => allSubs.add(s)));
+
+      return {
+        ...prev,
+        classSubjectMap: nextMap,
+        subjects: Array.from(allSubs),
+      };
+    });
+  };
+
+  const copySubjectsToAllClasses = () => {
+    if (!activeClassTab) return;
+    const currentSubs = (formData.classSubjectMap || {})[activeClassTab] || [];
+    if (currentSubs.length === 0) {
+      toast.error('No subjects assigned in the active class to copy.');
+      return;
+    }
+
+    const selectedClasses = formData.classes || [];
+    let skippedDueToConflict = 0;
+
+    setFormData((prev) => {
+      const nextMap = { ...(prev.classSubjectMap || {}) };
+
+      selectedClasses.forEach((cid) => {
+        if (cid === activeClassTab) return;
+        const targetExisting = nextMap[cid] || [];
+        const updatedForCid = [...targetExisting];
+
+        currentSubs.forEach((sid) => {
+          // Check if conflict in this target cid
+          const isConflicting = teachers.some((other) => {
+            if (editingId && other.id === editingId) return false;
+            const otherClasses = Array.isArray(other.classes) ? other.classes : [];
+            if (!otherClasses.some((oc) => isClassEqual(oc, cid))) return false;
+
+            let otherSubsInThisClass: string[] = [];
+            if (other.classSubjectMap && Object.keys(other.classSubjectMap).length > 0) {
+              const matchCid = Object.keys(other.classSubjectMap).find((k) => isClassEqual(k, cid));
+              otherSubsInThisClass = matchCid ? other.classSubjectMap[matchCid] || [] : [];
+            } else {
+              otherSubsInThisClass = Array.isArray(other.subjects) ? other.subjects : [];
+            }
+            return otherSubsInThisClass.some((os) => isSubjectEqual(os, sid));
+          });
+
+          if (isConflicting) {
+            skippedDueToConflict++;
+          } else {
+            if (!updatedForCid.some((s) => isSubjectEqual(s, sid))) {
+              updatedForCid.push(sid);
+            }
+          }
+        });
+
+        nextMap[cid] = updatedForCid;
+      });
+
+      const allSubs = new Set<string>();
+      Object.values(nextMap).forEach((sids) => (sids || []).forEach((s) => allSubs.add(s)));
+
+      return {
+        ...prev,
+        classSubjectMap: nextMap,
+        subjects: Array.from(allSubs),
+      };
+    });
+
+    if (skippedDueToConflict > 0) {
+      toast.success(`Subjects copied to classes (${skippedDueToConflict} skipped due to existing teacher assignments in those classes).`);
+    } else {
+      toast.success('Subjects copied to all selected classes successfully!');
+    }
   };
 
   if (loading) {
@@ -648,6 +1038,54 @@ export default function TeachersPage() {
                 )}
               </div>
 
+              {/* Class Tabs when multiple classes are selected */}
+              {(formData.classes || []).length > 1 && (
+                <div className='flex items-center justify-between gap-2 overflow-x-auto pb-1 mb-3 pt-1'>
+                  <div className='flex items-center gap-1.5 flex-wrap'>
+                    <span className='text-xs font-semibold text-muted-foreground mr-1'>Configuring Class:</span>
+                    {(formData.classes || []).map((cid) => {
+                      const cls = classMap.get(cid) || classes.find((c) => isClassEqual(c.id, cid));
+                      const label = cls ? (cls.section ? `${cls.name} (${cls.section})` : cls.name) : cid;
+                      const isActive = isClassEqual(activeClassTab, cid);
+                      const subCount = ((formData.classSubjectMap || {})[cid] || []).length;
+
+                      return (
+                        <button
+                          key={cid}
+                          type='button'
+                          onClick={() => setActiveClassTab(cid)}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 border ${
+                            isActive
+                              ? 'bg-primary text-primary-foreground border-primary shadow-sm ring-2 ring-primary/20'
+                              : 'bg-card text-muted-foreground border-border hover:border-foreground/30 hover:text-foreground'
+                          }`}
+                        >
+                          <span>{label}</span>
+                          <span
+                            className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
+                              isActive
+                                ? 'bg-primary-foreground/20 text-primary-foreground'
+                                : 'bg-muted text-muted-foreground'
+                            }`}
+                          >
+                            {subCount}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <button
+                    type='button'
+                    onClick={copySubjectsToAllClasses}
+                    className='text-xs font-medium text-primary hover:underline flex items-center gap-1 shrink-0 bg-primary/5 hover:bg-primary/10 px-2.5 py-1.5 rounded-lg border border-primary/20'
+                    title='Copy subjects from active class to all other selected classes'
+                  >
+                    <Copy className='h-3.5 w-3.5' />
+                    <span>Apply to all classes</span>
+                  </button>
+                </div>
+              )}
+
               {(formData.classes || []).length === 0 ? (
                 <div className='p-4 bg-muted/30 rounded-xl border border-dashed border-border text-center text-xs text-muted-foreground flex flex-col items-center gap-1.5'>
                   <Layers className='h-4 w-4 text-muted-foreground' />
@@ -655,41 +1093,96 @@ export default function TeachersPage() {
                 </div>
               ) : availableSubjects.length === 0 ? (
                 <div className='p-4 bg-amber-500/10 rounded-xl border border-amber-500/20 text-center text-xs text-amber-600 dark:text-amber-400'>
-                  No subjects are currently linked to the selected classes. You can link subjects under the Subjects tab.
+                  No subjects are currently linked to the selected class. You can link subjects under the Subjects tab.
                 </div>
               ) : (
                 <div className='flex flex-wrap gap-2 pt-1 max-h-48 overflow-y-auto p-1'>
                   {availableSubjects.map((sub) => {
-                    const isSelected = (formData.subjects || []).includes(sub.id) || (formData.subjects || []).includes(sub.name);
+                    const isSelected = ((formData.classSubjectMap || {})[activeClassTab] || []).some(
+                      (sid) => isSubjectEqual(sid, sub.id) || isSubjectEqual(sid, sub.name)
+                    );
+                    const conflict = subjectConflicts.get(sub.id) || subjectConflicts.get(sub.name);
+                    const isConflicted = Boolean(conflict && !isSelected);
+                    const isConflictExisting = Boolean(conflict && isSelected);
+
                     return (
                       <button
                         key={sub.id}
                         type='button'
+                        disabled={isConflicted}
                         onClick={() => toggleSubjectSelection(sub.id)}
+                        title={
+                          conflict
+                            ? `Assigned to ${conflict.teacherName} in ${conflict.className}`
+                            : undefined
+                        }
                         className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all border ${
-                          isSelected
+                          isConflicted
+                            ? 'bg-muted/40 text-muted-foreground/60 border-dashed border-border/80 cursor-not-allowed opacity-60'
+                            : isConflictExisting
+                            ? 'bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/40 hover:bg-rose-500/25'
+                            : isSelected
                             ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
                             : 'bg-card text-muted-foreground border-border hover:border-foreground/30 hover:text-foreground'
                         }`}
                       >
-                        <span className={`w-3.5 h-3.5 rounded-sm flex items-center justify-center text-[10px] border ${
-                          isSelected ? 'bg-white text-emerald-600 border-white' : 'border-muted-foreground/40'
-                        }`}>
-                          {isSelected && '✓'}
-                        </span>
+                        {isConflicted ? (
+                          <Lock className='w-3.5 h-3.5 text-muted-foreground' />
+                        ) : isConflictExisting ? (
+                          <AlertTriangle className='w-3.5 h-3.5 text-rose-500' />
+                        ) : (
+                          <span
+                            className={`w-3.5 h-3.5 rounded-sm flex items-center justify-center text-[10px] border ${
+                              isSelected
+                                ? 'bg-white text-emerald-600 border-white'
+                                : 'border-muted-foreground/40'
+                            }`}
+                          >
+                            {isSelected && '✓'}
+                          </span>
+                        )}
                         <span>{sub.name}</span>
-                        <span className={`text-[10px] font-mono px-1 rounded ${isSelected ? 'bg-emerald-700/50 text-white' : 'bg-muted text-muted-foreground'}`}>
+                        <span
+                          className={`text-[10px] font-mono px-1 rounded ${
+                            isSelected && !isConflictExisting
+                              ? 'bg-emerald-700/50 text-white'
+                              : 'bg-muted text-muted-foreground'
+                          }`}
+                        >
                           {sub.code}
                         </span>
+                        {conflict && (
+                          <span
+                            className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
+                              isConflictExisting
+                                ? 'bg-rose-500/20 text-rose-700 dark:text-rose-300'
+                                : 'bg-amber-500/15 text-amber-700 dark:text-amber-400'
+                            }`}
+                          >
+                            {isConflictExisting ? `Conflict with ${conflict.teacherName}` : conflict.teacherName}
+                          </span>
+                        )}
                       </button>
                     );
                   })}
                 </div>
               )}
-              {(formData.classes || []).length > 0 && (
-                <div className='mt-2 flex items-center gap-2 text-xs text-muted-foreground'>
-                  <span className='inline-block w-2 h-2 rounded-full bg-emerald-500' />
-                  <span>Assigned <strong>{(formData.subjects || []).length}</strong> subjects for this teacher</span>
+              {(formData.classes || []).length > 0 && activeClassTab && (
+                <div className='mt-2 flex items-center justify-between text-xs text-muted-foreground'>
+                  <div className='flex items-center gap-2'>
+                    <span className='inline-block w-2 h-2 rounded-full bg-emerald-500' />
+                    <span>
+                      Assigned <strong>{((formData.classSubjectMap || {})[activeClassTab] || []).length}</strong> subjects for {(() => {
+                        const cls = classMap.get(activeClassTab) || classes.find((c) => isClassEqual(c.id, activeClassTab));
+                        return cls ? (cls.section ? `${cls.name} (${cls.section})` : cls.name) : activeClassTab;
+                      })()}
+                    </span>
+                    {(formData.classes || []).length > 1 && (
+                      <span className='text-muted-foreground/70'>
+                        (<strong>{(formData.subjects || []).length}</strong> unique across all {(formData.classes || []).length} classes)
+                      </span>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
@@ -720,6 +1213,37 @@ export default function TeachersPage() {
         entity='teachers'
         onSuccess={handleBulkUploadSuccess}
       />
+
+      {duplicateSubjectAssignments.length > 0 && (
+        <div className='mb-6 p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-sm'>
+          <div className='flex items-start gap-3'>
+            <AlertTriangle className='h-5 w-5 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0' />
+            <div>
+              <h4 className='text-sm font-semibold text-amber-900 dark:text-amber-200'>
+                {duplicateSubjectAssignments.length} Duplicate Subject Assignment{duplicateSubjectAssignments.length > 1 ? 's' : ''} Detected
+              </h4>
+              <p className='text-xs text-amber-800 dark:text-amber-300 mt-0.5 leading-relaxed'>
+                Each subject in a class can only be assigned to <strong>one</strong> teacher. Currently: {duplicateSubjectAssignments.map((c) => `"${c.subjectName}" in ${c.className} (${c.teachers.map((t) => t.name).join(' & ')})`).join('; ')}.
+              </p>
+            </div>
+          </div>
+          <Button
+            size='sm'
+            onClick={handleAutoResolveConflicts}
+            disabled={resolvingConflicts}
+            className='bg-amber-600 hover:bg-amber-700 text-white shrink-0 text-xs font-semibold shadow-sm rounded-lg px-4 py-2'
+          >
+            {resolvingConflicts ? (
+              <>
+                <Loader2 className='h-3.5 w-3.5 mr-1.5 animate-spin' />
+                Resolving...
+              </>
+            ) : (
+              'Auto-Resolve Conflicts'
+            )}
+          </Button>
+        </div>
+      )}
 
       <DataGrid
         title='Faculty directory'
@@ -763,7 +1287,7 @@ export default function TeachersPage() {
                     <DataGridTd>
                       {teacherClasses.length > 0 ? (
                         <div className='flex flex-wrap items-center gap-1 max-w-[240px]'>
-                          {teacherClasses.slice(0, 3).map((cid) => {
+                          {teacherClasses.slice(0, 2).map((cid) => {
                             const cls = classMap.get(cid);
                             const label = cls ? (cls.section ? `${cls.name} (${cls.section})` : cls.name) : cid;
                             return (
@@ -775,10 +1299,10 @@ export default function TeachersPage() {
                               </span>
                             );
                           })}
-                          {teacherClasses.length > 3 && (
+                          {teacherClasses.length > 2 && (
                             <span
                               title={teacherClasses
-                                .slice(3)
+                                .slice(2)
                                 .map((cid) => {
                                   const cls = classMap.get(cid);
                                   return cls ? (cls.section ? `${cls.name} (${cls.section})` : cls.name) : cid;
@@ -786,7 +1310,7 @@ export default function TeachersPage() {
                                 .join(', ')}
                               className='inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-semibold bg-primary/15 text-primary border border-primary/30 cursor-help'
                             >
-                              +{teacherClasses.length - 3}
+                              +{teacherClasses.length - 2}
                             </span>
                           )}
                         </div>
@@ -805,22 +1329,38 @@ export default function TeachersPage() {
 
                         return (
                           <div className='flex flex-wrap items-center gap-1 max-w-[240px]'>
-                            {validSubjects.slice(0, 3).map((sid) => {
-                              const sub = subjectMap.get(sid) || allSubjects.find((s) => s.name === sid || s.id === sid);
+                            {validSubjects.slice(0, 2).map((sid) => {
+                              const sub = subjectMap.get(sid) || allSubjects.find((s) => isSubjectEqual(s.id, sid) || isSubjectEqual(s.name, sid));
                               const label = sub ? sub.name : sid;
+                              const conflictInfo = duplicateSubjectAssignments.find((c) =>
+                                c.teachers.some((t) => t.id === teacher.id) &&
+                                (isSubjectEqual(c.subjectId, sid) || isSubjectEqual(c.subjectName, sid)) &&
+                                teacherClasses.some((tc) => isClassEqual(tc, c.classId))
+                              );
+
                               return (
                                 <span
                                   key={sid}
-                                  className='inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'
+                                  className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium border ${
+                                    conflictInfo
+                                      ? 'bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30'
+                                      : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+                                  }`}
+                                  title={
+                                    conflictInfo
+                                      ? `Conflict: Also assigned to ${conflictInfo.teachers.filter((t) => t.id !== teacher.id).map((t) => t.name).join(', ')} in ${conflictInfo.className}`
+                                      : undefined
+                                  }
                                 >
+                                  {conflictInfo && <AlertTriangle className='w-3 h-3 text-rose-500 shrink-0' />}
                                   {label}
                                 </span>
                               );
                             })}
-                            {validSubjects.length > 3 && (
+                            {validSubjects.length > 2 && (
                               <span
                                 title={validSubjects
-                                  .slice(3)
+                                  .slice(2)
                                   .map((sid) => {
                                     const sub = subjectMap.get(sid) || allSubjects.find((s) => s.name === sid || s.id === sid);
                                     return sub ? sub.name : sid;
@@ -828,7 +1368,7 @@ export default function TeachersPage() {
                                   .join(', ')}
                                 className='inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-semibold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 cursor-help'
                               >
-                                +{validSubjects.length - 3}
+                                +{validSubjects.length - 2}
                               </span>
                             )}
                           </div>
@@ -925,6 +1465,15 @@ export default function TeachersPage() {
                     {teacherSubjects.length > 0 && (
                       <span className='px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-medium'>
                         {teacherSubjects.length} {teacherSubjects.length === 1 ? 'subject' : 'subjects'}
+                      </span>
+                    )}
+                    {duplicateSubjectAssignments.some((c) =>
+                      c.teachers.some((t) => t.id === teacher.id) &&
+                      teacherClasses.some((tc) => isClassEqual(tc, c.classId))
+                    ) && (
+                      <span className='px-1.5 py-0.5 rounded bg-rose-500/15 text-rose-700 dark:text-rose-300 font-medium inline-flex items-center gap-1'>
+                        <AlertTriangle className='w-3 h-3 text-rose-500' />
+                        Conflict
                       </span>
                     )}
                   </div>
@@ -1057,8 +1606,47 @@ export default function TeachersPage() {
                   <span>Assigned Subjects</span>
                 </div>
                 {(() => {
-                  const hasClasses = Array.isArray(selectedTeacherForView.classes) && selectedTeacherForView.classes.length > 0;
-                  const validSubs = hasClasses && Array.isArray(selectedTeacherForView.subjects)
+                  const teacherClasses = Array.isArray(selectedTeacherForView.classes) ? selectedTeacherForView.classes : [];
+                  if (teacherClasses.length === 0) {
+                    return <p className='text-xs text-muted-foreground italic'>No classes assigned</p>;
+                  }
+
+                  const classSubMap = selectedTeacherForView.classSubjectMap;
+                  if (classSubMap && Object.keys(classSubMap).length > 0) {
+                    return (
+                      <div className='space-y-2 pt-1'>
+                        {teacherClasses.map((cid) => {
+                          const cls = classMap.get(cid) || classes.find((c) => isClassEqual(c.id, cid));
+                          const cName = cls ? (cls.section ? `${cls.name} (${cls.section})` : cls.name) : cid;
+                          const matchCid = Object.keys(classSubMap).find((k) => isClassEqual(k, cid));
+                          const subs = matchCid ? classSubMap[matchCid] || [] : [];
+
+                          return (
+                            <div key={cid} className='p-2 rounded-lg bg-background border border-border/60'>
+                              <p className='text-xs font-semibold text-foreground mb-1'>{cName}:</p>
+                              {subs.length === 0 ? (
+                                <span className='text-[11px] text-muted-foreground italic'>No subjects assigned</span>
+                              ) : (
+                                <div className='flex flex-wrap gap-1'>
+                                  {subs.map((sid) => {
+                                    const sub = subjectMap.get(sid) || allSubjects.find((s) => isSubjectEqual(s.id, sid) || isSubjectEqual(s.name, sid));
+                                    const label = sub ? sub.name : sid;
+                                    return (
+                                      <span key={sid} className='px-2 py-0.5 text-[11px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-md border border-emerald-500/20 font-medium'>
+                                        {label}
+                                      </span>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  }
+
+                  const validSubs = Array.isArray(selectedTeacherForView.subjects)
                     ? selectedTeacherForView.subjects.filter((sid) => subjectMap.has(sid) || allSubjects.some((s) => s.id === sid || s.name === sid))
                     : [];
 

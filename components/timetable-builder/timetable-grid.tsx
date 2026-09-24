@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useMemo } from 'react';
 import { cn, isTeacherActive } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Trash2, Plus, Coffee, Search, ChevronDown, Check, SlidersHorizontal, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Trash2, Plus, Coffee, Search, ChevronDown, Check, SlidersHorizontal, ChevronLeft, ChevronRight, GraduationCap, Users, CheckCircle2, ArrowRight, Lock } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -309,8 +309,7 @@ export function TimetableGrid({
                       : "bg-background border-border text-muted-foreground hover:bg-muted/60"
                   )}
                 >
-                  <span className="sm:hidden">{dayLabels[dayIndex].slice(0, 3)}</span>
-                  <span className="hidden sm:inline">{dayLabels[dayIndex]}</span>
+                  <span>{dayLabels[dayIndex]}</span>
                 </button>
               );
             })}
@@ -364,8 +363,8 @@ export function TimetableGrid({
           </div>
 
           {safeWorkingDays.map((day) => (
-            <div key={day} className="p-2.5 sm:p-4 border-b border-l text-center font-bold bg-muted/10 text-foreground text-xs flex items-center justify-center tracking-widest uppercase">
-              {dayLabels[day]?.slice(0, 3)}
+            <div key={day} className="p-2.5 sm:p-4 border-b border-l text-center font-bold bg-muted/10 text-foreground text-xs flex items-center justify-center tracking-wider">
+              {dayLabels[day]}
             </div>
           ))}
 
@@ -501,17 +500,36 @@ export function SlotEditorSheet({
   onRemove,
   saving,
 }: SlotEditorSheetProps) {
-  const dayLabel = DAYS[dayOfWeek] ?? '';
+  const FULL_DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] as const;
+  const dayLabel = FULL_DAYS[dayOfWeek] ?? '';
 
-  // 1. Filter subjects for current class
+  // 1. Filter subjects strictly assigned to the current class
   const classSubjects = useMemo(() => {
     if (!currentClassId) return subjects || [];
-    return (subjects || []).filter((s) => {
-      // s.classIds empty or not set = school-wide subject
-      if (!s.classIds || s.classIds.length === 0) return true;
-      return s.classIds.includes(currentClassId);
+
+    // Filter subjects where currentClassId (or currentClassName) is assigned in s.classIds
+    const assigned = (subjects || []).filter((s) => {
+      const cIds = Array.isArray(s.classIds) ? s.classIds : [];
+      return (
+        cIds.includes(currentClassId) ||
+        (currentClassName ? cIds.includes(currentClassName) : false)
+      );
     });
-  }, [subjects, currentClassId]);
+
+    if (assigned.length > 0) {
+      return assigned;
+    }
+
+    // Only fallback if NO subject in the school has any class assignments configured (legacy setup)
+    const anySubjectConfigured = (subjects || []).some(
+      (s) => Array.isArray(s.classIds) && s.classIds.length > 0
+    );
+    if (!anySubjectConfigured) {
+      return subjects || [];
+    }
+
+    return [];
+  }, [subjects, currentClassId, currentClassName]);
 
   // 2. Track busy teachers during this exact day and period
   const busyTeacherMap = useMemo(() => {
@@ -551,55 +569,118 @@ export function SlotEditorSheet({
     return (teachers || []).filter((t) => isTeacherActive(t.active));
   }, [teachers]);
 
-  // 5. Intelligent Teacher Options
+  // Check if another slot for this class & subject already has an assigned teacher
+  const existingSubjectTeacher = useMemo(() => {
+    if (!currentClassId || !draft?.subjectId) return null;
+
+    const existingSlot = (allSlots || []).find(
+      (s) =>
+        s.classId === currentClassId &&
+        s.subjectId === draft.subjectId &&
+        s.teacherId &&
+        s.id !== slot?.id
+    );
+
+    if (!existingSlot) return null;
+
+    const teacher = (teachers || []).find((t) => t.id === existingSlot.teacherId);
+    return teacher
+      ? { id: teacher.id, name: teacher.name, email: teacher.email }
+      : { id: existingSlot.teacherId, name: existingSlot.teacherName || 'Assigned Faculty', email: '' };
+  }, [allSlots, currentClassId, draft?.subjectId, slot?.id, teachers]);
+
+  // 5. Intelligent Teacher Options - STRICTLY QUALIFIED TEACHERS ONLY
   const teacherOptions = useMemo(() => {
     const selectedSubId = draft?.subjectId;
+    if (!selectedSubId) {
+      return [];
+    }
 
-    const list = activeTeachers.map((t) => {
+    // If another slot in this class already has an assigned teacher for this subject, ONLY allow that teacher!
+    if (existingSubjectTeacher) {
+      const lockedTeacher = activeTeachers.find((t) => t.id === existingSubjectTeacher.id);
+      if (lockedTeacher) {
+        const isBusy = busyTeacherMap.has(lockedTeacher.id);
+        const busyClass = busyTeacherMap.get(lockedTeacher.id);
+        return [
+          {
+            id: lockedTeacher.id,
+            label: lockedTeacher.name,
+            sublabel: `${lockedTeacher.email} • Assigned Class Subject Faculty`,
+            badge: isBusy ? `BUSY (${busyClass})` : 'DESIGNATED FACULTY',
+            disabled: isBusy,
+            rank: 1,
+          },
+        ];
+      }
+    }
+
+    const anyTeacherHasClasses = activeTeachers.some(
+      (t) => Array.isArray(t.classes) && t.classes.length > 0
+    );
+
+    // Filter strictly to teachers qualified for this subject and class
+    const qualifiedTeachers = activeTeachers.filter((t) => {
+      const tClasses = Array.isArray(t.classes) ? t.classes : [];
+      if (tClasses.length === 0) {
+        if (anyTeacherHasClasses) return false;
+      } else {
+        const teachesClass =
+          (currentClassId ? tClasses.includes(currentClassId) : false) ||
+          (currentClassName ? tClasses.includes(currentClassName) : false);
+        if (!teachesClass) return false;
+      }
+
+      const tSubjects = Array.isArray(t.subjects) ? t.subjects : [];
+      if (tSubjects.length === 0 && !(t as any).subjectSpecialtyId) {
+        return false;
+      }
+
+      const teachesSubject =
+        tSubjects.includes(selectedSubId) ||
+        (selectedSubId && (subjects || []).some((s) => s.id === selectedSubId && tSubjects.includes(s.name))) ||
+        (t as any).subjectSpecialtyId === selectedSubId;
+
+      return teachesSubject;
+    });
+
+    const list = qualifiedTeachers.map((t) => {
       const isBusy = busyTeacherMap.has(t.id);
       const busyClass = busyTeacherMap.get(t.id);
-
-      // Check class qualification
-      const tClasses = Array.isArray(t.classes) ? t.classes : [];
-      const teachesClass = tClasses.length === 0 || (currentClassId ? tClasses.includes(currentClassId) : true);
-
-      // Check subject qualification
-      const tSubjects = Array.isArray(t.subjects) ? t.subjects : [];
-      const teachesSubject = !selectedSubId || tSubjects.includes(selectedSubId) || (t as any).subjectSpecialtyId === selectedSubId;
-
-      let badge: string | undefined;
-      if (isBusy) {
-        badge = `BUSY (${busyClass})`;
-      } else if (teachesClass && teachesSubject && selectedSubId) {
-        badge = 'QUALIFIED';
-      } else if (teachesClass) {
-        badge = 'CLASS FACULTY';
-      }
-
-      // Priority rank for sorting
-      let rank = 3;
-      if (isBusy) {
-        rank = 4; // Busy always at bottom
-      } else if (teachesClass && teachesSubject && selectedSubId) {
-        rank = 1; // Qualified at top
-      } else if (teachesClass) {
-        rank = 2; // Class faculty next
-      }
 
       return {
         id: t.id,
         label: t.name,
         sublabel: t.email,
-        badge,
+        badge: isBusy ? `BUSY (${busyClass})` : 'QUALIFIED',
         disabled: isBusy,
-        rank,
+        rank: isBusy ? 2 : 1,
       };
     });
 
-    // Sort by rank: Qualified -> Class Faculty -> General -> Busy
     list.sort((a, b) => a.rank - b.rank);
     return list;
-  }, [activeTeachers, busyTeacherMap, currentClassId, draft?.subjectId]);
+  }, [activeTeachers, busyTeacherMap, currentClassId, currentClassName, draft?.subjectId, subjects, existingSubjectTeacher]);
+
+  // Auto-reset draft subject/teacher if existing draft is not in allowed class subjects
+  useEffect(() => {
+    if (draft?.subjectId && classSubjects.length > 0) {
+      const isAllowed = classSubjects.some((s) => s.id === draft.subjectId);
+      if (!isAllowed) {
+        onDraftChange({ subjectId: '', teacherId: '' });
+      }
+    }
+  }, [draft?.subjectId, classSubjects, onDraftChange]);
+
+  // Auto-reset draft teacher if current teacher is not in qualified teacher options
+  useEffect(() => {
+    if (draft?.teacherId && draft?.subjectId && teacherOptions.length > 0) {
+      const isAllowed = teacherOptions.some((t) => t.id === draft.teacherId);
+      if (!isAllowed) {
+        onDraftChange({ teacherId: '' });
+      }
+    }
+  }, [draft?.teacherId, draft?.subjectId, teacherOptions, onDraftChange]);
 
   // 6. Intelligent Room Options
   const roomOptions = useMemo(() => {
@@ -618,13 +699,50 @@ export function SlotEditorSheet({
 
   // 7. Auto-assignment on Subject Change
   const handleSubjectChange = (newSubjectId: string) => {
+    // Check if this class already has an assigned teacher for this subject in another slot
+    const designatedSlot = (allSlots || []).find(
+      (s) =>
+        s.classId === currentClassId &&
+        s.subjectId === newSubjectId &&
+        s.teacherId &&
+        s.id !== slot?.id
+    );
+
+    if (designatedSlot && designatedSlot.teacherId) {
+      onDraftChange({
+        subjectId: newSubjectId,
+        teacherId: designatedSlot.teacherId,
+      });
+      return;
+    }
+
+    const anyTeacherHasClasses = activeTeachers.some(
+      (t) => Array.isArray(t.classes) && t.classes.length > 0
+    );
+
     const matchingTeachers = activeTeachers.filter((t) => {
       if (busyTeacherMap.has(t.id)) return false;
       const tClasses = Array.isArray(t.classes) ? t.classes : [];
-      const teachesClass = tClasses.length === 0 || (currentClassId ? tClasses.includes(currentClassId) : true);
+      if (tClasses.length === 0) {
+        if (anyTeacherHasClasses) return false;
+      } else {
+        const teachesClass =
+          (currentClassId ? tClasses.includes(currentClassId) : false) ||
+          (currentClassName ? tClasses.includes(currentClassName) : false);
+        if (!teachesClass) return false;
+      }
+
       const tSubjects = Array.isArray(t.subjects) ? t.subjects : [];
-      const teachesSubject = tSubjects.includes(newSubjectId) || (t as any).subjectSpecialtyId === newSubjectId;
-      return teachesClass && teachesSubject;
+      if (tSubjects.length === 0 && !(t as any).subjectSpecialtyId) {
+        return false;
+      }
+
+      const teachesSubject =
+        tSubjects.includes(newSubjectId) ||
+        (newSubjectId && (subjects || []).some((s) => s.id === newSubjectId && tSubjects.includes(s.name))) ||
+        (t as any).subjectSpecialtyId === newSubjectId;
+
+      return teachesSubject;
     });
 
     if (matchingTeachers.length === 1) {
@@ -634,7 +752,11 @@ export function SlotEditorSheet({
       // Check if existing teacher is qualified for the new subject
       const currentTeacher = activeTeachers.find((t) => t.id === draft?.teacherId);
       const currentTSubjects = Array.isArray(currentTeacher?.subjects) ? currentTeacher!.subjects : [];
-      const curValid = currentTeacher && (currentTSubjects.includes(newSubjectId) || (currentTeacher as any).subjectSpecialtyId === newSubjectId);
+      const curValid =
+        currentTeacher &&
+        (currentTSubjects.includes(newSubjectId) ||
+          (newSubjectId && (subjects || []).some((s) => s.id === newSubjectId && currentTSubjects.includes(s.name))) ||
+          (currentTeacher as any).subjectSpecialtyId === newSubjectId);
       onDraftChange({
         subjectId: newSubjectId,
         teacherId: curValid ? draft?.teacherId : '',
@@ -648,7 +770,9 @@ export function SlotEditorSheet({
     if (teacher && !draft?.subjectId) {
       const tSubjects = Array.isArray(teacher.subjects) ? teacher.subjects : [];
       const matchingSubjects = classSubjects.filter((s) =>
-        tSubjects.includes(s.id) || (teacher as any).subjectSpecialtyId === s.id
+        tSubjects.includes(s.id) ||
+        tSubjects.includes(s.name) ||
+        (teacher as any).subjectSpecialtyId === s.id
       );
       if (matchingSubjects.length === 1) {
         onDraftChange({ teacherId: newTeacherId, subjectId: matchingSubjects[0].id });
@@ -666,14 +790,34 @@ export function SlotEditorSheet({
 
   const hasQualifiedTeachers = useMemo(() => {
     if (!draft?.subjectId) return true;
+    const anyTeacherHasClasses = activeTeachers.some(
+      (t) => Array.isArray(t.classes) && t.classes.length > 0
+    );
+
     return activeTeachers.some((t) => {
       const tClasses = Array.isArray(t.classes) ? t.classes : [];
-      const teachesClass = tClasses.length === 0 || (currentClassId ? tClasses.includes(currentClassId) : true);
+      if (tClasses.length === 0) {
+        if (anyTeacherHasClasses) return false;
+      } else {
+        const teachesClass =
+          (currentClassId ? tClasses.includes(currentClassId) : false) ||
+          (currentClassName ? tClasses.includes(currentClassName) : false);
+        if (!teachesClass) return false;
+      }
+
       const tSubjects = Array.isArray(t.subjects) ? t.subjects : [];
-      const teachesSubject = tSubjects.includes(draft.subjectId) || (t as any).subjectSpecialtyId === draft.subjectId;
-      return teachesClass && teachesSubject;
+      if (tSubjects.length === 0 && !(t as any).subjectSpecialtyId) {
+        return false;
+      }
+
+      const teachesSubject =
+        tSubjects.includes(draft.subjectId) ||
+        (draft.subjectId && (subjects || []).some((s) => s.id === draft.subjectId && tSubjects.includes(s.name))) ||
+        (t as any).subjectSpecialtyId === draft.subjectId;
+
+      return teachesSubject;
     });
-  }, [activeTeachers, draft?.subjectId, currentClassId]);
+  }, [activeTeachers, draft?.subjectId, currentClassId, currentClassName, subjects]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -696,7 +840,7 @@ export function SlotEditorSheet({
           {/* SUBJECT SELECT */}
           <SearchableSelect
             label="Subject"
-            placeholder="Choose subject configuration"
+            placeholder={classSubjects.length === 0 ? "No subjects assigned to this class" : "Choose subject configuration"}
             value={draft?.subjectId ?? ''}
             onChange={handleSubjectChange}
             helperText={currentClassName ? `Filtered for ${currentClassName}` : undefined}
@@ -707,22 +851,41 @@ export function SlotEditorSheet({
             }))}
           />
 
+          {classSubjects.length === 0 && (
+            <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-400 text-xs flex items-start gap-2">
+              <span className="font-bold text-amber-600">Notice:</span>
+              <span>
+                No subjects are assigned to <strong>{currentClassName || 'this class'}</strong>. Please assign subjects to this class under the Subjects tab.
+              </span>
+            </div>
+          )}
+
+          {/* NOTICE: SINGLE TEACHER PER SUBJECT FOR THIS CLASS */}
+          {existingSubjectTeacher && (
+            <div className="p-3 rounded-xl bg-indigo-500/10 border border-indigo-500/25 text-indigo-700 dark:text-indigo-300 text-xs flex items-center gap-2">
+              <Lock className="h-4 w-4 shrink-0 text-indigo-600 dark:text-indigo-400" />
+              <span>
+                <strong>{existingSubjectTeacher.name}</strong> is the designated teacher for {selectedSubject?.name || 'this subject'} in {currentClassName || 'this class'}. Another teacher cannot be assigned.
+              </span>
+            </div>
+          )}
+
           {/* FACULTY SELECT */}
           <SearchableSelect
             label="Faculty / Teacher"
-            placeholder="Assign course tutor"
+            placeholder={!draft?.subjectId ? "Choose subject first" : "Assign qualified teacher"}
             value={draft?.teacherId ?? ''}
             onChange={handleTeacherChange}
-            helperText={draft?.subjectId ? "Prioritizes qualified teachers" : undefined}
+            helperText={existingSubjectTeacher ? `Locked to ${existingSubjectTeacher.name}` : draft?.subjectId ? "Only qualified teachers shown" : undefined}
             options={teacherOptions}
           />
 
           {/* NOTICE: NO QUALIFIED TEACHERS FOUND */}
-          {draft?.subjectId && !hasQualifiedTeachers && (
+          {draft?.subjectId && teacherOptions.length === 0 && (
             <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-400 text-xs flex items-start gap-2">
               <span className="font-bold text-amber-600">Note:</span>
               <span>
-                No teacher is specifically linked to <strong>{selectedSubject?.name}</strong> for {currentClassName || 'this class'}. You can assign any available faculty or link them under the Teachers tab.
+                No teacher is qualified for <strong>{selectedSubject?.name}</strong> in {currentClassName || 'this class'}. Only teachers qualified for this subject and class can be assigned. Please link a teacher under the Teachers tab.
               </span>
             </div>
           )}
@@ -761,7 +924,15 @@ export function SlotEditorSheet({
           <div className="pt-3 space-y-2.5">
             <Button
               className='w-full h-11 rounded-xl font-semibold shadow-sm'
-              disabled={saving || !draft?.subjectId || !draft?.teacherId || isSelectedTeacherBusy || isSelectedRoomBusy}
+              disabled={
+                saving ||
+                !draft?.subjectId ||
+                !draft?.teacherId ||
+                isSelectedTeacherBusy ||
+                isSelectedRoomBusy ||
+                teacherOptions.length === 0 ||
+                classSubjects.length === 0
+              }
               onClick={onSave}
             >
               {saving ? 'Processing Canvas…' : 'Save Assignment'}
@@ -791,21 +962,41 @@ export function SubjectChip({ name, color, sublabel }: { name: string; color: st
   );
 }
 
-export function WorkloadPanel({ teacherWorkload }: { teacherWorkload: any[] }) {
+export function WorkloadPanel({
+  teacherWorkload = [],
+  classWorkload = [],
+  totalWeeklySlots,
+  activePeriodsCount,
+  workingDaysCount,
+  onSelectClass,
+  onSelectTeacher,
+}: {
+  teacherWorkload?: any[];
+  classWorkload?: any[];
+  totalWeeklySlots?: number;
+  activePeriodsCount?: number;
+  workingDaysCount?: number;
+  onSelectClass?: (classId: string) => void;
+  onSelectTeacher?: (teacherId: string) => void;
+}) {
   const { theme } = usePlanTheme();
+  const [activeTab, setActiveTab] = useState<'class' | 'faculty'>('class');
   const [search, setSearch] = useState('');
   const [sortFilter, setSortFilter] = useState<'all' | 'most' | 'least'>('all');
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 10;
 
-  const filteredWorkload = useMemo(() => {
-    let list = [...(teacherWorkload || [])];
-
+  // Filter and sort for classes
+  const filteredClassWorkload = useMemo(() => {
+    let list = [...(classWorkload || [])];
     if (search.trim()) {
       const q = search.trim().toLowerCase();
-      list = list.filter((t) => t.name?.toLowerCase().includes(q));
+      list = list.filter(
+        (c) =>
+          c.name?.toLowerCase().includes(q) ||
+          c.section?.toLowerCase().includes(q)
+      );
     }
-
     if (sortFilter === 'most') {
       list.sort((a, b) => (b.utilization || 0) - (a.utilization || 0));
     } else if (sortFilter === 'least') {
@@ -813,31 +1004,172 @@ export function WorkloadPanel({ teacherWorkload }: { teacherWorkload: any[] }) {
     } else {
       list.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
     }
+    return list;
+  }, [classWorkload, search, sortFilter]);
 
+  // Filter and sort for faculty
+  const filteredTeacherWorkload = useMemo(() => {
+    let list = [...(teacherWorkload || [])];
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      list = list.filter((t) => t.name?.toLowerCase().includes(q));
+    }
+    if (sortFilter === 'most') {
+      list.sort((a, b) => (b.utilization || 0) - (a.utilization || 0));
+    } else if (sortFilter === 'least') {
+      list.sort((a, b) => (a.utilization || 0) - (b.utilization || 0));
+    } else {
+      list.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    }
     return list;
   }, [teacherWorkload, search, sortFilter]);
 
-  const totalPages = Math.ceil(filteredWorkload.length / pageSize) || 1;
+  const currentList = activeTab === 'class' ? filteredClassWorkload : filteredTeacherWorkload;
+  const totalPages = Math.ceil(currentList.length / pageSize) || 1;
   const safePage = Math.min(currentPage, totalPages);
 
-  const paginatedWorkload = useMemo(() => {
+  const paginatedList = useMemo(() => {
     const start = (safePage - 1) * pageSize;
-    return filteredWorkload.slice(start, start + pageSize);
-  }, [filteredWorkload, safePage]);
+    return currentList.slice(start, start + pageSize);
+  }, [currentList, safePage]);
 
-  // Reset page to 1 when search or filter changes
+  // Reset page when switching tabs, search, or sort filter
   useEffect(() => {
     setCurrentPage(1);
-  }, [search, sortFilter]);
+  }, [activeTab, search, sortFilter]);
+
+  // Quick stats summary
+  const classStats = useMemo(() => {
+    const total = classWorkload.length;
+    const completed = classWorkload.filter((c) => (c.assigned || 0) >= (c.total || 1)).length;
+    const partial = classWorkload.filter(
+      (c) => (c.assigned || 0) > 0 && (c.assigned || 0) < (c.total || 1)
+    ).length;
+    const unassigned = total - completed - partial;
+    return { total, completed, partial, unassigned };
+  }, [classWorkload]);
+
+  const teacherStats = useMemo(() => {
+    const total = teacherWorkload.length;
+    const active = teacherWorkload.filter((t) => (t.assigned || 0) > 0).length;
+    const overloaded = teacherWorkload.filter((t) => (t.assigned || 0) > (t.total || 1)).length;
+    const avgLoad =
+      total > 0
+        ? Math.round(
+            teacherWorkload.reduce((sum, t) => sum + (t.utilization || 0), 0) / total
+          )
+        : 0;
+    return { total, active, overloaded, avgLoad };
+  }, [teacherWorkload]);
 
   return (
     <div className="space-y-4">
+      {/* Tab Switcher & Dynamic Slots Info */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-border/60">
+        <div className="flex items-center gap-1.5 p-1 bg-muted/60 rounded-xl border border-border/60 self-start sm:self-auto">
+          <button
+            type="button"
+            onClick={() => setActiveTab('class')}
+            className={cn(
+              "flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer",
+              activeTab === 'class'
+                ? "bg-background text-foreground shadow-sm border border-border/80"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <GraduationCap className="h-3.5 w-3.5 text-indigo-500" />
+            Class Completion
+            <span className={cn(
+              "text-[10px] px-1.5 py-0.2 rounded-full font-extrabold",
+              activeTab === 'class' ? "bg-indigo-500/15 text-indigo-600 dark:text-indigo-400" : "bg-muted text-muted-foreground"
+            )}>
+              {classStats.completed}/{classStats.total} Done
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('faculty')}
+            className={cn(
+              "flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer",
+              activeTab === 'faculty'
+                ? "bg-background text-foreground shadow-sm border border-border/80"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <Users className="h-3.5 w-3.5 text-indigo-500" />
+            Faculty Workload
+            <span className={cn(
+              "text-[10px] px-1.5 py-0.2 rounded-full font-extrabold",
+              activeTab === 'faculty' ? "bg-indigo-500/15 text-indigo-600 dark:text-indigo-400" : "bg-muted text-muted-foreground"
+            )}>
+              {teacherStats.total} Faculty
+            </span>
+          </button>
+        </div>
+
+        {/* Timetable Slot Capacity indicator */}
+        {(totalWeeklySlots || (classWorkload[0]?.total)) && (
+          <div className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1.5 bg-muted/40 px-3 py-1.5 rounded-lg border border-border/40">
+            <span className="font-bold text-foreground">
+              {totalWeeklySlots || classWorkload[0]?.total} Total Slots / Week
+            </span>
+            {activePeriodsCount && workingDaysCount ? (
+              <span className="text-[10px] text-muted-foreground">
+                ({activePeriodsCount} periods × {workingDaysCount} days)
+              </span>
+            ) : null}
+          </div>
+        )}
+      </div>
+
+      {/* Quick Summary Pill Bar */}
+      {activeTab === 'class' ? (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+          <div className="p-2.5 rounded-xl border border-border/60 bg-muted/20 flex flex-col">
+            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Total Classes</span>
+            <span className="text-base font-extrabold text-foreground">{classStats.total}</span>
+          </div>
+          <div className="p-2.5 rounded-xl border border-emerald-500/20 bg-emerald-500/5 flex flex-col">
+            <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">Fully Scheduled</span>
+            <span className="text-base font-extrabold text-emerald-600 dark:text-emerald-400">{classStats.completed}</span>
+          </div>
+          <div className="p-2.5 rounded-xl border border-indigo-500/20 bg-indigo-500/5 flex flex-col">
+            <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">In Progress</span>
+            <span className="text-base font-extrabold text-indigo-600 dark:text-indigo-400">{classStats.partial}</span>
+          </div>
+          <div className="p-2.5 rounded-xl border border-amber-500/20 bg-amber-500/5 flex flex-col">
+            <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider">Not Started</span>
+            <span className="text-base font-extrabold text-amber-600 dark:text-amber-400">{classStats.unassigned}</span>
+          </div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+          <div className="p-2.5 rounded-xl border border-border/60 bg-muted/20 flex flex-col">
+            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Total Faculty</span>
+            <span className="text-base font-extrabold text-foreground">{teacherStats.total}</span>
+          </div>
+          <div className="p-2.5 rounded-xl border border-indigo-500/20 bg-indigo-500/5 flex flex-col">
+            <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">Assigned Faculty</span>
+            <span className="text-base font-extrabold text-indigo-600 dark:text-indigo-400">{teacherStats.active}</span>
+          </div>
+          <div className="p-2.5 rounded-xl border border-rose-500/20 bg-rose-500/5 flex flex-col">
+            <span className="text-[10px] font-bold text-rose-600 dark:text-rose-400 uppercase tracking-wider">Overloaded</span>
+            <span className="text-base font-extrabold text-rose-600 dark:text-rose-400">{teacherStats.overloaded}</span>
+          </div>
+          <div className="p-2.5 rounded-xl border border-border/60 bg-muted/20 flex flex-col">
+            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Avg Faculty Load</span>
+            <span className="text-base font-extrabold text-foreground">{teacherStats.avgLoad}%</span>
+          </div>
+        </div>
+      )}
+
       {/* Search and Filters Header */}
       <div className="flex flex-col sm:flex-row gap-3 items-center justify-between">
         <div className="relative w-full sm:w-64">
           <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
           <Input
-            placeholder="Search faculty name..."
+            placeholder={activeTab === 'class' ? "Search class or section..." : "Search faculty name..."}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-9 text-xs h-9 rounded-xl bg-background border-border"
@@ -851,50 +1183,221 @@ export function WorkloadPanel({ teacherWorkload }: { teacherWorkload: any[] }) {
             onChange={(e) => setSortFilter(e.target.value as 'all' | 'most' | 'least')}
           >
             <option value="all">Default Sort (A–Z)</option>
-            <option value="most">Most Workload (Highest)</option>
-            <option value="least">Least Workload (Lowest)</option>
+            {activeTab === 'class' ? (
+              <>
+                <option value="most">Highest Progress (Most Filled)</option>
+                <option value="least">Lowest Progress (Pending Slots)</option>
+              </>
+            ) : (
+              <>
+                <option value="most">Most Workload (Highest)</option>
+                <option value="least">Least Workload (Lowest)</option>
+              </>
+            )}
           </select>
         </div>
       </div>
 
-      {/* Workload Cards List */}
-      {paginatedWorkload.length > 0 ? (
+      {/* Cards List */}
+      {paginatedList.length > 0 ? (
         <div className="space-y-3">
-          {paginatedWorkload.map((t, index) => (
-            <div key={`teacher-${index}`} className="p-3 rounded-xl border border-border/50 bg-muted/5">
-              <div className="flex justify-between text-xs font-semibold mb-1.5">
-                <span className="text-foreground font-bold">{t.name}</span>
-                <span className="text-muted-foreground font-medium">
-                  {t.remaining} / {t.total} Slots ({t.utilization}% Load)
-                </span>
-              </div>
-              <div className="h-2 rounded-full bg-muted overflow-hidden">
+          {activeTab === 'class' ? (
+            // CLASS WORKLOAD CARDS
+            (paginatedList as any[]).map((cls, index) => {
+              const isComplete = cls.isComplete || cls.assigned >= cls.total;
+              const isNotStarted = cls.assigned === 0;
+
+              return (
                 <div
-                  className={`h-full bg-${theme.primary} rounded-full transition-all duration-300`}
-                  style={{ width: `${Math.min(100, t.utilization)}%` }}
-                />
-              </div>
-            </div>
-          ))}
+                  key={cls.classId || `class-${index}`}
+                  className={cn(
+                    "p-3.5 rounded-xl border transition-all",
+                    isComplete
+                      ? "border-emerald-500/30 bg-emerald-500/[0.03]"
+                      : "border-border/60 bg-card hover:bg-muted/10"
+                  )}
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-xs font-semibold mb-2">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-foreground font-bold text-sm">
+                        {cls.name} {cls.section ? `(${cls.section})` : ''}
+                      </span>
+                      {isComplete ? (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
+                          <CheckCircle2 className="h-3 w-3" />
+                          Complete (100%)
+                        </span>
+                      ) : isNotStarted ? (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30">
+                          0% Scheduled
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 border border-indigo-500/30">
+                          {cls.remaining} slots remaining
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-3 text-xs">
+                      <span className="font-bold text-foreground">
+                        {cls.assigned} / {cls.total} Slots Filled
+                      </span>
+                      <span
+                        className={cn(
+                          "font-semibold",
+                          isComplete
+                            ? "text-emerald-600 dark:text-emerald-400 font-bold"
+                            : "text-muted-foreground"
+                        )}
+                      >
+                        ({cls.utilization}% Progress)
+                      </span>
+                      {onSelectClass && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => onSelectClass(cls.classId)}
+                          className="h-7 px-2 text-xs font-bold text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 rounded-lg ml-1 cursor-pointer"
+                        >
+                          View <ArrowRight className="h-3 w-3 ml-1" />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                  <div className="h-2 rounded-full bg-muted/60 overflow-hidden">
+                    <div
+                      className={cn(
+                        "h-full rounded-full transition-all duration-300",
+                        isComplete
+                          ? "bg-emerald-500"
+                          : cls.utilization >= 70
+                          ? "bg-indigo-500"
+                          : cls.utilization >= 30
+                          ? "bg-blue-500"
+                          : "bg-amber-500"
+                      )}
+                      style={{ width: `${Math.min(100, cls.utilization)}%` }}
+                    />
+                  </div>
+                </div>
+              );
+            })
+          ) : (
+            // FACULTY WORKLOAD CARDS
+            (paginatedList as any[]).map((t, index) => {
+              const isOverloaded = t.assigned > t.total;
+              const isFull = t.assigned === t.total;
+
+              return (
+                <div
+                  key={t.teacherId || `teacher-${index}`}
+                  className={cn(
+                    "p-3.5 rounded-xl border transition-all",
+                    isOverloaded
+                      ? "border-rose-500/30 bg-rose-500/[0.04]"
+                      : "border-border/60 bg-card hover:bg-muted/10"
+                  )}
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-xs font-semibold mb-2">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-foreground font-bold text-sm">{t.name}</span>
+                      {isOverloaded && (
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30">
+                          Overloaded (+{t.assigned - t.total})
+                        </span>
+                      )}
+                      {isFull && (
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
+                          Target Met (100%)
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-3 text-xs">
+                      <span className="font-bold text-foreground">
+                        {t.assigned} / {t.total} Periods
+                      </span>
+                      <span
+                        className={cn(
+                          "font-semibold",
+                          isOverloaded
+                            ? "text-rose-600 dark:text-rose-400 font-bold"
+                            : "text-muted-foreground"
+                        )}
+                      >
+                        ({t.utilization}% Load)
+                      </span>
+                      {onSelectTeacher && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => onSelectTeacher(t.teacherId)}
+                          className="h-7 px-2 text-xs font-bold text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 rounded-lg ml-1 cursor-pointer"
+                        >
+                          View <ArrowRight className="h-3 w-3 ml-1" />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="h-2 rounded-full bg-muted/60 overflow-hidden">
+                    <div
+                      className={cn(
+                        "h-full rounded-full transition-all duration-300",
+                        isOverloaded
+                          ? "bg-rose-500"
+                          : t.utilization >= 80
+                          ? "bg-emerald-500"
+                          : t.utilization >= 50
+                          ? "bg-indigo-500"
+                          : "bg-amber-500"
+                      )}
+                      style={{ width: `${Math.min(100, t.utilization)}%` }}
+                    />
+                  </div>
+
+                  {/* Class Breakdown Chips */}
+                  {t.classBreakdown && t.classBreakdown.length > 0 && (
+                    <div className="flex flex-wrap items-center gap-1.5 mt-2.5 pt-2 border-t border-border/40">
+                      <span className="text-[10px] uppercase font-bold text-muted-foreground mr-1">
+                        Classes Assigned:
+                      </span>
+                      {t.classBreakdown.map((cb: any, i: number) => (
+                        <span
+                          key={i}
+                          className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-muted/60 text-foreground border border-border/50"
+                        >
+                          {cb.className}: <strong className="text-indigo-600 dark:text-indigo-400">{cb.count}</strong> slots
+                        </span>
+                      ))}
+                      {t.proxySlots > 0 && (
+                        <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                          Proxy/Sub: {t.proxySlots}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          )}
         </div>
       ) : (
         <div className="text-center py-6 text-xs text-muted-foreground">
-          No faculty members found matching "{search}"
+          No {activeTab === 'class' ? 'classes' : 'faculty members'} found matching "{search}"
         </div>
       )}
 
-      {/* Pagination Controls (10 rows per page) */}
-      {filteredWorkload.length > pageSize && (
+      {/* Pagination Controls */}
+      {currentList.length > pageSize && (
         <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2 border-t border-border/40">
           <span className="text-xs text-muted-foreground font-medium">
-            Showing {(safePage - 1) * pageSize + 1}–{Math.min(safePage * pageSize, filteredWorkload.length)} of {filteredWorkload.length} faculty
+            Showing {(safePage - 1) * pageSize + 1}–{Math.min(safePage * pageSize, currentList.length)} of {currentList.length} {activeTab === 'class' ? 'classes' : 'faculty'}
           </span>
 
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
               size="sm"
-              className="h-8 text-xs font-semibold rounded-lg px-2.5"
+              className="h-8 text-xs font-semibold rounded-lg px-2.5 cursor-pointer"
               disabled={safePage <= 1}
               onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
             >
@@ -908,7 +1411,7 @@ export function WorkloadPanel({ teacherWorkload }: { teacherWorkload: any[] }) {
             <Button
               variant="outline"
               size="sm"
-              className="h-8 text-xs font-semibold rounded-lg px-2.5"
+              className="h-8 text-xs font-semibold rounded-lg px-2.5 cursor-pointer"
               disabled={safePage >= totalPages}
               onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
             >
@@ -919,4 +1422,4 @@ export function WorkloadPanel({ teacherWorkload }: { teacherWorkload: any[] }) {
       )}
     </div>
   );
-}
+}

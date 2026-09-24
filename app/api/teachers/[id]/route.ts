@@ -39,17 +39,133 @@ export async function PATCH(request: NextRequest, { params }: Params) {
     const nextSubjects = body.subjects !== undefined ? normalizeStringArray(body.subjects) : undefined;
     const nextClasses = body.classes !== undefined ? normalizeStringArray(body.classes) : undefined;
     const nextQualifications = normalizeStringArray(body.qualifications);
+    const classSubjectMap: Record<string, string[]> | undefined =
+      typeof body.classSubjectMap === 'object' && body.classSubjectMap !== null
+        ? body.classSubjectMap
+        : undefined;
 
     const resolvedClasses = nextClasses !== undefined ? nextClasses : normalizeStringArray((existing as any).classes);
-    let resolvedSubjects = nextSubjects !== undefined ? nextSubjects : normalizeStringArray(existing.subjects);
-    if (resolvedClasses.length === 0) {
-      resolvedSubjects = [];
+
+    // Build specific (classId, subjectId) pairs
+    const classSubjectPairs: Array<{ cid: string; sid: string }> = [];
+    let serializedSubjects: string[] = [];
+    const uniqueSubjects = new Set<string>();
+
+    if (classSubjectMap && Object.keys(classSubjectMap).length > 0) {
+      for (const [cid, sids] of Object.entries(classSubjectMap)) {
+        if (!resolvedClasses.includes(cid)) continue;
+        const sList = normalizeStringArray(sids);
+        for (const sid of sList) {
+          classSubjectPairs.push({ cid, sid });
+          uniqueSubjects.add(sid);
+          serializedSubjects.push(`${cid}:::${sid}`);
+        }
+      }
+      for (const sid of uniqueSubjects) {
+        serializedSubjects.push(sid);
+      }
+    } else if (nextSubjects !== undefined) {
+      for (const cid of resolvedClasses) {
+        for (const sid of nextSubjects) {
+          if (!sid.includes(':::')) {
+            classSubjectPairs.push({ cid, sid });
+            uniqueSubjects.add(sid);
+          }
+        }
+      }
+      serializedSubjects = [...nextSubjects];
+    } else {
+      serializedSubjects = normalizeStringArray(existing.subjects);
+      serializedSubjects.forEach((s) => {
+        if (s.includes(':::')) {
+          const [cid, sid] = s.split(':::');
+          if (resolvedClasses.includes(cid)) {
+            classSubjectPairs.push({ cid, sid });
+            uniqueSubjects.add(sid);
+          }
+        } else {
+          uniqueSubjects.add(s);
+        }
+      });
     }
 
+    let resolvedSubjects = resolvedClasses.length > 0 ? serializedSubjects : [];
+
     const nextSubjectSpecialtyId =
-      resolvedSubjects.length > 0
-        ? (typeof body.subjectSpecialtyId === 'string' && body.subjectSpecialtyId ? body.subjectSpecialtyId : resolvedSubjects[0])
+      uniqueSubjects.size > 0
+        ? (typeof body.subjectSpecialtyId === 'string' && body.subjectSpecialtyId ? body.subjectSpecialtyId : Array.from(uniqueSubjects)[0])
         : null;
+
+    // Prevent duplicate assignment: each (class, subject) can only have ONE teacher
+    if (resolvedClasses.length > 0 && classSubjectPairs.length > 0) {
+      const existingTeachers = await prisma.teacher.findMany({
+        where: { ...schoolWhere(schoolId), active: true, id: { not: id } },
+        select: { id: true, name: true, classes: true, subjects: true },
+      });
+
+      const [allClasses, allSubjects] = await Promise.all([
+        prisma.classRoom.findMany({ where: schoolWhere(schoolId) }),
+        prisma.subject.findMany({ where: schoolWhere(schoolId) }),
+      ]);
+
+      const classMap = new Map<string, string>();
+      allClasses.forEach((c: any) => classMap.set(c.id, c.section ? `${c.name} (${c.section})` : c.name));
+      const subjectMap = new Map<string, string>();
+      allSubjects.forEach((s: any) => subjectMap.set(s.id, s.name));
+
+      for (const { cid, sid } of classSubjectPairs) {
+        const conflictingTeacher = existingTeachers.find((other: any) => {
+          const oClasses = normalizeStringArray(other.classes);
+          const matchesClass = oClasses.some((oc: string) => {
+            if (oc === cid) return true;
+            const cls1 = allClasses.find((c: any) => c.id === cid || c.name === cid || (c.section ? `${c.name} (${c.section})` : c.name) === cid);
+            const cls2 = allClasses.find((c: any) => c.id === oc || c.name === oc || (c.section ? `${c.name} (${c.section})` : c.name) === oc);
+            return cls1 && cls2 && cls1.id === cls2.id;
+          });
+          if (!matchesClass) return false;
+
+          const rawOtherSubjects = normalizeStringArray(other.subjects);
+          const otherClassPairs = rawOtherSubjects.filter((s: string) => s.includes(':::'));
+
+          if (otherClassPairs.length > 0) {
+            return otherClassPairs.some((pair: string) => {
+              const [oCid, oSid] = pair.split(':::');
+              const clsMatch = oCid === cid || (() => {
+                const cls1 = allClasses.find((c: any) => c.id === cid || c.name === cid);
+                const cls2 = allClasses.find((c: any) => c.id === oCid || c.name === oCid);
+                return cls1 && cls2 && cls1.id === cls2.id;
+              })();
+              if (!clsMatch) return false;
+
+              const s1 = allSubjects.find((s: any) => s.id === sid || s.name === sid);
+              const s2 = allSubjects.find((s: any) => s.id === oSid || s.name === oSid);
+              return oSid === sid || (s1 && s2 && s1.id === s2.id);
+            });
+          } else {
+            const oSubjects = rawOtherSubjects;
+            return oSubjects.some((os: string) => {
+              if (os === sid) return true;
+              const s1 = allSubjects.find((s: any) => s.id === sid || s.name === sid);
+              const s2 = allSubjects.find((s: any) => s.id === os || s.name === os);
+              return s1 && s2 && s1.id === s2.id;
+            });
+          }
+        });
+
+        if (conflictingTeacher) {
+          const cls = allClasses.find((c: any) => c.id === cid || c.name === cid);
+          const cName = cls ? (cls.section ? `${cls.name} (${cls.section})` : cls.name) : (classMap.get(cid) || cid);
+          const sub = allSubjects.find((s: any) => s.id === sid || s.name === sid);
+          const sName = sub ? sub.name : (subjectMap.get(sid) || sid);
+          return NextResponse.json(
+            {
+              error: `"${sName}" in ${cName} is already assigned to ${conflictingTeacher.name}. Only one teacher can be assigned to a subject per class.`,
+            },
+            { status: 400 }
+          );
+        }
+      }
+    }
 
     const row = await prisma.teacher.update({
       where: { id },

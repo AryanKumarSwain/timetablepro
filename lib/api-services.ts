@@ -623,19 +623,29 @@ export type WorkloadData = {
   classWorkload: {
     classId: string;
     name: string;
+    section?: string;
     assigned: number;
     total: number;
     remaining: number;
     utilization: number;
+    isComplete?: boolean;
   }[];
   teacherWorkload: {
     teacherId: string;
     name: string;
+    email?: string;
+    phone?: string;
     assigned: number;
+    standardSlots?: number;
+    proxySlots?: number;
     total: number;
     remaining: number;
     utilization: number;
+    classBreakdown?: { className: string; count: number }[];
   }[];
+  totalWeeklySlots?: number;
+  activePeriodsCount?: number;
+  workingDaysCount?: number;
 };
 
 export async function getTimetables(): Promise<TimetableSummary[]> {

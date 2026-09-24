@@ -27,10 +27,25 @@ function normalizeStringArray(value: unknown): string[] {
 
 export function mapTeacher(t: DbTeacher): Teacher {
   const classes = normalizeStringArray((t as any).classes);
-  let subjects = normalizeStringArray(t.subjects);
-  if (classes.length === 0) {
-    subjects = [];
+  const rawSubjects = normalizeStringArray(t.subjects);
+  let subjects: string[] = [];
+  const classSubjectMap: Record<string, string[]> = {};
+
+  if (classes.length > 0) {
+    rawSubjects.forEach((s) => {
+      if (s.includes(':::')) {
+        const [cid, sid] = s.split(':::');
+        if (cid && sid) {
+          if (!classSubjectMap[cid]) classSubjectMap[cid] = [];
+          if (!classSubjectMap[cid].includes(sid)) classSubjectMap[cid].push(sid);
+          if (!subjects.includes(sid)) subjects.push(sid);
+        }
+      } else {
+        if (!subjects.includes(s)) subjects.push(s);
+      }
+    });
   }
+
   return {
     id: t.id,
     name: t.name,
@@ -39,6 +54,7 @@ export function mapTeacher(t: DbTeacher): Teacher {
     qualifications: normalizeStringArray(t.qualifications),
     subjects,
     classes,
+    classSubjectMap: Object.keys(classSubjectMap).length > 0 ? classSubjectMap : undefined,
     active: t.active,
     joinDate: t.joinDate,
     maxPeriodsPerWeek: t.maxPeriodsPerWeek,

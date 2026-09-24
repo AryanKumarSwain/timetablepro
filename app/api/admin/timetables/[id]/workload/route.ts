@@ -55,7 +55,7 @@ export async function GET(_request: Request, context: RouteContext) {
         }).catch(() => [])
       ),
       prisma.classRoom.findMany({ where: schoolWhere(schoolId) }).catch(() => []),
-      prisma.teacher.findMany({ where: schoolWhere(schoolId) }).catch(() => []),
+      prisma.teacher.findMany({ where: { ...schoolWhere(schoolId), active: true } }).catch(() => []),
       prisma.replacementAssignment.findMany({
         where: schoolWhere(schoolId),
       }).catch(() => []),
@@ -76,56 +76,79 @@ export async function GET(_request: Request, context: RouteContext) {
     
     // Exclude break periods from the calculation
     const activePeriods = (timetablePeriods || []).filter((p: any) => !p.isBreak);
-    const totalCellsPerClass = activePeriods.length * workingDays;
-    const totalCellsPerTeacher = activePeriods.length * workingDays;
+    const totalWeeklySlots = Math.max(1, activePeriods.length * workingDays);
     const slots = timetable.slots || [];
+
+    const classMap = new Map<string, string>();
+    classes.forEach((c: any) => classMap.set(c.id, c.name));
 
     const classWorkload = classes.map((cls: any) => {
       const assigned = slots.filter((s: any) => s.classId === cls.id).length;
-      const remaining = Math.max(0, totalCellsPerClass - assigned);
+      const remaining = Math.max(0, totalWeeklySlots - assigned);
       const utilization =
-        totalCellsPerClass > 0
-          ? Math.round((assigned / totalCellsPerClass) * 100)
+        totalWeeklySlots > 0
+          ? Math.round((assigned / totalWeeklySlots) * 100)
           : 0;
       return {
         classId: cls.id,
         name: cls.name,
+        section: cls.section,
         assigned,
-        total: totalCellsPerClass,
+        total: totalWeeklySlots,
         remaining,
         utilization,
+        isComplete: assigned >= totalWeeklySlots,
       };
     });
 
     const teacherWorkload = teachers.map((teacher: any) => {
-      // Count standard timetable slots
-      const assignedSlots = slots.filter(
-        (s: any) => s.teacherId === teacher.id
-      ).length;
-      
+      // Find all slots for this teacher in this timetable
+      const teacherSlots = slots.filter((s: any) => s.teacherId === teacher.id);
+      const assignedSlots = teacherSlots.length;
+
+      // Group by class to show breakdown
+      const classCountMap = new Map<string, number>();
+      teacherSlots.forEach((s: any) => {
+        const cName = classMap.get(s.classId) || s.classId || 'Class';
+        classCountMap.set(cName, (classCountMap.get(cName) || 0) + 1);
+      });
+      const classBreakdown = Array.from(classCountMap.entries()).map(([className, count]) => ({
+        className,
+        count,
+      }));
+
       // Count active proxy/substitution assignments (confirmed status)
       const proxyAssignments = replacements.filter(
         (r: any) => r.replacementTeacherId === teacher.id && r.status === 'CONFIRMED'
       ).length;
-      
-      // Total workload = standard slots + proxy assignments
+
       const totalAssigned = assignedSlots + proxyAssignments;
-      
-      // Use dynamic total based on active periods and working days
+      const remaining = Math.max(0, totalWeeklySlots - totalAssigned);
       const utilization =
-        totalCellsPerTeacher > 0 ? Math.round((totalAssigned / totalCellsPerTeacher) * 100) : 0;
-      
+        totalWeeklySlots > 0 ? Math.round((totalAssigned / totalWeeklySlots) * 100) : 0;
+
       return {
         teacherId: teacher.id,
         name: teacher.name,
+        email: teacher.email,
+        phone: teacher.phone,
         assigned: totalAssigned,
-        total: totalCellsPerTeacher,
-        remaining: Math.max(0, totalCellsPerTeacher - totalAssigned),
+        standardSlots: assignedSlots,
+        proxySlots: proxyAssignments,
+        total: totalWeeklySlots,
+        remaining,
         utilization,
+        classBreakdown,
       };
     });
 
-    return NextResponse.json({ classWorkload, teacherWorkload });
+    return NextResponse.json({
+      classWorkload,
+      teacherWorkload,
+      totalWeeklySlots,
+      activePeriodsCount: activePeriods.length,
+      workingDaysCount: workingDays,
+    });
   } catch (error) {
     return handleApiError(error);
   }

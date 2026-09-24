@@ -58,6 +58,33 @@ export async function POST(request: NextRequest, context: RouteContext) {
       );
     }
 
+    // Prevent assigning a different teacher to a subject that already has another teacher in this class
+    const existingSubjectTeacherSlot = await prisma.timetableSlot.findFirst({
+      where: {
+        timetableId,
+        classId,
+        subjectId,
+        teacherId: { not: teacherId },
+        NOT: {
+          dayOfWeek,
+          periodId,
+        },
+      },
+      include: {
+        teacher: true,
+        subject: true,
+      },
+    });
+
+    if (existingSubjectTeacherSlot) {
+      return NextResponse.json(
+        {
+          error: `${existingSubjectTeacherSlot.subject?.name || 'This subject'} in this class is already assigned to ${existingSubjectTeacherSlot.teacher?.name || 'another teacher'}. Another teacher cannot be assigned to this subject for this class.`,
+        },
+        { status: 400 }
+      );
+    }
+
     // Prevent room double-booking at the same day & period in another class
     if (roomId) {
       const roomConflict = await prisma.timetableSlot.findFirst({

@@ -18,6 +18,7 @@ export interface Teacher {
   qualifications: string[];
   subjects: string[];
   classes?: string[];
+  classSubjectMap?: Record<string, string[]>;
   active: boolean;
   joinDate: string;
   maxPeriodsPerWeek?: number;
