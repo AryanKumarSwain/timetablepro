@@ -958,7 +958,15 @@ export async function getAdminHomework(status?: 'SENT_TO_ADMIN'): Promise<Record
   return apiFetch(`/api/admin/homework${params}`);
 }
 
-export async function getSchoolDetails(): Promise<{ name: string; plan: any }> {
+export interface SchoolDetails {
+  name: string;
+  plan: any;
+  watermarkRequired?: boolean;
+  exportFormats?: string[];
+  [key: string]: any;
+}
+
+export async function getSchoolDetails(): Promise<SchoolDetails> {
   return apiFetch('/api/admin/school');
 }
 

@@ -80,7 +80,7 @@ export async function GET(_request: Request, context: RouteContext) {
     const totalCellsPerTeacher = activePeriods.length * workingDays;
     const slots = timetable.slots || [];
 
-    const classWorkload = classes.map((cls) => {
+    const classWorkload = classes.map((cls: any) => {
       const assigned = slots.filter((s: any) => s.classId === cls.id).length;
       const remaining = Math.max(0, totalCellsPerClass - assigned);
       const utilization =

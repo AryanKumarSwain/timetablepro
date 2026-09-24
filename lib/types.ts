@@ -33,7 +33,7 @@ export interface Subject {
   name: string;
   code: string;
   classIds?: string[];
-  credits: number;
+  credits?: number;
   description?: string;
 }
 
