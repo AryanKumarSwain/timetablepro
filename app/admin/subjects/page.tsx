@@ -49,6 +49,7 @@ export default function SubjectsPage() {
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [schoolPlan, setSchoolPlan] = useState<any>(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const [formData, setFormData] = useState<{
     name: string;
@@ -282,6 +283,38 @@ export default function SubjectsPage() {
     return map;
   }, [classes]);
 
+  // Filtered subjects list based on search query
+  const filteredSubjects = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return subjects;
+
+    return subjects.filter((subject) => {
+      // 1. Name match
+      if (subject.name?.toLowerCase().includes(q)) return true;
+
+      // 2. Code match
+      if (subject.code?.toLowerCase().includes(q)) return true;
+
+      // 3. Assigned classes match (or "all classes")
+      const hasClasses = Array.isArray(subject.classIds) && subject.classIds.length > 0;
+      if (!hasClasses && 'all classes'.includes(q)) return true;
+
+      if (hasClasses) {
+        const matchesClass = subject.classIds!.some((cid) => {
+          const cls = classMap.get(cid);
+          if (!cls) return cid.toLowerCase().includes(q);
+          const nameMatch = cls.name?.toLowerCase().includes(q);
+          const secMatch = cls.section?.toLowerCase().includes(q);
+          const combined = `${cls.name} ${cls.section}`.toLowerCase();
+          return nameMatch || secMatch || combined.includes(q);
+        });
+        if (matchesClass) return true;
+      }
+
+      return false;
+    });
+  }, [subjects, searchQuery, classMap]);
+
   if (loading) {
     return (
       <div className='max-w-7xl mx-auto'>
@@ -484,7 +517,18 @@ export default function SubjectsPage() {
         onSuccess={handleBulkUploadSuccess}
       />
 
-      <DataGrid title='Subjects list' empty={subjects.length === 0}>
+      <DataGrid
+        title='Subjects list'
+        searchPlaceholder='Search subjects by name or class...'
+        searchValue={searchQuery}
+        onSearchChange={setSearchQuery}
+        empty={filteredSubjects.length === 0}
+        emptyMessage={
+          searchQuery.trim()
+            ? `No subjects found matching "${searchQuery}"`
+            : 'No subjects found'
+        }
+      >
         {/* DESKTOP TABLE VIEW */}
         <div className='hidden md:block'>
           <DataGridTable>
@@ -496,7 +540,7 @@ export default function SubjectsPage() {
               </tr>
             </DataGridHead>
             <tbody>
-              {subjects.map((subject) => {
+              {filteredSubjects.map((subject) => {
                 const hasClasses = Array.isArray(subject.classIds) && subject.classIds.length > 0;
                 return (
                   <DataGridRow key={subject.id}>
@@ -579,7 +623,7 @@ export default function SubjectsPage() {
 
         {/* MOBILE COMPACT LIST VIEW - NO HORIZONTAL SCROLL NEEDED */}
         <div className='block md:hidden divide-y divide-border/40'>
-          {subjects.map((subject) => {
+          {filteredSubjects.map((subject) => {
             const hasClasses = Array.isArray(subject.classIds) && subject.classIds.length > 0;
             return (
               <div

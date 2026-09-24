@@ -39,6 +39,7 @@ export default function ClassesPage() {
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [schoolPlan, setSchoolPlan] = useState<any>(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const SECTION_OPTIONS = ['A', 'B', 'C', 'D', 'E', 'F'];
 
@@ -252,6 +253,19 @@ export default function ClassesPage() {
     setErrorMsg(null);
     setShowForm(false);
   };
+
+  const filteredClasses = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return classes;
+
+    return classes.filter((cls) => {
+      const name = (cls.name || '').toLowerCase();
+      const section = (cls.section || '').toLowerCase();
+      const combined = `${name} ${section}`.toLowerCase();
+      const sectionLabel = `section ${section}`.toLowerCase();
+      return name.includes(q) || section.includes(q) || combined.includes(q) || sectionLabel.includes(q);
+    });
+  }, [classes, searchQuery]);
 
   if (loading) {
     return (
@@ -551,7 +565,18 @@ export default function ClassesPage() {
         onSuccess={handleBulkUploadSuccess}
       />
 
-      <DataGrid title='Classes list' empty={classes.length === 0}>
+      <DataGrid
+        title='Classes list'
+        searchPlaceholder='Search classes by name or section...'
+        searchValue={searchQuery}
+        onSearchChange={setSearchQuery}
+        empty={filteredClasses.length === 0}
+        emptyMessage={
+          searchQuery.trim()
+            ? `No classes found matching "${searchQuery}"`
+            : 'No classes found'
+        }
+      >
         <DataGridTable>
           <DataGridHead>
             <tr>
@@ -561,7 +586,7 @@ export default function ClassesPage() {
             </tr>
           </DataGridHead>
           <tbody>
-            {classes.map((cls) => (
+            {filteredClasses.map((cls) => (
               <DataGridRow key={cls.id}>
                 <DataGridTd className='font-medium text-foreground'>
                   <div className='flex flex-col gap-1'>

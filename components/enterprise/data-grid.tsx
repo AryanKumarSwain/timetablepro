@@ -1,6 +1,6 @@
 'use client';
 
-import { Search } from 'lucide-react';
+import { Search, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { GlassCard } from './glass-card';
 import { cn } from '@/lib/utils';
@@ -44,14 +44,24 @@ export function DataGrid({
           </div>
           <div className='flex flex-wrap items-center gap-2'>
             {onSearchChange && (
-              <div className='relative'>
-                <Search className='absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground' />
+              <div className='relative w-full sm:w-64'>
+                <Search className='absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none' />
                 <Input
                   placeholder={searchPlaceholder}
-                  value={searchValue}
+                  value={searchValue || ''}
                   onChange={(e) => onSearchChange(e.target.value)}
-                  className='pl-8 w-full sm:w-56 rounded-xl bg-muted/30'
+                  className='pl-8 pr-8 w-full rounded-xl bg-muted/30 text-xs sm:text-sm'
                 />
+                {searchValue && (
+                  <button
+                    type='button'
+                    onClick={() => onSearchChange('')}
+                    className='absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors p-0.5 rounded-full hover:bg-muted'
+                    title='Clear search'
+                  >
+                    <X className='h-3.5 w-3.5' />
+                  </button>
+                )}
               </div>
             )}
             {toolbar}

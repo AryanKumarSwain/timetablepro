@@ -96,6 +96,7 @@ export default function TeachersPage() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [schoolPlan, setSchoolPlan] = useState<any>(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
   // 1. Core Initial Data Fetch
   useEffect(() => {
@@ -304,6 +305,44 @@ export default function TeachersPage() {
       return s.classIds.some((cid) => selectedClassIds.includes(cid));
     });
   }, [allSubjects, formData.classes]);
+
+  // Filtered teachers list based on search query
+  const filteredTeachers = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return teachers;
+
+    return teachers.filter((teacher) => {
+      // 1. Name match
+      if (teacher.name?.toLowerCase().includes(q)) return true;
+      // 2. Email match
+      if (teacher.email?.toLowerCase().includes(q)) return true;
+      // 3. Phone match
+      if (teacher.phone?.toLowerCase().includes(q)) return true;
+
+      // 4. Assigned classes match (e.g. "Class 10", "10A", section)
+      const teacherClasses = Array.isArray(teacher.classes) ? teacher.classes : [];
+      const matchesClass = teacherClasses.some((cid) => {
+        const cls = classMap.get(cid);
+        if (!cls) return cid.toLowerCase().includes(q);
+        const nameMatch = cls.name?.toLowerCase().includes(q);
+        const secMatch = cls.section?.toLowerCase().includes(q);
+        const combined = `${cls.name} ${cls.section}`.toLowerCase();
+        return nameMatch || secMatch || combined.includes(q);
+      });
+      if (matchesClass) return true;
+
+      // 5. Assigned subjects match
+      const teacherSubjects = Array.isArray(teacher.subjects) ? teacher.subjects : [];
+      const matchesSubject = teacherSubjects.some((sid) => {
+        const sub = subjectMap.get(sid) || allSubjects.find((s) => s.id === sid || s.name === sid);
+        const name = sub?.name || sid;
+        return name.toLowerCase().includes(q);
+      });
+      if (matchesSubject) return true;
+
+      return false;
+    });
+  }, [teachers, searchQuery, classMap, subjectMap, allSubjects]);
 
   const toggleClassSelection = (classId: string) => {
     setFormData((prev) => {
@@ -682,7 +721,18 @@ export default function TeachersPage() {
         onSuccess={handleBulkUploadSuccess}
       />
 
-      <DataGrid title='Faculty directory' empty={teachers.length === 0}>
+      <DataGrid
+        title='Faculty directory'
+        searchPlaceholder='Search teachers by name, email, subject, class...'
+        searchValue={searchQuery}
+        onSearchChange={setSearchQuery}
+        empty={filteredTeachers.length === 0}
+        emptyMessage={
+          searchQuery.trim()
+            ? `No teachers found matching "${searchQuery}"`
+            : 'No faculty records found'
+        }
+      >
         {/* DESKTOP TABLE VIEW */}
         <div className='hidden md:block'>
           <DataGridTable>
@@ -697,7 +747,7 @@ export default function TeachersPage() {
               </tr>
             </DataGridHead>
             <tbody>
-              {teachers.map((teacher) => {
+              {filteredTeachers.map((teacher) => {
                 const teacherClasses = Array.isArray(teacher.classes) ? teacher.classes : [];
                 const teacherSubjects = Array.isArray(teacher.subjects) ? teacher.subjects : [];
 
@@ -851,7 +901,7 @@ export default function TeachersPage() {
 
         {/* MOBILE COMPACT LIST VIEW - NO HORIZONTAL SCROLL NEEDED */}
         <div className='block md:hidden divide-y divide-border/40'>
-          {teachers.map((teacher) => {
+          {filteredTeachers.map((teacher) => {
             const teacherClasses = Array.isArray(teacher.classes) ? teacher.classes : [];
             const teacherSubjects = Array.isArray(teacher.subjects) ? teacher.subjects : [];
 
