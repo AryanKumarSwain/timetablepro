@@ -39,10 +39,17 @@ export async function PATCH(request: NextRequest, { params }: Params) {
     const nextSubjects = body.subjects !== undefined ? normalizeStringArray(body.subjects) : undefined;
     const nextClasses = body.classes !== undefined ? normalizeStringArray(body.classes) : undefined;
     const nextQualifications = normalizeStringArray(body.qualifications);
+
+    const resolvedClasses = nextClasses !== undefined ? nextClasses : normalizeStringArray((existing as any).classes);
+    let resolvedSubjects = nextSubjects !== undefined ? nextSubjects : normalizeStringArray(existing.subjects);
+    if (resolvedClasses.length === 0) {
+      resolvedSubjects = [];
+    }
+
     const nextSubjectSpecialtyId =
-      typeof body.subjectSpecialtyId === 'string' && body.subjectSpecialtyId
-        ? body.subjectSpecialtyId
-        : (nextSubjects && nextSubjects[0]) ?? existing.subjectSpecialtyId;
+      resolvedSubjects.length > 0
+        ? (typeof body.subjectSpecialtyId === 'string' && body.subjectSpecialtyId ? body.subjectSpecialtyId : resolvedSubjects[0])
+        : null;
 
     const row = await prisma.teacher.update({
       where: { id },
@@ -58,8 +65,8 @@ export async function PATCH(request: NextRequest, { params }: Params) {
           nextQualifications.length > 0
             ? (nextQualifications as any)
             : existing.qualifications,
-        subjects: nextSubjects !== undefined ? (nextSubjects as any) : existing.subjects,
-        classes: nextClasses !== undefined ? (nextClasses as any) : (existing as any).classes,
+        subjects: resolvedSubjects as any,
+        classes: resolvedClasses as any,
         active: typeof body.active === 'boolean' ? body.active : existing.active,
         joinDate:
           typeof body.joinDate === 'string' && body.joinDate

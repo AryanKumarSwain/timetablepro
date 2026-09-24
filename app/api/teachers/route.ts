@@ -38,19 +38,12 @@ export async function POST(request: NextRequest) {
 
     const requestSubjects = normalizeStringArray(body.subjects);
     const requestClasses = normalizeStringArray(body.classes);
+    // If no classes are assigned, teacher cannot have assigned subjects
+    const finalSubjects = requestClasses.length > 0 ? requestSubjects : [];
     const subjectSpecialtyId =
       typeof body.subjectSpecialtyId === 'string' && body.subjectSpecialtyId
         ? body.subjectSpecialtyId
-        : requestSubjects[0];
-
-    // Attempt to find a fallback subject, but do not crash or block if it doesn't exist
-    const fallbackSubject = await prisma.subject.findFirst({
-      where: schoolWhere(schoolId),
-      orderBy: { name: 'asc' },
-    });
-
-    // Resolve specialty if available, otherwise set it to null
-    const resolvedSubjectSpecialtyId = subjectSpecialtyId || (fallbackSubject ? fallbackSubject.id : null);
+        : (finalSubjects.length > 0 ? finalSubjects[0] : null);
 
     const teacher = await prisma.teacher.create({
       data: {
@@ -58,12 +51,12 @@ export async function POST(request: NextRequest) {
         email: String(body.email ?? '').trim().toLowerCase(),
         phone: String(body.phone ?? '').trim(),
         qualifications: normalizeStringArray(body.qualifications),
-        subjects: requestSubjects.length > 0 ? requestSubjects : (resolvedSubjectSpecialtyId ? [resolvedSubjectSpecialtyId] : []),
+        subjects: finalSubjects,
         classes: requestClasses,
         active: typeof body.active === 'boolean' ? body.active : true,
         joinDate: String(body.joinDate ?? new Date().toISOString().split('T')[0]),
         maxPeriodsPerWeek: Number(body.maxPeriodsPerWeek ?? 24),
-        subjectSpecialtyId: resolvedSubjectSpecialtyId, // This will now accept null gracefully
+        subjectSpecialtyId,
         schoolId,
       },
     });

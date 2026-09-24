@@ -86,6 +86,22 @@ export default function UpgradePage() {
   const [schoolData, setSchoolData] = useState<SchoolData | null>(null);
   const [userEmail, setUserEmail] = useState<string>('');
   const [userPhone, setUserPhone] = useState<string>('');
+  const [userState, setUserState] = useState<string>('');
+
+  const formatInitialPhone = (rawPhone: string) => {
+    if (!rawPhone) return '';
+    const digits = rawPhone.replace(/\D/g, '');
+    if (digits.length === 12 && digits.startsWith('91')) {
+      return digits.slice(2);
+    }
+    if (digits.length === 11 && digits.startsWith('0')) {
+      return digits.slice(1);
+    }
+    if (digits.length >= 10) {
+      return digits.slice(-10);
+    }
+    return digits;
+  };
   const [upiId, setUpiId] = useState<string>('example@upi');
   const [customPlanDialogOpen, setCustomPlanDialogOpen] = useState<boolean>(false);
   const [submittingCustomPlan, setSubmittingCustomPlan] = useState<boolean>(false);
@@ -138,6 +154,9 @@ export default function UpgradePage() {
         setAllPlans(data || []);
         setPlans((data || []).filter(p => p.name.toLowerCase() !== 'free' && p.name.toLowerCase() !== 'custom' && p.id !== 'plan-custom'));
 
+        let fetchedPhone = '';
+        let fetchedState = '';
+
         const schoolRes = await fetch('/api/admin/school', { credentials: 'include' });
         if (schoolRes.ok && isMounted) {
           try {
@@ -145,6 +164,13 @@ export default function UpgradePage() {
             setCurrentPlanId(schoolInfo.planId || null);
             setSchoolData(schoolInfo);
             setTeacherCount(schoolInfo.teacherCount || 0);
+            if (schoolInfo.state) {
+              fetchedState = schoolInfo.state;
+              setUserState(schoolInfo.state);
+            }
+            if (schoolInfo.phone) {
+              fetchedPhone = schoolInfo.phone;
+            }
 
               // If server marked this school as auto-downgraded, suppress the downgrade popup
               if ((schoolInfo as any).autoDowngradedAt) {
@@ -182,11 +208,28 @@ export default function UpgradePage() {
             const meData = await meRes.json();
             if (meData.user) {
               setUserEmail(meData.user.email || '');
-              setUserPhone(meData.user.phone || '');
+              const uPhone = meData.user.phone || '';
+              setUserPhone(uPhone);
+              if (uPhone) {
+                fetchedPhone = uPhone;
+              }
+              if (!fetchedState && meData.user.school?.state) {
+                fetchedState = meData.user.school.state;
+                setUserState(meData.user.school.state);
+              }
             }
           }
         } catch (meError) {
           console.error('Failed to parse user session data:', meError);
+        }
+
+        if (isMounted) {
+          const initialMobile = formatInitialPhone(fetchedPhone);
+          setCheckoutForm((prev) => ({
+            ...prev,
+            mobileNumber: prev.mobileNumber ? prev.mobileNumber : initialMobile,
+            state: prev.state ? prev.state : fetchedState,
+          }));
         }
 
         try {
@@ -251,6 +294,24 @@ export default function UpgradePage() {
     const numericSanitized = value.replace(/\D/g, '');
     callback(numericSanitized);
   };
+
+  useEffect(() => {
+    if (!selectedPlanId) return;
+    const initialPhone = formatInitialPhone(userPhone || schoolData?.phone || '');
+    const initialState = userState || schoolData?.state || '';
+    setCheckoutForm(prev => {
+      const updatedMobile = prev.mobileNumber ? prev.mobileNumber : initialPhone;
+      const updatedState = prev.state ? prev.state : initialState;
+      if (prev.mobileNumber === updatedMobile && prev.state === updatedState) {
+        return prev;
+      }
+      return {
+        ...prev,
+        mobileNumber: updatedMobile,
+        state: updatedState,
+      };
+    });
+  }, [selectedPlanId, userPhone, userState, schoolData]);
 
   useEffect(() => {
     if (!selectedPlanId || timerExpired) return;
@@ -791,6 +852,13 @@ export default function UpgradePage() {
       
       // Don't set selectedPlanId yet - wait until teachers are removed
     } else {
+      const initialPhone = formatInitialPhone(userPhone || schoolData?.phone || '');
+      const initialState = userState || schoolData?.state || '';
+      setCheckoutForm(prev => ({
+        ...prev,
+        mobileNumber: prev.mobileNumber ? prev.mobileNumber : initialPhone,
+        state: prev.state ? prev.state : initialState,
+      }));
       setSelectedPlanId(planId);
     }
   };

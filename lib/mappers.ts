@@ -26,14 +26,19 @@ function normalizeStringArray(value: unknown): string[] {
 }
 
 export function mapTeacher(t: DbTeacher): Teacher {
+  const classes = normalizeStringArray((t as any).classes);
+  let subjects = normalizeStringArray(t.subjects);
+  if (classes.length === 0) {
+    subjects = [];
+  }
   return {
     id: t.id,
     name: t.name,
     email: t.email,
     phone: t.phone,
     qualifications: normalizeStringArray(t.qualifications),
-    subjects: normalizeStringArray(t.subjects),
-    classes: normalizeStringArray((t as any).classes),
+    subjects,
+    classes,
     active: t.active,
     joinDate: t.joinDate,
     maxPeriodsPerWeek: t.maxPeriodsPerWeek,

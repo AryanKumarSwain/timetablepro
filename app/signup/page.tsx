@@ -141,6 +141,7 @@ export default function SignupPage() {
   const [studentsRange, setStudentsRange] = useState('');
   const [facultyRange, setFacultyRange] = useState('');
 
+  const [hasActiveAccount, setHasActiveAccount] = useState(false);
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
   const [cancelling, setCancelling] = useState(false);
 
@@ -181,8 +182,16 @@ export default function SignupPage() {
           return;
         }
 
+        setHasActiveAccount(true);
+        if (user.name) setFullName(user.name);
+        if (user.email) setEmail(user.email);
+        if (user.phone) setPhone(user.phone);
+        if (user.countryCode) setCountryCode(user.countryCode);
+
         setGoogleEmail(user.email);
         setGoogleFullName(user.name || '');
+        setGooglePhone(user.phone || '');
+        if (user.countryCode) setGoogleCountryCode(user.countryCode);
 
         if (!user.phone || user.phone === null) {
           setStep(3);
@@ -215,16 +224,27 @@ export default function SignupPage() {
     setFieldErrors({});
 
     const clientErrors: FieldErrors = {};
-    if (!password) {
-      clientErrors.password = 'Password is required';
-    } else if (password.length < 6) {
-      clientErrors.password = 'Password must be at least 6 characters';
-    }
+    if (!hasActiveAccount) {
+      if (!password) {
+        clientErrors.password = 'Password is required';
+      } else if (password.length < 6) {
+        clientErrors.password = 'Password must be at least 6 characters';
+      }
 
-    if (!confirmPassword) {
-      clientErrors.confirmPassword = 'Confirm your password';
-    } else if (password && confirmPassword && password !== confirmPassword) {
-      clientErrors.confirmPassword = 'Passwords do not match';
+      if (!confirmPassword) {
+        clientErrors.confirmPassword = 'Confirm your password';
+      } else if (password && confirmPassword && password !== confirmPassword) {
+        clientErrors.confirmPassword = 'Passwords do not match';
+      }
+    } else {
+      if (password) {
+        if (password.length < 6) {
+          clientErrors.password = 'Password must be at least 6 characters';
+        }
+        if (confirmPassword && password !== confirmPassword) {
+          clientErrors.confirmPassword = 'Passwords do not match';
+        }
+      }
     }
 
     if (Object.keys(clientErrors).length > 0) {
@@ -239,7 +259,13 @@ export default function SignupPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ fullName, email, phone, countryCode, password }),
+        body: JSON.stringify({
+          fullName,
+          email,
+          phone,
+          countryCode,
+          password: password || undefined,
+        }),
       });
 
       const data = await res.json();
@@ -250,6 +276,12 @@ export default function SignupPage() {
         } else {
           setFormError(data.error || 'Unable to create account');
         }
+        return;
+      }
+
+      if (data.alreadyVerified) {
+        setHasActiveAccount(true);
+        setStep(4);
         return;
       }
 
@@ -296,6 +328,7 @@ export default function SignupPage() {
         return;
       }
 
+      setHasActiveAccount(true);
       setStep(4);
     } catch {
       setFormError('Failed to update profile. Please try again.');
@@ -473,6 +506,18 @@ export default function SignupPage() {
 
               {step === 1 && (
                 <form onSubmit={handleEmailSignup} className='mt-6 space-y-4' suppressHydrationWarning>
+                  {hasActiveAccount && (
+                    <div className='flex items-center justify-between pb-1'>
+                      <button
+                        type='button'
+                        onClick={() => setStep(4)}
+                        className='inline-flex items-center gap-1.5 text-xs font-semibold text-blue-600 hover:text-blue-700 transition-colors'
+                      >
+                        ← Continue to Institute Setup (Step 4)
+                      </button>
+                    </div>
+                  )}
+
                   <div>
                     <label className='mb-2 block text-sm font-medium text-slate-700'>Full Name</label>
                     <Input
@@ -494,14 +539,16 @@ export default function SignupPage() {
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       required
-                      disabled={loading}
+                      disabled={loading || hasActiveAccount}
                       placeholder='you@example.com'
                     />
                     {fieldErrors.email && <p className='mt-1 text-xs text-rose-500'>{fieldErrors.email}</p>}
                   </div>
 
                   <div>
-                    <label className='mb-2 block text-sm font-medium text-slate-700'>Password</label>
+                    <label className='mb-2 block text-sm font-medium text-slate-700'>
+                      Password {hasActiveAccount && <span className='text-xs font-normal text-slate-400'>(Leave blank to keep existing)</span>}
+                    </label>
                     <div className='relative'>
                       <Input
                         type={showPassword ? 'text' : 'password'}
@@ -518,9 +565,9 @@ export default function SignupPage() {
                             });
                           }
                         }}
-                        required
+                        required={!hasActiveAccount}
                         disabled={loading}
-                        placeholder='••••••••'
+                        placeholder={hasActiveAccount ? '•••••••• (unchanged)' : '••••••••'}
                       />
                       <button
                         type='button'
@@ -535,7 +582,9 @@ export default function SignupPage() {
                   </div>
 
                   <div>
-                    <label className='mb-2 block text-sm font-medium text-slate-700'>Confirm Password</label>
+                    <label className='mb-2 block text-sm font-medium text-slate-700'>
+                      Confirm Password {hasActiveAccount && <span className='text-xs font-normal text-slate-400'>(Optional)</span>}
+                    </label>
                     <div className='relative'>
                       <Input
                         type={showConfirmPassword ? 'text' : 'password'}
@@ -552,9 +601,9 @@ export default function SignupPage() {
                             });
                           }
                         }}
-                        required
+                        required={!hasActiveAccount && !!password}
                         disabled={loading}
-                        placeholder='••••••••'
+                        placeholder={hasActiveAccount ? '••••••••' : '••••••••'}
                       />
                       <button
                         type='button'
@@ -616,25 +665,31 @@ export default function SignupPage() {
                       loading && 'opacity-80'
                     )}
                   >
-                    {loading ? 'Creating account…' : 'Sign Up & Get Started'}
+                    {loading
+                      ? (hasActiveAccount ? 'Saving…' : 'Creating account…')
+                      : (hasActiveAccount ? 'Save & Continue to Institute Setup' : 'Sign Up & Get Started')}
                   </Button>
 
-                  <div className='relative my-2 flex items-center'>
-                    <div className='h-px flex-1 bg-slate-200' />
-                    <span className='mx-4 text-[11px] font-medium uppercase tracking-[0.2em] text-slate-400'>or</span>
-                    <div className='h-px flex-1 bg-slate-200' />
-                  </div>
+                  {!hasActiveAccount && (
+                    <>
+                      <div className='relative my-2 flex items-center'>
+                        <div className='h-px flex-1 bg-slate-200' />
+                        <span className='mx-4 text-[11px] font-medium uppercase tracking-[0.2em] text-slate-400'>or</span>
+                        <div className='h-px flex-1 bg-slate-200' />
+                      </div>
 
-                  <Button
-                    type='button'
-                    variant='outline'
-                    onClick={handleGoogleSignup}
-                    disabled={loading}
-                    className='h-12 w-full rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm hover:bg-slate-50'
-                  >
-                    <GoogleIcon className='mr-2 h-5 w-5' />
-                    Continue with Google
-                  </Button>
+                      <Button
+                        type='button'
+                        variant='outline'
+                        onClick={handleGoogleSignup}
+                        disabled={loading}
+                        className='h-12 w-full rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm hover:bg-slate-50'
+                      >
+                        <GoogleIcon className='mr-2 h-5 w-5' />
+                        Continue with Google
+                      </Button>
+                    </>
+                  )}
                 </form>
               )}
 
@@ -665,6 +720,7 @@ export default function SignupPage() {
                       return;
                     }
 
+                    setHasActiveAccount(true);
                     setStep(4);
                   } catch {
                     setFormError('Verification failed');
@@ -802,7 +858,13 @@ export default function SignupPage() {
                 currentStep={step}
                 title='One last step!'
                 subtitle='Tell us about your institute to personalize your experience'
-                onBack={() => setCancelDialogOpen(true)}
+                onBack={() => {
+                  if (googleEmail && (!phone || !fullName)) {
+                    setStep(3);
+                  } else {
+                    setStep(1);
+                  }
+                }}
                 onCancel={() => setCancelDialogOpen(true)}
               >
                 <form onSubmit={handleOnboarding} className='space-y-4'>

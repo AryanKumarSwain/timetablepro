@@ -2,17 +2,18 @@ import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { prisma } from '@/lib/prisma';
 import { sendVerificationCode } from '@/lib/mailer';
+import { getSession } from '@/lib/session';
 
 type FieldErrors = Record<string, string>;
 
-function validateSignupBody(body: unknown): {
+function validateSignupBody(body: unknown, allowOptionalPassword = false): {
   ok: true;
   data: {
     fullName: string;
     email: string;
     phone: string;
     countryCode: string;
-    password: string;
+    password?: string;
   };
 } | { ok: false; errors: FieldErrors } {
   const raw = body as Record<string, unknown>;
@@ -34,10 +35,12 @@ function validateSignupBody(body: unknown): {
 
   if (!phone) errors.phone = 'Phone number is required';
 
-  if (!password) {
-    errors.password = 'Password is required';
-  } else if (password.length < 6) {
-    errors.password = 'Password must be at least 6 characters';
+  if (!allowOptionalPassword || password) {
+    if (!password) {
+      errors.password = 'Password is required';
+    } else if (password.length < 6) {
+      errors.password = 'Password must be at least 6 characters';
+    }
   }
 
   if (Object.keys(errors).length > 0) {
@@ -51,7 +54,7 @@ function validateSignupBody(body: unknown): {
       email,
       phone,
       countryCode,
-      password,
+      password: password || undefined,
     },
   };
 }
@@ -63,8 +66,77 @@ function generateOtp() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const validated = validateSignupBody(body);
+    const raw = body as Record<string, unknown>;
+    const email = String(raw.email ?? '').trim().toLowerCase();
 
+    // Check if user already exists in permanent records
+    const existingUser = email
+      ? await prisma.user.findUnique({
+          where: { email },
+        })
+      : null;
+
+    if (existingUser) {
+      // If user has already completed onboarding, block duplicate registration
+      if (existingUser.onboardingDone) {
+        return NextResponse.json(
+          {
+            success: false,
+            errors: {
+              email: 'An account with this email already exists',
+            },
+          },
+          { status: 409 }
+        );
+      }
+
+      // If user exists but onboarding is NOT completed, they navigated back
+      // to step 1 to update their Name, Phone, or Password.
+      const validated = validateSignupBody(body, true);
+      if (!validated.ok) {
+        return NextResponse.json(
+          { success: false, errors: validated.errors },
+          { status: 400 }
+        );
+      }
+
+      const { fullName, phone, countryCode, password } = validated.data;
+      const updateData: any = {
+        name: fullName,
+        phone,
+        countryCode,
+      };
+
+      if (password) {
+        updateData.password = await bcrypt.hash(password, 10);
+      }
+
+      const updatedUser = await prisma.user.update({
+        where: { id: existingUser.id },
+        data: updateData,
+      });
+
+      // Ensure session is set up
+      const session = await getSession();
+      session.user = {
+        id: updatedUser.id,
+        email: updatedUser.email,
+        role: updatedUser.role,
+        schoolId: updatedUser.schoolId,
+        onboardingDone: false,
+      };
+      session.isLoggedIn = true;
+      await session.save();
+
+      return NextResponse.json({
+        success: true,
+        alreadyVerified: true,
+        email,
+        message: 'Details updated successfully',
+      });
+    }
+
+    const validated = validateSignupBody(body, false);
     if (!validated.ok) {
       return NextResponse.json(
         { success: false, errors: validated.errors },
@@ -74,29 +146,12 @@ export async function POST(request: NextRequest) {
 
     const {
       fullName,
-      email,
       phone,
       countryCode,
       password,
     } = validated.data;
 
-    const existingUser = await prisma.user.findUnique({
-      where: { email },
-    });
-
-    if (existingUser) {
-      return NextResponse.json(
-        {
-          success: false,
-          errors: {
-            email: 'An account with this email already exists',
-          },
-        },
-        { status: 409 }
-      );
-    }
-
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const hashedPassword = await bcrypt.hash(password!, 10);
     const otp = generateOtp();
 
     // 💡 FIX: Accessing Prisma client properties conditionally to avoid 'undefined' crashes.

@@ -156,11 +156,16 @@ export default function TeachersPage() {
     setSuccessMsg(null);
     
     try {
+      const payload = {
+        ...formData,
+        subjects: (formData.classes || []).length > 0 ? formData.subjects : [],
+      };
+
       if (editingId) {
-        await updateTeacher(editingId, formData);
+        await updateTeacher(editingId, payload);
         setSuccessMsg(`Profile updated successfully for ${formData.name}.`);
       } else {
-        await createTeacher(formData);
+        await createTeacher(payload);
         
         console.log('---------------------------------------------------------');
         console.log(`[SMTP Dispatch Simulation Check]`);
@@ -196,13 +201,14 @@ export default function TeachersPage() {
   const handleEdit = (teacher: Teacher) => {
     setErrorMsg(null);
     setSuccessMsg(null);
+    const teacherClasses = Array.isArray(teacher.classes) ? teacher.classes : [];
     setFormData({
       name: teacher.name ?? '',
       email: teacher.email ?? '',
       phone: teacher.phone ?? '',
       qualifications: Array.isArray(teacher.qualifications) ? teacher.qualifications : [],
-      subjects: Array.isArray(teacher.subjects) ? teacher.subjects : [],
-      classes: Array.isArray(teacher.classes) ? teacher.classes : [],
+      subjects: teacherClasses.length > 0 && Array.isArray(teacher.subjects) ? teacher.subjects : [],
+      classes: teacherClasses,
       active: teacher.active ?? true,
       joinDate: teacher.joinDate ?? new Date().toISOString().split('T')[0],
     });
@@ -739,38 +745,45 @@ export default function TeachersPage() {
                       )}
                     </DataGridTd>
                     <DataGridTd>
-                      {teacherSubjects.length > 0 ? (
-                        <div className='flex flex-wrap items-center gap-1 max-w-[240px]'>
-                          {teacherSubjects.slice(0, 3).map((sid) => {
-                            const sub = subjectMap.get(sid) || allSubjects.find((s) => s.name === sid);
-                            const label = sub ? sub.name : sid;
-                            return (
+                      {(() => {
+                        const validSubjects = (teacherClasses.length > 0 ? teacherSubjects : []).filter(
+                          (sid) => subjectMap.has(sid) || allSubjects.some((s) => s.id === sid || s.name === sid)
+                        );
+                        if (validSubjects.length === 0) {
+                          return <span className='text-xs text-muted-foreground italic'>None assigned</span>;
+                        }
+
+                        return (
+                          <div className='flex flex-wrap items-center gap-1 max-w-[240px]'>
+                            {validSubjects.slice(0, 3).map((sid) => {
+                              const sub = subjectMap.get(sid) || allSubjects.find((s) => s.name === sid || s.id === sid);
+                              const label = sub ? sub.name : sid;
+                              return (
+                                <span
+                                  key={sid}
+                                  className='inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'
+                                >
+                                  {label}
+                                </span>
+                              );
+                            })}
+                            {validSubjects.length > 3 && (
                               <span
-                                key={sid}
-                                className='inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'
+                                title={validSubjects
+                                  .slice(3)
+                                  .map((sid) => {
+                                    const sub = subjectMap.get(sid) || allSubjects.find((s) => s.name === sid || s.id === sid);
+                                    return sub ? sub.name : sid;
+                                  })
+                                  .join(', ')}
+                                className='inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-semibold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 cursor-help'
                               >
-                                {label}
+                                +{validSubjects.length - 3}
                               </span>
-                            );
-                          })}
-                          {teacherSubjects.length > 3 && (
-                            <span
-                              title={teacherSubjects
-                                .slice(3)
-                                .map((sid) => {
-                                  const sub = subjectMap.get(sid) || allSubjects.find((s) => s.name === sid);
-                                  return sub ? sub.name : sid;
-                                })
-                                .join(', ')}
-                              className='inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-semibold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 cursor-help'
-                            >
-                              +{teacherSubjects.length - 3}
-                            </span>
-                          )}
-                        </div>
-                      ) : (
-                        <span className='text-xs text-muted-foreground italic'>None assigned</span>
-                      )}
+                            )}
+                          </div>
+                        );
+                      })()}
                     </DataGridTd>
                     <DataGridTd className='text-center'>
                       {teacher.active ? (
@@ -993,21 +1006,30 @@ export default function TeachersPage() {
                   <BookOpen className='h-4 w-4 text-emerald-500' />
                   <span>Assigned Subjects</span>
                 </div>
-                {Array.isArray(selectedTeacherForView.subjects) && selectedTeacherForView.subjects.length > 0 ? (
-                  <div className='flex flex-wrap gap-1.5 pt-1'>
-                    {selectedTeacherForView.subjects.map((sid) => {
-                      const sub = subjectMap.get(sid) || allSubjects.find((s) => s.name === sid);
-                      const label = sub ? `${sub.name} (${sub.code})` : sid;
-                      return (
-                        <span key={sid} className='px-2 py-0.5 text-xs bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-md border border-emerald-500/20 font-medium'>
-                          {label}
-                        </span>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <p className='text-xs text-muted-foreground italic'>No subjects assigned</p>
-                )}
+                {(() => {
+                  const hasClasses = Array.isArray(selectedTeacherForView.classes) && selectedTeacherForView.classes.length > 0;
+                  const validSubs = hasClasses && Array.isArray(selectedTeacherForView.subjects)
+                    ? selectedTeacherForView.subjects.filter((sid) => subjectMap.has(sid) || allSubjects.some((s) => s.id === sid || s.name === sid))
+                    : [];
+
+                  if (validSubs.length === 0) {
+                    return <p className='text-xs text-muted-foreground italic'>No subjects assigned</p>;
+                  }
+
+                  return (
+                    <div className='flex flex-wrap gap-1.5 pt-1'>
+                      {validSubs.map((sid) => {
+                        const sub = subjectMap.get(sid) || allSubjects.find((s) => s.name === sid || s.id === sid);
+                        const label = sub ? sub.name : sid;
+                        return (
+                          <span key={sid} className='px-2 py-0.5 text-xs bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-md border border-emerald-500/20 font-medium'>
+                            {label}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
               </div>
 
               {selectedTeacherForView.qualifications && selectedTeacherForView.qualifications.length > 0 && (
