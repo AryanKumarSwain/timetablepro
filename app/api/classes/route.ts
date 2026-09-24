@@ -22,13 +22,31 @@ export async function POST(request: NextRequest) {
     const { schoolId } = await requireSchoolContext();
     await checkClassLimit(schoolId);
     const body = await request.json();
+    const name = String(body.name).trim();
+    const section = String(body.section ?? '').trim();
+
+    // Check if class with same name and section already exists in this school
+    const duplicate = await prisma.classRoom.findFirst({
+      where: {
+        schoolId,
+        name,
+        section,
+      },
+    });
+    if (duplicate) {
+      return NextResponse.json(
+        { error: `Class "${name}" with Section "${section}" already exists.` },
+        { status: 400 }
+      );
+    }
+
     const row = await prisma.classRoom.create({
       data: {
         id: `class-${crypto.randomUUID()}`,
         schoolId,
-        name: String(body.name),
+        name,
         grade: String(body.grade ?? body.classLevel ?? ''),
-        section: String(body.section ?? ''),
+        section,
         roomNumber: String(body.roomNumber ?? ''),
       },
     });

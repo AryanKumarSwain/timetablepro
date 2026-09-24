@@ -18,6 +18,32 @@ export async function PATCH(request: NextRequest, { params }: Params) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
 
+    const rawName = body.name !== undefined ? String(body.name).trim() : existing.name;
+    if (!rawName) {
+      return NextResponse.json({ error: 'Subject name is required' }, { status: 400 });
+    }
+
+    // Check duplicate subject name for another subject in this school
+    const duplicate = await prisma.subject.findFirst({
+      where: {
+        schoolId,
+        id: { not: id },
+        name: rawName,
+      },
+    });
+    if (duplicate) {
+      return NextResponse.json(
+        { error: `Subject "${rawName}" already exists.` },
+        { status: 400 }
+      );
+    }
+
+    let code = existing.code;
+    if (body.code !== undefined) {
+      const trimmed = String(body.code).trim().toUpperCase();
+      code = trimmed || (rawName.split(/\s+/).map((w: string) => w[0]).join('').toUpperCase().slice(0, 5) || rawName.slice(0, 4).toUpperCase());
+    }
+
     const classIds = body.classIds !== undefined
       ? (Array.isArray(body.classIds) ? body.classIds.filter((x: any) => typeof x === 'string') : [])
       : (existing as any).classIds ?? [];
@@ -25,8 +51,8 @@ export async function PATCH(request: NextRequest, { params }: Params) {
     const row = await prisma.subject.update({
       where: { id },
       data: {
-        name: body.name ?? existing.name,
-        code: body.code ?? existing.code,
+        name: rawName,
+        code,
         classIds,
       },
     });

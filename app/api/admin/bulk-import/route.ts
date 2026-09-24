@@ -63,15 +63,25 @@ export async function POST(request: NextRequest) {
         const rowNumber = i + 2;
         const row = rows[i];
         const name = row.name?.trim();
-        const code = row.code?.trim().toUpperCase();
+        let code = row.code?.trim().toUpperCase();
 
-        if (!name || !code) {
+        if (!name) {
           result.failed++;
           result.errors.push({
             row: rowNumber,
-            message: 'name and code are required.',
+            message: 'name is required.',
           });
           continue;
+        }
+
+        if (!code) {
+          code =
+            name
+              .split(/\s+/)
+              .map((w) => w[0])
+              .join('')
+              .toUpperCase()
+              .slice(0, 5) || name.slice(0, 4).toUpperCase();
         }
 
         // Parse classes if provided (semicolon or pipe separated)
@@ -97,15 +107,18 @@ export async function POST(request: NextRequest) {
         }
 
         try {
-          const existing = await client.subject.findFirst({
-            where: { schoolId, code },
+          const existingByName = await client.subject.findFirst({
+            where: {
+              schoolId,
+              name: { equals: name, mode: 'insensitive' },
+            },
           });
-          if (existing) {
+          if (existingByName) {
             result.failed++;
             result.errors.push({
               row: rowNumber,
-              field: 'code',
-              message: `Subject code "${code}" already exists.`,
+              field: 'name',
+              message: `Subject "${name}" already exists.`,
             });
             continue;
           }

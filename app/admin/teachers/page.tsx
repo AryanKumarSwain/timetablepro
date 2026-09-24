@@ -706,8 +706,8 @@ export default function TeachersPage() {
                     </DataGridTd>
                     <DataGridTd>
                       {teacherClasses.length > 0 ? (
-                        <div className='flex flex-wrap gap-1 max-w-[220px]'>
-                          {teacherClasses.map((cid) => {
+                        <div className='flex flex-wrap items-center gap-1 max-w-[240px]'>
+                          {teacherClasses.slice(0, 3).map((cid) => {
                             const cls = classMap.get(cid);
                             const label = cls ? (cls.section ? `${cls.name} (${cls.section})` : cls.name) : cid;
                             return (
@@ -719,6 +719,20 @@ export default function TeachersPage() {
                               </span>
                             );
                           })}
+                          {teacherClasses.length > 3 && (
+                            <span
+                              title={teacherClasses
+                                .slice(3)
+                                .map((cid) => {
+                                  const cls = classMap.get(cid);
+                                  return cls ? (cls.section ? `${cls.name} (${cls.section})` : cls.name) : cid;
+                                })
+                                .join(', ')}
+                              className='inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-semibold bg-primary/15 text-primary border border-primary/30 cursor-help'
+                            >
+                              +{teacherClasses.length - 3}
+                            </span>
+                          )}
                         </div>
                       ) : (
                         <span className='text-xs text-muted-foreground italic'>None assigned</span>
@@ -726,8 +740,8 @@ export default function TeachersPage() {
                     </DataGridTd>
                     <DataGridTd>
                       {teacherSubjects.length > 0 ? (
-                        <div className='flex flex-wrap gap-1 max-w-[220px]'>
-                          {teacherSubjects.map((sid) => {
+                        <div className='flex flex-wrap items-center gap-1 max-w-[240px]'>
+                          {teacherSubjects.slice(0, 3).map((sid) => {
                             const sub = subjectMap.get(sid) || allSubjects.find((s) => s.name === sid);
                             const label = sub ? sub.name : sid;
                             return (
@@ -739,6 +753,20 @@ export default function TeachersPage() {
                               </span>
                             );
                           })}
+                          {teacherSubjects.length > 3 && (
+                            <span
+                              title={teacherSubjects
+                                .slice(3)
+                                .map((sid) => {
+                                  const sub = subjectMap.get(sid) || allSubjects.find((s) => s.name === sid);
+                                  return sub ? sub.name : sid;
+                                })
+                                .join(', ')}
+                              className='inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-semibold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 cursor-help'
+                            >
+                              +{teacherSubjects.length - 3}
+                            </span>
+                          )}
                         </div>
                       ) : (
                         <span className='text-xs text-muted-foreground italic'>None assigned</span>

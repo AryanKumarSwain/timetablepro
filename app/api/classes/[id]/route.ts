@@ -16,12 +16,31 @@ export async function PATCH(request: NextRequest, { params }: Params) {
     if (!existing) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
+    const newName = body.name !== undefined ? String(body.name).trim() : existing.name;
+    const newSection = body.section !== undefined ? String(body.section).trim() : existing.section;
+
+    // Check if another class in this school already has the same name and section
+    const duplicate = await prisma.classRoom.findFirst({
+      where: {
+        schoolId,
+        id: { not: id },
+        name: newName,
+        section: newSection,
+      },
+    });
+    if (duplicate) {
+      return NextResponse.json(
+        { error: `Class "${newName}" with Section "${newSection}" already exists.` },
+        { status: 400 }
+      );
+    }
+
     const row = await prisma.classRoom.update({
       where: { id },
       data: {
-        name: body.name ?? existing.name,
+        name: newName,
         grade: String(body.grade ?? body.classLevel ?? existing.grade),
-        section: body.section ?? existing.section,
+        section: newSection,
         roomNumber: body.roomNumber ?? existing.roomNumber,
       },
     });
