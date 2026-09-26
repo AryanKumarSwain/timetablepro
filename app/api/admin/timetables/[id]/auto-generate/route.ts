@@ -385,31 +385,31 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
       let penalty = 0;
 
-      // 1. AVOID CONSECUTIVE: Extreme penalty for scheduling the exact same subject back-to-back
-      if (avoidConsecutive && prevSubjectId && subject.id === prevSubjectId) {
-        penalty += 1000000;
+      // 1. AVOID CONSECUTIVE: Only enforce when avoidConsecutive is TRUE
+      if (avoidConsecutive) {
+        if (prevSubjectId && subject.id === prevSubjectId) {
+          penalty += 1000000;
+        }
+        if (currDayCount >= dailyMax) {
+          penalty += 200000 * (currDayCount - dailyMax + 1);
+        }
+        penalty += currDayCount * 5000;
       }
 
-      // 2. DAILY MAX LIMIT: Strongly penalize exceeding daily limit for this subject
-      if (currDayCount >= dailyMax) {
-        penalty += 200000 * (currDayCount - dailyMax + 1);
+      // 2. EQUAL WORKLOAD & EQUAL SUBJECT DISTRIBUTION: Only enforce when equalWorkload is TRUE
+      if (equalWorkload) {
+        if (currWeekCount >= weeklyTarget) {
+          penalty += 50000 * (currWeekCount - weeklyTarget + 1);
+        }
+        penalty += currWeekCount * 100;
       }
 
-      // 3. WEEKLY TARGET: Strongly penalize exceeding equal-distribution weekly target
-      if (currWeekCount >= weeklyTarget) {
-        penalty += 50000 * (currWeekCount - weeklyTarget + 1);
+      // 3. TIE-BREAKER: Smooth rotation across days only when optimizing distribution
+      if (avoidConsecutive || equalWorkload) {
+        const subIndex = Math.max(0, subjectsList.findIndex((s) => s.id === subject.id));
+        const rotationScore = (subIndex + dayIdx) % Math.max(1, subjectsList.length);
+        penalty += rotationScore;
       }
-
-      // 4. DAILY BALANCE: Prioritize subjects with 0 periods today over 1 period today
-      penalty += currDayCount * 5000;
-
-      // 5. WEEKLY BALANCE: Prioritize subjects that currently have fewer periods scheduled
-      penalty += currWeekCount * 100;
-
-      // 6. TIE-BREAKER: Smooth rotation across days so starting order alternates evenly
-      const subIndex = Math.max(0, subjectsList.findIndex((s) => s.id === subject.id));
-      const rotationScore = (subIndex + dayIdx) % Math.max(1, subjectsList.length);
-      penalty += rotationScore;
 
       return penalty;
     };
