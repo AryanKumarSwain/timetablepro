@@ -164,11 +164,6 @@ export async function POST(request: NextRequest, context: RouteContext) {
       }
     }
 
-    // Check if any teacher in the school has classes assigned
-    const anyTeacherHasClasses = allTeachers.some(
-      (t: any) => parseArray(t.classes).length > 0
-    );
-
     // Cache of qualified active teachers for a specific (class, subject)
     const qualifiedTeacherCache = new Map<string, any[]>();
 
@@ -177,18 +172,17 @@ export async function POST(request: NextRequest, context: RouteContext) {
       if (qualifiedTeacherCache.has(key)) return qualifiedTeacherCache.get(key)!;
 
       const qualified = allTeachers.filter((teacher: any) => {
-        // 1. Must teach this class
+        // 1. Must teach this class: Teacher must explicitly have classes assigned in Faculty Directory
         const teacherClasses = parseArray(teacher.classes);
         if (teacherClasses.length === 0) {
-          // If teacher has NO classes assigned in Faculty Directory, they cannot teach ANY class
-          if (anyTeacherHasClasses) return false;
-        } else {
-          const teachesClass =
-            teacherClasses.includes(classObj.id) ||
-            (classObj.name && teacherClasses.includes(classObj.name));
-
-          if (!teachesClass) return false;
+          return false;
         }
+
+        const teachesClass =
+          teacherClasses.includes(classObj.id) ||
+          (classObj.name && teacherClasses.includes(classObj.name));
+
+        if (!teachesClass) return false;
 
         // 2. Must teach this subject (with per-class mapping support)
         const rawSubjects = parseArray(teacher.subjects);
@@ -231,6 +225,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
     const slotTeacherMap = new Map<string, string>();
     const slotSubjectMap = new Map<string, string>();
     const classSubjectPeriodCount = new Map<string, number>();
+    const classSubjectDayCount = new Map<string, number>();
 
     const existingSlotKeys = new Set<string>();
 
@@ -256,6 +251,11 @@ export async function POST(request: NextRequest, context: RouteContext) {
         classSubjectPeriodCount.set(
           `${slot.classId}_${slot.subjectId}`,
           (classSubjectPeriodCount.get(`${slot.classId}_${slot.subjectId}`) || 0) + 1
+        );
+        const daySubKey = `${slot.classId}_${slot.subjectId}_${slot.dayOfWeek}`;
+        classSubjectDayCount.set(
+          daySubKey,
+          (classSubjectDayCount.get(daySubKey) || 0) + 1
         );
       }
     });
@@ -331,6 +331,89 @@ export async function POST(request: NextRequest, context: RouteContext) {
       }
     }
 
+    // 5.6 Pre-calculate EQUAL DISTRIBUTION quotas per subject for each class
+    const classSubjectWeeklyTarget = new Map<string, number>();
+    const classSubjectDailyMax = new Map<string, number>();
+
+    for (const classObj of classesToSchedule) {
+      const candidateSubjects = classToSubjectsMap.get(classObj.id) || [];
+      const qualifiedSubs = candidateSubjects.filter((sub) => {
+        const lockKey = `${classObj.id}_${sub.id}`;
+        const lockedTeacherId = classSubjectTeacherLock.get(lockKey);
+        if (lockedTeacherId) {
+          return allTeachers.some((t: any) => t.id === lockedTeacherId);
+        }
+        return getQualifiedTeachers(classObj, sub).length > 0;
+      });
+
+      if (qualifiedSubs.length === 0) continue;
+
+      const totalSlotsForClass = workingDays.length * activePeriods.length;
+      const baseQuota = Math.floor(totalSlotsForClass / qualifiedSubs.length);
+      const remainder = totalSlotsForClass % qualifiedSubs.length;
+
+      qualifiedSubs.forEach((sub, idx) => {
+        const target = baseQuota + (idx < remainder ? 1 : 0);
+        const subKey = `${classObj.id}_${sub.id}`;
+        classSubjectWeeklyTarget.set(subKey, target);
+
+        // Daily limit: A subject should never exceed ceil(target / workingDays) on a single day
+        const dailyMax = Math.max(1, Math.ceil(target / workingDays.length));
+        classSubjectDailyMax.set(subKey, dailyMax);
+      });
+    }
+
+    // Intelligent scoring function to enforce equal subject distribution and avoid consecutive periods
+    const scoreSubjectForSlot = (
+      classObj: any,
+      subject: any,
+      dayOfWeek: number,
+      dayIdx: number,
+      prevSubjectId: string | null,
+      subjectsList: any[]
+    ): number => {
+      const subKey = `${classObj.id}_${subject.id}`;
+      const dayKey = `${classObj.id}_${subject.id}_${dayOfWeek}`;
+      const currWeekCount = classSubjectPeriodCount.get(subKey) || 0;
+      const currDayCount = classSubjectDayCount.get(dayKey) || 0;
+      const weeklyTarget =
+        classSubjectWeeklyTarget.get(subKey) ??
+        Math.ceil((workingDays.length * activePeriods.length) / Math.max(1, subjectsList.length));
+      const dailyMax =
+        classSubjectDailyMax.get(subKey) ??
+        Math.max(1, Math.ceil(weeklyTarget / workingDays.length));
+
+      let penalty = 0;
+
+      // 1. AVOID CONSECUTIVE: Extreme penalty for scheduling the exact same subject back-to-back
+      if (avoidConsecutive && prevSubjectId && subject.id === prevSubjectId) {
+        penalty += 1000000;
+      }
+
+      // 2. DAILY MAX LIMIT: Strongly penalize exceeding daily limit for this subject
+      if (currDayCount >= dailyMax) {
+        penalty += 200000 * (currDayCount - dailyMax + 1);
+      }
+
+      // 3. WEEKLY TARGET: Strongly penalize exceeding equal-distribution weekly target
+      if (currWeekCount >= weeklyTarget) {
+        penalty += 50000 * (currWeekCount - weeklyTarget + 1);
+      }
+
+      // 4. DAILY BALANCE: Prioritize subjects with 0 periods today over 1 period today
+      penalty += currDayCount * 5000;
+
+      // 5. WEEKLY BALANCE: Prioritize subjects that currently have fewer periods scheduled
+      penalty += currWeekCount * 100;
+
+      // 6. TIE-BREAKER: Smooth rotation across days so starting order alternates evenly
+      const subIndex = Math.max(0, subjectsList.findIndex((s) => s.id === subject.id));
+      const rotationScore = (subIndex + dayIdx) % Math.max(1, subjectsList.length);
+      penalty += rotationScore;
+
+      return penalty;
+    };
+
     // 6. Execution Loop: Schedule slots for all target classes across all days and periods
     const targetClassIdsSet = new Set(classesToSchedule.map((c: any) => c.id));
     const scheduledSlotCellMap = new Set<string>();
@@ -375,35 +458,33 @@ export async function POST(request: NextRequest, context: RouteContext) {
             continue; // No qualified teachers for this class's subjects
           }
 
-          // Sort subjects to balance course distribution and avoid back-to-back same subject
+          // Sort subjects to balance course distribution and strictly avoid back-to-back same subject
           const prevPeriodId = periodIdx > 0 ? activePeriods[periodIdx - 1]?.id : null;
           const prevSubjectId = prevPeriodId
             ? slotSubjectMap.get(`${classObj.id}_${dayOfWeek}_${prevPeriodId}`)
             : null;
 
           const sortedSubjects = [...subjectsWithTeachers].sort((a, b) => {
-            if (avoidConsecutive && prevSubjectId) {
-              const aIsPrev = a.id === prevSubjectId;
-              const bIsPrev = b.id === prevSubjectId;
-              if (aIsPrev !== bIsPrev) return aIsPrev ? 1 : -1;
-            }
-
-            const countA = classSubjectPeriodCount.get(`${classObj.id}_${a.id}`) || 0;
-            const countB = classSubjectPeriodCount.get(`${classObj.id}_${b.id}`) || 0;
-            if (countA !== countB) return countA - countB;
-
-            // Offset rotation across classes to minimize simultaneous collisions
-            return (a.name || '').localeCompare(b.name || '');
+            const scoreA = scoreSubjectForSlot(
+              classObj,
+              a,
+              dayOfWeek,
+              dayIdx,
+              prevSubjectId,
+              subjectsWithTeachers
+            );
+            const scoreB = scoreSubjectForSlot(
+              classObj,
+              b,
+              dayOfWeek,
+              dayIdx,
+              prevSubjectId,
+              subjectsWithTeachers
+            );
+            return scoreA - scoreB;
           });
 
-          // Rotate starting point by class and period to distribute teacher demand
-          const rotationOffset = (classIdx * 2 + dayIdx + periodIdx) % sortedSubjects.length;
-          const rotatedCandidateSubjects = [
-            ...sortedSubjects.slice(rotationOffset),
-            ...sortedSubjects.slice(0, rotationOffset),
-          ];
-
-          for (const subject of rotatedCandidateSubjects) {
+          for (const subject of sortedSubjects) {
             const lockKey = `${classObj.id}_${subject.id}`;
             const lockedTeacherId = classSubjectTeacherLock.get(lockKey);
 
@@ -490,6 +571,10 @@ export async function POST(request: NextRequest, context: RouteContext) {
               `${classObj.id}_${subject.id}`,
               (classSubjectPeriodCount.get(`${classObj.id}_${subject.id}`) || 0) + 1
             );
+            classSubjectDayCount.set(
+              `${classObj.id}_${subject.id}_${dayOfWeek}`,
+              (classSubjectDayCount.get(`${classObj.id}_${subject.id}_${dayOfWeek}`) || 0) + 1
+            );
 
             break;
           }
@@ -509,7 +594,32 @@ export async function POST(request: NextRequest, context: RouteContext) {
           if (scheduledSlotCellMap.has(cellSlotKey)) continue;
 
           const candidateSubjects = classToSubjectsMap.get(classObj.id) || [];
-          for (const subject of candidateSubjects) {
+          const prevPeriodId = periodIdx > 0 ? activePeriods[periodIdx - 1]?.id : null;
+          const prevSubjectId = prevPeriodId
+            ? slotSubjectMap.get(`${classObj.id}_${dayOfWeek}_${prevPeriodId}`)
+            : null;
+
+          const sortedCandidateSubjects = [...candidateSubjects].sort((a, b) => {
+            const scoreA = scoreSubjectForSlot(
+              classObj,
+              a,
+              dayOfWeek,
+              dayIdx,
+              prevSubjectId,
+              candidateSubjects
+            );
+            const scoreB = scoreSubjectForSlot(
+              classObj,
+              b,
+              dayOfWeek,
+              dayIdx,
+              prevSubjectId,
+              candidateSubjects
+            );
+            return scoreA - scoreB;
+          });
+
+          for (const subject of sortedCandidateSubjects) {
             const lockKey = `${classObj.id}_${subject.id}`;
             const lockedTeacherId = classSubjectTeacherLock.get(lockKey);
             if (!lockedTeacherId) continue;
@@ -548,6 +658,10 @@ export async function POST(request: NextRequest, context: RouteContext) {
               `${classObj.id}_${subject.id}`,
               (classSubjectPeriodCount.get(`${classObj.id}_${subject.id}`) || 0) + 1
             );
+            classSubjectDayCount.set(
+              `${classObj.id}_${subject.id}_${dayOfWeek}`,
+              (classSubjectDayCount.get(`${classObj.id}_${subject.id}_${dayOfWeek}`) || 0) + 1
+            );
             break;
           }
         }
@@ -582,6 +696,16 @@ export async function POST(request: NextRequest, context: RouteContext) {
         });
       }
     });
+
+    if (newSlotsToCreate.length === 0) {
+      return NextResponse.json(
+        {
+          error:
+            'No slots could be generated. None of your teachers have been assigned classes and subjects in the Faculty Directory. Please go to Admin > Teachers, edit teachers to assign their classes and subjects, and try again.',
+        },
+        { status: 400 }
+      );
+    }
 
     // 8. Prepare workload summary response
     const workloadSummary = allTeachers.map((t: any) => ({

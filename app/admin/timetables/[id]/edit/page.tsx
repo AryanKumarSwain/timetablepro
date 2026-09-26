@@ -19,7 +19,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ArrowLeft, Filter, AlertTriangle, Layers, CheckCircle, Sparkles, Lock, GraduationCap, BookOpen, Users, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
-import { cn, isTeacherActive } from '@/lib/utils';
+import { cn, isTeacherActive, formatClassName } from '@/lib/utils';
 import {
   TimetableGrid,
   SlotEditorSheet,
@@ -243,7 +243,11 @@ export default function TimetableEditPage() {
     if (!detail) return [];
     const q = search.trim().toLowerCase();
     if (view === 'section') {
-      return q ? detail.classes.filter((c) => c.name.toLowerCase().includes(q)) : detail.classes;
+      const classList = detail.classes.map((c) => ({
+        ...c,
+        name: formatClassName(c),
+      }));
+      return q ? classList.filter((c) => c.name.toLowerCase().includes(q)) : classList;
     }
     if (view === 'faculty') {
       return q ? detail.teachers.filter((t) => t.name.toLowerCase().includes(q)) : detail.teachers;
@@ -251,7 +255,7 @@ export default function TimetableEditPage() {
     if (view === 'room') {
       const roomsList = (detail.rooms && detail.rooms.length > 0)
         ? detail.rooms.map((r) => ({ id: r.id, name: r.name || `Room ${r.roomNumber}` }))
-        : detail.classes.map((c) => ({ id: c.id, name: c.roomNumber ? `Room ${c.roomNumber}` : c.name }));
+        : detail.classes.map((c) => ({ id: c.id, name: c.roomNumber ? `Room ${c.roomNumber}` : formatClassName(c) }));
       return q ? roomsList.filter((r) => r.name.toLowerCase().includes(q)) : roomsList;
     }
     return [];
@@ -321,10 +325,10 @@ export default function TimetableEditPage() {
       const roomObj = detail.rooms?.find((r) => r.id === selectedId);
       if (roomObj) return `Room ${roomObj.roomNumber}`;
       const currentClass = detail.classes.find((c) => c.id === selectedId);
-      return currentClass ? `Room ${currentClass.roomNumber || currentClass.name}` : null;
+      return currentClass ? `Room ${currentClass.roomNumber || formatClassName(currentClass)}` : null;
     }
     const currentClass = detail.classes.find((c) => c.id === selectedId);
-    return currentClass ? currentClass.name : (detail.targetClassName || null);
+    return currentClass ? formatClassName(currentClass) : (detail.targetClassName || null);
   }, [detail, view, selectedId]);
 
   const isCurrentSelectionFullyFilled = useMemo(() => {
@@ -365,7 +369,7 @@ export default function TimetableEditPage() {
     const targetClassId = editCell?.classId || (view === 'section' ? selectedId : undefined);
     if (targetClassId) {
       const found = detail.classes.find((c) => c.id === targetClassId);
-      if (found) return found.name;
+      if (found) return formatClassName(found);
     }
     return classCurrentlyEditing || undefined;
   }, [detail, editCell, view, selectedId, classCurrentlyEditing]);

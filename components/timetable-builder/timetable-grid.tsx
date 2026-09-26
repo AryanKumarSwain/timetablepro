@@ -615,33 +615,43 @@ export function SlotEditorSheet({
       }
     }
 
-    const anyTeacherHasClasses = activeTeachers.some(
-      (t) => Array.isArray(t.classes) && t.classes.length > 0
-    );
-
     // Filter strictly to teachers qualified for this subject and class
     const qualifiedTeachers = activeTeachers.filter((t) => {
       const tClasses = Array.isArray(t.classes) ? t.classes : [];
       if (tClasses.length === 0) {
-        if (anyTeacherHasClasses) return false;
-      } else {
-        const teachesClass =
-          (currentClassId ? tClasses.includes(currentClassId) : false) ||
-          (currentClassName ? tClasses.includes(currentClassName) : false);
-        if (!teachesClass) return false;
-      }
-
-      const tSubjects = Array.isArray(t.subjects) ? t.subjects : [];
-      if (tSubjects.length === 0 && !(t as any).subjectSpecialtyId) {
         return false;
       }
 
-      const teachesSubject =
-        tSubjects.includes(selectedSubId) ||
-        (selectedSubId && (subjects || []).some((s) => s.id === selectedSubId && tSubjects.includes(s.name))) ||
-        (t as any).subjectSpecialtyId === selectedSubId;
+      const teachesClass =
+        (currentClassId ? tClasses.includes(currentClassId) : false) ||
+        (currentClassName ? tClasses.includes(currentClassName) : false);
+      if (!teachesClass) return false;
 
-      return teachesSubject;
+      const rawSubjects = Array.isArray(t.subjects) ? t.subjects : [];
+      const classSpecific = rawSubjects.filter((s: string) => typeof s === 'string' && s.includes(':::'));
+      if (classSpecific.length > 0) {
+        const hasMapping = classSpecific.some((entry: string) => {
+          const [cid, sid] = entry.split(':::');
+          const cMatch = (currentClassId && cid === currentClassId) || (currentClassName && cid === currentClassName);
+          const sMatch = (selectedSubId && sid === selectedSubId) || (selectedSubject?.name && sid === selectedSubject.name);
+          return cMatch && sMatch;
+        });
+        if (!hasMapping) return false;
+      } else {
+        const baseSubjects = rawSubjects.map((s: string) => typeof s === 'string' && s.includes(':::') ? s.split(':::')[1] : s);
+        if (baseSubjects.length === 0 && !(t as any).subjectSpecialtyId) {
+          return false;
+        }
+
+        const teachesSubject =
+          baseSubjects.includes(selectedSubId) ||
+          (selectedSubId && (subjects || []).some((s) => s.id === selectedSubId && baseSubjects.includes(s.name))) ||
+          (t as any).subjectSpecialtyId === selectedSubId;
+
+        if (!teachesSubject) return false;
+      }
+
+      return true;
     });
 
     const list = qualifiedTeachers.map((t) => {
@@ -716,30 +726,37 @@ export function SlotEditorSheet({
       return;
     }
 
-    const anyTeacherHasClasses = activeTeachers.some(
-      (t) => Array.isArray(t.classes) && t.classes.length > 0
-    );
-
     const matchingTeachers = activeTeachers.filter((t) => {
       if (busyTeacherMap.has(t.id)) return false;
       const tClasses = Array.isArray(t.classes) ? t.classes : [];
       if (tClasses.length === 0) {
-        if (anyTeacherHasClasses) return false;
-      } else {
-        const teachesClass =
-          (currentClassId ? tClasses.includes(currentClassId) : false) ||
-          (currentClassName ? tClasses.includes(currentClassName) : false);
-        if (!teachesClass) return false;
+        return false;
       }
 
-      const tSubjects = Array.isArray(t.subjects) ? t.subjects : [];
-      if (tSubjects.length === 0 && !(t as any).subjectSpecialtyId) {
+      const teachesClass =
+        (currentClassId ? tClasses.includes(currentClassId) : false) ||
+        (currentClassName ? tClasses.includes(currentClassName) : false);
+      if (!teachesClass) return false;
+
+      const rawSubjects = Array.isArray(t.subjects) ? t.subjects : [];
+      const classSpecific = rawSubjects.filter((s: string) => typeof s === 'string' && s.includes(':::'));
+      if (classSpecific.length > 0) {
+        return classSpecific.some((entry: string) => {
+          const [cid, sid] = entry.split(':::');
+          const cMatch = (currentClassId && cid === currentClassId) || (currentClassName && cid === currentClassName);
+          const sMatch = (newSubjectId && sid === newSubjectId) || ((subjects || []).some((s) => s.id === newSubjectId && sid === s.name));
+          return cMatch && sMatch;
+        });
+      }
+
+      const baseSubjects = rawSubjects.map((s: string) => typeof s === 'string' && s.includes(':::') ? s.split(':::')[1] : s);
+      if (baseSubjects.length === 0 && !(t as any).subjectSpecialtyId) {
         return false;
       }
 
       const teachesSubject =
-        tSubjects.includes(newSubjectId) ||
-        (newSubjectId && (subjects || []).some((s) => s.id === newSubjectId && tSubjects.includes(s.name))) ||
+        baseSubjects.includes(newSubjectId) ||
+        (newSubjectId && (subjects || []).some((s) => s.id === newSubjectId && baseSubjects.includes(s.name))) ||
         (t as any).subjectSpecialtyId === newSubjectId;
 
       return teachesSubject;
@@ -790,29 +807,37 @@ export function SlotEditorSheet({
 
   const hasQualifiedTeachers = useMemo(() => {
     if (!draft?.subjectId) return true;
-    const anyTeacherHasClasses = activeTeachers.some(
-      (t) => Array.isArray(t.classes) && t.classes.length > 0
-    );
 
     return activeTeachers.some((t) => {
       const tClasses = Array.isArray(t.classes) ? t.classes : [];
       if (tClasses.length === 0) {
-        if (anyTeacherHasClasses) return false;
-      } else {
-        const teachesClass =
-          (currentClassId ? tClasses.includes(currentClassId) : false) ||
-          (currentClassName ? tClasses.includes(currentClassName) : false);
-        if (!teachesClass) return false;
+        return false;
       }
 
-      const tSubjects = Array.isArray(t.subjects) ? t.subjects : [];
-      if (tSubjects.length === 0 && !(t as any).subjectSpecialtyId) {
+      const teachesClass =
+        (currentClassId ? tClasses.includes(currentClassId) : false) ||
+        (currentClassName ? tClasses.includes(currentClassName) : false);
+      if (!teachesClass) return false;
+
+      const rawSubjects = Array.isArray(t.subjects) ? t.subjects : [];
+      const classSpecific = rawSubjects.filter((s: string) => typeof s === 'string' && s.includes(':::'));
+      if (classSpecific.length > 0) {
+        return classSpecific.some((entry: string) => {
+          const [cid, sid] = entry.split(':::');
+          const cMatch = (currentClassId && cid === currentClassId) || (currentClassName && cid === currentClassName);
+          const sMatch = (draft.subjectId && sid === draft.subjectId) || ((subjects || []).some((s) => s.id === draft.subjectId && sid === s.name));
+          return cMatch && sMatch;
+        });
+      }
+
+      const baseSubjects = rawSubjects.map((s: string) => typeof s === 'string' && s.includes(':::') ? s.split(':::')[1] : s);
+      if (baseSubjects.length === 0 && !(t as any).subjectSpecialtyId) {
         return false;
       }
 
       const teachesSubject =
-        tSubjects.includes(draft.subjectId) ||
-        (draft.subjectId && (subjects || []).some((s) => s.id === draft.subjectId && tSubjects.includes(s.name))) ||
+        baseSubjects.includes(draft.subjectId) ||
+        (draft.subjectId && (subjects || []).some((s) => s.id === draft.subjectId && baseSubjects.includes(s.name))) ||
         (t as any).subjectSpecialtyId === draft.subjectId;
 
       return teachesSubject;

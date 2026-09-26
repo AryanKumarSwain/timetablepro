@@ -57,6 +57,7 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { formatClassName } from '@/lib/utils';
 
 type TeacherFormState = Omit<Teacher, 'id'> & {
   classSubjectMap?: Record<string, string[]>;
@@ -175,8 +176,8 @@ export default function TeachersPage() {
   const isClassEqual = (c1: string, c2: string) => {
     if (!c1 || !c2) return false;
     if (c1 === c2) return true;
-    const cls1 = classMap.get(c1) || classes.find((c) => c.id === c1 || c.name === c1 || (c.section ? `${c.name} (${c.section})` : c.name) === c1);
-    const cls2 = classMap.get(c2) || classes.find((c) => c.id === c2 || c.name === c2 || (c.section ? `${c.name} (${c.section})` : c.name) === c2);
+    const cls1 = classMap.get(c1) || classes.find((c) => c.id === c1 || c.name === c1 || formatClassName(c) === c1 || (c.section ? `${c.name} (${c.section})` : c.name) === c1);
+    const cls2 = classMap.get(c2) || classes.find((c) => c.id === c2 || c.name === c2 || formatClassName(c) === c2 || (c.section ? `${c.name} (${c.section})` : c.name) === c2);
     if (cls1 && cls2) return cls1.id === cls2.id;
     return false;
   };
@@ -1289,7 +1290,7 @@ export default function TeachersPage() {
                         <div className='flex flex-wrap items-center gap-1 max-w-[240px]'>
                           {teacherClasses.slice(0, 2).map((cid) => {
                             const cls = classMap.get(cid);
-                            const label = cls ? (cls.section ? `${cls.name} (${cls.section})` : cls.name) : cid;
+                            const label = cls ? formatClassName(cls) : cid;
                             return (
                               <span
                                 key={cid}
@@ -1305,7 +1306,7 @@ export default function TeachersPage() {
                                 .slice(2)
                                 .map((cid) => {
                                   const cls = classMap.get(cid);
-                                  return cls ? (cls.section ? `${cls.name} (${cls.section})` : cls.name) : cid;
+                                  return cls ? formatClassName(cls) : cid;
                                 })
                                 .join(', ')}
                               className='inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-semibold bg-primary/15 text-primary border border-primary/30 cursor-help'
@@ -1617,7 +1618,7 @@ export default function TeachersPage() {
                       <div className='space-y-2 pt-1'>
                         {teacherClasses.map((cid) => {
                           const cls = classMap.get(cid) || classes.find((c) => isClassEqual(c.id, cid));
-                          const cName = cls ? (cls.section ? `${cls.name} (${cls.section})` : cls.name) : cid;
+                          const cName = cls ? formatClassName(cls) : cid;
                           const matchCid = Object.keys(classSubMap).find((k) => isClassEqual(k, cid));
                           const subs = matchCid ? classSubMap[matchCid] || [] : [];
 

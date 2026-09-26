@@ -7,6 +7,7 @@ import {
   schoolWhere,
 } from '@/lib/auth-server';
 import { subjectColor } from '@/lib/timetable-source';
+import { formatClassName } from '@/lib/utils';
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -52,7 +53,9 @@ export async function GET(_request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
 
-    const targetClassName = timetable.slots?.[0]?.class?.name || "General Schedule";
+    const targetClassName = timetable.slots?.[0]?.class
+      ? formatClassName(timetable.slots[0].class)
+      : "General Schedule";
 
     const [timetablePeriods, classes, rooms, subjects, teachers] = await Promise.all([
       prisma.period.findMany({
@@ -116,7 +119,8 @@ export async function GET(_request: NextRequest, context: RouteContext) {
       })),
       classes: classes.map((c: any) => ({
         id: c.id,
-        name: c.name,
+        name: formatClassName(c),
+        rawName: c.name,
         grade: c.grade,
         section: c.section,
         roomNumber: c.roomNumber,
