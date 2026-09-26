@@ -411,7 +411,7 @@ export function SettingsPageContent({ initialUser, activeTab }: SettingsPageCont
     try {
       const res = await fetchClient<{ message: string }>('/api/auth/me/send-otp', { method: 'POST' });
       setOtpStep('sent');
-      toast.success(res.message || 'Verification token sent.');
+      toast.success(res.message || 'Verification token sent. If not visible in Inbox, please check your Spam/Junk folder.');
     } catch (e: any) {
       toast.error(e.message || 'Failed generating verification code.');
     } finally {
@@ -1108,18 +1108,23 @@ export function SettingsPageContent({ initialUser, activeTab }: SettingsPageCont
                 {/* FLOW 2: TEACHER LIVE OTP ENTRY VIEW */}
                 {isTeacher && otpStep === 'sent' && (
                   <motion.form key="teacher-otp-form" variants={stepVariants} initial="initial" animate="animate" exit="exit" onSubmit={handlePasswordUpdate} className="space-y-4">
-                    <div className="flex items-center justify-between gap-2 rounded-xl bg-indigo-500/10 border border-indigo-500/20 px-4 py-2.5 text-xs text-indigo-600 dark:text-indigo-400">
-                      <span className="flex items-center gap-2">
-                        <Mail className="h-3.5 w-3.5" /> Code dispatched successfully.
-                      </span>
-                      <button
-                        type="button"
-                        onClick={handleSendOtp}
-                        disabled={sendOtpPending}
-                        className="text-xs font-bold underline flex items-center gap-1 hover:opacity-80 transition-opacity"
-                      >
-                        <RefreshCw className={`h-3 w-3 ${sendOtpPending ? 'animate-spin' : ''}`} /> Resend
-                      </button>
+                    <div className="rounded-xl bg-indigo-500/10 border border-indigo-500/20 px-4 py-2.5 text-xs text-indigo-600 dark:text-indigo-400 space-y-1.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="flex items-center gap-2 font-medium">
+                          <Mail className="h-3.5 w-3.5 shrink-0" /> Code dispatched to registered email.
+                        </span>
+                        <button
+                          type="button"
+                          onClick={handleSendOtp}
+                          disabled={sendOtpPending}
+                          className="text-xs font-bold underline flex items-center gap-1 hover:opacity-80 transition-opacity shrink-0"
+                        >
+                          <RefreshCw className={`h-3 w-3 ${sendOtpPending ? 'animate-spin' : ''}`} /> Resend
+                        </button>
+                      </div>
+                      <div className="text-[11px] text-amber-700 dark:text-amber-400 font-normal">
+                        📬 <strong>Note:</strong> If not visible in Inbox, please check your <strong>Spam or Junk folder</strong>.
+                      </div>
                     </div>
 
                     <div className="space-y-1.5">

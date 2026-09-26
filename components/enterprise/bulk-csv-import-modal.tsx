@@ -268,15 +268,22 @@ export function BulkCsvImportModal({
               )}
             >
               <CheckCircle2 className='h-4 w-4 shrink-0 mt-0.5' />
-              <span>
-                Imported <strong>{importResult.imported}</strong> record(s).
-                {importResult.failed > 0 && (
-                  <>
-                    {' '}
-                    <strong>{importResult.failed}</strong> failed.
-                  </>
+              <div className='flex flex-col gap-1'>
+                <span>
+                  Imported <strong>{importResult.imported}</strong> record(s).
+                  {importResult.failed > 0 && (
+                    <>
+                      {' '}
+                      <strong>{importResult.failed}</strong> failed.
+                    </>
+                  )}
+                </span>
+                {entity === 'teachers' && importResult.imported > 0 && (
+                  <span className='text-xs font-normal text-emerald-800/90 dark:text-emerald-200/90 mt-1'>
+                    📬 <strong>Note:</strong> Welcome credentials have been dispatched. If teachers do not see the email, please advise them to check their <strong>Spam or Junk folder</strong>.
+                  </span>
                 )}
-              </span>
+              </div>
             </div>
           )}
 

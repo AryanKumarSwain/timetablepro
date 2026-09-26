@@ -73,13 +73,13 @@ export async function POST(request: Request) {
       // to keep the endpoint idempotent and prevent leaking SMTP config.
       return NextResponse.json({ 
         success: true, 
-        message: 'If the account exists, a secure verification code has been dispatched.' 
+        message: 'If the account exists, a secure verification code has been dispatched. Please check your Inbox and Spam folder.' 
       });
     }
 
     return NextResponse.json({ 
       success: true, 
-      message: 'If the account exists, a secure verification code has been dispatched.' 
+      message: 'If the account exists, a secure verification code has been dispatched. Please check your Inbox and Spam folder.' 
     });
 
   } catch (error) {

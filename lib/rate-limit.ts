@@ -111,4 +111,5 @@ export function getClientIp(req: Request | { headers: Headers }): string {
  */
 export const authLimiter = new SlidingWindowRateLimiter(5, 60 * 1000);
 export const resendLimiter = new SlidingWindowRateLimiter(5, 5 * 60 * 1000);
+export const teacherResendCooldownLimiter = new SlidingWindowRateLimiter(1, 60 * 1000);
 export const apiLimiter = new SlidingWindowRateLimiter(120, 60 * 1000);

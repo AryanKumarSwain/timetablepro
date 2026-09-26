@@ -56,7 +56,7 @@ export async function POST() {
     }
 
     return NextResponse.json({ 
-      message: 'A 6-digit secure processing token was dispatched to your registered email address successfully.' 
+      message: 'A 6-digit verification code was dispatched to your registered email address. If not visible in Inbox, please check your Spam/Junk folder.' 
     });
   } catch (error) {
     console.error('[POST /api/auth/me/send-otp Exception]:', error);

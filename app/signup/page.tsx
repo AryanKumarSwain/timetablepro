@@ -739,6 +739,10 @@ export default function SignupPage() {
                     />
                   </div>
 
+                  <div className='p-3 rounded-xl bg-amber-50 border border-amber-200/80 text-amber-800 text-xs flex items-center gap-2'>
+                    <span>📬 <strong>Note:</strong> If the code is not visible in your inbox, please check your <strong>Spam or Junk folder</strong>.</span>
+                  </div>
+
                   {formError && (
                     <p
                       className={cn(

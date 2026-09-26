@@ -37,7 +37,7 @@ export function ForgotPasswordModal({ isOpen, onClose }: ForgotPasswordModalProp
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
 
-      toast.success('Verification token dispatched if profile matches criteria');
+      toast.success('Verification code dispatched! If not visible in Inbox, please check your Spam/Junk folder.');
       setStep('otp');
     } catch (err: any) {
       toast.error(err.message || 'Error executing request loop initialization');
@@ -133,6 +133,9 @@ export function ForgotPasswordModal({ isOpen, onClose }: ForgotPasswordModalProp
                   <div className="mb-2">
                     <h3 className="font-bold text-base text-foreground font-tracking-tight">Authorize Credential Update</h3>
                     <p className="text-xs text-muted-foreground">Provide code dispatched to <strong>{email}</strong></p>
+                    <div className="mt-2 p-2.5 bg-amber-500/10 border border-amber-500/20 rounded-xl text-[11px] text-amber-800 dark:text-amber-300">
+                      📬 <strong>Note:</strong> If the verification email is not visible in your inbox, please check your <strong>Spam or Junk folder</strong>.
+                    </div>
                   </div>
                   <form onSubmit={handleVerifyAndReset} className="space-y-3">
                     <div className="space-y-1.5">

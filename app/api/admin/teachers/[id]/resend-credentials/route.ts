@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireSchoolContext, handleApiError } from '@/lib/auth-server';
 import { resendTeacherCredentials } from '@/lib/teacher-onboarding';
-import { resendLimiter, getClientIp } from '@/lib/rate-limit';
+import { resendLimiter, teacherResendCooldownLimiter, getClientIp } from '@/lib/rate-limit';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,17 +18,36 @@ export async function POST(
     }
 
     const clientIp = getClientIp(request);
-    const rateLimit = resendLimiter.check(`resend:${clientIp}:${id}`);
-    if (!rateLimit.success) {
+
+    // Global IP throttle: max 5 requests per 5 minutes
+    const ipRateLimit = resendLimiter.check(`resend_ip:${clientIp}`);
+    if (!ipRateLimit.success) {
       return NextResponse.json(
-        { error: `Too many resend requests for this teacher. Please wait ${rateLimit.retryAfter} seconds.` },
+        { error: `Too many resend attempts from this IP. Please wait ${ipRateLimit.retryAfter} seconds.` },
         {
           status: 429,
           headers: {
-            'Retry-After': String(rateLimit.retryAfter),
-            'X-RateLimit-Limit': String(rateLimit.limit),
-            'X-RateLimit-Remaining': String(rateLimit.remaining),
-            'X-RateLimit-Reset': String(rateLimit.reset),
+            'Retry-After': String(ipRateLimit.retryAfter),
+            'X-RateLimit-Limit': String(ipRateLimit.limit),
+            'X-RateLimit-Remaining': String(ipRateLimit.remaining),
+            'X-RateLimit-Reset': String(ipRateLimit.reset),
+          },
+        }
+      );
+    }
+
+    // Per-teacher cooldown: 1 request every 60 seconds
+    const teacherCooldown = teacherResendCooldownLimiter.check(`resend_teacher:${schoolId}:${id}`);
+    if (!teacherCooldown.success) {
+      return NextResponse.json(
+        { error: `Please wait ${teacherCooldown.retryAfter}s before resending credentials to this teacher again.` },
+        {
+          status: 429,
+          headers: {
+            'Retry-After': String(teacherCooldown.retryAfter),
+            'X-RateLimit-Limit': String(teacherCooldown.limit),
+            'X-RateLimit-Remaining': String(teacherCooldown.remaining),
+            'X-RateLimit-Reset': String(teacherCooldown.reset),
           },
         }
       );

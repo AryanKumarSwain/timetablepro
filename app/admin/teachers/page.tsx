@@ -100,12 +100,37 @@ export default function TeachersPage() {
     whatsappSkipped?: boolean;
   } | null>(null);
   const [copied, setCopied] = useState(false);
+  const [resendCooldowns, setResendCooldowns] = useState<Record<string, number>>({});
   
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [schoolPlan, setSchoolPlan] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [resolvingConflicts, setResolvingConflicts] = useState(false);
+
+  // Active cooldown ticker for resend buttons
+  useEffect(() => {
+    const hasCooldown = Object.values(resendCooldowns).some((cd) => cd > 0);
+    if (!hasCooldown) return;
+
+    const timer = setInterval(() => {
+      setResendCooldowns((prev) => {
+        let changed = false;
+        const next: Record<string, number> = {};
+        for (const [id, count] of Object.entries(prev)) {
+          if (count > 1) {
+            next[id] = count - 1;
+            changed = true;
+          } else if (count === 1) {
+            changed = true;
+          }
+        }
+        return changed ? next : prev;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [resendCooldowns]);
 
   // 1. Core Initial Data Fetch
   useEffect(() => {
@@ -264,7 +289,7 @@ export default function TeachersPage() {
         setSuccessMsg(`Profile updated successfully for ${formData.name}.`);
       } else {
         await createTeacher(payload);
-        setSuccessMsg(`Teacher profile created and credentials sent to ${formData.email}.`);
+        setSuccessMsg(`Teacher profile created and credentials sent to ${formData.email}. (Note: If not visible in Inbox, please check Spam/Junk folder)`);
       }
       await loadTeachers();
       
@@ -285,7 +310,7 @@ export default function TeachersPage() {
   };
 
   const handleBulkUploadSuccess = async () => {
-    setSuccessMsg('Bulk import successful! Welcome credentials have been sent to all registered teachers.');
+    setSuccessMsg('Bulk import successful! Welcome credentials have been sent to all registered teachers. (Note: If not visible in Inbox, please check Spam/Junk folder)');
     await loadData();
   };
 
@@ -339,11 +364,20 @@ export default function TeachersPage() {
   };
 
   const handleResendCredentials = async (teacher: Teacher) => {
+    const cd = resendCooldowns[teacher.id] || 0;
+    if (resendingId === teacher.id || cd > 0) {
+      return;
+    }
+
     try {
       setResendingId(teacher.id);
       setErrorMsg(null);
       setSuccessMsg(null);
       const res = await resendTeacherCredentials(teacher.id);
+      
+      // Start 60-second cooldown for this teacher
+      setResendCooldowns((prev) => ({ ...prev, [teacher.id]: 60 }));
+
       setCredentialsModal({
         open: true,
         teacherName: teacher.name,
@@ -360,13 +394,22 @@ export default function TeachersPage() {
       if (res.whatsappSent) channels.push('WhatsApp');
 
       if (channels.length > 0) {
-        setSuccessMsg(`Login credentials dispatched via ${channels.join(' and ')} for ${teacher.name}`);
+        setSuccessMsg(`Login credentials dispatched via ${channels.join(' and ')} for ${teacher.name}. (Note: If not visible in Inbox, please check Spam/Junk folder)`);
       } else {
-        setSuccessMsg(`New login credentials generated for ${teacher.name}`);
+        setSuccessMsg(`New login credentials generated for ${teacher.name}.`);
       }
     } catch (err: any) {
       console.error('Failed to resend credentials:', err);
-      setErrorMsg(err.message || 'Failed to resend credentials');
+      const msg = err.message || 'Failed to resend credentials';
+      setErrorMsg(msg);
+      // If error mentions waiting, parse seconds or set standard 60s cooldown
+      const waitMatch = msg.match(/wait (\d+)s?/i);
+      if (waitMatch) {
+        const secs = parseInt(waitMatch[1], 10);
+        if (secs > 0) {
+          setResendCooldowns((prev) => ({ ...prev, [teacher.id]: secs }));
+        }
+      }
     } finally {
       setResendingId(null);
     }
@@ -1260,15 +1303,15 @@ export default function TeachersPage() {
       >
         {/* DESKTOP TABLE VIEW */}
         <div className='hidden md:block'>
-          <DataGridTable>
+          <DataGridTable className='min-w-[1050px]'>
             <DataGridHead>
               <tr>
-                <DataGridTh className='w-[18%] min-w-[150px]'>Name</DataGridTh>
-                <DataGridTh className='w-[20%] min-w-[170px]'>Contact</DataGridTh>
-                <DataGridTh className='w-[22%] min-w-[170px]'>Assigned Classes</DataGridTh>
-                <DataGridTh className='w-[22%] min-w-[170px]'>Assigned Subjects</DataGridTh>
-                <DataGridTh className='w-[8%] min-w-[80px] text-center'>Status</DataGridTh>
-                <DataGridTh className='w-[10%] min-w-[150px] text-right pr-6'>Actions</DataGridTh>
+                <DataGridTh className='min-w-[150px]'>Name</DataGridTh>
+                <DataGridTh className='min-w-[160px]'>Contact</DataGridTh>
+                <DataGridTh className='min-w-[170px]'>Assigned Classes</DataGridTh>
+                <DataGridTh className='min-w-[170px]'>Assigned Subjects</DataGridTh>
+                <DataGridTh className='w-[90px] min-w-[90px] text-center'>Status</DataGridTh>
+                <DataGridTh className='w-[330px] min-w-[330px] text-right pr-6'>Actions</DataGridTh>
               </tr>
             </DataGridHead>
             <tbody>
@@ -1387,37 +1430,44 @@ export default function TeachersPage() {
                         </span>
                       )}
                     </DataGridTd>
-                    <DataGridTd className='text-right pr-6'>
-                      <div className='flex items-center justify-end gap-1.5'>
+                    <DataGridTd className='text-right pr-6 whitespace-nowrap'>
+                      <div className='flex items-center justify-end gap-1.5 shrink-0'>
                         <Button
                           onClick={() => setSelectedTeacherForView(teacher)}
                           size='sm'
                           variant='ghost'
-                          className='rounded-lg h-8 text-primary hover:bg-primary/10'
+                          className='rounded-lg h-8 px-2.5 text-xs text-primary hover:bg-primary/10 shrink-0'
                         >
                           <Eye className='h-3.5 w-3.5 mr-1' />
                           View
                         </Button>
-                        <Button
-                          onClick={() => handleResendCredentials(teacher)}
-                          size='sm'
-                          variant='outline'
-                          disabled={resendingId === teacher.id}
-                          className='rounded-lg h-8 border-amber-500/30 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/30'
-                          title='Resend login credentials to teacher email'
-                        >
-                          {resendingId === teacher.id ? (
-                            <Loader2 className='h-3.5 w-3.5 animate-spin mr-1' />
-                          ) : (
-                            <KeyRound className='h-3.5 w-3.5 mr-1' />
-                          )}
-                          Resend
-                        </Button>
+                        {(() => {
+                          const cd = resendCooldowns[teacher.id] || 0;
+                          const isBusy = resendingId === teacher.id;
+                          const isCooldown = cd > 0;
+                          return (
+                            <Button
+                              onClick={() => handleResendCredentials(teacher)}
+                              size='sm'
+                              variant='outline'
+                              disabled={isBusy || isCooldown}
+                              className='rounded-lg h-8 px-2.5 text-xs border-amber-500/30 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/30 shrink-0'
+                              title={isCooldown ? `Please wait ${cd}s before resending` : 'Resend login credentials to teacher email'}
+                            >
+                              {isBusy ? (
+                                <Loader2 className='h-3.5 w-3.5 animate-spin mr-1' />
+                              ) : (
+                                <KeyRound className='h-3.5 w-3.5 mr-1' />
+                              )}
+                              {isCooldown ? `Resend (${cd}s)` : 'Resend'}
+                            </Button>
+                          );
+                        })()}
                         <Button
                           onClick={() => handleEdit(teacher)}
                           size='sm'
                           variant='outline'
-                          className='rounded-lg h-8'
+                          className='rounded-lg h-8 px-2.5 text-xs shrink-0'
                         >
                           <Pencil className='h-3.5 w-3.5 mr-1' />
                           Edit
@@ -1426,7 +1476,7 @@ export default function TeachersPage() {
                           onClick={() => handleDelete(teacher.id)}
                           size='sm'
                           variant='outline'
-                          className='rounded-lg h-8 border-rose-500/30 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30'
+                          className='rounded-lg h-8 px-2.5 text-xs border-rose-500/30 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 shrink-0'
                         >
                           <Trash2 className='h-3.5 w-3.5 mr-1' />
                           Delete
@@ -1490,20 +1540,30 @@ export default function TeachersPage() {
                     <Eye className='h-3.5 w-3.5 mr-1' />
                     View
                   </Button>
-                  <Button
-                    onClick={() => handleResendCredentials(teacher)}
-                    size='sm'
-                    variant='outline'
-                    disabled={resendingId === teacher.id}
-                    className='h-8 px-2 text-xs border-amber-500/30 text-amber-600 rounded-lg hover:bg-amber-50 dark:hover:bg-amber-950/30'
-                    title='Resend credentials'
-                  >
-                    {resendingId === teacher.id ? (
-                      <Loader2 className='h-3.5 w-3.5 animate-spin' />
-                    ) : (
-                      <KeyRound className='h-3.5 w-3.5' />
-                    )}
-                  </Button>
+                  {(() => {
+                    const cd = resendCooldowns[teacher.id] || 0;
+                    const isBusy = resendingId === teacher.id;
+                    const isCooldown = cd > 0;
+                    return (
+                      <Button
+                        onClick={() => handleResendCredentials(teacher)}
+                        size='sm'
+                        variant='outline'
+                        disabled={isBusy || isCooldown}
+                        className='h-8 px-2 text-xs border-amber-500/30 text-amber-600 rounded-lg hover:bg-amber-50 dark:hover:bg-amber-950/30'
+                        title={isCooldown ? `Please wait ${cd}s before resending` : 'Resend credentials'}
+                      >
+                        {isBusy ? (
+                          <Loader2 className='h-3.5 w-3.5 animate-spin' />
+                        ) : (
+                          <span className='flex items-center gap-1'>
+                            <KeyRound className='h-3.5 w-3.5' />
+                            {isCooldown && <span className='text-[10px] font-mono font-bold'>{cd}s</span>}
+                          </span>
+                        )}
+                      </Button>
+                    );
+                  })()}
                   <Button
                     onClick={() => handleEdit(teacher)}
                     size='sm'
@@ -1689,19 +1749,26 @@ export default function TeachersPage() {
 
 
               <div className='pt-2'>
-                <Button
-                  onClick={() => handleResendCredentials(selectedTeacherForView)}
-                  disabled={resendingId === selectedTeacherForView.id}
-                  variant='outline'
-                  className='w-full rounded-xl border-amber-500/30 text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-950/30 font-medium'
-                >
-                  {resendingId === selectedTeacherForView.id ? (
-                    <Loader2 className='h-4 w-4 animate-spin mr-2' />
-                  ) : (
-                    <KeyRound className='h-4 w-4 mr-2 text-amber-500' />
-                  )}
-                  Resend Login Credentials
-                </Button>
+                {(() => {
+                  const cd = resendCooldowns[selectedTeacherForView.id] || 0;
+                  const isBusy = resendingId === selectedTeacherForView.id;
+                  const isCooldown = cd > 0;
+                  return (
+                    <Button
+                      onClick={() => handleResendCredentials(selectedTeacherForView)}
+                      disabled={isBusy || isCooldown}
+                      variant='outline'
+                      className='w-full rounded-xl border-amber-500/30 text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-950/30 font-medium'
+                    >
+                      {isBusy ? (
+                        <Loader2 className='h-4 w-4 animate-spin mr-2' />
+                      ) : (
+                        <KeyRound className='h-4 w-4 mr-2 text-amber-500' />
+                      )}
+                      {isCooldown ? `Resend Login Credentials (${cd}s)` : 'Resend Login Credentials'}
+                    </Button>
+                  );
+                })()}
               </div>
             </div>
 
@@ -1788,6 +1855,15 @@ export default function TeachersPage() {
                   </div>
                 )}
               </div>
+
+              {credentialsModal.sent && (
+                <div className='p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-300 text-xs flex items-start gap-2.5'>
+                  <Mail className='h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5' />
+                  <span className='leading-relaxed'>
+                    📬 <strong>Important Note:</strong> If the credentials email is not visible in the teacher&apos;s primary Inbox, please advise them to check their <strong>Spam or Junk folder</strong> and mark it as &ldquo;Not Spam&rdquo;.
+                  </span>
+                </div>
+              )}
 
               <div className='space-y-2 p-3.5 rounded-xl bg-muted/40 border border-border/50'>
                 <div>

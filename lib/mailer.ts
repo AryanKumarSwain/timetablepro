@@ -61,7 +61,10 @@ function buildEmailLayout({
                   ${lead}
                 </p>
                 ${content}
-                ${footerNote ? `<p style="margin:24px 0 0; font-size:12px; line-height:1.6; color:${MUTED_TEXT};">${footerNote}</p>` : ''}
+                <div style="margin:22px 0 0; padding:12px 16px; background:#fffbeb; border:1px solid #fde68a; border-radius:10px; font-size:12px; line-height:1.5; color:#92400e;">
+                  📬 <strong>Note:</strong> If this email is not visible in your primary Inbox, please check your <strong>Spam or Junk folder</strong> and mark it as &ldquo;Not Spam&rdquo; to ensure future updates arrive directly in your Inbox.
+                </div>
+                ${footerNote ? `<p style="margin:20px 0 0; font-size:12px; line-height:1.6; color:${MUTED_TEXT};">${footerNote}</p>` : ''}
               </td>
             </tr>
             <tr>
@@ -212,6 +215,9 @@ export async function sendTeacherCredentials(
       <p style="margin:0; font-size:14px; line-height:1.7; color:${MUTED_TEXT};">
         Please change your password after your first login for security.
       </p>
+      <div style="margin:16px 0 0; padding:10px 14px; background:#fef3c7; border:1px solid #fde68a; border-radius:8px; font-size:12px; color:#92400e;">
+        ⚠️ <strong>Important:</strong> If this email was delivered to your <strong>Spam/Junk</strong> folder, please move it to your <strong>Inbox</strong> or click &ldquo;Report Not Spam&rdquo; so you receive future timetable updates without interruption.
+      </div>
     `,
     footerNote: 'Need help? Contact your school admin or support team.'
   });
