@@ -8,6 +8,13 @@ import { EnterpriseSidebar } from './sidebar';
 import { TopNavbar } from './top-navbar';
 import { CommandPalette } from './command-palette';
 
+import {
+  TutorialProvider,
+  TutorialSpotlightOverlay,
+  TutorialWelcomeModal,
+  TutorialCenterDialog,
+} from '@/components/tutorial';
+
 // Define the shape matching your Prisma relation for frontend Type safety
 interface PrismaUserWithSchool {
   name?: string | null;
@@ -76,26 +83,31 @@ export function AppShell({ role, roleLabel, children }: AppShellProps) {
   }, [onKeyDown]);
 
   return (
-    <div className='min-h-screen bg-background mesh-gradient'>
-      <TopNavbar
-        userName={extendedUser?.name ?? undefined}
-        userEmail={extendedUser?.email}
-        schoolName={schoolName} // 👈 Dynamic school name loaded via your Prisma relation!
-        userRole={role}
-        navItems={navItems}
-        onOpenCommand={() => setCommandOpen(true)}
-        onLogout={handleLogout}
-      />
-      <div className='flex'>
-        <EnterpriseSidebar
-          items={navItems}
-          collapsed={collapsed}
-          onToggle={() => setCollapsed((c) => !c)}
-          roleLabel={roleLabel}
+    <TutorialProvider>
+      <div className='min-h-screen bg-background mesh-gradient'>
+        <TopNavbar
+          userName={extendedUser?.name ?? undefined}
+          userEmail={extendedUser?.email}
+          schoolName={schoolName} // 👈 Dynamic school name loaded via your Prisma relation!
+          userRole={role}
+          navItems={navItems}
+          onOpenCommand={() => setCommandOpen(true)}
+          onLogout={handleLogout}
         />
-        <main className='flex-1 min-w-0 px-3 sm:px-4 md:px-6 pb-10 overflow-x-hidden'>{children}</main>
+        <div className='flex'>
+          <EnterpriseSidebar
+            items={navItems}
+            collapsed={collapsed}
+            onToggle={() => setCollapsed((c) => !c)}
+            roleLabel={roleLabel}
+          />
+          <main className='flex-1 min-w-0 px-3 sm:px-4 md:px-6 pb-10 overflow-x-hidden'>{children}</main>
+        </div>
+        <CommandPalette open={commandOpen} onOpenChange={setCommandOpen} userRole={role} />
+        <TutorialSpotlightOverlay />
+        <TutorialWelcomeModal />
+        <TutorialCenterDialog />
       </div>
-      <CommandPalette open={commandOpen} onOpenChange={setCommandOpen} userRole={role} />
-    </div>
+    </TutorialProvider>
   );
 }

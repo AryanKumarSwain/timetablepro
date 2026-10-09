@@ -299,31 +299,34 @@ export default function TimetablesPage() {
 
   return (
     <div className='max-w-5xl mx-auto'>
-      <PageHeader
-        title='My Time Tables'
-        description={`Manage all your time tables and track their status (${timetables.length}/${timetableLimit})`}
-        breadcrumbs={[
-          { label: 'Admin', href: '/admin/dashboard' },
-          { label: 'Time Tables' },
-        ]}
-        actions={
-          <PlanButton
-            variant="primary"
-            className='rounded-xl shadow-md transition-all'
-            onClick={() => {
-              if (!canCreateTimetable) {
-                window.alert('Timetable creation limit reached. You can create up to 30 timetables.');
-                return;
-              }
-              setModalOpen(true);
-            }}
-            disabled={!canCreateTimetable}
-          >
-            <Plus className='h-4 w-4 mr-1.5' />
-            {canCreateTimetable ? 'New Time Table' : 'Limit Reached'}
-          </PlanButton>
-        }
-      />
+      <div data-tour="timetables-header">
+        <PageHeader
+          title='My Time Tables'
+          description={`Manage all your time tables and track their status (${timetables.length}/${timetableLimit})`}
+          breadcrumbs={[
+            { label: 'Admin', href: '/admin/dashboard' },
+            { label: 'Time Tables' },
+          ]}
+          actions={
+            <PlanButton
+              data-tour="timetables-add-btn"
+              variant="primary"
+              className='rounded-xl shadow-md transition-all'
+              onClick={() => {
+                if (!canCreateTimetable) {
+                  window.alert('Timetable creation limit reached. You can create up to 30 timetables.');
+                  return;
+                }
+                setModalOpen(true);
+              }}
+              disabled={!canCreateTimetable}
+            >
+              <Plus className='h-4 w-4 mr-1.5' />
+              {canCreateTimetable ? 'New Time Table' : 'Limit Reached'}
+            </PlanButton>
+          }
+        />
+      </div>
 
       <div className='grid grid-cols-3 gap-2 sm:gap-4 mb-6 sm:mb-8 mt-4 sm:mt-6'>
         <StatCard

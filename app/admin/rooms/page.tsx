@@ -156,42 +156,45 @@ export default function RoomsPage() {
 
   return (
     <div className='max-w-7xl mx-auto relative'>
-      <PageHeader
-        title='Rooms'
-        description={`Manage school rooms (${rooms.length}/100)`}
-        breadcrumbs={[
-          { label: 'Admin', href: '/admin/dashboard' },
-          { label: 'Rooms' },
-        ]}
-        actions={
-          !showForm ? (
-            <div className='flex flex-wrap gap-2'>
-              <Button
-                variant='outline'
-                onClick={() => setImportOpen(true)}
-                className='rounded-xl'
-              >
-                <Upload className='h-4 w-4 mr-1.5' />
-                Import CSV
-              </Button>
-              <PlanButton
-                onClick={() => {
-                  setSuccessMsg(null);
-                  setErrorMsg(null);
-                  setShowForm(true);
-                  if (typeof window !== 'undefined') {
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                  }
-                }}
-                variant='primary'
-                className='rounded-xl'
-              >
-                Add Room
-              </PlanButton>
-            </div>
-          ) : undefined
-        }
-      />
+      <div data-tour="rooms-header">
+        <PageHeader
+          title='Rooms'
+          description={`Manage school rooms (${rooms.length}/100)`}
+          breadcrumbs={[
+            { label: 'Admin', href: '/admin/dashboard' },
+            { label: 'Rooms' },
+          ]}
+          actions={
+            !showForm ? (
+              <div className='flex flex-wrap gap-2'>
+                <Button
+                  variant='outline'
+                  onClick={() => setImportOpen(true)}
+                  className='rounded-xl'
+                >
+                  <Upload className='h-4 w-4 mr-1.5' />
+                  Import CSV
+                </Button>
+                <PlanButton
+                  data-tour="rooms-add-btn"
+                  onClick={() => {
+                    setSuccessMsg(null);
+                    setErrorMsg(null);
+                    setShowForm(true);
+                    if (typeof window !== 'undefined') {
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }
+                  }}
+                  variant='primary'
+                  className='rounded-xl'
+                >
+                  Add Room
+                </PlanButton>
+              </div>
+            ) : undefined
+          }
+        />
+      </div>
 
       {successMsg && (
         <div className='fixed top-6 right-6 z-50 max-w-sm p-4 bg-white dark:bg-zinc-900 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-sm rounded-xl shadow-xl flex items-start gap-3 animate-in slide-in-from-top-4 fade-in duration-300'>

@@ -771,15 +771,17 @@ export default function AdminHomeworkPage() {
   return (
     <div className='max-w-7xl mx-auto relative space-y-6 pb-12'>
       {/* Page Header */}
-      <PageHeader
-        title="Homework Management"
-        description="Monitor, view, edit, and export homework assignments across all school classes."
-        breadcrumbs={[
-          { label: 'Admin', href: '/admin/dashboard' },
-          { label: 'Academic' },
-          { label: 'Homework' },
-        ]}
-      />
+      <div data-tour="homework-header">
+        <PageHeader
+          title="Homework Management"
+          description="Monitor, view, edit, and export homework assignments across all school classes."
+          breadcrumbs={[
+            { label: 'Admin', href: '/admin/dashboard' },
+            { label: 'Academic' },
+            { label: 'Homework' },
+          ]}
+        />
+      </div>
 
       {/* TOP-RIGHT POPUP TOAST BOX */}
       <AnimatePresence>

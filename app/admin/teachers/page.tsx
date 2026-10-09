@@ -845,42 +845,45 @@ export default function TeachersPage() {
 
   return (
     <div className='max-w-7xl mx-auto relative'>
-      <PageHeader
-        title='Teachers'
-        description={`Manage faculty profiles and specialties (${teachers.length}/${schoolPlan?.teacherMax || 15})`}
-        breadcrumbs={[
-          { label: 'Admin', href: '/admin/dashboard' },
-          { label: 'Teachers' },
-        ]}
-        actions={
-          !showForm ? (
-            <div className='flex flex-wrap gap-2'>
-              <Button
-                variant='outline'
-                onClick={() => setImportOpen(true)}
-                className='rounded-xl'
-              >
-                <Upload className='h-4 w-4 mr-1.5' />
-                Import CSV
-              </Button>
-              <PlanButton
-                onClick={() => {
-                  setErrorMsg(null);
-                  setSuccessMsg(null);
-                  setShowForm(true);
-                  if (typeof window !== 'undefined') {
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                  }
-                }}
-                variant="primary"
-                className='rounded-xl'
-              >
-                Add Teacher
-              </PlanButton>
-            </div>
-          ) : undefined
-        }
-      />
+      <div data-tour="teachers-header">
+        <PageHeader
+          title='Teachers'
+          description={`Manage faculty profiles and specialties (${teachers.length}/${schoolPlan?.teacherMax || 15})`}
+          breadcrumbs={[
+            { label: 'Admin', href: '/admin/dashboard' },
+            { label: 'Teachers' },
+          ]}
+          actions={
+            !showForm ? (
+              <div className='flex flex-wrap gap-2'>
+                <Button
+                  variant='outline'
+                  onClick={() => setImportOpen(true)}
+                  className='rounded-xl'
+                >
+                  <Upload className='h-4 w-4 mr-1.5' />
+                  Import CSV
+                </Button>
+                <PlanButton
+                  data-tour="teachers-add-btn"
+                  onClick={() => {
+                    setErrorMsg(null);
+                    setSuccessMsg(null);
+                    setShowForm(true);
+                    if (typeof window !== 'undefined') {
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }
+                  }}
+                  variant="primary"
+                  className='rounded-xl'
+                >
+                  Add Teacher
+                </PlanButton>
+              </div>
+            ) : undefined
+          }
+        />
+      </div>
 
       {/* TOP-RIGHT POPUP SIDE TOAST */}
       {successMsg && (

@@ -277,42 +277,45 @@ export default function ClassesPage() {
 
   return (
     <div className='max-w-7xl mx-auto relative'>
-      <PageHeader
-        title='Classes'
-        description={`Manage school classes (${classes.length}/100)`}
-        breadcrumbs={[
-          { label: 'Admin', href: '/admin/dashboard' },
-        
-          { label: 'Classes' },
-        ]}
-        actions={
-          !showForm ? (
-            <div className='flex flex-wrap gap-2'>
-              <Button
-                variant='outline'
-                onClick={() => setImportOpen(true)}
-                className='rounded-xl'
-              >
-                <Upload className='h-4 w-4 mr-1.5' />
-                Import CSV
-              </Button>
-              <PlanButton
-                onClick={() => {
-                  setSuccessMsg(null);
-                  setShowForm(true);
-                  if (typeof window !== 'undefined') {
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                  }
-                }}
-                variant="primary"
-                className='rounded-xl'
-              >
-                Add Class
-              </PlanButton>
-            </div>
-          ) : undefined
-        }
-      />
+      <div data-tour="classes-header">
+        <PageHeader
+          title='Classes'
+          description={`Manage school classes (${classes.length}/100)`}
+          breadcrumbs={[
+            { label: 'Admin', href: '/admin/dashboard' },
+          
+            { label: 'Classes' },
+          ]}
+          actions={
+            !showForm ? (
+              <div className='flex flex-wrap gap-2'>
+                <Button
+                  variant='outline'
+                  onClick={() => setImportOpen(true)}
+                  className='rounded-xl'
+                >
+                  <Upload className='h-4 w-4 mr-1.5' />
+                  Import CSV
+                </Button>
+                <PlanButton
+                  data-tour="classes-add-btn"
+                  onClick={() => {
+                    setSuccessMsg(null);
+                    setShowForm(true);
+                    if (typeof window !== 'undefined') {
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }
+                  }}
+                  variant="primary"
+                  className='rounded-xl'
+                >
+                  Add Class
+                </PlanButton>
+              </div>
+            ) : undefined
+          }
+        />
+      </div>
 
       {/* TOP-RIGHT POPUP TOAST BOX - SUCCESS */}
       {successMsg && (

@@ -354,52 +354,54 @@ export default function AdminLessonPlanningPage() {
     >
       <div className="max-w-7xl mx-auto relative space-y-6 pb-12">
         {/* Page Header */}
-        <PageHeader
-          title="Lesson Planning Overview"
-          description="Monitor, review, and export all teachers' lesson plans across academic departments."
-          breadcrumbs={[
-            { label: 'Admin', href: '/admin/dashboard' },
-            { label: 'Academic' },
-            { label: 'Lesson Planning' },
-          ]}
-          actions={
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  disabled={isLoading}
-                  className="gap-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold shadow-md shadow-purple-500/20 hover:-translate-y-0.5 transition-all cursor-pointer"
-                >
-                  <Download className="h-4 w-4" />
-                  <span>Export Curriculum</span>
-                  <ChevronDown className="h-3.5 w-3.5 opacity-60" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-52 rounded-xl">
-                <DropdownMenuItem onClick={() => handleExport('pdf')} className="cursor-pointer text-xs flex items-center justify-between">
-                  <span className="flex items-center gap-2">
-                    <FileText className="h-4 w-4 text-rose-500" />
-                    <span>Export as PDF</span>
-                  </span>
-                  {!isFormatAllowed('pdf') && <Lock className="h-3 w-3 text-muted-foreground" />}
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleExport('docx')} className="cursor-pointer text-xs flex items-center justify-between">
-                  <span className="flex items-center gap-2">
-                    <FileCheck className="h-4 w-4 text-blue-500" />
-                    <span>Export as Word Document</span>
-                  </span>
-                  {!isFormatAllowed('docx') && <Lock className="h-3 w-3 text-muted-foreground" />}
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleExport('csv')} className="cursor-pointer text-xs flex items-center justify-between">
-                  <span className="flex items-center gap-2">
-                    <FileSpreadsheet className="h-4 w-4 text-emerald-500" />
-                    <span>Export as CSV</span>
-                  </span>
-                  {!isFormatAllowed('csv') && <Lock className="h-3 w-3 text-muted-foreground" />}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          }
-        />
+        <div data-tour="lesson-planning-header">
+          <PageHeader
+            title="Lesson Planning Overview"
+            description="Monitor, review, and export all teachers' lesson plans across academic departments."
+            breadcrumbs={[
+              { label: 'Admin', href: '/admin/dashboard' },
+              { label: 'Academic' },
+              { label: 'Lesson Planning' },
+            ]}
+            actions={
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    disabled={isLoading}
+                    className="gap-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold shadow-md shadow-purple-500/20 hover:-translate-y-0.5 transition-all cursor-pointer"
+                  >
+                    <Download className="h-4 w-4" />
+                    <span>Export Curriculum</span>
+                    <ChevronDown className="h-3.5 w-3.5 opacity-60" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-52 rounded-xl">
+                  <DropdownMenuItem onClick={() => handleExport('pdf')} className="cursor-pointer text-xs flex items-center justify-between">
+                    <span className="flex items-center gap-2">
+                      <FileText className="h-4 w-4 text-rose-500" />
+                      <span>Export as PDF</span>
+                    </span>
+                    {!isFormatAllowed('pdf') && <Lock className="h-3 w-3 text-muted-foreground" />}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleExport('docx')} className="cursor-pointer text-xs flex items-center justify-between">
+                    <span className="flex items-center gap-2">
+                      <FileCheck className="h-4 w-4 text-blue-500" />
+                      <span>Export as Word Document</span>
+                    </span>
+                    {!isFormatAllowed('docx') && <Lock className="h-3 w-3 text-muted-foreground" />}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleExport('csv')} className="cursor-pointer text-xs flex items-center justify-between">
+                    <span className="flex items-center gap-2">
+                      <FileSpreadsheet className="h-4 w-4 text-emerald-500" />
+                      <span>Export as CSV</span>
+                    </span>
+                    {!isFormatAllowed('csv') && <Lock className="h-3 w-3 text-muted-foreground" />}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            }
+          />
+        </div>
 
         {/* TOP-RIGHT POPUP TOAST BOX */}
         <AnimatePresence>

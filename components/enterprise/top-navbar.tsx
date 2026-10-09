@@ -17,8 +17,12 @@ import {
   Send,
   Info,
   AlertTriangle,
-  MailCheck
+  MailCheck,
+  HelpCircle,
+  Sparkles,
+  BookOpen,
 } from 'lucide-react';
+import { useTutorial } from '@/lib/tutorial/tutorial-context';
 import { useTheme } from 'next-themes';
 import { Button } from '@/components/ui/button';
 import { PlanButton } from '@/components/ui/plan-button';
@@ -100,6 +104,7 @@ export function TopNavbar({
   const pathname = usePathname();
   const { theme, setTheme } = useTheme();
   const { theme: planTheme } = usePlanTheme();
+  const { openHelpCenter, startTour } = useTutorial();
   const [mounted, setMounted] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -346,7 +351,7 @@ export function TopNavbar({
           </p>
         </div>
       )}
-      <header className='sticky top-0 z-40 h-14 border-b border-border/50 bg-background/70 backdrop-blur-xl supports-[backdrop-filter]:bg-background/60'>
+      <header data-tour="top-navbar" className='sticky top-0 z-40 h-14 border-b border-border/50 bg-background/70 backdrop-blur-xl supports-[backdrop-filter]:bg-background/60'>
         <div className='flex h-full items-center gap-3 px-4 md:px-6'>
           {/* MOBILE SIDE NAVIGATION DRAWERS */}
           <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
@@ -487,6 +492,18 @@ export function TopNavbar({
                 </DialogContent>
               </Dialog>
             )}
+
+            {/* TUTORIAL & HELP CENTER BUTTON */}
+            <Button
+              variant='ghost'
+              size='icon'
+              onClick={openHelpCenter}
+              data-tour='help-center-btn'
+              className='relative rounded-xl text-muted-foreground hover:text-foreground'
+              title='Tutorial & Knowledge Center'
+            >
+              <HelpCircle className='h-4 w-4 text-indigo-500' />
+            </Button>
 
             {/* DYNAMIC BELL NOTIFICATION PANEL AND READ RECEIPT HOOKS */}
             <DropdownMenu>
@@ -672,6 +689,15 @@ export function TopNavbar({
                   <p>{userName}</p>
                   <p className='text-xs font-normal text-muted-foreground'>{userEmail}</p>
                 </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={openHelpCenter} className='cursor-pointer text-xs font-medium'>
+                  <HelpCircle className='h-4 w-4 mr-2 text-indigo-500' />
+                  Tutorial & Help Center
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => startTour(0)} className='cursor-pointer text-xs font-medium'>
+                  <Sparkles className='h-4 w-4 mr-2 text-violet-500' />
+                  Take a Guided Tour
+                </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={onLogout} className='text-rose-600'>
                   <LogOut className='h-4 w-4 mr-2' />

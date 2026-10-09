@@ -416,7 +416,7 @@ export default function AdminDashboard() {
         </GlassCard>
       )}
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+      <div data-tour="dashboard-kpis" className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <KPICard label="Total Teachers" value={stats?.totalTeachers || 0} subtext="Active in system" index={0} />
         <KPICard label="Total Classes" value={stats?.totalClasses || 0} subtext="Classes managed" index={1} />
         <KPICard label="Today's Absences" value={stats?.todayAbsent || 0} variant="danger" subtext="Teachers absent today" index={2} />
@@ -452,7 +452,7 @@ export default function AdminDashboard() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Teacher Workload Card */}
-        <GlassCard className="lg:col-span-2 p-6 rounded-3xl shadow-sm">
+        <GlassCard data-tour="dashboard-workload" className="lg:col-span-2 p-6 rounded-3xl shadow-sm">
           <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 mb-6">
             <div className="flex flex-wrap items-center gap-2 shrink-0">
               <BarChart3 className="h-4 w-4 text-indigo-500" />
@@ -578,7 +578,7 @@ export default function AdminDashboard() {
         </GlassCard>
 
         {/* Subject Distribution Card */}
-        <GlassCard className="p-6 rounded-3xl shadow-sm flex flex-col justify-between">
+        <GlassCard data-tour="dashboard-subjects" className="p-6 rounded-3xl shadow-sm flex flex-col justify-between">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
               <PieIcon className="h-4 w-4 text-pink-500" />

@@ -1277,7 +1277,7 @@ export default function DailyDeskPage() {
     <div className='max-w-[1600px] mx-auto space-y-6 px-3 sm:px-4 py-2 print:p-0 print:max-w-full'>
       {/* HEADER SECTION */}
       {!isPublicView && (
-        <div className="print:hidden">
+        <div data-tour="daily-desk-header" className="print:hidden">
           <PageHeader
             title='Daily Desk'
             description={`${today} · Real-time attendance & substitution command center`}

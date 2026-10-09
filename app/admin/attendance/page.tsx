@@ -592,7 +592,8 @@ export default function AdminAttendancePage() {
   return (
     <div className='max-w-7xl mx-auto relative space-y-6'>
       {/* 1. FIXED HEADER SECTION (MOVED OUTSIDE PROTECTED WRAPPER FOR EXCELLENT VISIBILITY) */}
-      <PageHeader
+      <div data-tour="attendance-header">
+        <PageHeader
         title={
           <div className="flex items-center gap-3">
             <span className="font-black tracking-tight text-2xl">Teacher Attendance & Substitution Desk</span>
@@ -640,6 +641,7 @@ export default function AdminAttendancePage() {
           </div>
         }
       />
+      </div>
 
       {/* TOP-RIGHT POPUP TOAST BOX */}
       {successMsg && (

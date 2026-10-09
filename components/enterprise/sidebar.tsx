@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, Sparkles, Crown, Zap, Rocket, Lock } from 'lucide-react';
+import { ChevronLeft, Sparkles, Crown, Zap, Rocket, Lock, HelpCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { NavItem } from '@/lib/navigation';
 import { Button } from '@/components/ui/button';
@@ -15,6 +15,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { useState, useEffect } from 'react';
+import { useTutorial } from '@/lib/tutorial/tutorial-context';
 
 interface SidebarProps {
   items: NavItem[];
@@ -30,6 +31,7 @@ export function EnterpriseSidebar({
   roleLabel,
 }: SidebarProps) {
   const pathname = usePathname();
+  const { openHelpCenter } = useTutorial();
   const [currentPlan, setCurrentPlan] = useState<{ name: string; priceMonthly: number; id: string; reportEnabled?: boolean; attendanceEnabled?: boolean; homeworkEnabled?: boolean; lessonPlanningEnabled?: boolean } | null>(null);
 
   useEffect(() => {
@@ -174,6 +176,7 @@ export function EnterpriseSidebar({
   return (
     <TooltipProvider delayDuration={0}>
       <motion.aside
+        data-tour="sidebar-nav"
         animate={{ width: collapsed ? 72 : 260 }}
         transition={{ type: 'spring', stiffness: 380, damping: 32 }}
         className={cn(
@@ -229,6 +232,7 @@ export function EnterpriseSidebar({
             const link = (
               <Link
                 href={item.href}
+                data-tour={`nav-${item.href.replace(/\//g, '-').slice(1)}`}
                 className={cn(
                   'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200',
                   active
@@ -316,6 +320,34 @@ export function EnterpriseSidebar({
               )
             )}
           </AnimatePresence>
+
+          {/* Quick Tutorial Hub Trigger */}
+          <div className="mt-2 pt-2 border-t border-border/30">
+            {collapsed ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={openHelpCenter}
+                    className="w-full h-8 rounded-xl text-muted-foreground hover:text-indigo-600 hover:bg-indigo-500/10"
+                  >
+                    <HelpCircle className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="right">Tutorial & Help Center</TooltipContent>
+              </Tooltip>
+            ) : (
+              <button
+                type="button"
+                onClick={openHelpCenter}
+                className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-xl text-xs font-medium text-muted-foreground hover:text-indigo-600 hover:bg-indigo-500/10 transition-colors"
+              >
+                <HelpCircle className="h-3.5 w-3.5 text-indigo-500" />
+                <span>Tutorial & Guides</span>
+              </button>
+            )}
+          </div>
         </div>
       </motion.aside>
     </TooltipProvider>

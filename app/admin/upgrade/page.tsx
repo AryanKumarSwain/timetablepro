@@ -926,7 +926,7 @@ export default function UpgradePage() {
       <div className="max-w-7xl 2xl:max-w-[1440px] w-full mx-auto flex flex-col justify-between">
 
         {/* Header */}
-        <div className="text-center mb-8">
+        <div data-tour="upgrade-header" className="text-center mb-8">
           <Badge className="bg-indigo-100 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300 border-none px-3.5 py-1 rounded-full mb-3 text-xs font-medium">
             <Sparkles className="h-3.5 w-3.5 mr-1 inline" /> Upgrade Your Plan
           </Badge>

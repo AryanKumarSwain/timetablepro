@@ -32,7 +32,7 @@ export default function AdminSettingsPage() {
             Admin Settings Control Workspace
           </h1>
         </div>
-        <div className='flex items-center gap-2 py-3 overflow-x-auto scrollbar-none no-scrollbar touch-pan-x max-w-full pb-2 scroll-smooth -mx-4 px-4 sm:mx-0 sm:px-0'>
+        <div data-tour="settings-tabs" className='flex items-center gap-2 py-3 overflow-x-auto scrollbar-none no-scrollbar touch-pan-x max-w-full pb-2 scroll-smooth -mx-4 px-4 sm:mx-0 sm:px-0'>
           {[
             { value: 'profile', label: 'General' },
             { value: 'institute', label: 'Institute' },

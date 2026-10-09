@@ -226,15 +226,17 @@ export default function AdminReportsPage() {
   return (
     <div className='max-w-7xl mx-auto relative space-y-6 pb-12'>
       {/* Page Header */}
-      <PageHeader
-        title="Daily Teaching Reports"
-        description="Review, export, and monitor submitted daily teaching reports across all faculty members."
-        breadcrumbs={[
-          { label: 'Admin', href: '/admin/dashboard' },
-          { label: 'Academic' },
-          { label: 'Reports' },
-        ]}
-      />
+      <div data-tour="reports-header">
+        <PageHeader
+          title="Daily Teaching Reports"
+          description="Review, export, and monitor submitted daily teaching reports across all faculty members."
+          breadcrumbs={[
+            { label: 'Admin', href: '/admin/dashboard' },
+            { label: 'Academic' },
+            { label: 'Reports' },
+          ]}
+        />
+      </div>
 
       {/* TOP-RIGHT POPUP TOAST BOX */}
       <AnimatePresence>
