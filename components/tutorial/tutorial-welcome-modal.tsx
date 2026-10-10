@@ -50,7 +50,7 @@ export function TutorialWelcomeModal() {
         </div>
 
         {/* Modal Body: Scrollable on mobile */}
-        <div className="p-4 sm:p-7 space-y-4 sm:space-y-6 overflow-y-auto flex-1">
+        <div className="p-4 sm:p-7 space-y-4 sm:space-y-6 overflow-y-auto flex-1 min-h-0">
           <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
             Let&apos;s take a quick tour to help you understand the tools available to you and get the
             most out of your timetable management experience.

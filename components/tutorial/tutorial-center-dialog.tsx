@@ -14,7 +14,6 @@ import { Button } from '@/components/ui/button';
 import { PlanButton } from '@/components/ui/plan-button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { useTutorial } from '@/lib/tutorial/tutorial-context';
 import { TIMETABLE_PRO_MODULES } from '@/lib/tutorial/tutorial-modules';
 import {
@@ -106,32 +105,19 @@ export function TutorialCenterDialog() {
 
   return (
     <Dialog open={isHelpCenterOpen} onOpenChange={(open) => !open && closeHelpCenter()}>
-      <DialogContent className="w-[95vw] sm:max-w-[780px] max-h-[92vh] sm:max-h-[88vh] p-0 overflow-hidden rounded-2xl sm:rounded-3xl border-border/80 bg-background/98 backdrop-blur-2xl shadow-2xl flex flex-col">
+      <DialogContent className="w-[calc(100vw-20px)] max-w-[calc(100vw-20px)] sm:max-w-[780px] sm:w-[780px] h-[90vh] sm:h-[86vh] max-h-[92vh] sm:max-h-[88vh] p-0 overflow-hidden rounded-2xl sm:rounded-3xl border-border/80 bg-background/98 backdrop-blur-2xl shadow-2xl flex flex-col">
         {/* Header Section */}
-        <div className="p-3.5 sm:p-6 border-b border-border/50 bg-muted/20 pr-10 sm:pr-6">
+        <div className="p-3.5 sm:p-6 border-b border-border/50 bg-muted/20 pr-10 sm:pr-6 shrink-0">
           <div className="flex items-start sm:items-center justify-between gap-3 sm:gap-4">
             <div className="flex items-start sm:items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
               <div className="h-8.5 w-8.5 sm:h-10 sm:w-10 rounded-xl sm:rounded-2xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shadow-xs shrink-0 mt-0.5 sm:mt-0">
                 <HelpCircle className="h-4.5 w-4.5 sm:h-5 sm:w-5" />
               </div>
               <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
-                  <DialogTitle className="text-[13.5px] sm:text-lg font-black tracking-tight text-foreground leading-snug">
-                    Tutorial & Knowledge Center
-                  </DialogTitle>
-                  <div className="sm:hidden">
-                    {state.isCompleted ? (
-                      <Badge variant="outline" className="text-[9px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 px-1.5 py-0">
-                        Completed
-                      </Badge>
-                    ) : (
-                      <Badge variant="outline" className="text-[9px] font-semibold bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/30 px-1.5 py-0">
-                        Self-Guided
-                      </Badge>
-                    )}
-                  </div>
-                </div>
-                <DialogDescription className="text-[11px] sm:text-xs text-muted-foreground line-clamp-1 sm:line-clamp-none mt-0.5">
+                <DialogTitle className="text-sm sm:text-lg font-black tracking-tight text-foreground leading-snug">
+                  Tutorial & Knowledge Center
+                </DialogTitle>
+                <DialogDescription className="text-[11px] sm:text-xs text-muted-foreground truncate sm:whitespace-normal mt-0.5">
                   Explore how every module works or take a guided interactive walk-through.
                 </DialogDescription>
               </div>
@@ -179,8 +165,8 @@ export function TutorialCenterDialog() {
                 className="w-full sm:w-auto rounded-xl text-xs font-semibold gap-1.5 py-2 sm:py-1.5 truncate"
               >
                 <RotateCcw className="h-3.5 w-3.5" />
-                <span className="hidden xs:inline sm:inline">Restart Onboarding</span>
-                <span className="xs:hidden sm:hidden">Restart</span>
+                <span className="hidden sm:inline">Restart Onboarding</span>
+                <span className="inline sm:hidden">Restart</span>
               </Button>
             </div>
 
@@ -224,7 +210,7 @@ export function TutorialCenterDialog() {
         </div>
 
         {/* Scrollable Modules List */}
-        <ScrollArea className="flex-1 p-3.5 sm:p-6">
+        <div className="flex-1 min-h-0 overflow-y-auto p-3.5 sm:p-6 overscroll-contain">
           <div className="space-y-3">
             {filteredModules.length === 0 ? (
               <div className="py-12 text-center space-y-2">
@@ -250,16 +236,16 @@ export function TutorialCenterDialog() {
                     {/* Module Card Header */}
                     <div
                       onClick={() => setExpandedModuleKey(isExpanded ? null : module.key)}
-                      className="p-3 sm:p-4 flex items-center justify-between gap-2.5 sm:gap-3 cursor-pointer select-none"
+                      className="p-3 sm:p-4 flex items-center justify-between gap-2 sm:gap-3 cursor-pointer select-none"
                     >
-                      <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+                      <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
                         <div className="h-8.5 w-8.5 sm:h-9 sm:w-9 rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0">
                           <IconComponent className="h-4 w-4" />
                         </div>
-                        <div className="min-w-0 space-y-0.5">
-                          <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap sm:flex-nowrap">
+                        <div className="min-w-0 flex-1 space-y-0.5">
+                          <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
                             <h4 className="text-xs font-bold text-foreground truncate">{module.name}</h4>
-                            <Badge variant="secondary" className="text-[8.5px] sm:text-[9px] font-semibold uppercase px-1.5 py-0">
+                            <Badge variant="secondary" className="hidden sm:inline-flex text-[9px] font-semibold uppercase px-1.5 py-0 shrink-0">
                               {module.category}
                             </Badge>
                           </div>
@@ -278,12 +264,12 @@ export function TutorialCenterDialog() {
                           className="h-7 px-2 text-[10.5px] sm:text-[11px] font-semibold rounded-lg text-indigo-600 dark:text-indigo-400 hover:bg-indigo-500/10"
                         >
                           <Sparkles className="h-3 w-3 sm:mr-1 shrink-0" />
-                          <span className="hidden xs:inline sm:inline">Tour Module</span>
-                          <span className="xs:hidden sm:hidden">Tour</span>
+                          <span className="hidden sm:inline">Tour Module</span>
+                          <span className="inline sm:hidden">Tour</span>
                         </Button>
                         <ChevronRight
                           className={cn(
-                            'h-4 w-4 text-muted-foreground transition-transform duration-200',
+                            'h-4 w-4 text-muted-foreground transition-transform duration-200 shrink-0',
                             isExpanded && 'rotate-90'
                           )}
                         />
@@ -339,7 +325,7 @@ export function TutorialCenterDialog() {
                         </div>
 
                         {/* Action buttons */}
-                        <div className="pt-2 flex flex-col xs:flex-row sm:flex-row items-stretch sm:items-center justify-end gap-2">
+                        <div className="pt-2 flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-2">
                           <Button
                             variant="outline"
                             size="sm"
@@ -368,7 +354,7 @@ export function TutorialCenterDialog() {
               })
             )}
           </div>
-        </ScrollArea>
+        </div>
       </DialogContent>
     </Dialog>
   );
