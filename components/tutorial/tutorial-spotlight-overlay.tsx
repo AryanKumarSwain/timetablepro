@@ -291,7 +291,22 @@ export function TutorialSpotlightOverlay() {
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
     const margin = 16;
+    const isMobile = viewportWidth < 640;
 
+    // Mobile layout: dock card comfortably at top or bottom to never clip or obstruct spotlight
+    if (isMobile) {
+      const isTargetInBottomHalf = Boolean(
+        targetBounds && targetBounds.top + targetBounds.height / 2 > viewportHeight / 2
+      );
+      setPopoverPosition({
+        top: isTargetInBottomHalf ? 12 : Math.max(12, viewportHeight - popoverHeight - 14),
+        left: 12,
+        placement: isTargetInBottomHalf ? 'top' : 'bottom',
+      });
+      return;
+    }
+
+    // DESKTOP (PC) LOGIC - 100% UNCHANGED
     if (!targetBounds || !elementFound) {
       // Fallback: Center on screen
       setPopoverPosition({
@@ -595,38 +610,38 @@ export function TutorialSpotlightOverlay() {
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 10 }}
         transition={{ type: 'spring', damping: 25, stiffness: 350 }}
-        className="absolute pointer-events-auto w-[92vw] max-w-[395px] rounded-3xl bg-background/95 backdrop-blur-2xl border border-border/80 shadow-2xl p-4.5 sm:p-5 space-y-3.5 z-[10000]"
+        className="fixed pointer-events-auto w-[calc(100vw-24px)] sm:w-[92vw] sm:max-w-[395px] rounded-2xl sm:rounded-3xl bg-background/98 sm:bg-background/95 backdrop-blur-2xl border border-border/80 shadow-2xl p-3.5 sm:p-5 space-y-2.5 sm:space-y-3.5 z-[10000] max-h-[75vh] sm:max-h-none overflow-y-auto sm:overflow-visible"
         style={{
           top: popoverPosition.top,
           left: popoverPosition.left,
         }}
       >
         {/* Header & Step Counter */}
-        <div className="flex items-center justify-between gap-2 border-b border-border/40 pb-2.5">
-          <div className="flex items-center gap-2">
-            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 text-[11px] font-bold">
+        <div className="flex items-center justify-between gap-2 border-b border-border/40 pb-2 sm:pb-2.5">
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <span className="flex h-5.5 w-5.5 sm:h-6 sm:w-6 items-center justify-center rounded-full bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 text-[10px] sm:text-[11px] font-bold">
               {displayStepNumber}
             </span>
-            <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+            <span className="text-[11px] sm:text-xs font-bold text-muted-foreground uppercase tracking-wider">
               Step {displayStepNumber} of {displayTotalSteps}
             </span>
             {isModuleTour && (
-              <Badge variant="outline" className="text-[10px] font-bold uppercase tracking-wider bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/30">
+              <Badge variant="outline" className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/30 px-1.5 py-0">
                 {currentStep.moduleKey.replace('-', ' ')}
               </Badge>
             )}
           </div>
 
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] font-semibold text-muted-foreground/80">
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <span className="text-[9.5px] sm:text-[10px] font-semibold text-muted-foreground/80">
               {progressPercent}%
             </span>
             <button
               onClick={skipTour}
               aria-label="Skip Tutorial"
-              className="h-7 w-7 rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              className="h-6.5 w-6.5 sm:h-7 sm:w-7 rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
             >
-              <X className="h-4 w-4" />
+              <X className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             </button>
           </div>
         </div>
@@ -643,29 +658,29 @@ export function TutorialSpotlightOverlay() {
 
         {/* Title & Short Description */}
         <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <h3 className="text-base font-extrabold text-foreground tracking-tight">
+          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+            <h3 className="text-sm sm:text-base font-extrabold text-foreground tracking-tight">
               {currentStep.title}
             </h3>
             {currentStep.primaryActionLabel && (
-              <Badge variant="outline" className="text-[10px] font-bold px-2 py-0 border-indigo-500/30 text-indigo-600 dark:text-indigo-400">
+              <Badge variant="outline" className="text-[9.5px] sm:text-[10px] font-bold px-1.5 sm:px-2 py-0 border-indigo-500/30 text-indigo-600 dark:text-indigo-400">
                 {currentStep.primaryActionLabel}
               </Badge>
             )}
           </div>
-          <p className="text-xs text-foreground font-medium leading-relaxed">
+          <p className="text-[11.5px] sm:text-xs text-foreground font-medium leading-relaxed">
             {currentStep.shortDescription}
           </p>
-          <p className="text-[11.5px] text-muted-foreground leading-relaxed pt-0.5">
+          <p className="text-[11px] sm:text-[11.5px] text-muted-foreground leading-relaxed pt-0.5 line-clamp-3 sm:line-clamp-none">
             {currentStep.detailedExplanation}
           </p>
         </div>
 
         {/* Pro Tip Callout */}
         {currentStep.proTip && (
-          <div className="flex items-start gap-2.5 p-2.5 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-900 dark:text-amber-200">
-            <Lightbulb className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
-            <div className="text-[11px] leading-relaxed">
+          <div className="flex items-start gap-2 sm:gap-2.5 p-2 sm:p-2.5 rounded-xl sm:rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-900 dark:text-amber-200">
+            <Lightbulb className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-0.5" />
+            <div className="text-[10.5px] sm:text-[11px] leading-relaxed">
               <span className="font-bold">Pro Tip: </span>
               {currentStep.proTip}
             </div>
@@ -674,9 +689,9 @@ export function TutorialSpotlightOverlay() {
 
         {/* Interactive Practice Task */}
         {currentStep.interactivePractice && (
-          <div className="p-3 rounded-2xl bg-indigo-500/5 dark:bg-indigo-500/10 border border-indigo-500/20 space-y-2">
+          <div className="p-2.5 sm:p-3 rounded-xl sm:rounded-2xl bg-indigo-500/5 dark:bg-indigo-500/10 border border-indigo-500/20 space-y-1.5 sm:space-y-2">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5 text-xs font-bold text-indigo-600 dark:text-indigo-400">
+              <div className="flex items-center gap-1.5 text-[11px] sm:text-xs font-bold text-indigo-600 dark:text-indigo-400">
                 <MousePointerClick className="h-3.5 w-3.5" />
                 <span>
                   {currentStep.interactivePractice.type === 'explore'
@@ -685,13 +700,13 @@ export function TutorialSpotlightOverlay() {
                 </span>
               </div>
               {isFormOpen && !practiceDone && (
-                <Badge variant="outline" className="text-[10px] font-semibold bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/30">
+                <Badge variant="outline" className="text-[9px] sm:text-[10px] font-semibold bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/30 px-1.5 py-0">
                   Form Active
                 </Badge>
               )}
             </div>
 
-            <p className="text-[11px] text-muted-foreground leading-relaxed">
+            <p className="text-[10.5px] sm:text-[11px] text-muted-foreground leading-relaxed">
               {practiceDone
                 ? 'Practice goal completed!'
                 : isFormOpen
@@ -700,7 +715,7 @@ export function TutorialSpotlightOverlay() {
             </p>
 
             {practiceDone ? (
-              <div className="flex items-start gap-2 text-xs font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 p-2 rounded-xl border border-emerald-500/20 animate-in fade-in">
+              <div className="flex items-start gap-2 text-[11px] sm:text-xs font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 p-2 rounded-xl border border-emerald-500/20 animate-in fade-in">
                 <CheckCircle2 className="h-3.5 w-3.5 shrink-0 mt-0.5" />
                 <span>{currentStep.interactivePractice.feedbackText}</span>
               </div>
@@ -711,12 +726,12 @@ export function TutorialSpotlightOverlay() {
                   size="sm"
                   variant="outline"
                   onClick={handleAutoFillSample}
-                  className="w-full text-xs font-semibold rounded-xl border-indigo-500/30 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center gap-1.5 shadow-sm"
+                  className="w-full h-8 sm:h-9 text-[11px] sm:text-xs font-semibold rounded-xl border-indigo-500/30 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center gap-1.5 shadow-sm"
                 >
                   <Sparkles className="h-3.5 w-3.5" />
                   {currentStep.interactivePractice.sampleButtonText || 'Auto-Fill Sample Data'}
                 </Button>
-                <p className="text-[10px] text-center text-muted-foreground">
+                <p className="text-[9.5px] sm:text-[10px] text-center text-muted-foreground">
                   Fill details above and click the create button to finish this practice.
                 </p>
               </div>
@@ -726,7 +741,7 @@ export function TutorialSpotlightOverlay() {
                 size="sm"
                 variant="outline"
                 onClick={handlePerformPractice}
-                className="w-full text-xs font-semibold rounded-xl border-indigo-500/30 hover:bg-indigo-500/10 hover:text-indigo-600 shadow-sm"
+                className="w-full h-8 sm:h-9 text-[11px] sm:text-xs font-semibold rounded-xl border-indigo-500/30 hover:bg-indigo-500/10 hover:text-indigo-600 shadow-sm"
               >
                 {currentStep.interactivePractice.practiceButtonText || 'Try This Action'}
               </Button>
@@ -743,26 +758,26 @@ export function TutorialSpotlightOverlay() {
         )}
 
         {/* Tour Navigation Controls */}
-        <div className="pt-2 flex items-center justify-between gap-2 border-t border-border/40">
+        <div className="pt-2 sm:pt-2.5 flex items-center justify-between gap-2 border-t border-border/40">
           <Button
             type="button"
             variant="ghost"
             size="sm"
             onClick={prevStep}
             disabled={displayStepNumber === 1}
-            className="rounded-xl text-xs font-semibold"
+            className="h-8 sm:h-9 rounded-xl text-xs font-semibold px-2.5 sm:px-3"
           >
             <ChevronLeft className="h-3.5 w-3.5 mr-1" />
             Back
           </Button>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2">
             <Button
               type="button"
               variant="ghost"
               size="sm"
               onClick={skipTour}
-              className="text-xs font-semibold text-muted-foreground hover:text-foreground"
+              className="h-8 sm:h-9 text-xs font-semibold text-muted-foreground hover:text-foreground px-2 sm:px-3"
             >
               Skip
             </Button>
@@ -780,7 +795,7 @@ export function TutorialSpotlightOverlay() {
                 }
               }}
               className={cn(
-                "rounded-xl text-xs font-bold px-4 shadow-md shadow-indigo-500/25 flex items-center gap-1.5 transition-all",
+                "h-8 sm:h-9 rounded-xl text-xs font-bold px-3.5 sm:px-4 shadow-md shadow-indigo-500/25 flex items-center gap-1.5 transition-all",
                 practiceDone && "ring-2 ring-indigo-400 shadow-indigo-500/40 animate-pulse"
               )}
             >

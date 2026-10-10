@@ -28,29 +28,29 @@ export function TutorialWelcomeModal() {
 
   return (
     <Dialog open={isWelcomeOpen} onOpenChange={(open) => !open && closeWelcomeModal()}>
-      <DialogContent className="sm:max-w-[620px] p-0 overflow-hidden rounded-3xl border-border/60 bg-background/95 backdrop-blur-2xl shadow-2xl">
+      <DialogContent className="w-[95vw] sm:max-w-[620px] max-h-[92vh] sm:max-h-none overflow-y-auto sm:overflow-hidden p-0 rounded-2xl sm:rounded-3xl border-border/60 bg-background/95 backdrop-blur-2xl shadow-2xl">
         {/* Decorative Top Accent Banner */}
-        <div className="relative h-32 bg-gradient-to-br from-indigo-600 via-violet-600 to-purple-700 p-6 flex flex-col justify-between overflow-hidden">
+        <div className="relative h-28 sm:h-32 bg-gradient-to-br from-indigo-600 via-violet-600 to-purple-700 p-4 sm:p-6 flex flex-col justify-between overflow-hidden">
           <div className="absolute -right-8 -top-8 w-40 h-40 bg-white/10 rounded-full blur-xl pointer-events-none" />
           <div className="absolute -left-4 -bottom-10 w-32 h-32 bg-purple-400/20 rounded-full blur-lg pointer-events-none" />
 
           <div className="flex items-center justify-between relative z-10">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/20 backdrop-blur-md text-[11px] font-semibold text-white tracking-wide uppercase">
+            <span className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-full bg-white/20 backdrop-blur-md text-[10.5px] sm:text-[11px] font-semibold text-white tracking-wide uppercase">
               <Sparkles className="h-3 w-3" />
               Interactive Onboarding
             </span>
-            <span className="text-white/80 text-xs font-medium">Timetable Pro v1.0</span>
+            <span className="text-white/80 text-[11px] sm:text-xs font-medium">Timetable Pro v1.0</span>
           </div>
 
           <div className="relative z-10">
-            <h2 className="text-2xl font-black text-white tracking-tight flex items-center gap-2">
+            <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight flex items-center gap-2">
               Welcome to Timetable Pro!
             </h2>
           </div>
         </div>
 
         {/* Modal Body */}
-        <div className="p-6 sm:p-7 space-y-6">
+        <div className="p-4 sm:p-7 space-y-4 sm:space-y-6">
           <p className="text-sm text-muted-foreground leading-relaxed">
             Let&apos;s take a quick tour to help you understand the tools available to you and get the
             most out of your timetable management experience.

@@ -610,13 +610,13 @@ export default function AdminAttendancePage() {
           { label: 'Teacher Attendance' },
         ]}
         actions={
-          <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto pointer-events-auto">
+          <div className="flex items-center gap-2 shrink-0 pointer-events-auto flex-wrap sm:flex-nowrap">
             <Button
               variant="outline"
               size="sm"
               data-tour="attendance-guide-btn"
               onClick={() => jumpToModuleTour('attendance')}
-              className="rounded-xl h-9 text-xs font-bold border-indigo-500/30 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 gap-1.5 shadow-xs px-3 transition-all cursor-pointer"
+              className="rounded-xl h-9 text-xs font-bold border-indigo-500/30 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 gap-1.5 shadow-xs px-3 transition-all cursor-pointer shrink-0"
               title="Launch Attendance Interactive Guide"
             >
               <HelpCircle className="h-3.5 w-3.5 text-indigo-500" />
@@ -627,7 +627,7 @@ export default function AdminAttendancePage() {
               data-tour="attendance-history-btn"
               onClick={() => setHistoryModalOpen(true)}
               className={cn(
-                "inline-flex items-center justify-center px-3.5 h-9 rounded-xl text-xs font-bold gap-2 transition-all cursor-pointer",
+                "inline-flex items-center justify-center px-3.5 h-9 rounded-xl text-xs font-bold gap-2 transition-all cursor-pointer shrink-0",
                 uniqueDates.length > 0
                   ? "bg-purple-600 text-white shadow-md shadow-purple-500/25 hover:bg-purple-700"
                   : "bg-card border border-border/80 text-foreground hover:bg-muted"
@@ -641,16 +641,19 @@ export default function AdminAttendancePage() {
                 </span>
               )}
             </button>
-            <div className="relative">
-              <Calendar className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
+            <div className="relative shrink-0">
+              <Calendar className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
               <input
                 type="date"
                 value={selectedDate}
                 onChange={(e) => setSelectedDate(e.target.value)}
-                className="pl-9 pr-4 py-1.5 w-full md:w-44 rounded-xl bg-card border text-xs font-semibold focus:outline-none"
+                className="pl-8 pr-2.5 py-1.5 w-36 h-9 rounded-xl bg-card border text-xs font-semibold focus:outline-none"
               />
             </div>
-            <button onClick={() => void loadDataRegistry(false)} className={`inline-flex items-center justify-center px-3 h-9 rounded-xl bg-${theme.primary} text-white text-xs font-bold gap-1.5 cursor-pointer`}>
+            <button
+              onClick={() => void loadDataRegistry(false)}
+              className={`inline-flex items-center justify-center px-3.5 h-9 rounded-xl bg-${theme.primary} text-white text-xs font-bold gap-1.5 cursor-pointer shrink-0 hover:opacity-90 transition-opacity shadow-xs`}
+            >
               <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
               Sync
             </button>
