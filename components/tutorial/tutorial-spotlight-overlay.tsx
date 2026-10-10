@@ -11,6 +11,7 @@ import confetti from 'canvas-confetti';
 import {
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   X,
   Sparkles,
   CheckCircle2,
@@ -50,6 +51,7 @@ export function TutorialSpotlightOverlay() {
   const [isSearching, setIsSearching] = useState(true);
   const [practiceDone, setPracticeDone] = useState(false);
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [isMobileExpanded, setIsMobileExpanded] = useState(false);
   const [popoverPosition, setPopoverPosition] = useState<{
     top: number;
     left: number;
@@ -90,6 +92,7 @@ export function TutorialSpotlightOverlay() {
   useEffect(() => {
     setPracticeDone(false);
     setIsFormOpen(false);
+    setIsMobileExpanded(false);
   }, [currentStepIndex]);
 
   // Monitor DOM for creation form opening/closing
@@ -658,41 +661,61 @@ export function TutorialSpotlightOverlay() {
 
         {/* Title & Short Description */}
         <div className="space-y-1">
-          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
-            <h3 className="text-sm sm:text-base font-extrabold text-foreground tracking-tight">
+          <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap sm:flex-nowrap">
+            <h3 className="text-[13px] sm:text-base font-extrabold text-foreground tracking-tight leading-snug">
               {currentStep.title}
             </h3>
             {currentStep.primaryActionLabel && (
-              <Badge variant="outline" className="text-[9.5px] sm:text-[10px] font-bold px-1.5 sm:px-2 py-0 border-indigo-500/30 text-indigo-600 dark:text-indigo-400">
+              <Badge variant="outline" className="text-[9px] sm:text-[10px] font-bold px-1.5 sm:px-2 py-0 border-indigo-500/30 text-indigo-600 dark:text-indigo-400">
                 {currentStep.primaryActionLabel}
               </Badge>
             )}
           </div>
-          <p className="text-[11.5px] sm:text-xs text-foreground font-medium leading-relaxed">
+          <p className="text-[11px] sm:text-xs text-foreground font-medium leading-relaxed">
             {currentStep.shortDescription}
           </p>
-          <p className="text-[11px] sm:text-[11.5px] text-muted-foreground leading-relaxed pt-0.5 line-clamp-3 sm:line-clamp-none">
-            {currentStep.detailedExplanation}
-          </p>
+
+          {/* Detailed Explanation & Pro Tip: Collapsible on mobile, permanently visible on PC (sm:block) */}
+          <div className={cn("space-y-2 pt-0.5", isMobileExpanded ? "block" : "hidden sm:block")}>
+            <p className="text-[10.5px] sm:text-[11.5px] text-muted-foreground leading-relaxed">
+              {currentStep.detailedExplanation}
+            </p>
+
+            {currentStep.proTip && (
+              <div className="flex items-start gap-2 sm:gap-2.5 p-2 sm:p-2.5 rounded-xl sm:rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-900 dark:text-amber-200">
+                <Lightbulb className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-0.5" />
+                <div className="text-[10px] sm:text-[11px] leading-relaxed">
+                  <span className="font-bold">Pro Tip: </span>
+                  {currentStep.proTip}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Mobile Read More / Read Less Toggle (hidden on PC) */}
+          <div className="sm:hidden pt-0.5">
+            <button
+              type="button"
+              onClick={() => setIsMobileExpanded((prev) => !prev)}
+              className="text-[10.5px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline inline-flex items-center gap-1 cursor-pointer"
+            >
+              <span>{isMobileExpanded ? 'Show less' : 'Read more & Pro Tip...'}</span>
+              <ChevronDown className={cn("h-3 w-3 transition-transform", isMobileExpanded && "rotate-180")} />
+            </button>
+          </div>
         </div>
 
-        {/* Pro Tip Callout */}
-        {currentStep.proTip && (
-          <div className="flex items-start gap-2 sm:gap-2.5 p-2 sm:p-2.5 rounded-xl sm:rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-900 dark:text-amber-200">
-            <Lightbulb className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-0.5" />
-            <div className="text-[10.5px] sm:text-[11px] leading-relaxed">
-              <span className="font-bold">Pro Tip: </span>
-              {currentStep.proTip}
-            </div>
-          </div>
-        )}
-
-        {/* Interactive Practice Task */}
+        {/* Interactive Practice Task (Full box on PC; on mobile show action/form buttons or when expanded) */}
         {currentStep.interactivePractice && (
-          <div className="p-2.5 sm:p-3 rounded-xl sm:rounded-2xl bg-indigo-500/5 dark:bg-indigo-500/10 border border-indigo-500/20 space-y-1.5 sm:space-y-2">
+          <div className={cn(
+            "rounded-xl sm:rounded-2xl bg-indigo-500/5 dark:bg-indigo-500/10 border border-indigo-500/20",
+            currentStep.interactivePractice.type === 'explore'
+              ? (isMobileExpanded ? "p-2 sm:p-3 space-y-1 sm:space-y-2 block" : "p-2 sm:p-3 space-y-1 sm:space-y-2 hidden sm:block")
+              : "p-2 sm:p-3 space-y-1.5 sm:space-y-2 block"
+          )}>
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5 text-[11px] sm:text-xs font-bold text-indigo-600 dark:text-indigo-400">
-                <MousePointerClick className="h-3.5 w-3.5" />
+              <div className="flex items-center gap-1.5 text-[10.5px] sm:text-xs font-bold text-indigo-600 dark:text-indigo-400">
+                <MousePointerClick className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
                 <span>
                   {currentStep.interactivePractice.type === 'explore'
                     ? 'Walkthrough Focus'
@@ -706,7 +729,7 @@ export function TutorialSpotlightOverlay() {
               )}
             </div>
 
-            <p className="text-[10.5px] sm:text-[11px] text-muted-foreground leading-relaxed">
+            <p className="text-[10px] sm:text-[11px] text-muted-foreground leading-relaxed">
               {practiceDone
                 ? 'Practice goal completed!'
                 : isFormOpen
@@ -715,23 +738,23 @@ export function TutorialSpotlightOverlay() {
             </p>
 
             {practiceDone ? (
-              <div className="flex items-start gap-2 text-[11px] sm:text-xs font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 p-2 rounded-xl border border-emerald-500/20 animate-in fade-in">
+              <div className="flex items-start gap-1.5 text-[10.5px] sm:text-xs font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 p-1.5 sm:p-2 rounded-xl border border-emerald-500/20 animate-in fade-in">
                 <CheckCircle2 className="h-3.5 w-3.5 shrink-0 mt-0.5" />
                 <span>{currentStep.interactivePractice.feedbackText}</span>
               </div>
             ) : isFormOpen ? (
-              <div className="space-y-1.5">
+              <div className="space-y-1">
                 <Button
                   type="button"
                   size="sm"
                   variant="outline"
                   onClick={handleAutoFillSample}
-                  className="w-full h-8 sm:h-9 text-[11px] sm:text-xs font-semibold rounded-xl border-indigo-500/30 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center gap-1.5 shadow-sm"
+                  className="w-full h-7.5 sm:h-9 text-[10.5px] sm:text-xs font-semibold rounded-xl border-indigo-500/30 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center gap-1.5 shadow-sm"
                 >
-                  <Sparkles className="h-3.5 w-3.5" />
+                  <Sparkles className="h-3 w-3" />
                   {currentStep.interactivePractice.sampleButtonText || 'Auto-Fill Sample Data'}
                 </Button>
-                <p className="text-[9.5px] sm:text-[10px] text-center text-muted-foreground">
+                <p className="text-[9px] sm:text-[10px] text-center text-muted-foreground">
                   Fill details above and click the create button to finish this practice.
                 </p>
               </div>
@@ -741,7 +764,7 @@ export function TutorialSpotlightOverlay() {
                 size="sm"
                 variant="outline"
                 onClick={handlePerformPractice}
-                className="w-full h-8 sm:h-9 text-[11px] sm:text-xs font-semibold rounded-xl border-indigo-500/30 hover:bg-indigo-500/10 hover:text-indigo-600 shadow-sm"
+                className="w-full h-7.5 sm:h-9 text-[10.5px] sm:text-xs font-semibold rounded-xl border-indigo-500/30 hover:bg-indigo-500/10 hover:text-indigo-600 shadow-sm"
               >
                 {currentStep.interactivePractice.practiceButtonText || 'Try This Action'}
               </Button>

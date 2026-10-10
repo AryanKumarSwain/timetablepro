@@ -108,33 +108,46 @@ export function TutorialCenterDialog() {
     <Dialog open={isHelpCenterOpen} onOpenChange={(open) => !open && closeHelpCenter()}>
       <DialogContent className="w-[95vw] sm:max-w-[780px] max-h-[92vh] sm:max-h-[88vh] p-0 overflow-hidden rounded-2xl sm:rounded-3xl border-border/80 bg-background/98 backdrop-blur-2xl shadow-2xl flex flex-col">
         {/* Header Section */}
-        <div className="p-3.5 sm:p-6 border-b border-border/50 bg-muted/20">
-          <div className="flex items-center justify-between gap-3 sm:gap-4">
-            <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
-              <div className="h-8.5 w-8.5 sm:h-10 sm:w-10 rounded-xl sm:rounded-2xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shadow-xs shrink-0">
+        <div className="p-3.5 sm:p-6 border-b border-border/50 bg-muted/20 pr-10 sm:pr-6">
+          <div className="flex items-start sm:items-center justify-between gap-3 sm:gap-4">
+            <div className="flex items-start sm:items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
+              <div className="h-8.5 w-8.5 sm:h-10 sm:w-10 rounded-xl sm:rounded-2xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shadow-xs shrink-0 mt-0.5 sm:mt-0">
                 <HelpCircle className="h-4.5 w-4.5 sm:h-5 sm:w-5" />
               </div>
-              <div className="min-w-0">
-                <DialogTitle className="text-sm sm:text-lg font-black tracking-tight text-foreground flex items-center gap-1.5 sm:gap-2 truncate sm:whitespace-normal">
-                  Tutorial & Knowledge Center
-                </DialogTitle>
-                <DialogDescription className="text-[11px] sm:text-xs text-muted-foreground line-clamp-1 sm:line-clamp-none">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+                  <DialogTitle className="text-[13.5px] sm:text-lg font-black tracking-tight text-foreground leading-snug">
+                    Tutorial & Knowledge Center
+                  </DialogTitle>
+                  <div className="sm:hidden">
+                    {state.isCompleted ? (
+                      <Badge variant="outline" className="text-[9px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 px-1.5 py-0">
+                        Completed
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="text-[9px] font-semibold bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/30 px-1.5 py-0">
+                        Self-Guided
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+                <DialogDescription className="text-[11px] sm:text-xs text-muted-foreground line-clamp-1 sm:line-clamp-none mt-0.5">
                   Explore how every module works or take a guided interactive walk-through.
                 </DialogDescription>
               </div>
             </div>
 
-            <div className="flex items-center gap-2 shrink-0">
+            {/* Desktop Badge Spot - 100% UNCHANGED ON PC */}
+            <div className="hidden sm:flex items-center gap-2 shrink-0">
               {state.isCompleted ? (
-                <Badge variant="outline" className="text-[10px] sm:text-[11px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 gap-1 py-0.5 sm:py-1 px-2 sm:px-2.5">
+                <Badge variant="outline" className="text-[11px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 gap-1 py-1">
                   <CheckCircle2 className="h-3 w-3" />
-                  <span className="hidden xs:inline">Tour Completed</span>
-                  <span className="xs:hidden">Done</span>
+                  Tour Completed
                 </Badge>
               ) : (
-                <Badge variant="outline" className="text-[10px] sm:text-[11px] font-semibold bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/30 gap-1 py-0.5 sm:py-1 px-2 sm:px-2.5">
+                <Badge variant="outline" className="text-[11px] font-semibold bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/30 gap-1 py-1">
                   <Sparkles className="h-3 w-3" />
-                  <span>Self-Guided</span>
+                  Self-Guided
                 </Badge>
               )}
             </div>
