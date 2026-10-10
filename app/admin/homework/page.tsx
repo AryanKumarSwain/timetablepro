@@ -48,8 +48,10 @@ import {
   FileSpreadsheet,
   Lock,
   Layers,
+  HelpCircle,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useTutorial } from '@/lib/tutorial/tutorial-context';
 import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, WidthType, HeadingLevel, AlignmentType, BorderStyle } from 'docx';
 import { Card } from '@/components/ui/card';
 
@@ -64,6 +66,7 @@ function extractHomeworkFromDescription(desc = '') {
 export default function AdminHomeworkPage() {
   const auth = useRequireAuth('admin');
   const { user } = useAuth();
+  const { jumpToModuleTour } = useTutorial();
   const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
   
   const [loading, setLoading] = useState(true);
@@ -780,6 +783,20 @@ export default function AdminHomeworkPage() {
             { label: 'Academic' },
             { label: 'Homework' },
           ]}
+          actions={
+            <Button
+              variant="outline"
+              size="sm"
+              data-tour="homework-guide-btn"
+              onClick={() => jumpToModuleTour('homework')}
+              className="rounded-xl h-9 text-xs font-bold border-indigo-500/30 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 gap-1.5 shadow-xs px-3 transition-all cursor-pointer"
+              title="Launch Homework Interactive Guide"
+            >
+              <HelpCircle className="h-3.5 w-3.5 text-indigo-500" />
+              <span className="hidden sm:inline">Homework Guide</span>
+              <span className="sm:hidden">Guide</span>
+            </Button>
+          }
         />
       </div>
 
@@ -808,7 +825,7 @@ export default function AdminHomeworkPage() {
         schoolId={user?.schoolId || undefined}
       >
         {/* STATS OVERVIEW CARDS */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <div data-tour="homework-stats" className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           <GlassCard className="p-5 flex items-center gap-4">
             <div className="p-3 rounded-xl bg-purple-500/10 text-purple-600 dark:text-purple-400">
               <BookOpen className="h-6 w-6" />
@@ -851,7 +868,7 @@ export default function AdminHomeworkPage() {
         </div>
 
         {/* SEARCH & FILTER BAR */}
-        <GlassCard className="p-4 md:p-5 space-y-4">
+        <GlassCard data-tour="homework-filters" className="p-4 md:p-5 space-y-4">
           <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
             {/* Search Input */}
             <div className="relative flex-1 min-w-[240px]">
@@ -1053,7 +1070,7 @@ export default function AdminHomeworkPage() {
               </p>
             </GlassCard>
           ) : (
-            <div className="space-y-6">
+            <div data-tour="homework-list" className="space-y-6">
               {allClassKeys.map((className) => {
                 const directList = filterHomeworkList(homework[className] || []);
                 const reportList = filterHomeworkList(reportHomework[className] || []);

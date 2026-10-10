@@ -41,7 +41,9 @@ import {
   Pencil,
   Trash2,
   Edit3,
+  HelpCircle,
 } from 'lucide-react';
+import { useTutorial } from '@/lib/tutorial/tutorial-context';
 import { cn } from '@/lib/utils';
 
 const AVATAR_COLORS = [
@@ -113,7 +115,7 @@ function TimetableRow({
   };
 
   return (
-    <div className='flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-xl border border-border/60 bg-card/50 hover:bg-muted/20 transition-colors'>
+    <div data-tour="timetables-card" className='flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-xl border border-border/60 bg-card/50 hover:bg-muted/20 transition-colors'>
       <div className='flex items-center gap-3 min-w-0 flex-1'>
         <div
           className={cn(
@@ -126,6 +128,7 @@ function TimetableRow({
         <div className='flex-1 min-w-0'>
           <div className='flex items-center gap-2 flex-wrap'>
             <Link
+              data-tour="timetables-edit-btn"
               href={`/admin/timetables/${item.id}/edit`}
               className='font-semibold text-foreground hover:text-indigo-600 transition-colors truncate'
             >
@@ -157,6 +160,7 @@ function TimetableRow({
                 Deactivate
               </Button>
               <Button
+                data-tour="timetables-share-btn"
                 size='sm'
                 variant='outline'
                 className='rounded-lg text-xs h-8'
@@ -167,7 +171,12 @@ function TimetableRow({
               </Button>
             </>
           ) : (
-            <Button size='sm' className='rounded-lg text-xs h-8 bg-emerald-600 hover:bg-emerald-500 text-white' onClick={onActivate}>
+            <Button
+              data-tour="timetables-activate-btn"
+              size='sm'
+              className='rounded-lg text-xs h-8 bg-emerald-600 hover:bg-emerald-500 text-white'
+              onClick={onActivate}
+            >
               Activate
             </Button>
           )}
@@ -206,6 +215,7 @@ function TimetableRow({
 
 export default function TimetablesPage() {
   useRequireAuth('admin');
+  const { jumpToModuleTour } = useTutorial();
 
   const [timetables, setTimetables] = useState<TimetableSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -237,6 +247,18 @@ export default function TimetablesPage() {
     void load();
   }, [load]);
 
+  // Listen for guided tutorial sample auto-fill requests
+  useEffect(() => {
+    const handleSampleFill = (e: any) => {
+      if (e.detail?.type === 'timetables') {
+        setModalOpen(true);
+        setNewName('Term 1 Master Schedule');
+      }
+    };
+    window.addEventListener('tutorial:fill-sample', handleSampleFill);
+    return () => window.removeEventListener('tutorial:fill-sample', handleSampleFill);
+  }, []);
+
   const activeTimetables = useMemo(
     () => timetables.filter((t) => t.status === 'PUBLISHED'),
     [timetables]
@@ -258,6 +280,11 @@ export default function TimetablesPage() {
       setNewName('');
       setModalOpen(false);
       await load();
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('tutorial:creation-success', { detail: { type: 'timetables' } })
+        );
+      }
     } catch (e) {
       console.error(e);
       window.alert('Timetable creation limit reached. You can create up to 30 timetables.');
@@ -308,22 +335,36 @@ export default function TimetablesPage() {
             { label: 'Time Tables' },
           ]}
           actions={
-            <PlanButton
-              data-tour="timetables-add-btn"
-              variant="primary"
-              className='rounded-xl shadow-md transition-all'
-              onClick={() => {
-                if (!canCreateTimetable) {
-                  window.alert('Timetable creation limit reached. You can create up to 30 timetables.');
-                  return;
-                }
-                setModalOpen(true);
-              }}
-              disabled={!canCreateTimetable}
-            >
-              <Plus className='h-4 w-4 mr-1.5' />
-              {canCreateTimetable ? 'New Time Table' : 'Limit Reached'}
-            </PlanButton>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                data-tour="timetables-guide-btn"
+                onClick={() => jumpToModuleTour('timetables')}
+                className="rounded-xl h-9 text-xs font-bold border-indigo-500/30 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 gap-1.5 shadow-xs px-3 transition-all cursor-pointer"
+                title="Launch Time Tables Interactive Guide"
+              >
+                <HelpCircle className="h-3.5 w-3.5 text-indigo-500" />
+                <span className="hidden sm:inline">Time Tables Guide</span>
+                <span className="sm:hidden">Guide</span>
+              </Button>
+              <PlanButton
+                data-tour="timetables-add-btn"
+                variant="primary"
+                className='rounded-xl shadow-md transition-all'
+                onClick={() => {
+                  if (!canCreateTimetable) {
+                    window.alert('Timetable creation limit reached. You can create up to 30 timetables.');
+                    return;
+                  }
+                  setModalOpen(true);
+                }}
+                disabled={!canCreateTimetable}
+              >
+                <Plus className='h-4 w-4 mr-1.5' />
+                {canCreateTimetable ? 'New Time Table' : 'Limit Reached'}
+              </PlanButton>
+            </div>
           }
         />
       </div>
@@ -405,12 +446,16 @@ export default function TimetablesPage() {
 
       {/* New Timetable Modal */}
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
-        <DialogContent className='rounded-2xl border border-border/60 bg-background/95 backdrop-blur-md'>
+        <DialogContent
+          data-tour="timetables-form"
+          className='rounded-2xl border border-border/60 bg-background/95 backdrop-blur-md'
+        >
           <DialogHeader>
             <DialogTitle className='text-xl font-bold'>New Timetable</DialogTitle>
             <DialogDescription className='sr-only'>Enter a name to create a new timetable.</DialogDescription>
           </DialogHeader>
           <Input
+            data-tour="timetables-name-input"
             placeholder='Timetable name'
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
@@ -422,6 +467,7 @@ export default function TimetablesPage() {
               Cancel
             </Button>
             <PlanButton 
+              data-tour="timetables-submit-btn"
               disabled={creating || !newName.trim()} 
               onClick={() => void handleCreate()}
               variant="primary"

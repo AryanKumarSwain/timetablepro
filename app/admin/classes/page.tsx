@@ -25,10 +25,12 @@ import {
 } from '@/components/enterprise/data-grid';
 import { PageSkeleton } from '@/components/enterprise/page-skeleton';
 import { BulkCsvImportModal } from '@/components/enterprise/bulk-csv-import-modal';
-import { Upload, CheckCircle2, Pencil, Trash2, AlertCircle } from 'lucide-react';
+import { Upload, CheckCircle2, Pencil, Trash2, AlertCircle, HelpCircle } from 'lucide-react';
+import { useTutorial } from '@/lib/tutorial/tutorial-context';
 
 export default function ClassesPage() {
   useRequireAuth('admin');
+  const { jumpToModuleTour } = useTutorial();
 
   const [classes, setClasses] = useState<Class[]>([]);
   const [loading, setLoading] = useState(true);
@@ -53,6 +55,27 @@ export default function ClassesPage() {
   useEffect(() => {
     loadData();
     loadSchoolPlan();
+  }, []);
+
+  // Listen for guided tutorial sample auto-fill requests
+  useEffect(() => {
+    const handleSampleFill = (e: any) => {
+      if (e.detail?.type === 'classes') {
+        setErrorMsg(null);
+        setSuccessMsg(null);
+        setShowForm(true);
+        setFormData({
+          name: 'Class 10',
+          section: 'A',
+        });
+        setSelectedSections(['A']);
+        if (typeof window !== 'undefined') {
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+      }
+    };
+    window.addEventListener('tutorial:fill-sample', handleSampleFill);
+    return () => window.removeEventListener('tutorial:fill-sample', handleSampleFill);
   }, []);
 
   const loadSchoolPlan = async () => {
@@ -202,6 +225,11 @@ export default function ClassesPage() {
           });
         }
         loadData();
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(
+            new CustomEvent('tutorial:creation-success', { detail: { type: 'classes' } })
+          );
+        }
       } catch (error: any) {
         console.error('Failed to create classes:', error);
         setErrorMsg(error?.message || 'Failed to create classes');
@@ -290,6 +318,18 @@ export default function ClassesPage() {
             !showForm ? (
               <div className='flex flex-wrap gap-2'>
                 <Button
+                  variant="outline"
+                  size="sm"
+                  data-tour="classes-guide-btn"
+                  onClick={() => jumpToModuleTour('classes')}
+                  className="rounded-xl h-9 text-xs font-bold border-indigo-500/30 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 gap-1.5 shadow-xs px-3 transition-all cursor-pointer"
+                  title="Launch Classes Interactive Guide"
+                >
+                  <HelpCircle className="h-3.5 w-3.5 text-indigo-500" />
+                  <span className="hidden sm:inline">Classes Guide</span>
+                  <span className="sm:hidden">Guide</span>
+                </Button>
+                <Button
                   variant='outline'
                   onClick={() => setImportOpen(true)}
                   className='rounded-xl'
@@ -340,7 +380,7 @@ export default function ClassesPage() {
       )}
 
       {showForm && (
-        <Card className='p-6 mb-6 border-border animate-in fade-in duration-200'>
+        <Card data-tour="classes-form" className='p-6 mb-6 border-border animate-in fade-in duration-200'>
           <h2 className='text-xl font-semibold text-foreground mb-4'>
             {editingId ? 'Edit Class' : 'Add New Class'}
           </h2>
@@ -351,6 +391,7 @@ export default function ClassesPage() {
                   Class Name
                 </label>
                 <Input
+                  data-tour="classes-name-input"
                   value={formData.name}
                   onChange={(e) => {
                     setErrorMsg(null);
@@ -534,6 +575,7 @@ export default function ClassesPage() {
 
             <div className='flex gap-2 pt-2'>
               <Button
+                data-tour="classes-submit-btn"
                 type='submit'
                 className='bg-primary hover:bg-primary/90'
                 disabled={

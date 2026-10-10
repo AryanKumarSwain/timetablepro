@@ -151,6 +151,62 @@ export const TIMETABLE_PRO_MODULES: TutorialModuleInfo[] = [
     role: 'admin',
   },
   {
+    key: 'timetable-editor',
+    name: 'Schedule Grid Editor',
+    category: 'Scheduling & Operations',
+    route: '/admin/timetables/editor',
+    iconName: 'LayoutGrid',
+    tagline: 'Interactive weekly grid canvas, period timings, clash detection & AI solver',
+    purpose:
+      'The visual timetable builder where you configure class schedules. Toggle working days, set school bell timings, insert period and recess intervals, manually assign clash-free subjects and teachers, or run the AI constraint solver to automate the entire school roster.',
+    whereToFind:
+      'Click on any timetable name in the Time Tables list, or click the "Edit Grid" action button.',
+    primaryAction:
+      'Customize period blocks, assign subjects and teachers to grid cells, and monitor faculty workloads.',
+    importantControls: [
+      'Class & Section switcher tabs with completion checkmarks',
+      'Working Days selector & automated bell timing engine (Start time & duration)',
+      '+ Period and + Break buttons to append teaching slots and lunch breaks',
+      'Interactive weekly grid cells with instant clash detection',
+      'Slot Assigner dialog with smart qualified teacher filtering',
+      '"Generate with AI" button for one-click clash-free whole-school scheduling',
+      'Real-time Faculty Workload panel with class completion tracker',
+    ],
+    nextSteps:
+      'After finishing schedule assignments, return to the Timetables list and click "Activate" to publish it school-wide.',
+    proTip:
+      'Adjusting the base start time or period duration automatically updates every period across the entire timetable without losing any assigned subjects!',
+    role: 'admin',
+  },
+  {
+    key: 'ai-generator',
+    name: 'AI Timetable Generator',
+    category: 'Scheduling & Operations',
+    route: '/admin/timetables/editor',
+    iconName: 'Sparkles',
+    tagline: 'Automated mathematical solver for clash-free whole-school timetable routines',
+    purpose:
+      'The automated scheduling engine that generates conflict-free timetables across all classes simultaneously. Evaluates teacher-class mappings, balances faculty weekly period quotas, ensures zero room clashes, and applies pedagogy rules like spacing same-subject periods.',
+    whereToFind:
+      'Click "Generate with AI" in the Timetable Editor header toolbar.',
+    primaryAction:
+      'Verify teacher-class readiness, select scheduling scope (All Classes vs Current Class), configure AI rules, and generate clash-free schedules in seconds.',
+    importantControls: [
+      'Classes, Subjects, and Assigned Faculty readiness cards',
+      'Faculty Assignment Required unlock banner',
+      'Scheduling Scope toggles ("All Classes" vs "Current Class Only")',
+      'Balance Workload Evenly rule checkbox',
+      'Avoid Consecutive Same-Subject Periods rule checkbox',
+      'Fill Only Empty Slots rule checkbox',
+      '"Generate Timetable with AI" solver button',
+    ],
+    nextSteps:
+      'After generating, inspect the weekly grid and workload panel to review assigned slots or make custom adjustments.',
+    proTip:
+      'If generation is locked with "Faculty Assignment Required", make sure to assign classes and subjects to your teachers under the Teachers tab first!',
+    role: 'admin',
+  },
+  {
     key: 'daily-desk',
     name: 'Daily Desk (Operations)',
     category: 'Scheduling & Operations',

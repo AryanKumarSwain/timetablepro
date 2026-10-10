@@ -34,7 +34,9 @@ import {
   PieChart as PieIcon,
   SlidersHorizontal,
   Calendar,
+  HelpCircle,
 } from 'lucide-react';
+import { useTutorial } from '@/lib/tutorial/tutorial-context';
 import {
   BarChart,
   Bar,
@@ -73,6 +75,7 @@ const ALL_TIME = 'all-time';
 export default function AdminDashboard() {
   const auth = useRequireAuth('admin');
   const { theme } = usePlanTheme();
+  const { jumpToModuleTour } = useTutorial();
 
   const [stats, setStats] = useState<AdminDashboardStats | null>(null);
   const [attendance, setAttendance] = useState<DailyAttendance[]>([]);
@@ -387,22 +390,37 @@ export default function AdminDashboard() {
     <div className="max-w-7xl mx-auto space-y-6 p-4">
 
       {/* CHANGED HERE: title is now using dynamicSchoolName instead of a static string */}
-      <PageHeader
-        title={dynamicSchoolName}
-        description="Live campus metrics, attendance, and substitution pipeline"
-        breadcrumbs={[
-          { label: 'Admin', href: '/admin/dashboard' },
-          { label: 'Dashboard' },
-        ]}
-        actions={
-          <PlanButton asChild variant="primary" className="rounded-xl">
-            <Link href="/admin/daily-desk">
-              Open Daily Desk
-              <ArrowRight className="ml-2 h-4 w-4" />
-            </Link>
-          </PlanButton>
-        }
-      />
+      <div data-tour="dashboard-header">
+        <PageHeader
+          title={dynamicSchoolName}
+          description="Live campus metrics, attendance, and substitution pipeline"
+          breadcrumbs={[
+            { label: 'Admin', href: '/admin/dashboard' },
+            { label: 'Dashboard' },
+          ]}
+          actions={
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => jumpToModuleTour('dashboard')}
+                data-tour="dashboard-guide-btn"
+                className="gap-2 rounded-xl text-xs font-semibold bg-background/80 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 border-indigo-200 dark:border-indigo-800 text-indigo-600 dark:text-indigo-400"
+              >
+                <HelpCircle className="h-4 w-4" />
+                Dashboard Guide
+              </Button>
+              <PlanButton asChild variant="primary" className="rounded-xl">
+                <Link href="/admin/daily-desk">
+                  Open Daily Desk
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </Link>
+              </PlanButton>
+            </div>
+          }
+        />
+      </div>
 
       {(stats?.pendingAbsentRequests ?? 0) > 0 && (
         <GlassCard className="p-4 border-amber-500/30 bg-amber-500/5 flex items-center gap-3 rounded-2xl">
@@ -765,7 +783,7 @@ export default function AdminDashboard() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Attendance Pipeline Card */}
-        <GlassCard className="p-6 rounded-2xl">
+        <GlassCard data-tour="dashboard-attendance" className="p-6 rounded-2xl">
           <div className="flex items-center gap-2 mb-4">
             <UserX className="h-5 w-5 text-rose-500" />
             <h3 className="font-semibold">Today's Attendance</h3>
@@ -792,7 +810,7 @@ export default function AdminDashboard() {
         </GlassCard>
 
         {/* Substitution Monitoring Grid */}
-        <GlassCard className="p-6 rounded-2xl">
+        <GlassCard data-tour="dashboard-substitutions" className="p-6 rounded-2xl">
           <div className="flex items-center gap-2 mb-4">
             <Clock className="h-5 w-5 text-indigo-500" />
             <h3 className="font-semibold">Substitution Pipeline</h3>

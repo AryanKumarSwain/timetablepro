@@ -17,8 +17,9 @@ import { PageSkeleton } from '@/components/enterprise/page-skeleton';
 import { GlassCard } from '@/components/enterprise/glass-card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ArrowLeft, Filter, AlertTriangle, Layers, CheckCircle, Sparkles, Lock, GraduationCap, BookOpen, Users, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Filter, AlertTriangle, Layers, CheckCircle, Sparkles, Lock, GraduationCap, BookOpen, Users, ChevronRight, HelpCircle } from 'lucide-react';
 import { toast } from 'sonner';
+import { useTutorial } from '@/lib/tutorial/tutorial-context';
 import { cn, isTeacherActive, formatClassName } from '@/lib/utils';
 import {
   TimetableGrid,
@@ -45,6 +46,7 @@ export default function TimetableEditPage() {
   const params = useParams();
   const router = useRouter();
   const timetableId = String(params.id);
+  const { jumpToModuleTour, currentStep, isTourActive } = useTutorial();
 
   const [detail, setDetail] = useState<ExtendedTimetableDetail | null>(null);
   const [workload, setWorkload] = useState<WorkloadData | null>(null);
@@ -55,6 +57,17 @@ export default function TimetableEditPage() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [aiModalOpen, setAiModalOpen] = useState(false);
   const [schoolPlan, setSchoolPlan] = useState<any>(null);
+
+  // Automatically open / close AI generation modal when touring AI steps
+  useEffect(() => {
+    if (!isTourActive || !currentStep) return;
+
+    if (currentStep.id.startsWith('ai-modal-')) {
+      setAiModalOpen(true);
+    } else if (currentStep.id === 'timetables-workload-module' || currentStep.id === 'timetables-grid-module') {
+      setAiModalOpen(false);
+    }
+  }, [isTourActive, currentStep]);
 
   const [workingDays, setWorkingDays] = useState<number[]>([1, 2, 3, 4, 5]);
   const [baseStartTime, setBaseStartTime] = useState<string>("08:00");
@@ -400,6 +413,46 @@ export default function TimetableEditPage() {
     setSheetOpen(true);
   };
 
+  // Listen for guided tutorial sample auto-fill requests
+  useEffect(() => {
+    const handleSampleFill = (e: any) => {
+      if (e.detail?.type === 'timetable-slot' && detail) {
+        const targetPeriod = detail.periods.find((p) => !p.isBreak) || detail.periods[0];
+        if (!targetPeriod) return;
+
+        if (!sheetOpen) {
+          openEditor(1, targetPeriod.id);
+        }
+
+        const targetClassId = view === 'section' ? selectedId : (detail.classes[0]?.id || selectedId);
+        const assignedSubjects = (detail.subjects || []).filter((s) => {
+          const cIds = Array.isArray(s.classIds) ? s.classIds : [];
+          return cIds.includes(targetClassId);
+        });
+        const chosenSub = assignedSubjects[0] || detail.subjects[0];
+
+        if (chosenSub) {
+          const qualifiedTeacher = detail.teachers.find((t) => {
+            const tClasses = Array.isArray(t.classes) ? t.classes : [];
+            const tSubs = Array.isArray(t.subjects) ? t.subjects : [];
+            const teachesClass = tClasses.includes(targetClassId);
+            const teachesSub = tSubs.includes(chosenSub.id) || tSubs.includes(chosenSub.name);
+            return teachesClass && teachesSub && isTeacherActive(t.active);
+          }) || detail.teachers.find((t) => isTeacherActive(t.active)) || detail.teachers[0];
+
+          setDraft({
+            subjectId: chosenSub.id,
+            teacherId: qualifiedTeacher?.id || '',
+            roomId: detail.rooms?.[0]?.id || '',
+          });
+        }
+      }
+    };
+
+    window.addEventListener('tutorial:fill-sample', handleSampleFill);
+    return () => window.removeEventListener('tutorial:fill-sample', handleSampleFill);
+  }, [detail, view, selectedId, sheetOpen]);
+
   const handleSave = async () => {
     if (!editCell || !draft.subjectId || !draft.teacherId) {
       toast.error('Please select both a subject and a faculty member');
@@ -418,6 +471,11 @@ export default function TimetableEditPage() {
       setSheetOpen(false);
       await load(false);
       toast.success('Slot assignment saved successfully');
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('tutorial:creation-success', { detail: { type: 'timetable-slot' } })
+        );
+      }
     } catch (e: any) {
       console.error(e);
       toast.error(e?.message || 'Failed to save slot assignment');
@@ -479,6 +537,7 @@ export default function TimetableEditPage() {
     const tempId = `row-${crypto.randomUUID()}`;
     const newRow: ExtendedPeriod = {
       id: tempId,
+      name: isBreak ? 'LUNCH BREAK' : `Period ${detail.periods.filter(p => !p.isBreak).length + 1}`,
       periodNumber: isBreak ? 0 : detail.periods.filter(p => !p.isBreak).length + 1,
       label: isBreak ? 'LUNCH BREAK' : '',
       startTime: "00:00",
@@ -589,7 +648,7 @@ export default function TimetableEditPage() {
       )}
 
       {/* Main Header Area */}
-      <GlassCard className="p-4 sm:p-5">
+      <GlassCard data-tour="timetable-edit-header" className="p-4 sm:p-5">
         <div className="flex flex-col gap-4">
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2 min-w-0 flex-1">
@@ -612,6 +671,19 @@ export default function TimetableEditPage() {
               </div>
             </div>
             <div className="flex items-center gap-2 shrink-0">
+              <Button
+                variant="outline"
+                size="sm"
+                data-tour="timetable-tutorial-btn"
+                onClick={() => jumpToModuleTour('timetable-editor')}
+                className="rounded-xl h-9 text-xs font-bold border-indigo-500/30 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 gap-1.5 shadow-xs px-3 transition-all cursor-pointer"
+                title="Launch Interactive Timetable Editor Tutorial"
+              >
+                <HelpCircle className="h-3.5 w-3.5 text-indigo-500" />
+                <span className="hidden sm:inline">Editor Tutorial</span>
+                <span className="sm:hidden">Guide</span>
+              </Button>
+
               {(() => {
                 const planName = String(schoolPlan?.name || '').toLowerCase();
                 const isPremiumOrElite = planName.includes('elite') || planName.includes('premium');
@@ -619,6 +691,7 @@ export default function TimetableEditPage() {
 
                 return (
                   <Button
+                    data-tour="timetable-ai-generate"
                     onClick={() => {
                       if (isAiLocked) {
                         toast.error(`"Generate with AI" is not included in your ${schoolPlan?.name || 'current'} plan. Please upgrade to unlock this feature.`);
@@ -659,7 +732,7 @@ export default function TimetableEditPage() {
 
       {/* Dynamic Class Selection List */}
       <div className="flex flex-col gap-4">
-        <GlassCard className="p-3 w-full overflow-hidden">
+        <GlassCard data-tour="timetable-select-class" className="p-3 w-full overflow-hidden">
           <div className="flex items-center gap-2 mb-2 text-xs font-bold text-muted-foreground uppercase tracking-wider px-1">
             <Layers className="h-3.5 w-3.5 text-indigo-500" />
             <span>Select Active Class</span>
@@ -882,7 +955,7 @@ export default function TimetableEditPage() {
         </div>
 
       {workload && (
-        <GlassCard className="p-4 sm:p-6">
+        <GlassCard data-tour="timetable-workload-panel" className="p-4 sm:p-6">
           <WorkloadPanel
             teacherWorkload={workload.teacherWorkload}
             classWorkload={workload.classWorkload}
@@ -927,9 +1000,9 @@ export default function TimetableEditPage() {
         open={aiModalOpen}
         onOpenChange={setAiModalOpen}
         timetableId={timetableId}
-        teachers={detail.teachers}
-        subjects={detail.subjects}
-        classes={detail.classes}
+        teachers={detail.teachers as any}
+        subjects={detail.subjects as any}
+        classes={detail.classes as any}
         currentClassId={view === 'section' ? selectedId : (classFilter !== 'all' ? classFilter : detail?.classes[0]?.id)}
         onSuccess={async () => {
           await load(false);

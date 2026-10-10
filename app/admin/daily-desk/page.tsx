@@ -47,7 +47,9 @@ import {
   User,
   BookOpen,
   Filter,
+  HelpCircle,
 } from 'lucide-react';
+import { useTutorial } from '@/lib/tutorial/tutorial-context';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -87,6 +89,7 @@ export default function DailyDeskPage() {
   const auth = useRequireAuth(isPublicView ? null : 'admin');
   const router = useRouter();
   const { theme } = usePlanTheme();
+  const { jumpToModuleTour } = useTutorial();
 
   // 3. Component Core Reactive States
   const [gridData, setGridData] = useState<DailyDeskGrid | null>(null);
@@ -1286,13 +1289,27 @@ export default function DailyDeskPage() {
               { label: 'Daily Desk' },
             ]}
             actions={
-              <button
-                onClick={() => { void loadData(); router.refresh(); }}
-                className='flex items-center gap-2 text-xs bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5 rounded-xl text-emerald-600 dark:text-emerald-400 font-bold uppercase tracking-wider shadow-sm hover:bg-emerald-500/20 transition-all'
-              >
-                <Radio className='h-3.5 w-3.5 animate-pulse text-emerald-500' />
-                Force Sync
-              </button>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  data-tour="daily-desk-guide-btn"
+                  onClick={() => jumpToModuleTour('daily-desk')}
+                  className="rounded-xl h-9 text-xs font-bold border-indigo-500/30 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 gap-1.5 shadow-xs px-3 transition-all cursor-pointer"
+                  title="Launch Daily Desk Interactive Guide"
+                >
+                  <HelpCircle className="h-3.5 w-3.5 text-indigo-500" />
+                  <span className="hidden sm:inline">Daily Desk Guide</span>
+                  <span className="sm:hidden">Guide</span>
+                </Button>
+                <button
+                  onClick={() => { void loadData(); router.refresh(); }}
+                  className='flex items-center gap-2 text-xs bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5 rounded-xl text-emerald-600 dark:text-emerald-400 font-bold uppercase tracking-wider shadow-sm hover:bg-emerald-500/20 transition-all'
+                >
+                  <Radio className='h-3.5 w-3.5 animate-pulse text-emerald-500' />
+                  Force Sync
+                </button>
+              </div>
             }
           />
         </div>
@@ -1328,7 +1345,7 @@ export default function DailyDeskPage() {
 
               {/* CONTROLS BAR */}
               <div className="flex flex-wrap items-center gap-2 self-start sm:self-center print:hidden">
-                <div className="flex items-center gap-1 rounded-xl border border-border/80 bg-background/80 p-1 shadow-xs">
+                <div data-tour="daily-desk-zoom-controls" className="flex items-center gap-1 rounded-xl border border-border/80 bg-background/80 p-1 shadow-xs">
                   <Button
                     size="sm"
                     variant="ghost"
@@ -1374,6 +1391,7 @@ export default function DailyDeskPage() {
                     <Button
                       size="sm"
                       variant="outline"
+                      data-tour="daily-desk-export"
                       disabled={isTimetableEmpty}
                       className="rounded-xl text-xs font-semibold h-9 border-border/80 hover:bg-muted shadow-xs gap-1.5 cursor-pointer"
                     >
@@ -1411,7 +1429,7 @@ export default function DailyDeskPage() {
 
             {/* MATRIX FILTER CONTROLS (FACULTY & SUBJECT) */}
             {!isTimetableEmpty && (
-              <div className="flex flex-wrap items-center justify-between gap-2.5 p-2.5 sm:p-3 bg-muted/40 dark:bg-muted/20 border border-border/70 rounded-2xl mb-4 print:hidden">
+              <div data-tour="daily-desk-filters" className="flex flex-wrap items-center justify-between gap-2.5 p-2.5 sm:p-3 bg-muted/40 dark:bg-muted/20 border border-border/70 rounded-2xl mb-4 print:hidden">
                 <div className="flex flex-wrap items-center gap-2 flex-1 min-w-[260px]">
                   {/* Faculty Filter */}
                   <div className="flex items-center gap-1.5 bg-background border border-border/80 rounded-xl px-2.5 py-1.5 shadow-2xs text-xs">
@@ -1518,6 +1536,7 @@ export default function DailyDeskPage() {
               <div
                 ref={matrixContainerRef}
                 id="timetable-capture"
+                data-tour="daily-desk-matrix"
                 onMouseDown={handleMouseDown}
                 onMouseLeave={handleMouseLeave}
                 onMouseUp={handleMouseUp}
@@ -1851,7 +1870,7 @@ export default function DailyDeskPage() {
         {/* SIDEBAR DASHBOARD DISPATCH CONTROL PANEL */}
         {!isPublicView && (
           <div className='w-full max-w-full xl:max-w-[360px] xl:ml-auto print:hidden space-y-6'>
-            <GlassCard className='p-3 sm:p-5 xl:sticky xl:top-6 space-y-4'>
+            <GlassCard data-tour="daily-desk-cover-panel" className='p-3 sm:p-5 xl:sticky xl:top-6 space-y-4'>
               <div className='flex items-center justify-between pb-2 border-b border-border/40'>
                 <div>
                   <h2 className='text-sm font-bold uppercase tracking-wider text-foreground'>Cover Assignments</h2>
@@ -2256,13 +2275,13 @@ export default function DailyDeskPage() {
                           key={p.id}
                           className={cn(
                             'p-3 border-l border-border/40 text-center min-w-[180px] w-[200px]',
-                            p.isBreak ? 'bg-amber-500/15 dark:bg-amber-500/25 border-b-2 border-b-amber-500/50' : ''
+                            (p as any).isBreak ? 'bg-amber-500/15 dark:bg-amber-500/25 border-b-2 border-b-amber-500/50' : ''
                           )}
                         >
-                          <div className={cn('text-xs font-bold uppercase tracking-wider', p.isBreak ? 'text-amber-700 dark:text-amber-400' : 'text-foreground')}>
-                            {p.isBreak ? (p.label || 'BREAK') : `P${p.periodNumber}`}
+                          <div className={cn('text-xs font-bold uppercase tracking-wider', (p as any).isBreak ? 'text-amber-700 dark:text-amber-400' : 'text-foreground')}>
+                            {(p as any).isBreak ? ((p as any).label || 'BREAK') : `P${p.periodNumber}`}
                           </div>
-                          <div className={cn('text-[10px] font-medium mt-0.5', p.isBreak ? 'text-amber-600 dark:text-amber-400/80' : 'text-muted-foreground')}>
+                          <div className={cn('text-[10px] font-medium mt-0.5', (p as any).isBreak ? 'text-amber-600 dark:text-amber-400/80' : 'text-muted-foreground')}>
                             {p.startTime}–{p.endTime}
                           </div>
                         </th>
@@ -2277,7 +2296,7 @@ export default function DailyDeskPage() {
                         </td>
 
                         {(historyGridData.periods ?? []).map((period) => {
-                          if (period.isBreak) {
+                          if ((period as any).isBreak) {
                             return (
                               <td
                                 key={`${cls.id}-${period.id}`}
@@ -2286,7 +2305,7 @@ export default function DailyDeskPage() {
                                 <div className="flex flex-col items-center justify-center gap-1.5 h-full py-4 min-h-[100px] rounded-lg border border-amber-500/20 bg-amber-500/5 dark:bg-amber-500/10">
                                   <Coffee className="h-4 w-4 text-amber-600 dark:text-amber-400 opacity-80" />
                                   <span className="text-xs font-extrabold uppercase tracking-wider text-amber-800 dark:text-amber-300">
-                                    {period.label || 'LUNCH BREAK'}
+                                    {(period as any).label || 'LUNCH BREAK'}
                                   </span>
                                   <span className="text-[10px] font-medium text-amber-600 dark:text-amber-400/80">
                                     {period.startTime} – {period.endTime}
@@ -2296,8 +2315,8 @@ export default function DailyDeskPage() {
                             );
                           }
 
-                          const periodRow = (historyGridData.grid ?? []).find((row) => row.periodId === period.id);
-                          const cell = periodRow?.cells?.find((c) => c.classId === cls.id);
+                          const periodRow = (historyGridData.grid ?? []).find((row: any) => row.periodId === period.id || (row.slots && row.slots.some((s: any) => s.periodId === period.id)));
+                          const cell = (periodRow as any)?.cells?.find((c: any) => c.classId === cls.id) || (periodRow as any)?.slots?.find((s: any) => s.periodId === period.id);
 
                           if (!cell || cell.empty) {
                             return (

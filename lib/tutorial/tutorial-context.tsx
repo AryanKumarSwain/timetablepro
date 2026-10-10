@@ -17,12 +17,13 @@ interface TutorialContextType {
   isWelcomeOpen: boolean;
   isTourActive: boolean;
   isHelpCenterOpen: boolean;
+  activeModuleKey: string | null;
   currentStepIndex: number;
   currentStep: TutorialStep | null;
   totalSteps: number;
   isNavigatingRoute: boolean;
   state: TutorialPersistenceState;
-  startTour: (stepIndex?: number) => void;
+  startTour: (stepIndex?: number, moduleKey?: string | null) => void;
   nextStep: () => void;
   prevStep: () => void;
   skipTour: () => void;
@@ -53,6 +54,7 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
   const [mounted, setMounted] = useState(false);
   const [isWelcomeOpen, setIsWelcomeOpen] = useState(false);
   const [isTourActive, setIsTourActive] = useState(false);
+  const [activeModuleKey, setActiveModuleKey] = useState<string | null>(null);
   const [isHelpCenterOpen, setIsHelpCenterOpen] = useState(false);
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [isNavigatingRoute, setIsNavigatingRoute] = useState(false);
@@ -129,8 +131,33 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
 
   // Handle step route synchronization
   const navigateToStepRoute = useCallback(
-    (targetStep: TutorialStep) => {
+    async (targetStep: TutorialStep) => {
       if (!targetStep.route) return;
+
+      // Special handling for dynamic timetable editor routes
+      if (targetStep.route === '/admin/timetables/editor') {
+        if (pathname.startsWith('/admin/timetables/') && pathname.includes('/edit')) {
+          setIsNavigatingRoute(false);
+          return;
+        }
+
+        try {
+          setIsNavigatingRoute(true);
+          const { getTimetables } = await import('@/lib/api-services');
+          const list = await getTimetables();
+          const target = list[0];
+          if (target?.id) {
+            router.push(`/admin/timetables/${target.id}/edit`);
+          } else {
+            router.push('/admin/timetables');
+          }
+        } catch {
+          router.push('/admin/timetables');
+        } finally {
+          setTimeout(() => setIsNavigatingRoute(false), 700);
+        }
+        return;
+      }
 
       if (pathname !== targetStep.route) {
         setIsNavigatingRoute(true);
@@ -148,10 +175,11 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
   );
 
   const startTour = useCallback(
-    (startFromIndex = 0) => {
+    (startFromIndex = 0, moduleKey: string | null = null) => {
       const validIndex = Math.max(0, Math.min(startFromIndex, steps.length - 1));
       setIsWelcomeOpen(false);
       setIsHelpCenterOpen(false);
+      setActiveModuleKey(moduleKey);
       setCurrentStepIndex(validIndex);
       setIsTourActive(true);
 
@@ -169,11 +197,37 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
     [steps, navigateToStepRoute, saveState]
   );
 
+  const finishTour = useCallback(() => {
+    setIsTourActive(false);
+    setActiveModuleKey(null);
+    saveState({
+      hasSeenWelcome: true,
+      isCompleted: true,
+      isSkipped: false,
+      completedAt: new Date().toISOString(),
+    });
+  }, [saveState]);
+
+  const skipTour = useCallback(() => {
+    setIsTourActive(false);
+    setActiveModuleKey(null);
+    saveState({
+      hasSeenWelcome: true,
+      isSkipped: true,
+      skippedAt: new Date().toISOString(),
+    });
+  }, [saveState]);
+
   const nextStep = useCallback(() => {
     if (currentStepIndex < steps.length - 1) {
       const nextIndex = currentStepIndex + 1;
-      setCurrentStepIndex(nextIndex);
       const nextTargetStep = steps[nextIndex];
+      // If tour was started for a specific module and next step moves to another module, complete module tour!
+      if (activeModuleKey && nextTargetStep?.moduleKey !== activeModuleKey) {
+        finishTour();
+        return;
+      }
+      setCurrentStepIndex(nextIndex);
       if (nextTargetStep) {
         navigateToStepRoute(nextTargetStep);
       }
@@ -182,38 +236,23 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
       // Completed all steps!
       finishTour();
     }
-  }, [currentStepIndex, steps, navigateToStepRoute, saveState]);
+  }, [currentStepIndex, steps, activeModuleKey, navigateToStepRoute, saveState, finishTour]);
 
   const prevStep = useCallback(() => {
     if (currentStepIndex > 0) {
       const prevIndex = currentStepIndex - 1;
-      setCurrentStepIndex(prevIndex);
       const prevTargetStep = steps[prevIndex];
+      // Do not step back into a different module if scoped to current module
+      if (activeModuleKey && prevTargetStep?.moduleKey !== activeModuleKey) {
+        return;
+      }
+      setCurrentStepIndex(prevIndex);
       if (prevTargetStep) {
         navigateToStepRoute(prevTargetStep);
       }
       saveState({ currentStepIndex: prevIndex });
     }
-  }, [currentStepIndex, steps, navigateToStepRoute, saveState]);
-
-  const skipTour = useCallback(() => {
-    setIsTourActive(false);
-    saveState({
-      hasSeenWelcome: true,
-      isSkipped: true,
-      skippedAt: new Date().toISOString(),
-    });
-  }, [saveState]);
-
-  const finishTour = useCallback(() => {
-    setIsTourActive(false);
-    saveState({
-      hasSeenWelcome: true,
-      isCompleted: true,
-      isSkipped: false,
-      completedAt: new Date().toISOString(),
-    });
-  }, [saveState]);
+  }, [currentStepIndex, steps, activeModuleKey, navigateToStepRoute, saveState]);
 
   const openHelpCenter = useCallback(() => {
     setIsHelpCenterOpen(true);
@@ -238,12 +277,12 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
   const restartTutorial = useCallback(() => {
     setIsHelpCenterOpen(false);
     setIsWelcomeOpen(false);
-    startTour(0);
+    startTour(0, null);
   }, [startTour]);
 
   const jumpToStep = useCallback(
     (index: number) => {
-      startTour(index);
+      startTour(index, null);
     },
     [startTour]
   );
@@ -252,10 +291,10 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
     (moduleKey: string) => {
       const stepIdx = steps.findIndex((s) => s.moduleKey === moduleKey);
       if (stepIdx !== -1) {
-        startTour(stepIdx);
+        startTour(stepIdx, moduleKey);
       } else {
         // Fallback to 0 if not found
-        startTour(0);
+        startTour(0, null);
       }
     },
     [steps, startTour]
@@ -265,6 +304,7 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
     isWelcomeOpen,
     isTourActive,
     isHelpCenterOpen,
+    activeModuleKey,
     currentStepIndex,
     currentStep,
     totalSteps: steps.length,

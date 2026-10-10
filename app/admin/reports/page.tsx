@@ -45,12 +45,15 @@ import {
   Calendar,
   Lock,
   ChevronDown,
+  HelpCircle,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useTutorial } from '@/lib/tutorial/tutorial-context';
 
 export default function AdminReportsPage() {
   useRequireAuth('admin');
   const { user } = useAuth();
+  const { jumpToModuleTour } = useTutorial();
 
   const [reports, setReports] = useState<DailyReportData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -235,6 +238,20 @@ export default function AdminReportsPage() {
             { label: 'Academic' },
             { label: 'Reports' },
           ]}
+          actions={
+            <Button
+              variant="outline"
+              size="sm"
+              data-tour="reports-guide-btn"
+              onClick={() => jumpToModuleTour('reports')}
+              className="rounded-xl h-9 text-xs font-bold border-indigo-500/30 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 gap-1.5 shadow-xs px-3 transition-all cursor-pointer"
+              title="Launch Reports Interactive Guide"
+            >
+              <HelpCircle className="h-3.5 w-3.5 text-indigo-500" />
+              <span className="hidden sm:inline">Reports Guide</span>
+              <span className="sm:hidden">Guide</span>
+            </Button>
+          }
         />
       </div>
 
@@ -263,7 +280,7 @@ export default function AdminReportsPage() {
         schoolId={user?.schoolId || undefined}
       >
         {/* STATS OVERVIEW CARDS */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <div data-tour="reports-stats" className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           <GlassCard className="p-5 flex items-center gap-4">
             <div className="p-3 rounded-xl bg-purple-500/10 text-purple-600 dark:text-purple-400">
               <FileText className="h-6 w-6" />
@@ -306,7 +323,7 @@ export default function AdminReportsPage() {
         </div>
 
         {/* SEARCH & FILTER TOOLBAR */}
-        <GlassCard className="p-4 md:p-5 space-y-4">
+        <GlassCard data-tour="reports-filters" className="p-4 md:p-5 space-y-4">
           <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
             {/* Search Teacher */}
             <div className="relative flex-1 min-w-[240px]">
@@ -365,7 +382,7 @@ export default function AdminReportsPage() {
           
           {/* PANEL A: FACULTY ROSTER */}
           <div className='lg:col-span-3'>
-            <GlassCard className="p-4 space-y-3">
+            <GlassCard data-tour="reports-faculty-roster" className="p-4 space-y-3">
               <div className="flex items-center justify-between px-1">
                 <h4 className='font-bold text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-1.5'>
                   <Users className="h-3.5 w-3.5 text-purple-500" />
@@ -419,7 +436,7 @@ export default function AdminReportsPage() {
 
           {/* PANEL B: LOGGED ENTRIES HISTORY */}
           <div className='lg:col-span-6'>
-            <GlassCard className="p-4 sm:p-5 space-y-4">
+            <GlassCard data-tour="reports-entries-history" className="p-4 sm:p-5 space-y-4">
               <div className='flex items-center justify-between border-b border-border/50 pb-3'>
                 <div>
                   <h3 className='font-extrabold text-base sm:text-lg text-foreground flex items-center gap-2'>
@@ -527,7 +544,7 @@ export default function AdminReportsPage() {
 
           {/* PANEL C: CALENDAR CHECKPOINTS */}
           <div className='lg:col-span-3'>
-            <GlassCard className="p-4 space-y-3">
+            <GlassCard data-tour="reports-calendar-checkpoints" className="p-4 space-y-3">
               <div className="flex items-center justify-between px-1">
                 <h4 className='font-bold text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-1.5'>
                   <Calendar className="h-3.5 w-3.5 text-purple-500" />

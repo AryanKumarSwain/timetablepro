@@ -23,7 +23,9 @@ import {
   FileCheck,
   FileSpreadsheet,
   Lock,
+  HelpCircle,
 } from 'lucide-react';
+import { useTutorial } from '@/lib/tutorial/tutorial-context';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -87,6 +89,7 @@ const statusColors = {
 export default function AdminLessonPlanningPage() {
   const auth = useRequireAuth('admin');
   const { user } = useAuth();
+  const { jumpToModuleTour } = useTutorial();
   
   const todayStr = format(new Date(), 'yyyy-MM-dd');
   const [dateFrom, setDateFrom] = useState(todayStr);
@@ -364,41 +367,55 @@ export default function AdminLessonPlanningPage() {
               { label: 'Lesson Planning' },
             ]}
             actions={
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    disabled={isLoading}
-                    className="gap-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold shadow-md shadow-purple-500/20 hover:-translate-y-0.5 transition-all cursor-pointer"
-                  >
-                    <Download className="h-4 w-4" />
-                    <span>Export Curriculum</span>
-                    <ChevronDown className="h-3.5 w-3.5 opacity-60" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-52 rounded-xl">
-                  <DropdownMenuItem onClick={() => handleExport('pdf')} className="cursor-pointer text-xs flex items-center justify-between">
-                    <span className="flex items-center gap-2">
-                      <FileText className="h-4 w-4 text-rose-500" />
-                      <span>Export as PDF</span>
-                    </span>
-                    {!isFormatAllowed('pdf') && <Lock className="h-3 w-3 text-muted-foreground" />}
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleExport('docx')} className="cursor-pointer text-xs flex items-center justify-between">
-                    <span className="flex items-center gap-2">
-                      <FileCheck className="h-4 w-4 text-blue-500" />
-                      <span>Export as Word Document</span>
-                    </span>
-                    {!isFormatAllowed('docx') && <Lock className="h-3 w-3 text-muted-foreground" />}
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleExport('csv')} className="cursor-pointer text-xs flex items-center justify-between">
-                    <span className="flex items-center gap-2">
-                      <FileSpreadsheet className="h-4 w-4 text-emerald-500" />
-                      <span>Export as CSV</span>
-                    </span>
-                    {!isFormatAllowed('csv') && <Lock className="h-3 w-3 text-muted-foreground" />}
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  data-tour="lesson-planning-guide-btn"
+                  onClick={() => jumpToModuleTour('lesson-planning')}
+                  className="rounded-xl h-9 text-xs font-bold border-indigo-500/30 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 gap-1.5 shadow-xs px-3 transition-all cursor-pointer"
+                  title="Launch Lesson Planning Interactive Guide"
+                >
+                  <HelpCircle className="h-3.5 w-3.5 text-indigo-500" />
+                  <span className="hidden sm:inline">Planning Guide</span>
+                  <span className="sm:hidden">Guide</span>
+                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      disabled={isLoading}
+                      className="gap-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold shadow-md shadow-purple-500/20 hover:-translate-y-0.5 transition-all cursor-pointer"
+                    >
+                      <Download className="h-4 w-4" />
+                      <span>Export Curriculum</span>
+                      <ChevronDown className="h-3.5 w-3.5 opacity-60" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-52 rounded-xl">
+                    <DropdownMenuItem onClick={() => handleExport('pdf')} className="cursor-pointer text-xs flex items-center justify-between">
+                      <span className="flex items-center gap-2">
+                        <FileText className="h-4 w-4 text-rose-500" />
+                        <span>Export as PDF</span>
+                      </span>
+                      {!isFormatAllowed('pdf') && <Lock className="h-3 w-3 text-muted-foreground" />}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleExport('docx')} className="cursor-pointer text-xs flex items-center justify-between">
+                      <span className="flex items-center gap-2">
+                        <FileCheck className="h-4 w-4 text-blue-500" />
+                        <span>Export as Word Document</span>
+                      </span>
+                      {!isFormatAllowed('docx') && <Lock className="h-3 w-3 text-muted-foreground" />}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleExport('csv')} className="cursor-pointer text-xs flex items-center justify-between">
+                      <span className="flex items-center gap-2">
+                        <FileSpreadsheet className="h-4 w-4 text-emerald-500" />
+                        <span>Export as CSV</span>
+                      </span>
+                      {!isFormatAllowed('csv') && <Lock className="h-3 w-3 text-muted-foreground" />}
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
             }
           />
         </div>
@@ -422,7 +439,7 @@ export default function AdminLessonPlanningPage() {
         </AnimatePresence>
 
         {/* STATS OVERVIEW CARDS */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <div data-tour="lesson-planning-stats" className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           <GlassCard className="p-5 flex items-center gap-4">
             <div className="p-3 rounded-xl bg-purple-500/10 text-purple-600 dark:text-purple-400">
               <BookMarked className="h-6 w-6" />
@@ -465,7 +482,7 @@ export default function AdminLessonPlanningPage() {
         </div>
 
         {/* SEARCH & FILTERS TOOLBAR */}
-        <GlassCard className="p-4 md:p-5 space-y-4">
+        <GlassCard data-tour="lesson-planning-filters" className="p-4 md:p-5 space-y-4">
           <div className="flex flex-col lg:flex-row gap-3 sm:gap-4 items-stretch lg:items-center justify-between">
             {/* Search Input */}
             <div className="relative flex-1 min-w-[240px]">
@@ -607,7 +624,7 @@ export default function AdminLessonPlanningPage() {
                 <p className="text-muted-foreground text-xs mt-1">Try adjusting your date range or filter criteria.</p>
               </GlassCard>
             ) : (
-              <div className="space-y-6">
+              <div data-tour="lesson-planning-list" className="space-y-6">
                 {Object.entries(lessonsByDate).map(([date, lessons]) => (
                   <GlassCard key={date} className="overflow-hidden p-0 border-purple-500/20 shadow-sm">
                     {/* Date Header */}

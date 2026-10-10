@@ -26,8 +26,10 @@ import {
   Lock,
   ArrowRight,
   ExternalLink,
+  HelpCircle,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useTutorial } from '@/lib/tutorial/tutorial-context';
 import { cn, formatClassName } from '@/lib/utils';
 import type { Subject, Teacher, Class } from '@/lib/types';
 
@@ -67,6 +69,7 @@ export function AiGenerateModal({
   onSuccess,
 }: AiGenerateModalProps) {
   const router = useRouter();
+  const { jumpToModuleTour } = useTutorial();
 
   // Generation Options
   const [scope, setScope] = useState<'all' | 'current'>('all');
@@ -181,25 +184,39 @@ export function AiGenerateModal({
       <DialogContent className="sm:max-w-xl md:max-w-2xl rounded-3xl p-6 shadow-2xl border-purple-500/20 max-h-[90vh] overflow-y-auto">
         {/* MODAL HEADER */}
         <DialogHeader className="pb-4 border-b border-border/60">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-2xl bg-gradient-to-tr from-purple-600 to-indigo-600 text-white flex items-center justify-center shadow-md shadow-purple-500/20 shrink-0">
-              <Sparkles className="h-5 w-5" />
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-2xl bg-gradient-to-tr from-purple-600 to-indigo-600 text-white flex items-center justify-center shadow-md shadow-purple-500/20 shrink-0">
+                <Sparkles className="h-5 w-5" />
+              </div>
+              <div>
+                <DialogTitle className="text-xl font-bold text-foreground flex items-center gap-2">
+                  Generate Timetable with AI
+                </DialogTitle>
+                <DialogDescription className="text-xs text-muted-foreground mt-0.5">
+                  Automatically schedules conflict-free periods using your catalog&apos;s class, subject, and teacher linkages.
+                </DialogDescription>
+              </div>
             </div>
-            <div>
-              <DialogTitle className="text-xl font-bold text-foreground flex items-center gap-2">
-                Generate Timetable with AI
-              </DialogTitle>
-              <DialogDescription className="text-xs text-muted-foreground mt-0.5">
-                Automatically schedules conflict-free periods using your catalog&apos;s class, subject, and teacher linkages.
-              </DialogDescription>
-            </div>
+
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => jumpToModuleTour('ai-generator')}
+              className="h-8 rounded-xl text-xs font-bold border-purple-500/30 bg-purple-500/10 hover:bg-purple-500/20 text-purple-600 dark:text-purple-400 gap-1.5 shadow-xs px-2.5 transition-all mr-6 cursor-pointer"
+              title="Launch Guided Tutorial for AI Generator"
+            >
+              <HelpCircle className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400" />
+              <span>AI Guide</span>
+            </Button>
           </div>
         </DialogHeader>
 
         {/* CONTENT */}
         <div className="space-y-5 py-2">
           {/* STATS OVERVIEW */}
-          <div className="grid grid-cols-3 gap-3">
+          <div data-tour="ai-modal-stats" className="grid grid-cols-3 gap-3">
             <div className="p-3 rounded-2xl bg-muted/40 border border-border/60 flex items-center gap-3">
               <div className="p-2 rounded-xl bg-primary/10 text-primary shrink-0">
                 <Layers className="h-4 w-4" />
@@ -266,7 +283,7 @@ export function AiGenerateModal({
 
           {/* TEACHER ASSIGNMENT REQUIRED WARNING / REDIRECT BANNER */}
           {configuredTeachers.length === 0 ? (
-            <div className="rounded-2xl border border-amber-500/30 bg-amber-50/70 dark:bg-amber-950/25 p-4 shadow-xs">
+            <div data-tour="ai-modal-readiness" className="rounded-2xl border border-amber-500/30 bg-amber-50/70 dark:bg-amber-950/25 p-4 shadow-xs">
               <div className="flex items-start gap-3.5">
                 <div className="p-2.5 rounded-xl bg-amber-500/15 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5">
                   <Lock className="h-5 w-5" />
@@ -363,16 +380,17 @@ export function AiGenerateModal({
           )}
 
           {/* SCOPE SELECTION */}
-          <div className="space-y-2">
+          <div data-tour="ai-modal-scope" className="space-y-2">
             <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
               Scheduling Scope
             </label>
             <div className="grid grid-cols-2 gap-2.5">
               <button
+                data-tour="ai-modal-scope-all"
                 type="button"
                 onClick={() => setScope('all')}
                 className={cn(
-                  'p-3 rounded-xl border text-left transition-all flex items-start justify-between',
+                  'p-3 rounded-xl border text-left transition-all flex items-start justify-between cursor-pointer',
                   scope === 'all'
                     ? 'border-purple-600 bg-purple-50/50 dark:bg-purple-950/20 text-foreground ring-1 ring-purple-600'
                     : 'border-border bg-card hover:border-border/80 text-muted-foreground'
@@ -388,11 +406,12 @@ export function AiGenerateModal({
               </button>
 
               <button
+                data-tour="ai-modal-scope-current"
                 type="button"
                 onClick={() => setScope('current')}
                 disabled={!currentClassId}
                 className={cn(
-                  'p-3 rounded-xl border text-left transition-all flex items-start justify-between',
+                  'p-3 rounded-xl border text-left transition-all flex items-start justify-between cursor-pointer',
                   !currentClassId && 'opacity-50 cursor-not-allowed',
                   scope === 'current'
                     ? 'border-purple-600 bg-purple-50/50 dark:bg-purple-950/20 text-foreground ring-1 ring-purple-600'
@@ -411,13 +430,13 @@ export function AiGenerateModal({
           </div>
 
           {/* OPTIMIZATION RULES */}
-          <div className="space-y-2.5">
+          <div data-tour="ai-modal-rules" className="space-y-2.5">
             <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
               AI Scheduling Rules
             </label>
 
             <div className="space-y-2">
-              <label className="flex items-center justify-between p-3 rounded-xl border border-border/70 hover:bg-muted/30 transition-all cursor-pointer">
+              <label data-tour="ai-modal-rule-workload" className="flex items-center justify-between p-3 rounded-xl border border-border/70 hover:bg-muted/30 transition-all cursor-pointer">
                 <div className="space-y-0.5 pr-4">
                   <span className="text-xs font-bold text-foreground block">
                     Balance Workload Evenly
@@ -430,11 +449,11 @@ export function AiGenerateModal({
                   type="checkbox"
                   checked={equalWorkload}
                   onChange={(e) => setEqualWorkload(e.target.checked)}
-                  className="h-4 w-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500 shrink-0"
+                  className="h-4 w-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500 shrink-0 cursor-pointer"
                 />
               </label>
 
-              <label className="flex items-center justify-between p-3 rounded-xl border border-border/70 hover:bg-muted/30 transition-all cursor-pointer">
+              <label data-tour="ai-modal-rule-spacing" className="flex items-center justify-between p-3 rounded-xl border border-border/70 hover:bg-muted/30 transition-all cursor-pointer">
                 <div className="space-y-0.5 pr-4">
                   <span className="text-xs font-bold text-foreground block">
                     Avoid Consecutive Same-Subject Periods
@@ -447,11 +466,11 @@ export function AiGenerateModal({
                   type="checkbox"
                   checked={avoidConsecutive}
                   onChange={(e) => setAvoidConsecutive(e.target.checked)}
-                  className="h-4 w-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500 shrink-0"
+                  className="h-4 w-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500 shrink-0 cursor-pointer"
                 />
               </label>
 
-              <label className="flex items-center justify-between p-3 rounded-xl border border-border/70 hover:bg-muted/30 transition-all cursor-pointer">
+              <label data-tour="ai-modal-rule-empty" className="flex items-center justify-between p-3 rounded-xl border border-border/70 hover:bg-muted/30 transition-all cursor-pointer">
                 <div className="space-y-0.5 pr-4">
                   <span className="text-xs font-bold text-foreground block">
                     Fill Only Empty Slots
@@ -464,7 +483,7 @@ export function AiGenerateModal({
                   type="checkbox"
                   checked={fillOnlyEmpty}
                   onChange={(e) => setFillOnlyEmpty(e.target.checked)}
-                  className="h-4 w-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500 shrink-0"
+                  className="h-4 w-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500 shrink-0 cursor-pointer"
                 />
               </label>
             </div>
@@ -484,6 +503,7 @@ export function AiGenerateModal({
           </Button>
 
           <Button
+            data-tour="ai-modal-submit"
             type="button"
             onClick={handleExecuteGeneration}
             disabled={generating || isLocked}

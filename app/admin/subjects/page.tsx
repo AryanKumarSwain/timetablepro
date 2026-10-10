@@ -33,10 +33,12 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog';
-import { Upload, CheckCircle2, Pencil, Trash2, BookOpen, Layers, Eye, AlertCircle } from 'lucide-react';
+import { Upload, CheckCircle2, Pencil, Trash2, BookOpen, Layers, Eye, AlertCircle, HelpCircle } from 'lucide-react';
+import { useTutorial } from '@/lib/tutorial/tutorial-context';
 
 export default function SubjectsPage() {
   useRequireAuth('admin');
+  const { jumpToModuleTour } = useTutorial();
 
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [classes, setClasses] = useState<Class[]>([]);
@@ -62,6 +64,26 @@ export default function SubjectsPage() {
   useEffect(() => {
     loadData();
     loadSchoolPlan();
+  }, []);
+
+  // Listen for guided tutorial sample auto-fill requests
+  useEffect(() => {
+    const handleSampleFill = (e: any) => {
+      if (e.detail?.type === 'subjects') {
+        setErrorMsg(null);
+        setSuccessMsg(null);
+        setShowForm(true);
+        setFormData({
+          name: 'Mathematics',
+          classIds: [],
+        });
+        if (typeof window !== 'undefined') {
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+      }
+    };
+    window.addEventListener('tutorial:fill-sample', handleSampleFill);
+    return () => window.removeEventListener('tutorial:fill-sample', handleSampleFill);
   }, []);
 
   const loadSchoolPlan = async () => {
@@ -161,6 +183,11 @@ export default function SubjectsPage() {
         resetForm();
         await createSubject(payload);
         loadSubjects();
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(
+            new CustomEvent('tutorial:creation-success', { detail: { type: 'subjects' } })
+          );
+        }
       }
     } catch (error: any) {
       console.error('Failed to save subject:', error);
@@ -337,6 +364,18 @@ export default function SubjectsPage() {
             !showForm ? (
               <div className='flex flex-wrap gap-2'>
                 <Button
+                  variant="outline"
+                  size="sm"
+                  data-tour="subjects-guide-btn"
+                  onClick={() => jumpToModuleTour('subjects')}
+                  className="rounded-xl h-9 text-xs font-bold border-indigo-500/30 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 gap-1.5 shadow-xs px-3 transition-all cursor-pointer"
+                  title="Launch Subjects Interactive Guide"
+                >
+                  <HelpCircle className="h-3.5 w-3.5 text-indigo-500" />
+                  <span className="hidden sm:inline">Subjects Guide</span>
+                  <span className="sm:hidden">Guide</span>
+                </Button>
+                <Button
                   variant='outline'
                   onClick={() => setImportOpen(true)}
                   className='rounded-xl'
@@ -387,7 +426,7 @@ export default function SubjectsPage() {
       )}
 
       {showForm && (
-        <Card className='p-6 mb-6 border-border animate-in fade-in duration-200'>
+        <Card data-tour="subjects-form" className='p-6 mb-6 border-border animate-in fade-in duration-200'>
           <h2 className='text-xl font-semibold text-foreground mb-4'>
             {editingId ? 'Edit Subject' : 'Add New Subject'}
           </h2>
@@ -397,6 +436,7 @@ export default function SubjectsPage() {
                 Subject Name
               </label>
               <Input
+                data-tour="subjects-name-input"
                 value={formData.name}
                 onChange={(e) => {
                   setErrorMsg(null);
@@ -494,6 +534,7 @@ export default function SubjectsPage() {
 
             <div className='flex gap-2 pt-3 border-t border-border/50'>
               <Button
+                data-tour="subjects-submit-btn"
                 type='submit'
                 className='bg-primary hover:bg-primary/90'
                 disabled={isDuplicateName || !formData.name.trim()}

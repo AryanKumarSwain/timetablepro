@@ -26,7 +26,9 @@ import {
   History,
   CalendarRange,
   Sparkles,
+  HelpCircle,
 } from 'lucide-react';
+import { useTutorial } from '@/lib/tutorial/tutorial-context';
 import {
   Dialog,
   DialogContent,
@@ -70,6 +72,7 @@ export default function AdminAttendancePage() {
   useRequireAuth('admin');
   const { user } = useAuth();
   const { theme } = usePlanTheme();
+  const { jumpToModuleTour } = useTutorial();
 
   const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
   
@@ -608,7 +611,20 @@ export default function AdminAttendancePage() {
         ]}
         actions={
           <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto pointer-events-auto">
+            <Button
+              variant="outline"
+              size="sm"
+              data-tour="attendance-guide-btn"
+              onClick={() => jumpToModuleTour('attendance')}
+              className="rounded-xl h-9 text-xs font-bold border-indigo-500/30 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 gap-1.5 shadow-xs px-3 transition-all cursor-pointer"
+              title="Launch Attendance Interactive Guide"
+            >
+              <HelpCircle className="h-3.5 w-3.5 text-indigo-500" />
+              <span className="hidden sm:inline">Attendance Guide</span>
+              <span className="sm:hidden">Guide</span>
+            </Button>
             <button
+              data-tour="attendance-history-btn"
               onClick={() => setHistoryModalOpen(true)}
               className={cn(
                 "inline-flex items-center justify-center px-3.5 h-9 rounded-xl text-xs font-bold gap-2 transition-all cursor-pointer",
@@ -689,7 +705,7 @@ export default function AdminAttendancePage() {
           )}
 
           {/* TODAY'S TARGET PRESENT/ABSENT OVERVIEW SEGMENT */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-muted/30 p-4 rounded-2xl border border-border/80">
+          <div data-tour="attendance-summary-cards" className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-muted/30 p-4 rounded-2xl border border-border/80">
             {/* Present Grid Column */}
             <div className="bg-card rounded-xl p-4 border border-emerald-500/20 shadow-sm space-y-3">
               <div className="flex items-center justify-between border-b border-border pb-2">
@@ -725,7 +741,7 @@ export default function AdminAttendancePage() {
           </div>
 
           {/* SEARCH/FILTERS CONTAINER */}
-          <div className="flex flex-col sm:flex-row gap-4 items-center">
+          <div data-tour="attendance-filters" className="flex flex-col sm:flex-row gap-4 items-center">
             <div className="relative flex-1 w-full">
               <Search className="absolute left-3.5 top-3 h-4 w-4 text-muted-foreground pointer-events-none" />
               <input
@@ -746,7 +762,7 @@ export default function AdminAttendancePage() {
           </div>
 
           {/* CORE MATRIX TABLE DESIGN - DESKTOP VIEW */}
-          <div className="hidden md:block glass-panel rounded-2xl overflow-hidden shadow-xl border overflow-x-auto">
+          <div data-tour="attendance-matrix-table" className="hidden md:block glass-panel rounded-2xl overflow-hidden shadow-xl border overflow-x-auto">
             <table className="w-full border-collapse text-left min-w-[800px]">
               <thead>
                 <tr className="bg-muted/80 border-b text-[10px] font-black uppercase tracking-widest text-muted-foreground">

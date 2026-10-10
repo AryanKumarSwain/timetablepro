@@ -1,6 +1,6 @@
 export type TourPlacement = 'top' | 'bottom' | 'left' | 'right' | 'auto';
 
-export type InteractivePracticeType = 'click' | 'explore' | 'preview' | 'tab' | 'action';
+export type InteractivePracticeType = 'click' | 'explore' | 'preview' | 'tab' | 'action' | 'form-create';
 
 export interface InteractivePractice {
   type: InteractivePracticeType;
@@ -8,6 +8,11 @@ export interface InteractivePractice {
   targetElementSelector?: string;
   practiceButtonText?: string;
   feedbackText: string;
+  formSelector?: string;
+  formPrompt?: string;
+  submitButtonSelector?: string;
+  entityType?: 'classes' | 'subjects' | 'teachers' | 'rooms' | 'timetables' | 'timetable-slot';
+  sampleButtonText?: string;
 }
 
 export interface TutorialStep {

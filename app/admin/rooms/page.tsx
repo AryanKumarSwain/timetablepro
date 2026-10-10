@@ -25,10 +25,12 @@ import {
 import { PageSkeleton } from '@/components/enterprise/page-skeleton';
 import { BulkCsvImportModal } from '@/components/enterprise/bulk-csv-import-modal';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
-import { Upload, CheckCircle2, DoorOpen, AlertCircle, Pencil, Trash2, Eye, MapPin, Layers } from 'lucide-react';
+import { Upload, CheckCircle2, DoorOpen, AlertCircle, Pencil, Trash2, Eye, MapPin, Layers, HelpCircle } from 'lucide-react';
+import { useTutorial } from '@/lib/tutorial/tutorial-context';
 
 export default function RoomsPage() {
   useRequireAuth('admin');
+  const { jumpToModuleTour } = useTutorial();
 
   const [rooms, setRooms] = useState<Room[]>([]);
   const [loading, setLoading] = useState(true);
@@ -47,6 +49,27 @@ export default function RoomsPage() {
 
   useEffect(() => {
     loadData();
+  }, []);
+
+  // Listen for guided tutorial sample auto-fill requests
+  useEffect(() => {
+    const handleSampleFill = (e: any) => {
+      if (e.detail?.type === 'rooms') {
+        setErrorMsg(null);
+        setSuccessMsg(null);
+        setShowForm(true);
+        setFormData({
+          roomNumber: 'Room 101',
+          floor: '1st Floor',
+          block: 'Main Block',
+        });
+        if (typeof window !== 'undefined') {
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+      }
+    };
+    window.addEventListener('tutorial:fill-sample', handleSampleFill);
+    return () => window.removeEventListener('tutorial:fill-sample', handleSampleFill);
   }, []);
 
   useEffect(() => {
@@ -94,6 +117,11 @@ export default function RoomsPage() {
         setSuccessMsg(`Room ${currentFormData.roomNumber} created successfully.`);
         resetForm();
         await loadData();
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(
+            new CustomEvent('tutorial:creation-success', { detail: { type: 'rooms' } })
+          );
+        }
       }
     } catch (error: any) {
       console.error('Failed to save room:', error);
@@ -168,6 +196,18 @@ export default function RoomsPage() {
             !showForm ? (
               <div className='flex flex-wrap gap-2'>
                 <Button
+                  variant="outline"
+                  size="sm"
+                  data-tour="rooms-guide-btn"
+                  onClick={() => jumpToModuleTour('rooms')}
+                  className="rounded-xl h-9 text-xs font-bold border-indigo-500/30 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 gap-1.5 shadow-xs px-3 transition-all cursor-pointer"
+                  title="Launch Rooms Interactive Guide"
+                >
+                  <HelpCircle className="h-3.5 w-3.5 text-indigo-500" />
+                  <span className="hidden sm:inline">Rooms Guide</span>
+                  <span className="sm:hidden">Guide</span>
+                </Button>
+                <Button
                   variant='outline'
                   onClick={() => setImportOpen(true)}
                   className='rounded-xl'
@@ -217,7 +257,7 @@ export default function RoomsPage() {
       )}
 
       {showForm && (
-        <Card className='p-6 mb-6 border-border animate-in fade-in duration-200'>
+        <Card data-tour="rooms-form" className='p-6 mb-6 border-border animate-in fade-in duration-200'>
           <h2 className='text-xl font-semibold text-foreground mb-4'>
             {editingId ? 'Edit Room' : 'Add New Room'}
           </h2>
@@ -228,6 +268,7 @@ export default function RoomsPage() {
                   Room No / Name <span className='text-rose-500'>*</span>
                 </label>
                 <Input
+                  data-tour="rooms-number-input"
                   value={formData.roomNumber}
                   onChange={(e) =>
                     setFormData({ ...formData, roomNumber: e.target.value })
@@ -263,7 +304,11 @@ export default function RoomsPage() {
             </div>
 
             <div className='flex gap-2 pt-2'>
-              <Button type='submit' className='bg-primary hover:bg-primary/90'>
+              <Button
+                data-tour="rooms-submit-btn"
+                type='submit'
+                className='bg-primary hover:bg-primary/90'
+              >
                 {editingId ? 'Update Room' : 'Create Room'}
               </Button>
               <Button

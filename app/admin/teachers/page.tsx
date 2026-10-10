@@ -55,8 +55,10 @@ import {
   Layers,
   Lock,
   AlertTriangle,
+  HelpCircle,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useTutorial } from '@/lib/tutorial/tutorial-context';
 import { formatClassName } from '@/lib/utils';
 
 type TeacherFormState = Omit<Teacher, 'id'> & {
@@ -77,6 +79,7 @@ const createEmptyTeacherForm = (): TeacherFormState => ({
 
 export default function TeachersPage() {
   useRequireAuth('admin');
+  const { jumpToModuleTour } = useTutorial();
 
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [classes, setClasses] = useState<Class[]>([]);
@@ -157,6 +160,29 @@ export default function TeachersPage() {
 
     return () => clearTimeout(timer);
   }, [successMsg]);
+
+  // Listen for guided tutorial sample auto-fill requests
+  useEffect(() => {
+    const handleSampleFill = (e: any) => {
+      if (e.detail?.type === 'teachers') {
+        setErrorMsg(null);
+        setSuccessMsg(null);
+        setShowForm(true);
+        const randomSuffix = Math.floor(100 + Math.random() * 900);
+        setFormData({
+          ...createEmptyTeacherForm(),
+          name: 'Dr. Sharma',
+          email: `sharma.${randomSuffix}@school.edu`,
+          phone: '9876543210',
+        });
+        if (typeof window !== 'undefined') {
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+      }
+    };
+    window.addEventListener('tutorial:fill-sample', handleSampleFill);
+    return () => window.removeEventListener('tutorial:fill-sample', handleSampleFill);
+  }, []);
 
   const loadData = async () => {
     try {
@@ -290,6 +316,11 @@ export default function TeachersPage() {
       } else {
         await createTeacher(payload);
         setSuccessMsg(`Teacher profile created and credentials sent to ${formData.email}. (Note: If not visible in Inbox, please check Spam/Junk folder)`);
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(
+            new CustomEvent('tutorial:creation-success', { detail: { type: 'teachers' } })
+          );
+        }
       }
       await loadTeachers();
       
@@ -857,6 +888,18 @@ export default function TeachersPage() {
             !showForm ? (
               <div className='flex flex-wrap gap-2'>
                 <Button
+                  variant="outline"
+                  size="sm"
+                  data-tour="teachers-guide-btn"
+                  onClick={() => jumpToModuleTour('teachers')}
+                  className="rounded-xl h-9 text-xs font-bold border-indigo-500/30 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 gap-1.5 shadow-xs px-3 transition-all cursor-pointer"
+                  title="Launch Teachers Interactive Guide"
+                >
+                  <HelpCircle className="h-3.5 w-3.5 text-indigo-500" />
+                  <span className="hidden sm:inline">Teachers Guide</span>
+                  <span className="sm:hidden">Guide</span>
+                </Button>
+                <Button
                   variant='outline'
                   onClick={() => setImportOpen(true)}
                   className='rounded-xl'
@@ -897,7 +940,7 @@ export default function TeachersPage() {
       )}
 
       {showForm && (
-        <Card className='p-6 mb-6 border-border animate-in fade-in duration-200'>
+        <Card data-tour="teachers-form" className='p-6 mb-6 border-border animate-in fade-in duration-200'>
           <h2 className='text-xl font-semibold text-foreground mb-4'>
             {editingId ? 'Edit Teacher' : 'Add New Teacher'}
           </h2>
@@ -918,6 +961,7 @@ export default function TeachersPage() {
                   Name
                 </label>
                 <Input
+                  data-tour="teachers-name-input"
                   value={formData.name || ''}
                   onChange={(e) =>
                     setFormData({ ...formData, name: e.target.value })
@@ -930,6 +974,7 @@ export default function TeachersPage() {
                   Email
                 </label>
                 <Input
+                  data-tour="teachers-email-input"
                   type='email'
                   value={formData.email || ''}
                   onChange={(e) =>
@@ -1236,6 +1281,7 @@ export default function TeachersPage() {
 
             <div className='flex gap-2 pt-3 border-t border-border/50'>
               <Button
+                data-tour="teachers-submit-btn"
                 type='submit'
                 className='bg-primary hover:bg-primary/90'
               >

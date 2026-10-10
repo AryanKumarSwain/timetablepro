@@ -24,6 +24,7 @@ import {
   RotateCcw,
   BookOpen,
   LayoutDashboard,
+  LayoutGrid,
   GraduationCap,
   Users,
   DoorOpen,
@@ -46,6 +47,8 @@ import { cn } from '@/lib/utils';
 
 const ICON_MAP: Record<string, React.ElementType> = {
   LayoutDashboard,
+  LayoutGrid,
+  Sparkles,
   GraduationCap,
   BookOpen,
   Users,

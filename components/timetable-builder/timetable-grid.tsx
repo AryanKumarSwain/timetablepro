@@ -291,7 +291,7 @@ export function TimetableGrid({
     <div className="space-y-6 w-full">
       {/* GLOBAL CONTROLS TOOLBAR */}
       <div className="w-full border border-border/60 bg-muted/10 rounded-2xl p-3 sm:p-5 flex flex-col xl:flex-row gap-3 sm:gap-4 xl:items-center justify-between shadow-sm">
-        <div className="flex flex-col gap-1.5 min-w-0 shrink-0 w-full xl:w-auto">
+        <div data-tour="timetable-working-days" className="flex flex-col gap-1.5 min-w-0 shrink-0 w-full xl:w-auto">
           <span className="text-[11px] sm:text-xs font-bold text-muted-foreground uppercase tracking-wider">Working Days</span>
           <div className="flex flex-wrap items-center gap-1 sm:gap-1.5 py-0.5">
             {/* FIXED: Loop over the static complete index array, not the state itself */}
@@ -316,7 +316,7 @@ export function TimetableGrid({
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-2.5 sm:flex sm:items-center sm:gap-6 shrink-0 w-full sm:w-auto">
+        <div data-tour="timetable-timings" className="grid grid-cols-2 gap-2.5 sm:flex sm:items-center sm:gap-6 shrink-0 w-full sm:w-auto">
           <div className="flex flex-col gap-1 min-w-0 sm:min-w-[140px]">
             <span className="text-[10px] sm:text-xs font-bold text-muted-foreground uppercase tracking-wider">Base Start Time</span>
             <div className="relative">
@@ -344,19 +344,19 @@ export function TimetableGrid({
       </div>
 
       {/* MATRIX GRID TIMELINE */}
-      <div className="w-full overflow-x-auto rounded-2xl border border-border/60 bg-background shadow-sm">
+      <div data-tour="timetable-grid" className="w-full overflow-x-auto rounded-2xl border border-border/60 bg-background shadow-sm">
         <div
           className="grid min-w-[600px] sm:min-w-[1000px]"
           style={{ gridTemplateColumns: `minmax(180px, 240px) repeat(${safeWorkingDays.length}, minmax(120px, 1fr))` }}
         >
           {/* STICKY PERIOD ENGINE HEADER */}
-          <div className="p-2 sm:p-4 border-b bg-background sticky left-0 z-20 font-semibold flex flex-col gap-1.5 justify-center border-r border-border/60 shadow-xs">
+          <div data-tour="timetable-engine" className="p-2 sm:p-4 border-b bg-background sticky left-0 z-20 font-semibold flex flex-col gap-1.5 justify-center border-r border-border/60 shadow-xs">
             <span className="text-[9px] sm:text-[11px] tracking-wider font-bold text-muted-foreground uppercase truncate">Timetable Engine</span>
             <div className="flex flex-col sm:flex-row gap-1 sm:gap-1.5 w-full min-w-0">
-              <Button size="sm" variant="outline" className="h-7 sm:h-8 text-[10px] sm:text-xs gap-1 px-1 sm:px-2 border-indigo-500/20 text-indigo-600 hover:bg-indigo-500/5 bg-background font-semibold rounded-lg sm:rounded-xl flex-1 justify-center whitespace-nowrap shrink-0" onClick={() => onAddRow(false)}>
+              <Button data-tour="timetable-add-period" size="sm" variant="outline" className="h-7 sm:h-8 text-[10px] sm:text-xs gap-1 px-1 sm:px-2 border-indigo-500/20 text-indigo-600 hover:bg-indigo-500/5 bg-background font-semibold rounded-lg sm:rounded-xl flex-1 justify-center whitespace-nowrap shrink-0" onClick={() => onAddRow(false)}>
                 <Plus className="h-3 w-3 shrink-0" /> + Period
               </Button>
-              <Button size="sm" variant="outline" className="h-7 sm:h-8 text-[10px] sm:text-xs gap-1 px-1 sm:px-2 border-amber-500/20 text-amber-600 hover:bg-amber-500/5 bg-background font-semibold rounded-lg sm:rounded-xl flex-1 justify-center whitespace-nowrap shrink-0" onClick={() => onAddRow(true)}>
+              <Button data-tour="timetable-add-break" size="sm" variant="outline" className="h-7 sm:h-8 text-[10px] sm:text-xs gap-1 px-1 sm:px-2 border-amber-500/20 text-amber-600 hover:bg-amber-500/5 bg-background font-semibold rounded-lg sm:rounded-xl flex-1 justify-center whitespace-nowrap shrink-0" onClick={() => onAddRow(true)}>
                 <Coffee className="h-3 w-3 shrink-0" /> + Break
               </Button>
             </div>
@@ -432,8 +432,9 @@ export function TimetableGrid({
                 </div>
               </div>
 
-              {safeWorkingDays.map((day) => {
+              {safeWorkingDays.map((day, dayIndex) => {
                 const slot = findSlot(day, period.id);
+                const isPracticeTarget = !period.isBreak && dayIndex === 0;
                 if (period.isBreak) {
                   return (
                     <div key={`${period.id}-${day}`} className="border-t border-l bg-amber-500/[0.015] border-amber-500/[0.06] min-h-[95px] flex flex-col items-center justify-center p-2 text-center">
@@ -446,6 +447,7 @@ export function TimetableGrid({
                 return (
                   <div
                     key={`${period.id}-${day}`}
+                    data-tour={isPracticeTarget ? "timetable-cell-practice" : undefined}
                     onClick={() => onCellClick?.(day, period.id, slot)}
                     className="border-t border-l min-h-[95px] cursor-pointer hover:bg-muted/40 group p-2.5 transition-colors bg-background flex flex-col justify-stretch"
                   >
@@ -844,9 +846,28 @@ export function SlotEditorSheet({
     });
   }, [activeTeachers, draft?.subjectId, currentClassId, currentClassName, subjects]);
 
+  // Listen for guided tutorial sample auto-fill requests
+  useEffect(() => {
+    if (!open) return;
+    const handleSampleFill = (e: any) => {
+      if (e.detail?.type === 'timetable-slot' && classSubjects.length > 0) {
+        const sampleSub = classSubjects[0];
+        const qualifiedTeacher = teacherOptions.find((t) => !t.disabled) || teacherOptions[0];
+        const validRoom = roomOptions.find((r) => !r.disabled);
+        onDraftChange({
+          subjectId: sampleSub.id,
+          teacherId: qualifiedTeacher?.id || '',
+          roomId: validRoom?.id || '',
+        });
+      }
+    };
+    window.addEventListener('tutorial:fill-sample', handleSampleFill);
+    return () => window.removeEventListener('tutorial:fill-sample', handleSampleFill);
+  }, [open, classSubjects, teacherOptions, roomOptions, onDraftChange]);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="rounded-2xl max-w-md p-6">
+      <DialogContent data-tour="timetable-slot-dialog" className="rounded-2xl max-w-md p-6">
         <DialogHeader className="pb-4 border-b">
           <DialogTitle className="text-xl font-bold text-foreground">
             {slot ? 'Modify Slot' : 'Assign Grid Slot'}
@@ -948,6 +969,7 @@ export function SlotEditorSheet({
 
           <div className="pt-3 space-y-2.5">
             <Button
+              data-tour="slot-save-btn"
               className='w-full h-11 rounded-xl font-semibold shadow-sm'
               disabled={
                 saving ||

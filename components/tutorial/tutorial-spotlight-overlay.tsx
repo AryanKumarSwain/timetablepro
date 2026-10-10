@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTutorial } from '@/lib/tutorial/tutorial-context';
+import { TUTORIAL_STEPS } from '@/lib/tutorial/tutorial-steps';
 import { Button } from '@/components/ui/button';
 import { PlanButton } from '@/components/ui/plan-button';
 import { Badge } from '@/components/ui/badge';
@@ -36,6 +37,7 @@ export function TutorialSpotlightOverlay() {
     currentStep,
     currentStepIndex,
     totalSteps,
+    activeModuleKey,
     nextStep,
     prevStep,
     skipTour,
@@ -47,6 +49,7 @@ export function TutorialSpotlightOverlay() {
   const [elementFound, setElementFound] = useState(false);
   const [isSearching, setIsSearching] = useState(true);
   const [practiceDone, setPracticeDone] = useState(false);
+  const [isFormOpen, setIsFormOpen] = useState(false);
   const [popoverPosition, setPopoverPosition] = useState<{
     top: number;
     left: number;
@@ -55,6 +58,19 @@ export function TutorialSpotlightOverlay() {
 
   const popoverRef = useRef<HTMLDivElement>(null);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Module-scoped progress and step calculations (must be called unconditionally before any early return)
+  const moduleSteps = useMemo(() => {
+    if (!currentStep) return [];
+    const key = activeModuleKey || currentStep.moduleKey;
+    return TUTORIAL_STEPS.filter((s) => s.moduleKey === key);
+  }, [currentStep, activeModuleKey]);
+
+  const moduleStepIndex = useMemo(() => {
+    if (!currentStep) return 0;
+    const idx = moduleSteps.findIndex((s) => s.id === currentStep.id);
+    return idx !== -1 ? idx : 0;
+  }, [currentStep, moduleSteps]);
 
   // Trigger celebratory confetti on finish
   const triggerConfetti = useCallback(() => {
@@ -70,39 +86,97 @@ export function TutorialSpotlightOverlay() {
     }
   }, []);
 
-  // Reset practice state when step changes
+  // Reset practice and form state when step changes
   useEffect(() => {
     setPracticeDone(false);
+    setIsFormOpen(false);
   }, [currentStepIndex]);
 
+  // Monitor DOM for creation form opening/closing
+  useEffect(() => {
+    if (!isTourActive || !currentStep?.interactivePractice?.formSelector) {
+      setIsFormOpen(false);
+      return;
+    }
+
+    const formSel = currentStep.interactivePractice.formSelector;
+
+    const checkForm = () => {
+      const formEl = document.querySelector(formSel) as HTMLElement | null;
+      const isVisible = Boolean(
+        formEl && (formEl.offsetHeight > 0 || formEl.getBoundingClientRect().height > 0)
+      );
+      setIsFormOpen(isVisible);
+    };
+
+    checkForm();
+    const interval = setInterval(checkForm, 250);
+
+    return () => clearInterval(interval);
+  }, [isTourActive, currentStep]);
+
+  // Listen for successful creation events to complete interactive practice
+  useEffect(() => {
+    const handleCreationSuccess = (e: any) => {
+      const entity = e.detail?.type;
+      if (
+        currentStep?.interactivePractice?.entityType &&
+        entity === currentStep.interactivePractice.entityType
+      ) {
+        setPracticeDone(true);
+        triggerConfetti();
+      }
+    };
+
+    window.addEventListener('tutorial:creation-success', handleCreationSuccess);
+    return () => window.removeEventListener('tutorial:creation-success', handleCreationSuccess);
+  }, [currentStep, triggerConfetti]);
+
+  // Find and measure target element with retries
   // Find and measure target element with retries
   const measureTargetElement = useCallback(() => {
     if (!currentStep) return;
 
-    const selector = currentStep.targetSelector;
-    const element = document.querySelector(selector);
+    // If creation form is currently open, spotlight the form! Otherwise main target
+    const isFormMode = Boolean(
+      currentStep.interactivePractice?.formSelector && isFormOpen
+    );
+    const selector = isFormMode
+      ? currentStep.interactivePractice!.formSelector!
+      : currentStep.targetSelector;
+
+    if (!selector) {
+      setElementFound(false);
+      setTargetBounds(null);
+      return;
+    }
+
+    const element = document.querySelector(selector) as HTMLElement | null;
 
     if (element) {
       const rect = element.getBoundingClientRect();
-      // Scroll into view if needed
-      const isVisibleInViewport =
-        rect.top >= 0 &&
-        rect.left >= 0 &&
-        rect.bottom <= (window.innerHeight || document.documentElement.clientHeight) &&
-        rect.right <= (window.innerWidth || document.documentElement.clientWidth);
+      // Ignore hidden or collapsed elements (e.g. while skeletons or tabs are transitioning)
+      if (rect.width <= 0 || rect.height <= 0) {
+        return;
+      }
 
-      if (!isVisibleInViewport) {
-        element.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+      const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+      const viewportWidth = window.innerWidth || document.documentElement.clientWidth;
+
+      // Only scroll into view if vertically significantly offscreen
+      const isOffscreen = rect.top < 0 || rect.bottom > viewportHeight;
+      if (isOffscreen) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
       }
 
       const updatedRect = element.getBoundingClientRect();
       const bounds: ElementBounds = {
         top: Math.max(0, updatedRect.top),
         left: Math.max(0, updatedRect.left),
-        width: updatedRect.width,
-        height: updatedRect.height,
-        right: updatedRect.right,
-        bottom: updatedRect.bottom,
+        width: Math.min(viewportWidth, updatedRect.width),
+        height: Math.min(viewportHeight, updatedRect.height),
+        right: Math.min(viewportWidth, updatedRect.right),
+        bottom: Math.min(viewportHeight, updatedRect.bottom),
       };
 
       setTargetBounds(bounds);
@@ -111,41 +185,84 @@ export function TutorialSpotlightOverlay() {
     } else {
       // Element not yet in DOM
       setElementFound(false);
+      setTargetBounds(null);
     }
-  }, [currentStep]);
+  }, [currentStep, isFormOpen]);
 
-  // Handle element discovery with polling / retry
+  // Trigger measure immediately when form state flips
+  useEffect(() => {
+    if (isTourActive) {
+      measureTargetElement();
+    }
+  }, [isFormOpen, isTourActive, measureTargetElement]);
+
+  // Handle element discovery with polling / retry and MutationObserver
   useEffect(() => {
     if (!isTourActive || !currentStep || isNavigatingRoute) {
       setTargetBounds(null);
+      setElementFound(false);
       return;
     }
 
     setIsSearching(true);
-    let attempts = 0;
-    const maxAttempts = 15; // 15 * 200ms = 3.0s total retry window
 
+    const checkAndMeasure = (): boolean => {
+      const isFormMode = Boolean(
+        currentStep.interactivePractice?.formSelector && isFormOpen
+      );
+      const selector = isFormMode
+        ? currentStep.interactivePractice!.formSelector!
+        : currentStep.targetSelector;
+
+      if (!selector) return false;
+      const el = document.querySelector(selector) as HTMLElement | null;
+      if (el) {
+        const rect = el.getBoundingClientRect();
+        if (rect.width > 0 && rect.height > 0) {
+          measureTargetElement();
+          return true;
+        }
+      }
+      return false;
+    };
+
+    // Immediate check
+    if (checkAndMeasure()) return;
+
+    // Polling retry for async fetches (e.g. dashboard stats or skeleton replacements)
+    let attempts = 0;
+    const maxAttempts = 50; // 50 * 150ms = 7.5s retry window
     const interval = setInterval(() => {
       attempts++;
-      const selector = currentStep.targetSelector;
-      const el = document.querySelector(selector);
-
-      if (el) {
-        measureTargetElement();
+      const found = checkAndMeasure();
+      if (found || attempts >= maxAttempts) {
         clearInterval(interval);
-      } else if (attempts >= maxAttempts) {
-        clearInterval(interval);
-        setIsSearching(false);
-        setElementFound(false);
-        setTargetBounds(null);
+        if (!found) {
+          setIsSearching(false);
+        }
       }
-    }, 200);
+    }, 150);
+
+    // Watch DOM mutations to immediately capture elements rendered after API loads
+    const observer = new MutationObserver(() => {
+      if (checkAndMeasure()) {
+        clearInterval(interval);
+      }
+    });
+
+    if (typeof document !== 'undefined' && document.body) {
+      observer.observe(document.body, {
+        childList: true,
+        subtree: true,
+      });
+    }
 
     return () => {
       clearInterval(interval);
+      observer.disconnect();
       if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
     };
-  }, [isTourActive, currentStep, isNavigatingRoute, measureTargetElement]);
+  }, [isTourActive, currentStep, isFormOpen, isNavigatingRoute, measureTargetElement]);
 
   // Recalculate on window resize or scroll
   useEffect(() => {
@@ -181,6 +298,16 @@ export function TutorialSpotlightOverlay() {
         top: Math.max(margin, (viewportHeight - popoverHeight) / 2),
         left: Math.max(margin, (viewportWidth - popoverWidth) / 2),
         placement: 'center',
+      });
+      return;
+    }
+
+    // When creation form is open, dock the card at bottom-right so it NEVER obstructs the form
+    if (isFormOpen) {
+      setPopoverPosition({
+        top: Math.max(margin, viewportHeight - popoverHeight - 24),
+        left: Math.max(margin, viewportWidth - popoverWidth - 24),
+        placement: 'bottom',
       });
       return;
     }
@@ -256,7 +383,7 @@ export function TutorialSpotlightOverlay() {
     }
 
     setPopoverPosition({ top, left, placement: chosenPlacement });
-  }, [targetBounds, elementFound, currentStep?.placement, isTourActive]);
+  }, [targetBounds, elementFound, currentStep?.placement, isTourActive, isFormOpen]);
 
   // Handle keyboard navigation (ArrowRight, ArrowLeft, Escape)
   useEffect(() => {
@@ -292,6 +419,8 @@ export function TutorialSpotlightOverlay() {
   const handlePerformPractice = () => {
     if (!currentStep?.interactivePractice) return;
 
+    const isFormCreate = currentStep.interactivePractice.type === 'form-create';
+
     const targetSel = currentStep.interactivePractice.targetElementSelector;
     if (targetSel) {
       const el = document.querySelector(targetSel) as HTMLElement;
@@ -299,45 +428,147 @@ export function TutorialSpotlightOverlay() {
         el.click();
       }
     }
-    setPracticeDone(true);
+
+    // If it's a form creation step, do NOT mark done yet! Wait for data entry & submit button click
+    if (!isFormCreate) {
+      setPracticeDone(true);
+    }
   };
+
+  // Handle auto-fill sample data in form
+  const handleAutoFillSample = () => {
+    if (!currentStep?.interactivePractice?.entityType) return;
+    window.dispatchEvent(
+      new CustomEvent('tutorial:fill-sample', {
+        detail: { type: currentStep.interactivePractice.entityType },
+      })
+    );
+  };
+
+  // Elevate target element z-index so internal inputs & buttons are fully clickable
+  useEffect(() => {
+    if (!isTourActive || !elementFound) return;
+    const isFormMode = Boolean(
+      currentStep?.interactivePractice?.formSelector && isFormOpen
+    );
+    const selector = isFormMode
+      ? currentStep?.interactivePractice?.formSelector
+      : currentStep?.targetSelector;
+
+    if (!selector) return;
+    const el = document.querySelector(selector) as HTMLElement | null;
+    if (!el) return;
+
+    const originalPosition = el.style.position;
+    const originalZIndex = el.style.zIndex;
+    const originalPointerEvents = el.style.pointerEvents;
+
+    const computedPos = window.getComputedStyle(el).position;
+    if (computedPos === 'static') {
+      el.style.position = 'relative';
+    }
+    el.style.zIndex = '9999';
+    el.style.pointerEvents = 'auto';
+
+    return () => {
+      el.style.position = originalPosition;
+      el.style.zIndex = originalZIndex;
+      el.style.pointerEvents = originalPointerEvents;
+    };
+  }, [isTourActive, elementFound, currentStep, isFormOpen]);
 
   if (!isTourActive || !currentStep) {
     return null;
   }
 
-  const isLastStep = currentStepIndex === totalSteps - 1;
-  const progressPercent = Math.round(((currentStepIndex + 1) / totalSteps) * 100);
+  const isModuleTour = Boolean(activeModuleKey) && moduleSteps.length > 0;
+  const displayStepNumber = isModuleTour ? moduleStepIndex + 1 : currentStepIndex + 1;
+  const displayTotalSteps = isModuleTour ? moduleSteps.length : totalSteps;
+  const isLastStep = isModuleTour
+    ? moduleStepIndex === moduleSteps.length - 1
+    : currentStepIndex === totalSteps - 1;
+  const progressPercent = Math.round((displayStepNumber / displayTotalSteps) * 100);
+
+  const holeTop = targetBounds ? Math.max(0, targetBounds.top - 6) : 0;
+  const holeLeft = targetBounds ? Math.max(0, targetBounds.left - 6) : 0;
+  const holeWidth = targetBounds ? targetBounds.width + 12 : 0;
+  const holeHeight = targetBounds ? targetBounds.height + 12 : 0;
+  const holeBottom = holeTop + holeHeight;
+  const holeRight = holeLeft + holeWidth;
 
   return (
-    <div className="fixed inset-0 z-[9999] pointer-events-none select-none transition-opacity duration-300">
-      {/* Dimmed Backdrop Layer with Spotlight Cutout */}
+    <div className="fixed inset-0 z-[9999] pointer-events-none transition-opacity duration-300">
+      {/* Visual SVG Mask Spotlight Backdrop Layer (pointer-events-none so it renders the smooth masked darkening without blocking any clicks) */}
       {elementFound && targetBounds ? (
-        <div
-          className="absolute inset-0 pointer-events-auto transition-all duration-300"
-          style={{
-            background: 'rgba(9, 11, 18, 0.65)',
-            clipPath: `polygon(
-              0% 0%,
-              0% 100%,
-              ${targetBounds.left - 6}px 100%,
-              ${targetBounds.left - 6}px ${targetBounds.top - 6}px,
-              ${targetBounds.right + 6}px ${targetBounds.top - 6}px,
-              ${targetBounds.right + 6}px ${targetBounds.bottom + 6}px,
-              ${targetBounds.left - 6}px ${targetBounds.bottom + 6}px,
-              ${targetBounds.left - 6}px 100%,
-              100% 100%,
-              100% 0%
-            )`,
-          }}
-          onClick={(e) => {
-            // Clicking backdrop does not accidentally close, preventing loss of progress
-            e.stopPropagation();
-          }}
-        />
+        <>
+          <svg
+            className="fixed inset-0 w-full h-full pointer-events-none z-[9997]"
+            style={{ width: '100vw', height: '100vh' }}
+          >
+            <defs>
+              <mask id="tutorial-spotlight-mask">
+                {/* White fills entire viewport */}
+                <rect x="0" y="0" width="100%" height="100%" fill="white" />
+                {/* Black cuts out the spotlight hole */}
+                <rect
+                  x={holeLeft}
+                  y={holeTop}
+                  width={holeWidth}
+                  height={holeHeight}
+                  rx="16"
+                  ry="16"
+                  fill="black"
+                />
+              </mask>
+            </defs>
+            {/* Dimmed backdrop with cutout mask applied */}
+            <rect
+              x="0"
+              y="0"
+              width="100%"
+              height="100%"
+              fill="rgba(9, 11, 18, 0.72)"
+              mask="url(#tutorial-spotlight-mask)"
+            />
+          </svg>
+
+          {/* 4 Click-Blocker Panels outside the hole: blocks interaction with the rest of the page, while leaving the spotlight hole 100% interactive */}
+          {/* 1. Top Blocker */}
+          <div
+            className="fixed top-0 left-0 right-0 pointer-events-auto z-[9998]"
+            style={{ height: Math.max(0, holeTop) }}
+            onClick={(e) => e.stopPropagation()}
+          />
+          {/* 2. Bottom Blocker */}
+          <div
+            className="fixed left-0 right-0 bottom-0 pointer-events-auto z-[9998]"
+            style={{ top: Math.max(0, holeBottom) }}
+            onClick={(e) => e.stopPropagation()}
+          />
+          {/* 3. Left Blocker */}
+          <div
+            className="fixed left-0 pointer-events-auto z-[9998]"
+            style={{
+              top: Math.max(0, holeTop),
+              height: Math.max(0, holeHeight),
+              width: Math.max(0, holeLeft),
+            }}
+            onClick={(e) => e.stopPropagation()}
+          />
+          {/* 4. Right Blocker */}
+          <div
+            className="fixed right-0 pointer-events-auto z-[9998]"
+            style={{
+              top: Math.max(0, holeTop),
+              height: Math.max(0, holeHeight),
+              left: Math.max(0, holeRight),
+            }}
+            onClick={(e) => e.stopPropagation()}
+          />
+        </>
       ) : (
         <div
-          className="absolute inset-0 bg-black/60 backdrop-blur-[2px] pointer-events-auto transition-opacity"
+          className="fixed inset-0 bg-black/60 backdrop-blur-[2px] pointer-events-auto transition-opacity z-[9998]"
           onClick={(e) => e.stopPropagation()}
         />
       )}
@@ -345,14 +576,16 @@ export function TutorialSpotlightOverlay() {
       {/* Target Element Glow Ring Highlight */}
       {elementFound && targetBounds && (
         <div
-          className="absolute pointer-events-none rounded-2xl ring-4 ring-indigo-500/70 ring-offset-2 ring-offset-transparent shadow-[0_0_25px_rgba(99,102,241,0.5)] transition-all duration-300"
+          className="fixed pointer-events-none rounded-2xl ring-4 ring-indigo-500/70 border-2 border-indigo-500/90 shadow-[0_0_35px_rgba(99,102,241,0.65)] transition-all duration-300 z-[9998]"
           style={{
-            top: targetBounds.top - 6,
-            left: targetBounds.left - 6,
-            width: targetBounds.width + 12,
-            height: targetBounds.height + 12,
+            top: holeTop,
+            left: holeLeft,
+            width: holeWidth,
+            height: holeHeight,
           }}
-        />
+        >
+          <div className="absolute -inset-1 rounded-[18px] ring-4 ring-indigo-500/30 animate-pulse pointer-events-none" />
+        </div>
       )}
 
       {/* Interactive Tour Popover Card */}
@@ -362,21 +595,26 @@ export function TutorialSpotlightOverlay() {
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 10 }}
         transition={{ type: 'spring', damping: 25, stiffness: 350 }}
-        className="absolute pointer-events-auto w-[92vw] max-w-[430px] rounded-3xl bg-background/95 backdrop-blur-2xl border border-border/80 shadow-2xl p-5 sm:p-6 space-y-4"
+        className="absolute pointer-events-auto w-[92vw] max-w-[395px] rounded-3xl bg-background/95 backdrop-blur-2xl border border-border/80 shadow-2xl p-4.5 sm:p-5 space-y-3.5 z-[10000]"
         style={{
           top: popoverPosition.top,
           left: popoverPosition.left,
         }}
       >
         {/* Header & Step Counter */}
-        <div className="flex items-center justify-between gap-2 border-b border-border/40 pb-3">
+        <div className="flex items-center justify-between gap-2 border-b border-border/40 pb-2.5">
           <div className="flex items-center gap-2">
             <span className="flex h-6 w-6 items-center justify-center rounded-full bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 text-[11px] font-bold">
-              {currentStepIndex + 1}
+              {displayStepNumber}
             </span>
             <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
-              Step {currentStepIndex + 1} of {totalSteps}
+              Step {displayStepNumber} of {displayTotalSteps}
             </span>
+            {isModuleTour && (
+              <Badge variant="outline" className="text-[10px] font-bold uppercase tracking-wider bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/30">
+                {currentStep.moduleKey.replace('-', ' ')}
+              </Badge>
+            )}
           </div>
 
           <div className="flex items-center gap-2">
@@ -404,7 +642,7 @@ export function TutorialSpotlightOverlay() {
         </div>
 
         {/* Title & Short Description */}
-        <div className="space-y-1.5">
+        <div className="space-y-1">
           <div className="flex items-center gap-2">
             <h3 className="text-base font-extrabold text-foreground tracking-tight">
               {currentStep.title}
@@ -418,14 +656,14 @@ export function TutorialSpotlightOverlay() {
           <p className="text-xs text-foreground font-medium leading-relaxed">
             {currentStep.shortDescription}
           </p>
-          <p className="text-[12px] text-muted-foreground leading-relaxed pt-1">
+          <p className="text-[11.5px] text-muted-foreground leading-relaxed pt-0.5">
             {currentStep.detailedExplanation}
           </p>
         </div>
 
         {/* Pro Tip Callout */}
         {currentStep.proTip && (
-          <div className="flex items-start gap-2.5 p-3 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-900 dark:text-amber-200">
+          <div className="flex items-start gap-2.5 p-2.5 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-900 dark:text-amber-200">
             <Lightbulb className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
             <div className="text-[11px] leading-relaxed">
               <span className="font-bold">Pro Tip: </span>
@@ -434,33 +672,65 @@ export function TutorialSpotlightOverlay() {
           </div>
         )}
 
-        {/* Interactive Practice Task (Safe Practice) */}
+        {/* Interactive Practice Task */}
         {currentStep.interactivePractice && (
-          <div className="p-3.5 rounded-2xl bg-indigo-500/5 dark:bg-indigo-500/10 border border-indigo-500/20 space-y-2.5">
-            <div className="flex items-center gap-1.5 text-xs font-bold text-indigo-600 dark:text-indigo-400">
-              <MousePointerClick className="h-3.5 w-3.5" />
-              <span>Interactive Practice</span>
+          <div className="p-3 rounded-2xl bg-indigo-500/5 dark:bg-indigo-500/10 border border-indigo-500/20 space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-indigo-600 dark:text-indigo-400">
+                <MousePointerClick className="h-3.5 w-3.5" />
+                <span>
+                  {currentStep.interactivePractice.type === 'explore'
+                    ? 'Walkthrough Focus'
+                    : 'Interactive Practice'}
+                </span>
+              </div>
+              {isFormOpen && !practiceDone && (
+                <Badge variant="outline" className="text-[10px] font-semibold bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/30">
+                  Form Active
+                </Badge>
+              )}
             </div>
+
             <p className="text-[11px] text-muted-foreground leading-relaxed">
-              {currentStep.interactivePractice.actionPrompt}
+              {practiceDone
+                ? 'Practice goal completed!'
+                : isFormOpen
+                ? currentStep.interactivePractice.formPrompt || currentStep.interactivePractice.actionPrompt
+                : currentStep.interactivePractice.actionPrompt}
             </p>
 
             {practiceDone ? (
-              <div className="flex items-center gap-2 text-xs font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 p-2 rounded-xl">
-                <CheckCircle2 className="h-4 w-4 shrink-0" />
+              <div className="flex items-start gap-2 text-xs font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 p-2 rounded-xl border border-emerald-500/20 animate-in fade-in">
+                <CheckCircle2 className="h-3.5 w-3.5 shrink-0 mt-0.5" />
                 <span>{currentStep.interactivePractice.feedbackText}</span>
               </div>
-            ) : (
+            ) : isFormOpen ? (
+              <div className="space-y-1.5">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={handleAutoFillSample}
+                  className="w-full text-xs font-semibold rounded-xl border-indigo-500/30 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center gap-1.5 shadow-sm"
+                >
+                  <Sparkles className="h-3.5 w-3.5" />
+                  {currentStep.interactivePractice.sampleButtonText || 'Auto-Fill Sample Data'}
+                </Button>
+                <p className="text-[10px] text-center text-muted-foreground">
+                  Fill details above and click the create button to finish this practice.
+                </p>
+              </div>
+            ) : currentStep.interactivePractice.type === 'click' || currentStep.interactivePractice.type === 'form-create' ? (
               <Button
                 type="button"
                 size="sm"
                 variant="outline"
                 onClick={handlePerformPractice}
-                className="w-full text-xs font-semibold rounded-xl border-indigo-500/30 hover:bg-indigo-500/10 hover:text-indigo-600"
+                className="w-full text-xs font-semibold rounded-xl border-indigo-500/30 hover:bg-indigo-500/10 hover:text-indigo-600 shadow-sm"
               >
                 {currentStep.interactivePractice.practiceButtonText || 'Try This Action'}
               </Button>
-            )}
+            ) : null}
           </div>
         )}
 
@@ -479,7 +749,7 @@ export function TutorialSpotlightOverlay() {
             variant="ghost"
             size="sm"
             onClick={prevStep}
-            disabled={currentStepIndex === 0}
+            disabled={displayStepNumber === 1}
             className="rounded-xl text-xs font-semibold"
           >
             <ChevronLeft className="h-3.5 w-3.5 mr-1" />
@@ -497,32 +767,35 @@ export function TutorialSpotlightOverlay() {
               Skip
             </Button>
 
-            {isLastStep ? (
-              <PlanButton
-                type="button"
-                variant="primary"
-                size="sm"
-                onClick={() => {
+            <PlanButton
+              type="button"
+              variant="primary"
+              size="sm"
+              onClick={() => {
+                if (isLastStep) {
                   triggerConfetti();
                   finishTour();
-                }}
-                className="rounded-xl text-xs font-bold px-4 shadow-md shadow-indigo-500/25 flex items-center gap-1.5"
-              >
-                <Sparkles className="h-3.5 w-3.5" />
-                Finish Tour
-              </PlanButton>
-            ) : (
-              <PlanButton
-                type="button"
-                variant="primary"
-                size="sm"
-                onClick={nextStep}
-                className="rounded-xl text-xs font-bold px-4 shadow-md shadow-indigo-500/25 flex items-center gap-1.5"
-              >
-                Next
-                <ChevronRight className="h-3.5 w-3.5" />
-              </PlanButton>
-            )}
+                } else {
+                  nextStep();
+                }
+              }}
+              className={cn(
+                "rounded-xl text-xs font-bold px-4 shadow-md shadow-indigo-500/25 flex items-center gap-1.5 transition-all",
+                practiceDone && "ring-2 ring-indigo-400 shadow-indigo-500/40 animate-pulse"
+              )}
+            >
+              {isLastStep ? (
+                <>
+                  <Sparkles className="h-3.5 w-3.5" />
+                  <span>{isModuleTour ? 'Finish Guide' : 'Finish Tour'}</span>
+                </>
+              ) : (
+                <>
+                  <span>Next</span>
+                  <ChevronRight className="h-3.5 w-3.5" />
+                </>
+              )}
+            </PlanButton>
           </div>
         </div>
       </motion.div>
