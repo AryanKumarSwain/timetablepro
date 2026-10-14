@@ -11,7 +11,10 @@ import React, {
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { TUTORIAL_STEPS } from './tutorial-steps';
-import type { TutorialStep, TutorialPersistenceState } from './tutorial-types';
+import { TEACHER_TUTORIAL_STEPS } from './teacher-tutorial-steps';
+import { TIMETABLE_PRO_MODULES } from './tutorial-modules';
+import { TEACHER_TUTORIAL_MODULES } from './teacher-tutorial-modules';
+import type { TutorialStep, TutorialPersistenceState, TutorialModuleInfo } from './tutorial-types';
 
 interface TutorialContextType {
   isWelcomeOpen: boolean;
@@ -22,6 +25,8 @@ interface TutorialContextType {
   currentStep: TutorialStep | null;
   totalSteps: number;
   isNavigatingRoute: boolean;
+  isTeacher: boolean;
+  modules: TutorialModuleInfo[];
   state: TutorialPersistenceState;
   startTour: (stepIndex?: number, moduleKey?: string | null) => void;
   nextStep: () => void;
@@ -59,11 +64,27 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [isNavigatingRoute, setIsNavigatingRoute] = useState(false);
 
+  // Detect whether current session is on the Teacher Portal
+  const isTeacher = useMemo(() => {
+    const roleStr = (user?.role || '').toLowerCase().replace('-', '_');
+    return pathname.startsWith('/teacher') || roleStr === 'teacher';
+  }, [pathname, user?.role]);
+
+  // Dynamically load steps and modules based on role
+  const steps = useMemo(() => {
+    return isTeacher ? TEACHER_TUTORIAL_STEPS : TUTORIAL_STEPS;
+  }, [isTeacher]);
+
+  const modules = useMemo(() => {
+    return isTeacher ? TEACHER_TUTORIAL_MODULES : TIMETABLE_PRO_MODULES;
+  }, [isTeacher]);
+
   const storageKey = useMemo(() => {
+    const roleSuffix = isTeacher ? '_teacher' : '_admin';
     return user?.id
-      ? `timetablepro_tutorial_v1_${user.id}`
-      : 'timetablepro_tutorial_v1_guest';
-  }, [user?.id]);
+      ? `timetablepro_tutorial_v1_${user.id}${roleSuffix}`
+      : `timetablepro_tutorial_v1_guest${roleSuffix}`;
+  }, [user?.id, isTeacher]);
 
   const [state, setState] = useState<TutorialPersistenceState>(defaultState);
 
@@ -125,8 +146,6 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
     }
   }, [mounted, authLoading, user, pathname, state.hasSeenWelcome, isTourActive, isWelcomeOpen]);
 
-  // Filter steps relevant to role if desired (defaults to all admin-available steps)
-  const steps = TUTORIAL_STEPS;
   const currentStep = isTourActive && steps[currentStepIndex] ? steps[currentStepIndex] : null;
 
   // Handle step route synchronization
@@ -309,6 +328,8 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
     currentStep,
     totalSteps: steps.length,
     isNavigatingRoute,
+    isTeacher,
+    modules,
     state,
     startTour,
     nextStep,

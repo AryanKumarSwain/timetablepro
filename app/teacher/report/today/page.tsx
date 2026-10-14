@@ -30,7 +30,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { BookOpen, Send, Trash2, Edit, AlertCircle, CheckCircle2, X, Upload } from 'lucide-react';
+import { BookOpen, Send, Trash2, Edit, AlertCircle, CheckCircle2, X, Upload, HelpCircle } from 'lucide-react';
+import { useTutorial } from '@/lib/tutorial/tutorial-context';
 
 // Helper to separate text from comma-separated items
 function splitDescription(desc = '') {
@@ -201,6 +202,7 @@ function TagInput({ tags = [], onChange, readOnly, placeholder = "Add item..." }
 
 export default function TeacherReportsPage() {
   const auth = useRequireAuth('teacher');
+  const { jumpToModuleTour } = useTutorial();
   const [loading, setLoading] = useState(true);
   const [hasSchoolAssignment, setHasSchoolAssignment] = useState(true);
   const [homeworkEnabled, setHomeworkEnabled] = useState(true);
@@ -761,10 +763,24 @@ export default function TeacherReportsPage() {
 
   return (
     <div className='max-w-5xl mx-auto px-6 py-6 space-y-6'>
-      <PageHeader 
-        title="Today's Report" 
-        description={new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-      />
+      <div data-tour="teacher-report-header">
+        <PageHeader 
+          title="Today's Report" 
+          description={new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+          actions={
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => jumpToModuleTour('teacher-report-today')}
+              className="gap-2 rounded-xl text-xs font-semibold bg-background/80 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 border-indigo-200 dark:border-indigo-800 text-indigo-600 dark:text-indigo-400"
+            >
+              <HelpCircle className="h-4 w-4" />
+              Report Guide
+            </Button>
+          }
+        />
+      </div>
 
       {/* Interactive Form Guard Alert Element */}
       {validationError && (
@@ -785,7 +801,7 @@ export default function TeacherReportsPage() {
           {loadMessage ?? 'No scheduled classes for today.'}
         </GlassCard>
       ) : (
-        <div className='space-y-5'>
+        <div data-tour="teacher-report-rows" className='space-y-5'>
           {rows.map((r, i) => {
             const periodTodos = getTodosForPeriod(r.periodId, r.periodNumber, r.classId);
             const incompleteTodos = periodTodos.filter((todo) => !todo.completed);
@@ -1079,7 +1095,7 @@ export default function TeacherReportsPage() {
           })}
 
           {!readOnly && (
-            <div className='flex justify-end pt-2 gap-3'>
+            <div data-tour="teacher-report-actions" className='flex justify-end pt-2 gap-3'>
               <button
                 type="button"
                 disabled={submitting}

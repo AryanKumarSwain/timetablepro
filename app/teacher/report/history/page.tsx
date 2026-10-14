@@ -7,12 +7,15 @@ import { PageHeader } from '@/components/enterprise/page-header';
 import { PageSkeleton } from '@/components/enterprise/page-skeleton';
 import { GlassCard } from '@/components/enterprise/glass-card';
 import { ReportHistoryRow } from '@/components/reports/report-history-row';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { useTutorial } from '@/lib/tutorial/tutorial-context';
+import { ChevronLeft, ChevronRight, HelpCircle } from 'lucide-react';
 
 const ITEMS_PER_PAGE = 10;
 
 export default function TeacherReportHistoryPage() {
   useRequireAuth('teacher');
+  const { jumpToModuleTour } = useTutorial();
 
   const [reports, setReports] = useState<DailyReportData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -125,14 +128,28 @@ export default function TeacherReportHistoryPage() {
 
   return (
     <div className='max-w-3xl mx-auto space-y-6 pb-12'>
-      <PageHeader
-        title='Report History'
-        description='Your past daily teaching reports'
-        breadcrumbs={[
-          { label: 'Teacher', href: '/teacher/schedule' },
-          { label: 'Report History' },
-        ]}
-      />
+      <div data-tour="teacher-history-header">
+        <PageHeader
+          title='Report History'
+          description='Your past daily teaching reports'
+          breadcrumbs={[
+            { label: 'Teacher', href: '/teacher/schedule' },
+            { label: 'Report History' },
+          ]}
+          actions={
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => jumpToModuleTour('teacher-report-history')}
+              className="gap-2 rounded-xl text-xs font-semibold bg-background/80 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 border-indigo-200 dark:border-indigo-800 text-indigo-600 dark:text-indigo-400"
+            >
+              <HelpCircle className="h-4 w-4" />
+              History Guide
+            </Button>
+          }
+        />
+      </div>
 
       {/* Filter panel deck */}
       <GlassCard className="p-4 bg-card/40 border border-muted/50 rounded-xl">

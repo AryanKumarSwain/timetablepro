@@ -8,11 +8,14 @@ import { PageHeader } from '@/components/enterprise/page-header';
 import { GlassCard } from '@/components/enterprise/glass-card';
 import { PageSkeleton } from '@/components/enterprise/page-skeleton';
 import { Progress } from '@/components/ui/progress';
+import { Button } from '@/components/ui/button';
+import { useTutorial } from '@/lib/tutorial/tutorial-context';
 import { cn } from '@/lib/utils';
-import { Clock, Flame, AlertCircle } from 'lucide-react';
+import { Clock, Flame, AlertCircle, HelpCircle } from 'lucide-react';
 
 export default function TeacherSchedulePage() {
   const auth = useRequireAuth('teacher');
+  const { jumpToModuleTour } = useTutorial();
   const [schedule, setSchedule] = useState<TodayScheduleItem[]>([]);
   const [replacements, setReplacements] = useState<Replacement[]>([]);
   const [loading, setLoading] = useState(true);
@@ -125,34 +128,52 @@ export default function TeacherSchedulePage() {
 
   return (
     <div className='max-w-3xl mx-auto'>
-      <PageHeader
-        title="Today's Timeline"
-        description={getTodayDate()}
-        breadcrumbs={[
-          { label: 'Teacher', href: '/teacher/schedule' },
-          { label: 'Today' },
-        ]}
-      />
+      <div data-tour="teacher-schedule-header">
+        <PageHeader
+          title="Today's Timeline"
+          description={getTodayDate()}
+          breadcrumbs={[
+            { label: 'Teacher', href: '/teacher/schedule' },
+            { label: 'Today' },
+          ]}
+          actions={
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => jumpToModuleTour('teacher-schedule')}
+              className="gap-2 rounded-xl text-xs font-semibold bg-background/80 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 border-indigo-200 dark:border-indigo-800 text-indigo-600 dark:text-indigo-400"
+            >
+              <HelpCircle className="h-4 w-4" />
+              Schedule Guide
+            </Button>
+          }
+        />
+      </div>
 
       <div className='grid sm:grid-cols-2 gap-4 mb-8'>
-        <GlassCard className='p-5'>
-          <div className='flex items-center gap-2 mb-3'>
-            <Flame className='h-4 w-4 text-amber-500' />
-            <p className='text-sm font-medium'>Burnout meter</p>
-          </div>
-          <Progress value={burnoutScore} className='h-2' />
-          <p className='text-xs text-muted-foreground mt-2'>
-            Weekly load index · {burnoutScore}% —{' '}
-            {burnoutScore > 70 ? 'High' : burnoutScore > 40 ? 'Moderate' : 'Healthy'}
-          </p>
-        </GlassCard>
-        <GlassCard className='p-5'>
-          <p className='text-xs text-muted-foreground mb-1'>Sessions today</p>
-          <p className='text-3xl font-bold'>{sessionsToday}</p>
-          <p className='text-xs text-muted-foreground mt-1'>
-            {replacements.length} cover events
-          </p>
-        </GlassCard>
+        <div data-tour="teacher-burnout-meter">
+          <GlassCard className='p-5'>
+            <div className='flex items-center gap-2 mb-3'>
+              <Flame className='h-4 w-4 text-amber-500' />
+              <p className='text-sm font-medium'>Burnout meter</p>
+            </div>
+            <Progress value={burnoutScore} className='h-2' />
+            <p className='text-xs text-muted-foreground mt-2'>
+              Weekly load index · {burnoutScore}% —{' '}
+              {burnoutScore > 70 ? 'High' : burnoutScore > 40 ? 'Moderate' : 'Healthy'}
+            </p>
+          </GlassCard>
+        </div>
+        <div data-tour="teacher-sessions-today">
+          <GlassCard className='p-5'>
+            <p className='text-xs text-muted-foreground mb-1'>Sessions today</p>
+            <p className='text-3xl font-bold'>{sessionsToday}</p>
+            <p className='text-xs text-muted-foreground mt-1'>
+              {replacements.length} cover events
+            </p>
+          </GlassCard>
+        </div>
       </div>
 
       {schedule.length === 0 ? (
@@ -160,7 +181,7 @@ export default function TeacherSchedulePage() {
           <p className='text-muted-foreground'>No classes scheduled for today</p>
         </GlassCard>
       ) : (
-        <div className='relative space-y-0'>
+        <div data-tour="teacher-timeline-list" className='relative space-y-0'>
           <div className='absolute left-4 top-4 bottom-4 w-px bg-border/80' />
           {schedule.map((item, index) => {
             const replacement = getReplacementForPeriod(item.periodId);
@@ -247,7 +268,7 @@ export default function TeacherSchedulePage() {
         </div>
       )}
 
-      <div className='mt-8 grid grid-cols-3 gap-3'>
+      <div data-tour="teacher-summary-stats" className='mt-8 grid grid-cols-3 gap-3'>
         {[
           { label: 'Classes', value: schedule.length },
           { label: 'Covers', value: replacements.length },

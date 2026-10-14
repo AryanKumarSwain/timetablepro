@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTutorial } from '@/lib/tutorial/tutorial-context';
 import { TUTORIAL_STEPS } from '@/lib/tutorial/tutorial-steps';
+import { TEACHER_TUTORIAL_STEPS } from '@/lib/tutorial/teacher-tutorial-steps';
 import { Button } from '@/components/ui/button';
 import { PlanButton } from '@/components/ui/plan-button';
 import { Badge } from '@/components/ui/badge';
@@ -44,6 +45,7 @@ export function TutorialSpotlightOverlay() {
     skipTour,
     finishTour,
     isNavigatingRoute,
+    isTeacher,
   } = useTutorial();
 
   const [targetBounds, setTargetBounds] = useState<ElementBounds | null>(null);
@@ -61,12 +63,16 @@ export function TutorialSpotlightOverlay() {
   const popoverRef = useRef<HTMLDivElement>(null);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  const allCurrentSteps = useMemo(() => {
+    return isTeacher ? TEACHER_TUTORIAL_STEPS : TUTORIAL_STEPS;
+  }, [isTeacher]);
+
   // Module-scoped progress and step calculations (must be called unconditionally before any early return)
   const moduleSteps = useMemo(() => {
     if (!currentStep) return [];
     const key = activeModuleKey || currentStep.moduleKey;
-    return TUTORIAL_STEPS.filter((s) => s.moduleKey === key);
-  }, [currentStep, activeModuleKey]);
+    return allCurrentSteps.filter((s) => s.moduleKey === key);
+  }, [currentStep, activeModuleKey, allCurrentSteps]);
 
   const moduleStepIndex = useMemo(() => {
     if (!currentStep) return 0;

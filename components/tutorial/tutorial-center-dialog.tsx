@@ -34,6 +34,8 @@ import {
   FileText,
   Settings,
   CreditCard,
+  CalendarRange,
+  History,
   ChevronRight,
   ExternalLink,
   CheckCircle2,
@@ -59,6 +61,8 @@ const ICON_MAP: Record<string, React.ElementType> = {
   FileText,
   Settings,
   CreditCard,
+  CalendarRange,
+  History,
 };
 
 export function TutorialCenterDialog() {
@@ -71,16 +75,26 @@ export function TutorialCenterDialog() {
     openWelcomeModal,
     jumpToModuleTour,
     state,
+    isTeacher,
+    modules: contextModules,
   } = useTutorial();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [expandedModuleKey, setExpandedModuleKey] = useState<string | null>(null);
 
-  const categories = ['All', 'Foundation', 'Academic Setup', 'Scheduling & Operations', 'Academic Monitoring', 'System & Billing'];
+  const activeModules = useMemo(() => {
+    return contextModules && contextModules.length > 0 ? contextModules : TIMETABLE_PRO_MODULES;
+  }, [contextModules]);
+
+  const categories = useMemo(() => {
+    const set = new Set<string>();
+    activeModules.forEach((m) => set.add(m.category));
+    return ['All', ...Array.from(set)];
+  }, [activeModules]);
 
   const filteredModules = useMemo(() => {
-    return TIMETABLE_PRO_MODULES.filter((m) => {
+    return activeModules.filter((m) => {
       const matchesCategory = selectedCategory === 'All' || m.category === selectedCategory;
       const q = searchQuery.toLowerCase().trim();
       const matchesQuery =
@@ -91,7 +105,7 @@ export function TutorialCenterDialog() {
         m.tagline.toLowerCase().includes(q);
       return matchesCategory && matchesQuery;
     });
-  }, [selectedCategory, searchQuery]);
+  }, [activeModules, selectedCategory, searchQuery]);
 
   const handleLaunchModuleTour = (moduleKey: string) => {
     closeHelpCenter();
@@ -115,10 +129,12 @@ export function TutorialCenterDialog() {
               </div>
               <div className="min-w-0 flex-1">
                 <DialogTitle className="text-sm sm:text-lg font-black tracking-tight text-foreground leading-snug">
-                  Tutorial & Knowledge Center
+                  {isTeacher ? 'Teacher Tutorial & Guide Center' : 'Tutorial & Knowledge Center'}
                 </DialogTitle>
                 <DialogDescription className="text-[11px] sm:text-xs text-muted-foreground truncate sm:whitespace-normal mt-0.5">
-                  Explore how every module works or take a guided interactive walk-through.
+                  {isTeacher
+                    ? 'Explore your daily timeline, weekly routine timetable, and daily teaching logs.'
+                    : 'Explore how every module works or take a guided interactive walk-through.'}
                 </DialogDescription>
               </div>
             </div>

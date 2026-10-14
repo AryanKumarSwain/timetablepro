@@ -16,9 +16,10 @@ import {
 } from '@/lib/types';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Eye, Calendar, Layers, BookOpen, Share2, CalendarX, Plus, CheckCircle2, X, Edit, Undo } from 'lucide-react';
+import { Eye, Calendar, Layers, BookOpen, Share2, CalendarX, Plus, CheckCircle2, X, Edit, Undo, HelpCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { usePlanTheme } from '@/lib/plan-theme';
+import { useTutorial } from '@/lib/tutorial/tutorial-context';
 import {
   Dialog,
   DialogContent,
@@ -34,6 +35,7 @@ const DAY_INDICES = [1, 2, 3, 4, 5, 6];
 export default function TeacherWeeklySchedulePage() {
   const auth = useRequireAuth('teacher');
   const { theme } = usePlanTheme();
+  const { jumpToModuleTour } = useTutorial();
   const [allTimetableSlots, setAllTimetableSlots] = useState<WeeklyTimetableEntry[]>([]);
   const [periods, setPeriods] = useState<Period[]>([]);
   const [classes, setClasses] = useState<Class[]>([]);
@@ -527,9 +529,9 @@ export default function TeacherWeeklySchedulePage() {
   return (
     <div className="max-w-[1600px] mx-auto p-3 sm:p-6 space-y-6 bg-background text-foreground min-h-screen">
 
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-card p-4 sm:p-5 rounded-2xl border border-border shadow-sm">
+      <div data-tour="teacher-weekly-header" className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-card p-4 sm:p-5 rounded-2xl border border-border shadow-sm">
         <div className="flex flex-wrap items-center gap-4">
-          <div className="w-full sm:w-[280px]">
+          <div data-tour="teacher-weekly-batch-select" className="w-full sm:w-[280px]">
             <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1.5">
               Select Batch Matrix
             </label>
@@ -556,6 +558,16 @@ export default function TeacherWeeklySchedulePage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5 self-end md:self-center">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => jumpToModuleTour('teacher-weekly-schedule')}
+            className="gap-2 rounded-xl text-xs font-semibold bg-background/80 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 border-indigo-200 dark:border-indigo-800 text-indigo-600 dark:text-indigo-400 h-10 px-3 shadow-sm"
+          >
+            <HelpCircle className="h-4 w-4" />
+            Routine Guide
+          </Button>
 
           <div className="flex items-center gap-1.5 text-xs bg-blue-500/10 text-blue-500 font-bold px-3 py-2 h-10 rounded-xl border border-blue-500/20 shadow-sm">
             <span className="relative flex h-2 w-2">
@@ -586,7 +598,7 @@ export default function TeacherWeeklySchedulePage() {
           ← Scroll sideways to see all days →
         </div>
 
-        <div className="overflow-x-auto">
+        <div data-tour="teacher-weekly-grid" className="overflow-x-auto">
           <table className="w-full border-collapse text-left min-w-[1100px]">
             <thead>
               <tr className="bg-muted/50 border-b border-border">
@@ -636,6 +648,7 @@ export default function TeacherWeeklySchedulePage() {
                             <Button
                               size="sm"
                               variant="ghost"
+                              data-tour={idx === 0 ? "teacher-weekly-absent-btn" : undefined}
                               className="h-7 w-7 sm:h-6 sm:w-6 p-0 rounded-lg hover:bg-rose-500/10 text-rose-500 hover:text-rose-600"
                               onClick={() => handleFullDayAbsent(DAY_INDICES[idx])}
                               title="Request full-day absence"

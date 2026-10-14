@@ -2,12 +2,13 @@
 
 import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
-import { BookMarked, Search, Filter } from 'lucide-react';
+import { BookMarked, Search, Filter, HelpCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { PageHeader } from '@/components/enterprise/page-header';
 import { ProtectedFeature } from '@/components/protected-feature';
 import { useAuth, useRequireAuth } from '@/lib/auth-context';
+import { useTutorial } from '@/lib/tutorial/tutorial-context';
 import { getSchoolDetails } from '@/lib/api-services';
 import {
   Select,
@@ -69,6 +70,7 @@ interface SubjectOption {
 export default function LessonPlanningPage() {
   const auth = useRequireAuth('teacher');
   const { user } = useAuth();
+  const { jumpToModuleTour } = useTutorial();
   const [view, setView] = useState<'day' | 'week' | 'month' | 'year'>('week');
   const [selectedDate, setSelectedDate] = useState(() => format(new Date(), 'yyyy-MM-dd'));
   const [lessonPlans, setLessonPlans] = useState<LessonPlan[]>([]);
@@ -322,6 +324,18 @@ export default function LessonPlanningPage() {
             title="Lesson Planning"
             description="Plan and manage your lessons for all your classes"
             breadcrumbs={[{ label: 'Teacher', href: '/teacher/schedule' }, { label: 'Lesson Planning' }]}
+            actions={
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => jumpToModuleTour('teacher-lesson-planning')}
+                className="gap-2 rounded-xl text-xs font-semibold bg-background/80 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 border-indigo-200 dark:border-indigo-800 text-indigo-600 dark:text-indigo-400"
+              >
+                <HelpCircle className="h-4 w-4" />
+                Lesson Plan Guide
+              </Button>
+            }
           />
 
       {/* Stats */}
@@ -339,7 +353,7 @@ export default function LessonPlanningPage() {
         {/* Sidebar */}
         <div className="space-y-6">
           {/* Calendar */}
-          <div className="bg-white p-4 rounded-lg shadow">
+          <div data-tour="teacher-lesson-calendar" className="bg-white p-4 rounded-lg shadow">
             <h2 className="font-semibold mb-4">Calendar</h2>
             <div className="space-y-4">
               <div className="flex gap-2">
