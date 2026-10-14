@@ -28,6 +28,14 @@ export async function provisionTeacherUserAccount(
   let plainPassword: string;
 
   if (existingUser) {
+    // SECURITY CHECK: Ensure existing user is a TEACHER and not an admin or super admin
+    if (existingUser.role !== 'TEACHER') {
+      const roleLabel = existingUser.role === 'SUPER_ADMIN' ? 'Super Admin' : 'Admin';
+      throw new Error(
+        `Email "${teacher.email}" belongs to an existing ${roleLabel} account and cannot be registered as a teacher.`
+      );
+    }
+
     // SECURITY CHECK: Ensure the existing user belongs to the same school as the teacher unless they have an approved leave request
     if (existingUser.schoolId && existingUser.schoolId !== teacher.schoolId) {
       const eligibleLeave = existingUser.teacher?.leaveRequestStatus === 'APPROVED';
@@ -166,10 +174,10 @@ async function getDeliveryRecord(teacherId: string): Promise<{
 } | null> {
   try {
     await ensureDeliveryTable();
-    const rows = await prisma.$queryRawUnsafe<any[]>(
+    const rows = (await prisma.$queryRawUnsafe(
       'SELECT `resendCount`, `whatsappSentCount`, `emailSentCount` FROM `TeacherCredentialDelivery` WHERE `teacherId` = ? LIMIT 1',
       teacherId
-    );
+    )) as any[];
     if (rows && rows.length > 0) {
       return {
         resendCount: Number(rows[0].resendCount || 0),
@@ -251,6 +259,12 @@ export async function resendTeacherCredentials(
   });
 
   if (existingUser) {
+    if (existingUser.role !== 'TEACHER') {
+      const roleLabel = existingUser.role === 'SUPER_ADMIN' ? 'Super Admin' : 'Admin';
+      throw new Error(
+        `Email "${teacher.email}" belongs to an existing ${roleLabel} account and cannot be modified.`
+      );
+    }
     await prisma.user.update({
       where: { id: existingUser.id },
       data: { password: hashedPassword, role: 'TEACHER', schoolId },
