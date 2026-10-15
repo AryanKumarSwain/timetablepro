@@ -35,10 +35,17 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   
   // Copy any existing headers
   if (init?.headers) {
-    const existingHeaders = init.headers as Record<string, string>;
-    Object.entries(existingHeaders).forEach(([key, value]) => {
-      headers.set(key, value);
-    });
+    if (init.headers instanceof Headers) {
+      init.headers.forEach((value, key) => headers.set(key, value));
+    } else if (Array.isArray(init.headers)) {
+      init.headers.forEach(([key, value]) => headers.set(key, value));
+    } else {
+      Object.entries(init.headers as Record<string, string>).forEach(([key, value]) => {
+        if (typeof value === 'string') {
+          headers.set(key, value);
+        }
+      });
+    }
   }
 
   // Inject school context header if available

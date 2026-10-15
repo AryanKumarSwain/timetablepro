@@ -18,7 +18,26 @@ function normalizeStringArray(value: unknown): string[] {
 export async function POST(request: NextRequest) {
   try {
     const { schoolId } = await requireSchoolContext();
-    const body = await request.json();
+    
+    let body: any = null;
+    try {
+      const rawText = await request.text();
+      if (rawText && rawText.trim().length > 0) {
+        body = JSON.parse(rawText);
+      }
+    } catch {
+      return NextResponse.json(
+        { error: 'Invalid JSON request payload received. Please check your form data and try again.' },
+        { status: 400 }
+      );
+    }
+
+    if (!body || typeof body !== 'object' || Object.keys(body).length === 0) {
+      return NextResponse.json(
+        { error: 'No teacher details were received. Please ensure all required fields are filled and try again.' },
+        { status: 400 }
+      );
+    }
 
     const name = String(body.name ?? '').trim();
     if (!name) {

@@ -1,39 +1,60 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { requireSchoolContext, handleApiError } from '@/lib/auth-server';
+import { requireSchoolContext } from '@/lib/auth-server';
 
-export async function GET(request: NextRequest) {
+export const dynamic = 'force-dynamic';
+
+export async function GET() {
   try {
     const { schoolId } = await requireSchoolContext();
 
     const school = await prisma.school.findUnique({
       where: { id: schoolId },
-      include: { trialPlan: true },
+      include: {
+        trialPlan: true,
+        plan: true,
+      },
     });
 
     if (!school) {
-      return NextResponse.json({ error: 'School not found' }, { status: 404 });
-    }
-
-    // Check if school has an active trial
-    if (school.trialStatus !== 'APPROVED' || !school.trialEndsAt) {
       return NextResponse.json({
         isActive: false,
+        showWarning: false,
         planName: null,
         hoursRemaining: null,
       });
     }
 
-    const now = new Date();
-    const trialEndsAt = new Date(school.trialEndsAt);
-    const hoursRemaining = Math.max(0, (trialEndsAt.getTime() - now.getTime()) / (1000 * 60 * 60));
+    const isTrialActive =
+      school.trialStatus === 'APPROVED' &&
+      school.trialEndsAt !== null &&
+      new Date(school.trialEndsAt).getTime() > Date.now();
+
+    const planName = school.trialPlan?.name || school.plan?.name || 'Pro Plan';
+
+    let hoursRemaining = 0;
+    if (isTrialActive && school.trialEndsAt) {
+      const diffMs = new Date(school.trialEndsAt).getTime() - Date.now();
+      hoursRemaining = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60)));
+    }
+
+    const showWarning = isTrialActive && hoursRemaining <= 48;
 
     return NextResponse.json({
-      isActive: true,
-      planName: school.trialPlan?.name || null,
-      hoursRemaining: Math.round(hoursRemaining),
+      isActive: isTrialActive,
+      showWarning,
+      planName,
+      hoursRemaining,
+      trialStatus: school.trialStatus,
+      trialEndsAt: school.trialEndsAt,
+      isTrialEndingSoon: showWarning,
     });
-  } catch (error) {
-    return handleApiError(error);
+  } catch (error: any) {
+    return NextResponse.json({
+      isActive: false,
+      showWarning: false,
+      planName: null,
+      hoursRemaining: null,
+    });
   }
 }
