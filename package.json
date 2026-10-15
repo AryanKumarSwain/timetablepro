@@ -12,6 +12,7 @@
     "db:migrate": "prisma migrate dev",
     "db:seed": "prisma db seed",
     "db:sync-plans": "tsx scripts/sync-plans.ts",
+    "db:sanitize": "tsx scripts/sanitize-db-json.ts",
     "db:studio": "prisma studio"
   },
   "prisma": {

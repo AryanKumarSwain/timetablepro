@@ -9,6 +9,7 @@ import {
 import { mapTeacher } from '@/lib/mappers';
 import { provisionTeacherUserAccount } from '@/lib/teacher-onboarding';
 import { checkTeacherLimit, PlanLimitError } from '@/lib/plan-limits';
+import { sanitizeDatabaseJsonColumns } from '@/lib/db-sanitize';
 
 function normalizeStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
@@ -18,6 +19,7 @@ function normalizeStringArray(value: unknown): string[] {
 export async function POST(request: NextRequest) {
   try {
     const { schoolId } = await requireSchoolContext();
+    await sanitizeDatabaseJsonColumns(prisma);
     
     let body: any = null;
     try {
@@ -60,7 +62,10 @@ export async function POST(request: NextRequest) {
     }
 
     // 1. DUPLICATE TEACHER CHECK: Prevent duplicate teacher records across or within schools
-    const existingTeacher = await prisma.teacher.findFirst({ where: { email } });
+    const existingTeacher = await prisma.teacher.findFirst({
+      where: { email },
+      select: { id: true, schoolId: true },
+    });
     if (existingTeacher) {
       if (existingTeacher.schoolId && existingTeacher.schoolId !== schoolId) {
         return NextResponse.json(
@@ -80,7 +85,14 @@ export async function POST(request: NextRequest) {
     // 2. EXISTING USER ACCOUNT VALIDATION: Block Admin/Super-Admin collisions and verify inter-school transfer
     const existingUser = await prisma.user.findUnique({
       where: { email },
-      include: { teacher: true },
+      select: {
+        id: true,
+        role: true,
+        schoolId: true,
+        teacher: {
+          select: { id: true, leaveRequestStatus: true },
+        },
+      },
     });
 
     if (existingUser) {
@@ -154,6 +166,7 @@ export async function POST(request: NextRequest) {
     // Fallback subject strictly in this school context
     let fallbackSubject = await prisma.subject.findFirst({
       where: { schoolId },
+      select: { id: true, name: true },
       orderBy: { name: 'asc' },
     });
 
@@ -171,14 +184,33 @@ export async function POST(request: NextRequest) {
 
     // 4. DUPLICATE ASSIGNMENT CHECK: Ensure subject is not already assigned to another teacher for this class
     if (resolvedClasses.length > 0 && classSubjectPairs.length > 0) {
-      const activeTeachers = await prisma.teacher.findMany({
-        where: { ...schoolWhere(schoolId), active: true },
-        select: { id: true, name: true, classes: true, subjects: true },
-      });
+      let activeTeachers: any[] = [];
+      try {
+        activeTeachers = await prisma.teacher.findMany({
+          where: { ...schoolWhere(schoolId), active: true },
+          select: { id: true, name: true, classes: true, subjects: true },
+        });
+      } catch (err: any) {
+        if (err?.message?.includes('JSON')) {
+          await sanitizeDatabaseJsonColumns(prisma, true);
+          activeTeachers = await prisma.teacher.findMany({
+            where: { ...schoolWhere(schoolId), active: true },
+            select: { id: true, name: true, classes: true, subjects: true },
+          });
+        } else {
+          throw err;
+        }
+      }
 
       const [allClasses, allSubjects] = await Promise.all([
-        prisma.classRoom.findMany({ where: schoolWhere(schoolId) }),
-        prisma.subject.findMany({ where: schoolWhere(schoolId) }),
+        prisma.classRoom.findMany({
+          where: schoolWhere(schoolId),
+          select: { id: true, name: true, section: true },
+        }),
+        prisma.subject.findMany({
+          where: schoolWhere(schoolId),
+          select: { id: true, name: true },
+        }),
       ]);
 
       const classMap = new Map<string, string>();

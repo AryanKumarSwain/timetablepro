@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 export const dynamic = 'force-dynamic';
 import { requireSchoolContext, handleApiError, schoolWhere } from '@/lib/auth-server';
 import { mapTeacher } from '@/lib/mappers';
+import { sanitizeDatabaseJsonColumns } from '@/lib/db-sanitize';
 
 function normalizeStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) {
@@ -16,13 +17,29 @@ function normalizeStringArray(value: unknown): string[] {
 export async function GET() {
   try {
     const { schoolId } = await requireSchoolContext();
+    await sanitizeDatabaseJsonColumns(prisma);
 
-    const teachers = await prisma.teacher.findMany({
-      where: schoolWhere(schoolId),
-      orderBy: {
-        name: 'asc',
-      },
-    });
+    let teachers: any[] = [];
+    try {
+      teachers = await prisma.teacher.findMany({
+        where: schoolWhere(schoolId),
+        orderBy: {
+          name: 'asc',
+        },
+      });
+    } catch (queryErr: any) {
+      if (queryErr?.message?.includes('JSON')) {
+        await sanitizeDatabaseJsonColumns(prisma, true);
+        teachers = await prisma.teacher.findMany({
+          where: schoolWhere(schoolId),
+          orderBy: {
+            name: 'asc',
+          },
+        });
+      } else {
+        throw queryErr;
+      }
+    }
 
     return NextResponse.json(teachers.map(mapTeacher));
   } catch (error) {
